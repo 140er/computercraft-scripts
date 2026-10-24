@@ -1,0 +1,12 @@
+
+ LUMBER              stopped
+
+ area not set
+ ground not set
+ no wood chest set
+ no fuel chest set
+ no saplings chest set
+ paired turtle missing
+ fuel missing
+         ADD HERE #2
+     NEXT          BACK

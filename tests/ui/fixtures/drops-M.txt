@@ -1,12 +1,12 @@
 57x24 Drop points, room monitor 57x24
  DROP POINTS  ---------------------------------------- 5 
                                                       ↑N 
- id kind      where         side   |                     
- 1  ore       117,64,-337   front  |                     
- 2  fuel      120,64,-337   front  |                     
- 3  junk      123,64,-337   front  |   •5                
- 4  wood      110,64,-344   front  |                     
- 5  storage   110,64,-348   front  |                     
+ id kind      where        side    |                     
+ 1  ore room  117,64,-337  front · |                     
+ 2  fuel      120,64,-337  front • |                     
+ 3  junk      123,64,-337  front × |   •5                
+ 4  wood      110,64,-344  front · |                     
+ 5  storage   110,64,-348  front · |                     
                                    |                     
  ! 3 junk broken                   |   •4                
                                    |                     
@@ -21,16 +21,16 @@
                                    |                     
                                    |                     
                                                          
-       FIX 3            REMOVE 3              ADD        
+    FIX 3        REMOVE 3        ADD           SCAN      
                                                          
 00000000000000cccccccccccccccccccccccccccccccccccccccc080
 000000000000000000000000000000000000000000000000000000880
-08808888000000888880000000008888000c000000000000000000000
-00000000000000888888888880008888800c000000000000000000000
-00000000000000888888888880008888800c000000000000000000000
-0e00eeee000000888888888880008888800c000080000000000000000
-00000000000000888888888880008888800c000000000000000000000
-00000000000000888888888880008888800c000000000000000000000
+08808888000000888880000000088880000c000000000000000000000
+00008888888800888888888880088888080c000000000000000000000
+000000000000008888888888800888880d0c000000000000000000000
+0e00eeee0000008888888888800888880e0c000080000000000000000
+00000000000000888888888880088888080c000000000000000000000
+00000000000000888888888880088888080c000000000000000000000
 00000000000000000000000000000000000c000000000000000000000
 0e000000000000000000000000000000000c000080000000000000000
 00000000000000000000000000000000000c000000000000000000000
@@ -45,7 +45,7 @@
 00000000000000000000000000000000000c000000000000000000000
 00000000000000000000000000000000000c000000000000000000000
 000000000000000000000000000000000000000000000000000000000
-09999999999999999900eeeeeeeeeeeeeeeee00000000000000000000
+099999999999900eeeeeeeeeeee000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -69,5 +69,5 @@ fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f77777777777777777ff77777777777777777ff77777777777777777f
+f777777777777ff777777777777ff777777777777ff777777777777ff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

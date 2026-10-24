@@ -370,6 +370,7 @@ U.st.disk = function(C, x, y, width, d, value)
   local n = width - 6 - math.max(4, #value)
   C.ticks(x + 5, y, n, d and U.filled(n, d.used, d.cap) or 0, fg == "e" and "e" or "3")
   C.put(x + width - #value, y, value, fg)
+  C.hit("disk", x, y, width, 1)
 end
 U.st.jobs = function(C, x, y, m, wide)
   local mi, lu = m.mining, m.lumber
@@ -422,8 +423,12 @@ U.st.flags = function(C, y, m, n, short, x, width)
     local extra = "+" .. (#list - n)
     C.put(width - #extra, y + n - 1, extra, "8")
   end
-  -- A tap on the rows opens the newest alert when the state module raised one.
-  if shown > 0 and #(m.alerts or {}) > 0 then C.hit("alerts", x, y, room, shown) end
+  -- A broken drop's row opens the drop list on it; the other rows open the newest alert when the
+  -- state module raised one.
+  for i = 1, shown do
+    local hit = m.flagHits ~= false and list[i].hit or #(m.alerts or {}) > 0 and "alerts"
+    if hit then C.hit(hit, x, y + i - 1, room, 1) end
+  end
   return shown
 end
 U.st.events = function(C, x, y, width, m, n, clock)
@@ -472,6 +477,7 @@ U.st.room = function(C, m)
     local c = d.broken and "e" or "0"
     C.put(x, dy + 1, d.broken and U.g.cross or U.g.bullet, c)
     C.put(x + 2, dy + 1, text, c)
+    if d.broken then C.hit("broken", x, dy + 1, #text + 2, 1) end
     x = x + #text + 5
   end
   local ey = dy + 3
@@ -518,6 +524,7 @@ U.st.wall = function(C, m)
     C.put(7, y, p.kind:sub(1, 9), c)
     C.put(17, y, U.st.at(p, true), "8")
     C.put(31, y, p.broken and "broken" or "ok", p.broken and "e" or "8")
+    if p.broken then C.hit("broken", 2, y, 35, 1) end
   end)
   local ey = dy + nd + 2
   local bottom = ey - 2
@@ -613,6 +620,7 @@ U.st.tiny = function(C, m)
   for _, r in ipairs(rows) do
     if y > h then break end
     C.leader(2, y, w - 2, r[1], r[2], r[3])
+    if r[1] == "disk" then C.hit("disk", 2, y, w - 2, 1) end
     y = y + 1
   end
 end
@@ -629,6 +637,30 @@ U.status = function(model, w, h)
   else U.st.tiny(C, m) end
   return C.frame()
 end
+local function finite(n)
+  return type(n) == 'number' and n == n and n > -math.huge and n < math.huge
+end
+U.branchProgress = function(job, row)
+  local p, home = row.pose, job.home
+  if row.branch == nil or not p or not home then return 0, job.length or 0 end
+  if type(p) ~= 'table' or type(home) ~= 'table' then return nil, job.length or 0 end
+  local d = ({[0]={0,-1},{1,0},{0,1},{-1,0}})[home.facing or 0]
+  local length = math.max(0, job.length or 0)
+  if not d or not finite(p.x) or not finite(p.y) or not finite(p.z)
+      or not finite(home.x) or not finite(home.z) then return nil, length end
+  local dug = row.state == 'done' and length or (p.x-home.x)*(-d[2])+(p.z-home.z)*d[1]
+  return math.max(0, math.min(length, dug)), length
+end
+U.progress = function(c, x, y, width, done, total, color)
+  c.fill(x,y,width,1,'c')
+  local n = total > 0 and math.floor(width*math.max(0,math.min(1,done/total))) or 0
+  if n > 0 then c.fill(x,y,n,1,color or 'b') end
+end
+U.pocketHeader = function(c, title)
+  c.header(title, '')
+  c.button(c.w-9,2,5,'MORE','generic','7',1)
+  c.button(c.w-3,2,4,'MAP','map','9',1)
+end
 U.alert = function(model, w, h)
   local C = U.canvas(w,h,'e')
   local a = model.takeover or {}
@@ -636,7 +668,6 @@ U.alert = function(model, w, h)
   C.center(1,w,12,(a.text or model.alert or ''):upper())
   C.center(1,w,14,a.detail or '')
   C.center(1,w,16,a.sub or '')
-  C.center(1,w,h-3,'(back to the screen in 5 s, or tap)')
   C.hit('dismiss',1,1,w,h)
   return C.frame()
 end
@@ -697,4 +728,97 @@ U.actions = function(C, y, items, gap)
   local bw = math.floor((C.w - 2 - gap * (#items - 1)) / #items)
   for i, item in ipairs(items) do C.chip(2 + (i - 1) * (bw + gap), y, item[1], item[2], item[3], bw) end
 end
+local T = {}
+T.pose = function(p)
+  if type(p) ~= 'table' or not finite(p.x) or not finite(p.y) or not finite(p.z) then return '-' end
+  return string.format('%s,%s,%s %s',p.x,p.y,p.z,({[0]='N','E','S','W'})[p.facing or 0] or '?')
+end
+T.draft = function(p)
+  p = type(p) == 'table' and p or {}
+  local out = {}
+  for _,axis in ipairs({'x','y','z'}) do
+    local n = p[axis]
+    out[axis] = finite(n) and n % 1 == 0 and math.abs(n) < 30000000 and n or 0
+  end
+  out.facing = finite(p.facing) and p.facing % 1 == 0 and p.facing >= 0 and p.facing <= 3 and p.facing or 0
+  return out
+end
+T.render = function(w,h,selection,row,now)
+  local c = U.canvas(w,h)
+  row = row or {}
+  local color = (row.uncertain or row.error) and 'e' or
+    ({lost='e',range='e',waiting='1',['wait lane']='1',hold='1',stopped='c',done='b'})[row.state] or 'd'
+  c.header('#'..selection.id, '')
+  if selection.draft then
+    local p = T.draft(selection.draft)
+    c.put(2,3,'POSE '..T.pose(p))
+    for i,axis in ipairs({'x','y','z','facing'}) do
+      local y = 3+i*(h >= 19 and 3 or 1)
+      local value = axis == 'facing' and ({[0]='N','E','S','W'})[p.facing] or p[axis]
+      c.put(2,y,axis:upper()..' '..value)
+      c.button(w-9,y,4,'-','pose:'..axis..':-1','7',1)
+      c.button(w-4,y,4,'+','pose:'..axis..':1','7',1)
+    end
+    c.button(1,h-1,w,'RE-ADD','turtle-save',selection.confirm == 'add' and 'e' or '9',1)
+    c.button(1,h,w,'BACK','turtle-cancel','7',1)
+    return c.frame()
+  end
+  c.fill(1,3,w,1,color) c.put(2,3,row.uncertain and 'POSE ?' or tostring(row.state or 'unassigned'))
+  local slots,items = 0,0
+  for _,item in pairs(row.inv or {}) do slots=slots+1 items=items+(item.count or 0) end
+  local lines = {
+    {'POS '..(row.uncertain and '?' or T.pose(row.pose)),row.uncertain and 'e' or '7'},
+    {'FUEL '..tostring(row.fuel or '-'),type(row.fuel)=='number' and row.fuel < 64 and '1' or 'd'},
+    {'INV '..slots..'/16 '..items..' items','b'},
+    {'LEASE '..tostring(row.lease or '-'),'7'},
+    {'STEP '..tostring(row.step or '-')..'  ORE '..tostring(row.ore or 0),'7'},
+    {'SEEN '..(row.seen and math.max(0,math.floor((now-row.seen)/1000))..'s' or '-'),'7'},
+  }
+  local bottom = h-2
+  if h < 19 then
+    lines[2][1] = 'FUEL '..tostring(row.fuel or '-')..'  INV '..slots..'/16'
+    table.remove(lines,3)
+  end
+  for i,line in ipairs(lines) do
+    local y = i+3
+    if y < bottom then c.fill(1,y,w,1,line[2]) c.put(2,y,line[1]:sub(1,w-2)) end
+  end
+  local progressY = h >= 19 and 11 or 9
+  local label = row.role == 'lumber' and 'SPOTS' or 'B'..tostring(row.branch or '-')
+  if row.total then
+    if row.done == nil then
+      c.put(2,math.min(progressY,bottom),label..' -/'..row.total)
+    elseif progressY <= bottom then
+      U.progress(c,2,progressY,math.min(12,w-2),row.done or 0,row.total,'b')
+      c.put(15,progressY,label..' '..(row.done or 0)..'/'..row.total)
+    else
+      c.put(2,9,label..' '..(row.done or 0)..'/'..row.total,'f','b')
+    end
+  end
+  local errorText = row.error
+  if row.retry then
+    local retry = 'RETRY '..math.max(0,math.ceil((row.retry-now)/1000))..'s'
+    errorText = errorText and (errorText..' '..retry) or retry
+  end
+  if errorText then
+    local y = h >= 19 and 13 or 10
+    local limit = bottom
+    for first=1,#errorText,math.max(1,w-2) do
+      if y <= limit then c.fill(1,y,w,1,'e') c.put(2,y,errorText:sub(first,first+w-3)) end
+      y=y+1
+    end
+  end
+  local buttons = {}
+  local assigned = row.role == 'mining' or row.role == 'lumber'
+  if assigned then buttons[#buttons+1]={row.role=='mining' and 'PARK ALL' or 'PARK','turtle-park','1'} end
+  if row.role == 'mining' then buttons[#buttons+1]={'REMOVE','turtle-remove',selection.confirm=='remove' and 'e' or '7'} end
+  if assigned and row.uncertain then buttons[#buttons+1]={'RE-ADD','turtle-add','9'} end
+  for i,col in ipairs(U.grid(w,h,math.max(1,#buttons))) do
+    local b=buttons[i]
+    if b then c.button(col.x,h-1,col.w,b[1],b[2],b[3],1) end
+  end
+  c.button(1,h,w,'BACK','turtle-back','7',1)
+  return c.frame()
+end
+U.turtle = T
 return U

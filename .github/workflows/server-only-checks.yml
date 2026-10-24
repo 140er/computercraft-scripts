@@ -64,11 +64,22 @@ jobs:
             exit "$rc"
           fi
 
-      - name: Luacheck globals
+      - name: Require Linux UI0 generator comparison
+        id: ui0
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          if python3 tools/check-ui0.py; then
+            echo pass > "$RUNNER_TEMP/ui0.result"
+          else
+            echo fail > "$RUNNER_TEMP/ui0.result"
+            exit 1
+          fi
+
+      - name: Luacheck globals and unused variables
         id: lint
         if: always() && steps.install.outcome == 'success'
         run: |
-          if python3 tools/suite-selftest.py && lua5.2 tools/luacheck.lua; then
+          if python3 tools/suite-selftest.py && python3 tools/test-parts-selftest.py && python3 tools/test-changed-selftest.py && lua5.2 tools/luacheck.lua; then
             echo pass > "$RUNNER_TEMP/lint.result"
           else
             echo fail > "$RUNNER_TEMP/lint.result"
@@ -177,6 +188,17 @@ jobs:
             exit "$rc"
           fi
 
+      - name: Save test logs and measured shard costs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-only-test-evidence
+          path: |
+            ${{ runner.temp }}/shards
+            ${{ runner.temp }}/*.out
+            ${{ runner.temp }}/*.result
+          retention-days: 30
+
       - name: Job summary
         if: always()
         run: |
@@ -200,13 +222,14 @@ jobs:
             echo "| Base is server-only | $(show "$RUNNER_TEMP/base.result") |"
             echo "| Full suite, four shards | $(show "$RUNNER_TEMP/tests.result") |"
             echo "| Test count | $count |"
+            echo "| Required Linux UI0 generator | $(show "$RUNNER_TEMP/ui0.result") |"
             echo "| luacheck globals | $(show "$RUNNER_TEMP/lint.result") |"
             echo "| luac5.2 -p | $(show "$RUNNER_TEMP/luac.result") |"
             echo "| cobaltlocals under 185 | $(show "$RUNNER_TEMP/locals.result") |"
             echo "| check-scope.sh | $(show "$RUNNER_TEMP/scope.result") |"
           } >> "$GITHUB_STEP_SUMMARY"
           bad=0
-          for name in base tests lint luac locals scope; do
+          for name in base tests ui0 lint luac locals scope; do
             file="$RUNNER_TEMP/$name.result"
             if [ ! -f "$file" ] || [ "$(cat "$file")" != "pass" ]; then
               bad=1

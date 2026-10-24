@@ -13,9 +13,9 @@
                           
  z      -    -337   +     
                           
+ room   point   sinks     
                           
-                          
-                          
+ from   #12               
                           
                           
      ADD        BACK      
@@ -33,9 +33,9 @@
 00000000000000000000000000
 08000000000000000000000000
 00000000000000000000000000
+08888008888888088888880000
 00000000000000000000000000
-00000000000000000000000000
-00000000000000000000000000
+08888000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
 09999999999900000000000000
@@ -55,7 +55,7 @@ fffffff777fffffffff777ffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
+fffffff77777ffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 f77777777777f77777777777ff

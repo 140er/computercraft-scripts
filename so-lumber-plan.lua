@@ -79,4 +79,30 @@ function L.distance(a, b)
   return math.abs(a.x - b.x) + math.abs(a.y - b.y) + math.abs(a.z - b.z)
 end
 
+function L.nextCell(from, target, ground, blocked)
+  local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
+  local open, seen = { { p = from, cost = 0 } }, { [key(from)] = true }
+  for _ = 1, 2048 do
+    if #open == 0 then return nil end
+    local best = 1
+    for i = 2, #open do
+      local a, b = open[i], open[best]
+      local da, db = L.distance(a.p, target), L.distance(b.p, target)
+      if a.cost + da < b.cost + db or a.cost + da == b.cost + db and da < db then best = i end
+    end
+    local node = table.remove(open, best)
+    if L.distance(node.p, target) == 0 then return node.first end
+    for _, d in ipairs({ {1,0,0}, {-1,0,0}, {0,0,1}, {0,0,-1}, {0,1,0}, {0,-1,0} }) do
+      local p = { dim = from.dim, x = node.p.x + d[1], y = node.p.y + d[2], z = node.p.z + d[3] }
+      local atEnd = p.x == target.x and p.z == target.z or p.x == from.x and p.z == from.z
+      if not seen[key(p)] and p.y >= math.min(ground + 2, from.y, target.y)
+        and p.y <= math.max(ground + 4, from.y, target.y)
+        and (p.y >= ground + 2 or atEnd) and not blocked(p) then
+        seen[key(p)] = true
+        open[#open + 1] = { p = p, cost = node.cost + 1, first = node.first or p }
+      end
+    end
+  end
+end
+
 return L

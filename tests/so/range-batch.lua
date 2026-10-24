@@ -28,6 +28,7 @@ local function miners(equal, bottom, supplyBlock)
   end
   server.env.SO.mods.mine.tick()
   local function command(text) input({ text = text }) end
+  assert(server.env.SO.mods.drops.add({id="ready",dim=0,x=-10,y=64,z=3,side="front",kind="any"}))
   local workers, reached, clipped, blocked, loaded, obstructed, drained = {}, {}, 0, false, false, false, false
   local realRange = lease.inRange
   if supplyBlock then
@@ -108,6 +109,7 @@ local function miners(equal, bottom, supplyBlock)
   command("home -5 64 4 s") command("bottom " .. bottom) command("length 16")
   for y = bottom, 63 do net.world["-5," .. y .. ",5"] = "minecraft:stone" end
   command("start")
+  if supplyBlock=="fuel-short" then assert(server.env.SO.mods.drops.remove("ready")) end
   local stalled, worst, tripAt, supplied, tripMs = {}, 0, nil, false, nil
   for _ = 1, 1200 do
     net.advance(0.25)
@@ -223,7 +225,7 @@ return function(test, equal)
 
   test("range-batch lumber supply crosses the initial radius and returns", function()
     local fixture = dofile("tests/so/lumber-fixture.lua")()
-    local job, radius = fixture.job, 16
+    local job, radius = fixture.row, 16
     local function distance(p) return math.sqrt(p.x * p.x + (p.y - 2) ^ 2 + p.z * p.z) end
     fixture.mods.lease.inRange = function(_, p) return distance(p) <= radius + 8 end
     fixture.mods.cells.reserveMany = function(_, cells)

@@ -65,7 +65,7 @@ local function terminal(now)
     if path=='so-ui.lua' then return U end
     if path=='so-pair.lua' then return {open=function() end} end
     if path=='so-store.lua' then return {clock=function() return function() return now end end} end
-    if path=='so-proto.lua' then return {} end
+    if path=='so-proto.lua' then return {since=function() end,prune=function() end} end
     if path=='so-mod-capture.lua' then
       return {name='capture',handlers={},tick=function() s.view=env.SO.terminal end}
     end
@@ -179,11 +179,11 @@ return function(test,equal)
       s.display.tick(s.now)
       local m=up(s.display.tick,'D').model
       equal(m.tiles[4].value,present and '214' or '-')
-      equal(m.tiles[4].sub,present and '+12 last 10 min' or 'no source')
+      equal(m.tiles[4].sub,present and '+12' or 'no source')
       equal(m.tiles[4].bg,present and 'b' or 'c')
       equal(m.oreShort,m.tiles[4].sub)
       equal(m.tiles[5].value,present and '96' or '-')
-      equal(m.tiles[5].sub,present and 'logs delivered' or 'no source')
+      equal(m.tiles[5].sub,present and '' or 'no source')
       equal(m.tiles[5].bg,present and 'd' or 'c')
       s.mine.tick();s.lumber.tick(s.now)
       -- Route A: the ore and logs leaders, muted when the daily module is missing.

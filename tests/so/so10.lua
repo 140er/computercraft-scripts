@@ -13,7 +13,8 @@ local function boot(present)
   }
   local values = { ["drops.alert"] = { text = "hold" } }
   mods.state = { get = function() return machines end, view = setmetatable({}, { __call = function() return { values = values } end }) }
-  mods.lease = { status = function(id) return id == 2 and { open = "batch" } or { lost = true } end }
+  mods.lease = { peek = function(id) return id == 2 and { open = "batch" } or { lost = true } end }
+  mods.lease.status = mods.lease.peek
   mods.display = { screen = function(role, render, input) env.render, env.input = render, input end }
   assert(mods.cells.reserve("mine:2", -17, 64, 3))
   assert(mods.cells.reserve("lumber:3", 8, 64, 3))
@@ -77,7 +78,10 @@ return function(test, equal)
     equal(b.finds(), 1)
     b.tick(6000)
     equal(b.finds(), 2)
-    equal(b.ar.frames, 2)
+    equal(b.ar.frames, 3)
+    equal(b.ar.elements["alert:drops.alert"], nil)
+    b.tick(7000)
+    equal(b.ar.frames, 3)
   end)
   test("AR without a controller loads and ticks without drawing", function()
     local b = boot(false)
@@ -135,10 +139,10 @@ return function(test, equal)
     assert(b.ar.elements["drop:ore"])
     equal(b.ar.elements["lease:lumber:3:1"] ~= nil, true)
     equal(b.ar.elements["alert:test1.alert"], nil)
-    equal(b.ar.elements["alert:test10.alert"][3], 4)
+    equal(b.ar.elements["alert:test10.alert"][3], 75)
     entries[11] = { kind = "test1.alert", seq = 11 }
     b.mods.ar.tick(122001)
-    equal(b.ar.elements["alert:test1.alert"][3], 4)
+    equal(b.ar.elements["alert:test1.alert"][3], 75)
   end)
   test("display takes the AR role only from the server command and retains it", function()
     local b = boot(false)

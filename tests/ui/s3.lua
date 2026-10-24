@@ -40,7 +40,15 @@ local function scene()
       elseif k == 'lumber' then s.lumber = { running = p[2] == 'running', grow = n(3) }
       elseif k == 'today' then s.today = { ore = n(2), logs = n(3) }
       elseif k == 'lease' then s.leases[n(2)] = p[3]
-      elseif k == 'branch' then s.branch[n(2)] = n(3) end
+      elseif k == 'branch' then s.branch[n(2)] = n(3)
+      elseif k == 'fuelpolicy' then s.policy = { auto = p[2] == 'on', output = { id = p[3] } }
+      elseif k == 'verified' then s.verified = s.verified or {} s.verified[n(2)] = true
+      elseif k == 'roompoint' then s.roompoint = s.roompoint or {} s.roompoint[n(2)] = true
+      elseif k == 'found' then s.found = s.found or {} s.found[#s.found + 1] = { dim = 0, x = n(2), y = n(3), z = n(4), side = p[5] }
+      elseif k == 'woodturtle' then
+        s.wood = s.wood or {}
+        s.wood[#s.wood + 1] = { id = n(2), wait = (p[3]:gsub('_', ' ')), fuel = n(4), x = n(5), y = n(6), z = n(7), facing = n(8) }
+      elseif k == 'candidate' then s.candidates = s.candidates or {} s.candidates[#s.candidates + 1] = { id = n(2), fuel = n(3) } end
     end
   end
   return s
@@ -94,7 +102,8 @@ local FIXTURE = {
   ['lumbersetup-P'] = 'tests/ui/fixtures/lumbersetup-P.txt', ['drops-M'] = 'tests/ui/fixtures/drops-M.txt',
   ['drops-L'] = 'tests/ui/fixtures/drops-L.txt', ['drops-P'] = 'tests/ui/fixtures/drops-P.txt',
   ['drops-XS'] = 'tests/ui/fixtures/drops-XS.txt', ['dropsadd-M'] = 'tests/ui/fixtures/dropsadd-M.txt',
-  ['dropsadd-P'] = 'tests/ui/fixtures/dropsadd-P.txt', ['dropsadd-XS'] = 'tests/ui/fixtures/dropsadd-XS.txt' }
+  ['dropsadd-P'] = 'tests/ui/fixtures/dropsadd-P.txt', ['dropsadd-XS'] = 'tests/ui/fixtures/dropsadd-XS.txt',
+  ['dropssetup-M'] = 'tests/ui/fixtures/dropssetup-M.txt', ['dropssetup-P'] = 'tests/ui/fixtures/dropssetup-P.txt' }
 
 local function match(name, frame)
   local fixture = R.load(FIXTURE[name])
@@ -144,10 +153,28 @@ local function mining(opts)
   env.SO = { now = function() return 0 end, mods = {}, store = { store = function()
     return { value = job, save = function() t.saves = t.saves + 1 return true end } end, copy = function(v) return v end } }
   local mods = env.SO.mods
-  mods.state = { canStart = function() return true end }
+  mods.state = { canStart = function() return true end, get = function(key)
+    for _, c in ipairs(s.candidates) do if key == 'machines/' .. c.id then return { fuel = c.fuel } end end
+  end }
   mods.lease = { onReport = function() end, send = function() return 'park' end,
     status = function(id) return { lost = s.leases[id] == 'lost' or nil, open = s.leases[id] == 'open' or nil } end,
-    cancelPark = function() return true end }
+    cancelPark = function() return true end, candidates = function()
+      local out = {}
+      for _, c in ipairs(s.candidates) do out[#out + 1] = c.id end
+      return out
+    end }
+  -- The scene's drop lines are the drop list with ids 1, 2, ...; the shop holds the fuel policy.
+  mods.drops = { list = function()
+    local out = {}
+    for i, d in ipairs(s.drops) do out[i] = { id = tostring(i), dim = 0, x = d.x, y = d.y, z = d.z, side = 'front', kind = d.kind, broken = d.broken } end
+    return out
+  end }
+  mods.shop = { fuelConfig = function(auto, output)
+    if auto ~= nil then s.policy.auto = auto end
+    if output ~= nil then s.policy.output = { id = output } end
+    t.policy = s.policy
+    return s.policy
+  end }
   mods.cells = { reserve = function() return true end, releaseOwner = function() return true end }
   mods.display = { screen = function(_, render, input) t.render, t.input = render, input end }
   if not opts.bare then mods.daily = { today = function() return { ore = s.today.ore, oreByName = {} } end } end
@@ -183,13 +210,21 @@ local function lumber(opts)
     nextRound = now + s.lumber.grow, area = s.area, ground = s.ground, saplings = s.chest,
     turtle = { id = wood.id, pose = { dim = 'minecraft:overworld', x = p.x, y = p.y, z = p.z, facing = p.facing } } }
   for _, spot in ipairs(s.spots) do job.spots[spot.x .. ',' .. spot.z] = { plantedAt = spot.ready and 0 or now - 1000 } end
+  -- A second turtle on the farm (#217), waiting for a chest.
+  job.turtles = {}
+  for _, row in ipairs(s.wood) do
+    job.turtles[tostring(row.id)] = { phase = 'scan', cursor = 1, fuel = row.fuel, inv = {}, wait = row.wait,
+      turtle = { id = row.id, pose = { dim = 'minecraft:overworld', x = row.x, y = row.y, z = row.z, facing = row.facing } } }
+  end
   local env = setmetatable({}, { __index = _G })
   env.os = setmetatable({ epoch = function() return 0 end }, { __index = os })
   env.SO = { now = function() return now end, mods = {}, store = { store = function()
     return { value = job, save = function() t.saves = t.saves + 1 return true end } end, copy = function(v) return v end } }
   local mods = env.SO.mods
   mods.display = { screen = function(_, render, input) t.render, t.input = render, input end }
-  mods.state = { canStart = function() return true end, emit = function() end }
+  mods.state = { canStart = function() return true end, emit = function() end, get = function(key)
+    for _, c in ipairs(s.candidates) do if key == 'machines/' .. c.id then return { fuel = c.fuel } end end
+  end }
   mods.cells = { releaseOwner = function() return true end }
   if not opts.bare then
     mods.daily = { today = function() return { logs = s.today.logs } end }
@@ -205,8 +240,12 @@ local function lumber(opts)
     local name, value = debug.getupvalue(t.mod.tick, i)
     if name == 'S' then t.S = value break end
   end
-  t.S.recover = false
-  mods.lease = { onReport = function() end, status = function() return {} end }
+  for _, row in pairs(job.turtles) do row.recover = false end
+  mods.lease = { onReport = function() end, status = function() return {} end, candidates = function()
+    local out = {}
+    for _, c in ipairs(s.candidates) do out[#out + 1] = c.id end
+    return out
+  end }
   t.job, t.env = job, env
   t.tap = function(session, id) t.input({ id = id, session = session, x = 1, y = 1 }) end
   return t
@@ -220,7 +259,8 @@ local function drops(opts)
   local points = {}
   for _, d in ipairs(s.drops) do
     points[#points + 1] = { id = string.format('0_%d_%d_%d_front_%s', d.x, d.y, d.z, d.kind), dim = 0, x = d.x, y = d.y, z = d.z,
-      side = 'front', kind = d.kind, fails = (d.broken or opts.broken == #points + 1) and 3 or 0 }
+      side = 'front', kind = d.kind, fails = (d.broken or opts.broken == #points + 1) and 3 or 0,
+      verified = s.verified[#points + 1] and { at = 0, block = 'minecraft:chest' } or nil, room = s.roompoint[#points + 1] }
   end
   local c = s.chest
   points[#points + 1] = { id = string.format('0_%d_%d_%d_front_storage', c.x, c.y, c.z), dim = 0, x = c.x, y = c.y, z = c.z,
@@ -240,8 +280,19 @@ local function drops(opts)
   env.SO.mods.lumber = { mapView = function() return { area = s.area } end }
   env.SO.mods.display = { screen = function(_, render, input) t.render, t.input = render, input end }
   env.SO.mods.state = { emit = function() end }
+  env.SO.mods.lease = { candidates = function()
+    local out = {}
+    for _, c in ipairs(s.candidates) do out[#out + 1] = c.id end
+    return out
+  end }
   t.mod = assert(loadfile('so-mod-drops.lua', 't', env))()
   t.mod.tick()
+  for i = 1, 30 do
+    local name, value = debug.getupvalue(t.mod.tick, i)
+    if name == 'S' then t.S = value break end
+  end
+  -- The chests an earlier scan found.
+  t.S.candidates = s.found
   t.tap = function(session, id) t.input({ id = id, session = session, from = session.id, x = 1, y = 1 }) end
   t.type = function(session, text) t.input({ text = text, session = session, from = session.id }) end
   return t
@@ -288,6 +339,11 @@ return function(test, equal)
     for _, size in ipairs({ { 'dropsadd-M', 57, 24 }, { 'dropsadd-P', 26, 20 }, { 'dropsadd-XS', 15, 10 } }) do
       local session = { id = 8 }
       t.type(session, '126 64 -337')
+      match(size[1], t.render(size[2], size[3], session))
+    end
+    for _, size in ipairs({ { 'dropssetup-M', 57, 24 }, { 'dropssetup-P', 26, 20 } }) do
+      local session = { id = 9 }
+      t.tap(session, 'testing')
       match(size[1], t.render(size[2], size[3], session))
     end
     equal(t.saves, 0)
@@ -371,7 +427,7 @@ return function(test, equal)
   test('S3 mine and lumber facts give other screens the job state without a frame', function()
     equal(mining().mod.facts(), { state = 'running', done = 7, total = 10, busy = 2, workers = 4, depth = -58,
       lane = { id = 4, facing = 2 }, fuel = { value = 412, id = 6 } })
-    equal(lumber().mod.facts(), { state = 'running', ready = 9, spots = 12, grow = '6:20', saplings = 14, fuel = 1210 })
+    equal(lumber().mod.facts(), { state = 'running', ready = 9, spots = 12, grow = '6:20', saplings = 14, fuel = 640 })
     -- The pocket panel still probes a 120x18 frame from an id-less session until it reads facts().
     local probe = mining().render(120, 18, {})
     equal({ probe.rows[2].text, probe.rows[5].text, probe.rows[5].runs[1][3] }, { 'MINING running', 'BRANCHES 7/10', 'b' })
@@ -424,7 +480,7 @@ return function(test, equal)
       equal(read(dir .. '/' .. name .. '.txt'), read(assert(FIXTURE[name], name)))
       count = count + 1
     end
-    equal(count, 24)
+    equal(count, 26)
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
 
@@ -470,5 +526,63 @@ return function(test, equal)
       return out
     end
     equal(R.diff(R.load(FIXTURE['lumber-M']), capture(l.render(57, 24, { id = 7 }), 57, 24)), {})
+  end)
+
+  test('S3 server-only controls in route A: add here, fuel policy, pages, turtle rows, room and from', function()
+    -- Mining: here:<id> runs the typed add, fuel chips change the shop policy, setup-next pages READY.
+    local t, session = mining(), { id = 7 }
+    t.tap(session, 'tab:setup')
+    local frame = t.render(29, 12, session)
+    assert(ids(frame)['fuel-auto'] and ids(frame)['setup-next'] and ids(frame)['here:12'] == nil)
+    t.tap(session, 'setup-next')
+    assert(ids(t.render(29, 12, session))['here:12'], 'READY page')
+    t.tap(session, 'here:12')
+    assert(capture(t.render(57, 24, session), 57, 24).picture().text[21]:find('GPS unavailable', 1, true))
+    t.tap(session, 'fuel-auto')
+    equal(t.policy.auto, false)
+    t.tap(session, 'fuel-output')
+    equal(t.policy.output.id, '2')
+    -- Continuous jobs plan their whole branch budget; turtle rows open the turtle's details.
+    t.job.continuous, t.job.branches = true, 12
+    local room = t.render(57, 24, { id = 8 })
+    assert(capture(room, 57, 24).picture().text[3]:find('^ *12 '), 'branch budget')
+    assert(ids(room)['turtle:2'] and ids(room)['turtle:6'])
+    for id = 20, 33 do t.job.turtles[tostring(id)] = { pose = { x = 121, y = -58, z = -345, facing = 1 }, state = 'mining', fuel = 900, ores = 0 } end
+    local first = ids(t.render(57, 24, { id = 8 }))
+    assert(first['workers-next'] and first['turtle:2'])
+    local paged = { id = 8 }
+    t.tap(paged, 'workers-next')
+    local second = ids(t.render(57, 24, paged))
+    assert(not second['turtle:2'] and second['workers-next'], 'turtle page two')
+    equal(t.saves, 0)
+    -- Lumber: both turtles sit on the plan and in the list; READY adds the unassigned turtle.
+    local l = lumber()
+    local lf = l.render(57, 24, { id = 7 })
+    assert(ids(lf)['turtle:5'] and ids(lf)['turtle:7'])
+    local ls = { id = 7 }
+    l.tap(ls, 'tab:setup')
+    assert(ids(l.render(57, 24, ls))['here:12'])
+    -- Drops: room toggles, a turtle's position and a found chest fill the draft.
+    local d, a = drops(), { id = 7 }
+    d.tap(a, 'new')
+    d.tap(a, 'room-point')
+    equal({ d.S.draft.kind, d.S.draft.room, d.S.message }, { 'junk', nil, 'room needs ore or wood' })
+    d.tap(a, 'kind')
+    d.tap(a, 'room-point')
+    equal({ d.S.draft.kind, d.S.draft.room }, { 'wood', true })
+    d.tap(a, 'kind')
+    equal(d.S.draft.room, nil)
+    d.tap(a, 'room-sink')
+    equal({ d.S.roomSink, d.saves, d.stored.roomSink }, { true, 1, true })
+    assert(ids(d.render(57, 24, a))['from:12'])
+    d.tap(a, 'from:12')
+    equal(d.S.message, 'turtle world pose unavailable')
+    d.tap(a, 'list')
+    d.tap(a, 'testing')
+    local setup = ids(d.render(57, 24, a))
+    assert(setup['scan:12'] and setup['candidate:1'] and setup.list)
+    d.tap(a, 'candidate:1')
+    equal({ d.S.draft.x, d.S.draft.y, d.S.draft.z, d.S.draft.side }, { 121, 64, -340, 'down' })
+    assert(capture(d.render(57, 24, a), 57, 24).picture().text[1]:find('ADD DROP POINT', 1, true))
   end)
 end

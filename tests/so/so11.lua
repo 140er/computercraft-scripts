@@ -205,6 +205,7 @@ S.run = function(rate)
     assert(ok,why) n.flush()
   end
   local function text(id,value)
+    if value=="start" then n.advance(2) end
     local d=g.displays[id]
     for ch in value:gmatch(".") do d.inbox[#d.inbox+1]=table.pack("char",ch) end
     d.inbox[#d.inbox+1]=table.pack("key",28) n.flush()
@@ -243,8 +244,8 @@ S.run = function(rate)
       for id,w in pairs(g.workers) do
         g.killPositions[id]=S.copy(w.pos)
         local job=id==4 and g.before.lumber or g.before.mine
-        local row=id~=4 and job.turtles[tostring(id)]
-        g.workLeft[id]=job.running and (id==4 and job.phase~="waiting" or id~=4 and row.state~="done")
+        local row=job.turtles[tostring(id)]
+        g.workLeft[id]=job.running and (id==4 and row.phase~="waiting" or id~=4 and row.state~="done")
       end
       print("SO11 power cut in "..server.context.." at "..((n.time-g.start)/1000).."s")
       g.disk=S.copy(server.files)
@@ -265,7 +266,9 @@ S.run = function(rate)
   for second=1,720 do
     n.advance(1)
     if second%60==0 then io.stderr:write("SO11 time "..second.."s\n") end
-    if second==360 and not g.killAt then record(7,false,"no active server call at minute 6") end
+    -- The cut lands on the first clock read inside a server call from 360 s on; allow it
+    -- through the next second, because the route A display tick makes no clock read at 360 s.
+    if second==361 and not g.killAt then record(7,false,"no active server call at minute 6") end
     if g.killAt and not g.bootAt and n.time-g.killAt>=120000 then
       record(5,not S.diff(g.disk,server.files),"disk changed while powered off")
       for id,w in pairs(g.workers) do
@@ -343,7 +346,7 @@ S.run = function(rate)
   for id,row in pairs(mine.turtles) do
     print("SO11 mining "..id.." state="..tostring(row.state).." pose="..H.encode(row.pose).." error="..tostring(row.error))
   end
-  print("SO11 lumber phase="..tostring(lumber.phase).." cursor="..tostring(lumber.cursor).." alert="..tostring(lumber.alert).." pose="..H.encode(lumber.turtle.pose))
+  print("SO11 lumber phase="..tostring(lumber.turtles["4"].phase).." cursor="..tostring(lumber.turtles["4"].cursor).." alert="..tostring(lumber.turtles["4"].alert).." pose="..H.encode(lumber.turtles["4"].turtle.pose))
   record(6,(mine.progress.done or 0)>=1,"mining completed at least one branch")
   record(6,g.digs["0,60,-1"]~=nil,"mining dug shaft to bottom")
   record(6,g.ores>0,"ore delivered to ore chest")
@@ -435,7 +438,7 @@ S.runBusy = function(rate)
             local facts=lease.report
             if g.bootAt and facts then
               local saved=g.server.env.SO.store.read("so-data/"..owner.."/job").value
-              local row=id==4 and saved.turtle or saved.turtles[tostring(id)]
+              local row=id==4 and saved.turtles[tostring(id)].turtle or saved.turtles[tostring(id)]
               for _,cell in ipairs(facts.dug or {}) do
                 local world=plan.toWorld(row.frame,{x=cell.x,y=cell.y,z=cell.z,f=0})
                 local key=world.x..","..world.y..","..world.z
@@ -589,6 +592,7 @@ S.runBusy = function(rate)
     assert(ok,why) n.flush()
   end
   local function text(id,value)
+    if value=="start" then n.advance(2) end
     local d=g.displays[id]
     for ch in value:gmatch(".") do d.inbox[#d.inbox+1]=table.pack("char",ch) end
     d.inbox[#d.inbox+1]=table.pack("key",28) n.flush()
@@ -597,13 +601,13 @@ S.runBusy = function(rate)
   for _, cmd in ipairs({"home 0 64 0 n","bottom 60","length 48","add 2 0 64 0 n","add 3 2 64 0 n","start"}) do text(5,cmd) end
   role(5,"shop") role(6,"status")
   g.start=n.time
-  local function snapshot()
+  local function snapshot(dugKeys)
     local mods=g.server.env.SO.mods
     local view=mods.state.view()
     local machines=S.copy(mods.state.get("machines"))
     for _, row in pairs(machines) do row.seen=nil end
     local cells={}
-    for key in pairs(g.digs) do
+    for key in pairs(dugKeys or g.digs) do
       local x,y,z=key:match("([^,]+),([^,]+),([^,]+)")
       cells[key]=mods.cells.isDug(tonumber(x),tonumber(y),tonumber(z))
     end
@@ -619,14 +623,18 @@ S.runBusy = function(rate)
   local epoch=server.env.os.epoch
   server.env.os.epoch=function(kind)
     if g.start and n.time-g.start>240000 and not g.killAt and server.context and not g.cutting then
-      local busy=true
+      local busy,digging=true,false
       for id=2,4 do
         local lease=g.active[id]
         local open=server.env.SO.mods.lease.status(id).open
         if not lease or open~=lease.id or lease.recover
           or lease.park then busy=false end
+        if lease then
+          for _,step in ipairs(lease.steps) do if step.op:match("^dig") then digging=true end end
+        end
+        if next(g.batchDigs[id] or {}) then digging=true end
       end
-      if not busy then return epoch(kind) end
+      if not busy or not digging then return epoch(kind) end
       g.cutting=true
       g.before=snapshot() g.killAt=n.time g.killExpires=S.copy(g.expires)
       g.killPositions,g.workLeft={},{}
@@ -637,8 +645,8 @@ S.runBusy = function(rate)
       for id,w in pairs(g.workers) do
         g.killPositions[id]=S.copy(w.pos)
         local job=id==4 and g.before.lumber or g.before.mine
-        local row=id~=4 and job.turtles[tostring(id)]
-        g.workLeft[id]=job.running and (id==4 and job.phase~="waiting" or id~=4 and row.state~="done")
+        local row=job.turtles[tostring(id)]
+        g.workLeft[id]=job.running and (id==4 and row.phase~="waiting" or id~=4 and row.state~="done")
       end
       local ready=0
       for _,tree in ipairs(g.trees) do
@@ -704,7 +712,7 @@ S.runBusy = function(rate)
       local mine=g.killAt and not g.bootAt and g.before.mine or read("so-data/mine/job").value
       local stored=not (g.killAt and not g.bootAt) and read("so-data/lumber/job")
       local lumber=g.killAt and not g.bootAt and g.before.lumber or stored and stored.value or {}
-      io.stderr:write("SO11 B time "..second.."s mine="..tostring(mine.turtles["2"].state)..","..tostring(mine.turtles["3"].state).." lumber="..tostring(lumber.phase).."\n")
+      io.stderr:write("SO11 B time "..second.."s mine="..tostring(mine.turtles["2"].state)..","..tostring(mine.turtles["3"].state).." lumber="..tostring(lumber.turtles and lumber.turtles["4"] and lumber.turtles["4"].phase).."\n")
     end
 
     if g.killAt and not g.bootAt and n.time-g.killAt>=120000 then
@@ -716,7 +724,7 @@ S.runBusy = function(rate)
       for id in pairs(g.displays) do record(4,g.stale[id],"display "..id.." never stale during outage") end
       g.bootAt=n.time g.server=n.boot(server)
       n.flush()
-      local after=snapshot()
+      local after=snapshot(g.before.cells)
       for _, field in ipairs({"values","machines","cells","reservations","drops","roles","mine","lumber"}) do
         local diff=S.diff(g.before[field],after[field],field)
         record(5,not diff,diff or field)
@@ -784,7 +792,7 @@ S.runBusy = function(rate)
   for id,row in pairs(mine.turtles) do
     print("SO11 B mining "..id.." state="..tostring(row.state).." pose="..H.encode(row.pose).." error="..tostring(row.error))
   end
-  print("SO11 B lumber phase="..tostring(lumber.phase).." cursor="..tostring(lumber.cursor).." alert="..tostring(lumber.alert).." pose="..H.encode(lumber.turtle.pose))
+  print("SO11 B lumber phase="..tostring(lumber.turtles["4"].phase).." cursor="..tostring(lumber.turtles["4"].cursor).." alert="..tostring(lumber.turtles["4"].alert).." pose="..H.encode(lumber.turtles["4"].turtle.pose))
   record(6,(mine.progress.done or 0)>=1,"mining completed at least one branch")
   record(6,g.digs["0,60,-1"]~=nil,"mining dug shaft to bottom")
   record(6,g.ores>0,"ore delivered to ore chest")

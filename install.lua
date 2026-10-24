@@ -12,14 +12,15 @@ local ROLES = {
   worker = { program = "worker.lua", "worker.lua" },
   display = { program = "display.lua", "display.lua" },
   server = { program = "so-server.lua",
-    "so-server.lua", "so-log.lua", "so-plan.lua", "so-mine-plan.lua",
+    "so-server.lua", "so-errors.lua", "so-mod-health.lua", "so-log.lua", "so-plan.lua", "so-mine-plan.lua",
     "so-lumber-plan.lua", "so-ui.lua", "so-mod-ar.lua", "so-mod-cells.lua", "so-mod-display.lua",
-    "so-mod-daily.lua", "so-mod-drops.lua", "so-mod-lease.lua", "so-mod-lumber.lua",
+    "so-mod-build.lua", "so-mod-daily.lua", "so-mod-drops.lua", "so-mod-lease.lua", "so-mod-lumber.lua",
     "so-mod-map.lua", "so-mod-mine.lua", "so-mod-panel.lua", "so-mod-shop.lua", "so-mod-state.lua",
   },
 }
 local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/"
-local NEW, OLD = "/.so-new", "/.so-old"
+local NEW, OLD, PREV = "/.so-new", "/.so-old", "/.so-prev"
+local BOOT = "/startup/so-install-recover.lua"
 local function readFile(path)
   local h = assert(fs.open(path, "r"), "Cannot read " .. path)
   local value = h.readAll()
@@ -38,8 +39,17 @@ local function move(from, to)
 end
 local function recover()
   if fs.exists(NEW .. "/committed") then
-    fs.delete(OLD)
+    if fs.exists(NEW .. "/rollback") then
+      fs.delete(PREV)
+      fs.delete(OLD)
+    elseif fs.exists(NEW .. "/keep") then
+      if fs.exists(OLD) then
+        fs.delete(PREV)
+        move(OLD, PREV)
+      end
+    else fs.delete(OLD) end
     fs.delete(NEW)
+    fs.delete(BOOT)
     return
   end
   if fs.exists(OLD .. "/manifest") then
@@ -56,6 +66,7 @@ local function recover()
   end
   fs.delete(OLD)
   fs.delete(NEW)
+  fs.delete(BOOT)
 end
 local function choose()
   if turtle then return "worker" end
@@ -82,17 +93,45 @@ local function choose()
   end
 end
 local function position()
+  local function sane(x, y, z)
+    return type(x) == "number" and type(y) == "number" and type(z) == "number"
+      and x == x and y == y and z == z
+      and math.abs(x) <= 30000000 and math.abs(z) <= 30000000
+      and y >= -2048 and y <= 2048
+      and x % 1 == 0 and y % 1 == 0 and z % 1 == 0
+  end
+  local dimensions = { [""] = "minecraft:overworld", ["0"] = "minecraft:overworld",
+    ["-1"] = "minecraft:the_nether", ["1"] = "minecraft:the_end",
+    overworld="minecraft:overworld", nether="minecraft:the_nether", the_nether="minecraft:the_nether",
+    ["end"]="minecraft:the_end", the_end="minecraft:the_end" }
+  for _, dim in ipairs({ "minecraft:overworld", "minecraft:the_nether", "minecraft:the_end" }) do
+    dimensions[dim] = dim
+  end
   local x, y, z
   if gps and gps.locate then x, y, z = gps.locate(2) end
-  while not (x and y and z) do
-    print("Server position: x y z")
-    local a, b, c = read():match("^%s*(%S+)%s+(%S+)%s+(%S+)%s*$")
-    x, y, z = tonumber(a), tonumber(b), tonumber(c)
+  while true do
+    while not sane(x, y, z) do
+      print("Server position: x y z")
+      local a, b, c = read():match("^%s*(%S+)%s+(%S+)%s+(%S+)%s*$")
+      x, y, z = tonumber(a), tonumber(b), tonumber(c)
+    end
+    local dim
+    repeat
+      print("0 minecraft:overworld")
+      print("-1 minecraft:the_nether")
+      print("1 minecraft:the_end")
+      dim = dimensions[read():match("^%s*(.-)%s*$")]
+      if not dim then print("Invalid dimension") end
+    until dim
+    print(x .. " " .. y .. " " .. z)
+    print(dim)
+    print("Save this? (Enter / n)")
+    local answer = read()
+    if answer == "" then
+      return textutils.serialize({ pos = { dim = dim, x = x, y = y, z = z } })
+    end
+    x, y, z = nil, nil, nil
   end
-  print("Dimension [minecraft:overworld]")
-  local dim = read()
-  if dim == "" then dim = "minecraft:overworld" end
-  return textutils.serialize({ pos = { dim = dim, x = x, y = y, z = z } })
 end
 local function fetch(url)
   local response, err, failed = http.get(url, nil, true)
@@ -175,6 +214,61 @@ local function previousFiles(role)
   end
   return paths
 end
+local function swap(entries)
+  -- CraftOS also runs /startup scripts when startup.lua or install.lua is between moves.
+  assert(not fs.exists(BOOT), "Recovery startup already exists")
+  writeFile(BOOT, 'for _, path in ipairs({"/install.lua", "/.so-old/install.lua", "/.so-new/install.lua"}) do\n' ..
+    '  if fs.exists(path) then\n' ..
+    '    if shell.run(path, "recover") then\n' ..
+    '      fs.delete("' .. BOOT .. '")\n' ..
+    '      shell.run("/startup.lua")\n' ..
+    '    end\n' ..
+    '    return\n' ..
+    '  end\n' ..
+    'end\n')
+  -- Publish the complete manifest before changing any installed file.
+  writeFile(NEW .. "/manifest", textutils.serialize(entries))
+  move(NEW .. "/manifest", OLD .. "/manifest")
+  local ok, err = pcall(function()
+    for _, entry in ipairs(entries) do
+      local path = entry.path
+      if entry.existed then move("/" .. path, OLD .. "/" .. path) end
+      if not entry.remove then move(NEW .. "/" .. path, "/" .. path) end
+    end
+    writeFile(NEW .. "/committed", "yes")
+  end)
+  if not ok then
+    recover()
+    print("Install rolled back: " .. tostring(err))
+    return false
+  end
+  recover()
+  return true
+end
+local function rollback()
+  local function protocol(root)
+    return fs.exists(root .. "/.so-protocol") and readFile(root .. "/.so-protocol") or "1"
+  end
+  assert(protocol(PREV) == protocol(""), "Previous release uses a different protocol")
+  assert(fs.exists(PREV .. "/manifest"), "No previous release")
+  local saved = assert(textutils.unserialize(readFile(PREV .. "/manifest")), "Bad previous manifest")
+  local entries = {}
+  local metadata = { ["startup.lua"] = true, [".so-role"] = true,
+    [".so-files"] = true, [".so-revision"] = true, [".so-protocol"] = true }
+  local ok, err = pcall(function()
+    for _, entry in ipairs(saved) do
+      local path = entry.path
+      assert(validPath(path) or metadata[path], "Bad previous release path")
+      entries[#entries + 1] = { path = path, existed = fs.exists("/" .. path), remove = not entry.existed }
+      if entry.existed then writeFile(NEW .. "/" .. path, readFile(PREV .. "/" .. path)) end
+    end
+    writeFile(NEW .. "/rollback", "yes")
+  end)
+  if not ok then fs.delete(NEW); error(err, 0) end
+  -- An older worker never reads or deletes the enroll token and secret.
+  fs.delete("/so-enroll")
+  if swap(entries) then print("Restored previous release") end
+end
 local function install(role, config, handoff)
   local entries, wanted, files = {}, {}, {}
   local function add(path, remove)
@@ -196,6 +290,8 @@ local function install(role, config, handoff)
     add(".so-files")
     writeFile(NEW .. "/.so-revision", handoff.revision)
     add(".so-revision")
+    writeFile(NEW .. "/.so-protocol", "1")
+    add(".so-protocol")
     current = "startup.lua"
     writeFile(NEW .. "/startup.lua", 'if shell.run("/install.lua", "recover") then shell.run("/' ..
       ROLES[role].program .. '") end\n')
@@ -218,24 +314,18 @@ local function install(role, config, handoff)
     print("Download failed: " .. current .. ": " .. tostring(err))
     return false
   end
-  -- The complete manifest precedes every move, so rollback also removes new files.
-  writeFile(NEW .. "/manifest", textutils.serialize(entries))
-  move(NEW .. "/manifest", OLD .. "/manifest")
-  ok, err = pcall(function()
-    for _, entry in ipairs(entries) do
-      local path = entry.path
-      if entry.existed then move("/" .. path, OLD .. "/" .. path) end
-      if not entry.remove then move(NEW .. "/" .. path, "/" .. path) end
-    end
-    writeFile(NEW .. "/committed", "yes")
-  end)
-  if not ok then
-    recover()
-    print("Install rolled back: " .. tostring(err))
-    return false
-  end
-  recover()
-  return true
+  if handoff.updating then writeFile(NEW .. "/keep", "yes") end
+  return swap(entries)
+end
+-- An enroll token S-XXXX-XXXX-XXXX-XXXX, normalised, or nil.
+local function enrollToken(text)
+  if type(text) ~= "string" then return nil end
+  text = text:upper():gsub("%s", "")
+  local id, rest = text:match("^(%d+)%-([%w%-]+)$")
+  if not id or #id > 10 then return nil end
+  rest = rest:gsub("%-", "")
+  if #rest ~= 16 or rest:find("[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]") then return nil end
+  return id .. "-" .. rest:sub(1, 4) .. "-" .. rest:sub(5, 8) .. "-" .. rest:sub(9, 12) .. "-" .. rest:sub(13, 16)
 end
 local function main(command, handoff)
   if type(handoff) ~= "table" then handoff = nil end
@@ -243,7 +333,10 @@ local function main(command, handoff)
   else
     assert(validRevision(handoff.revision) and type(handoff.previous) == "table", "Bad installer handoff")
   end
+  local enroll = handoff and enrollToken(handoff.enroll)
+  if not handoff and enrollToken(command) then enroll, command = enrollToken(command), nil end
   if command == "recover" then return end
+  if command == "rollback" then return rollback() end
   if command == "reset" then
     print('Delete this machine\'s files? Type "yes" to confirm.')
     if read() ~= "yes" then return end
@@ -258,7 +351,7 @@ local function main(command, handoff)
     end
     return
   end
-  if command and command ~= "update" then error("Use install, install update or install reset", 0) end
+  if command and command ~= "update" then error("Use install, install update, install rollback or install reset", 0) end
   local updating = command == "update"
   local role = updating and fs.exists("/.so-role") and readFile("/.so-role"):match("^%s*(.-)%s*$") or nil
   if updating and not ROLES[role] then error("Missing or invalid /.so-role; run install first", 0) end
@@ -267,6 +360,7 @@ local function main(command, handoff)
     (pocket and role ~= "display") or (role == "worker" and not turtle) then
     error("Role does not match this machine", 0)
   end
+  if enroll and role ~= "worker" then error("Enroll tokens are for turtles", 0) end
   if role == "server" then
     local cap = fs.getCapacity("/")
     if type(cap) ~= "number" or cap < 16000000 then
@@ -284,7 +378,8 @@ local function main(command, handoff)
       download("install.lua", sha)
       local nextInstaller = assert(load(readFile(NEW .. "/install.lua"), "@install.lua", "t", _ENV))("prepare")
       assert(type(nextInstaller) == "function", "Commit installer does not support pinned updates")
-      nextInstaller(command, { revision = sha, previous = previous, role = role, config = config })
+      nextInstaller(command, { revision = sha, previous = previous, role = role, config = config, updating = updating,
+        enroll = enroll })
     end)
     if not ok then
       if not fs.exists(OLD .. "/manifest") and not fs.exists(NEW .. "/committed") then fs.delete(NEW) end
@@ -292,10 +387,14 @@ local function main(command, handoff)
     end
     return
   end
+  handoff.updating = updating
   if not install(role, config, handoff) then return end
   print("Installed " .. role .. ". Use install update to update.")
   if not updating then
-    if role ~= "server" then print("On the server press P, then type the 6-digit code here") end
+    if enroll then
+      writeFile("/so-enroll", textutils.serialize({ token = enroll }))
+      print("Enrolling with server " .. enroll:match("^%d+") .. ". Approve it on the panel.")
+    elseif role ~= "server" then print("On the server press P, then type the 6-digit code here") end
     shell.run("/" .. ROLES[role].program)
   end
 end

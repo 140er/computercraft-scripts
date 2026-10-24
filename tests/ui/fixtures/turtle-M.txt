@@ -1,0 +1,49 @@
+57x24 Turtle detail
+                                                         
+ #2                                                      
+ mining                                                  
+ POS 12,60,-5 E                                          
+ FUEL 42                                                 
+ INV 1/16 14 items                                       
+ LEASE lease-2                                           
+ STEP forward  ORE 14                                    
+ SEEN 3s                                                 
+                                                         
+              B0 12/48                                   
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+          PARK ALL                      REMOVE           
+                          BACK                           
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777777777f
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+777777777777777777777777777777777777777777777777777777777
+111111111111111111111111111111111111111111111111111111111
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+777777777777777777777777777777777777777777777777777777777
+777777777777777777777777777777777777777777777777777777777
+777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fbbbcccccccccffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+1111111111111111111111111111f7777777777777777777777777777
+777777777777777777777777777777777777777777777777777777777

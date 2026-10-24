@@ -88,10 +88,12 @@ debug.sethook(function()
   if os.clock() - began > manifest.timeout then error("part CPU timeout", 0) end
 end, "", 100000)
 for _, path in ipairs(manifest.suites) do
+  local started = os.clock()
   local suite = dofile(path)
   if type(suite) == "table" then suite = suite.run end
   assert(type(suite) == "function", "not a test suite: " .. path)
   suite(test, equal, read, mocks)
+  print(string.format("PART-CPU %.6f %s", os.clock() - started, path))
 end
 debug.sethook()
 if manifest.target and not executed[manifest.target] then

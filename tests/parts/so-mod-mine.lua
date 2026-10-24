@@ -9,11 +9,13 @@ local function fixture()
   end
   local function key(x,y,z) return x..","..y..","..z end
   local s = { job=job, calls=calls, status=status, range=true, saves=0, saveOK=true }
-  local env = setmetatable({os={epoch=function() return 1000 end}, SO={now=function() return 1000 end,mods={},
+  local env = setmetatable({os={epoch=function() return 1000 end}, SO={now=function() return 1000 end,pair={key=function() return "paired" end},mods={},
     breathe=function() end, store={copy=copy,store=function()
       return {value=job,save=function() s.saves=s.saves+1 return s.saveOK,"scratch disk full" end}
     end}}}, {__index=_G})
   local mods=env.SO.mods
+  mods.drops={list=function() return {
+    {id="ore",dim=0,x=0,y=0,z=0,kind="ore"},{id="fuel",dim=0,x=1,y=0,z=0,kind="fuel"}} end}
   mods.state={canStart=function() return true end, emit=function() end}
   mods.display={screen=function(_,_,fn) input=fn end}
   mods.lease={onReport=function(_,fn) callback=fn end,
@@ -43,7 +45,7 @@ return function(test,equal)
     s.mods.state=nil s.input("start") assert(not s.job.running)
     s.mods.state={canStart=function() return true end}
     s.job.homeSet=false s.input("start") assert(not s.job.running)
-    s.job.homeSet=true s.input("start") assert(s.job.running)
+    s.job.homeSet=true s.row() s.input("start") assert(s.job.running)
   end)
   test("uncertain workers cannot receive a mining batch",function()
     local s=fixture() local row=s.row() s.job.running=true
@@ -62,9 +64,18 @@ return function(test,equal)
     s.mine.tick() equal(s.job.progress.done,1) equal(row.counted,3)
     row.state="mining" row.parkUntil=nil s.mine.tick()
     equal(s.job.progress.done,1) equal(row.state,"done")
+    local done=0
+    for _,trail in ipairs(s.mine.mapView().trails) do if trail.id=="done:3" then done=done+1 end end
+    equal(done,1)
+    local previous
+    for _,trail in ipairs(s.mine.mapView().trails) do if trail.id=="done:3" then previous=trail.points end end
+    s.job.length=100 s.job.home.x=200
+    for _,trail in ipairs(s.mine.mapView().trails) do if trail.id=="done:3" then equal(trail.points,previous) end end
+    s.input("stop") s.input("start")
+    for _,trail in ipairs(s.mine.mapView().trails) do assert(trail.id~="done:3","START clears completion history") end
   end)
   test("disk failure stops a mining job",function()
-    local s=fixture() s.saveOK=false s.input("start")
+    local s=fixture() s.row() s.saveOK=false s.input("start")
     assert(not s.job.running) assert(s.saves>0)
   end)
   test("retirement refuses recovery and protects a confirmed worker pose",function()
@@ -82,4 +93,20 @@ return function(test,equal)
     s.report(2,nil,nil) equal(row.state,"lost") equal(row.recover,true)
     s.mine.tick() assert(s.calls[1].opts.recover)
   end)
+  test("single mode continues assigning beyond the default continuous budget",function()
+    local s=fixture() local row=s.row()
+    row.route,row.branch=nil,nil s.job.progress.nextBranch=8 s.job.running=true
+    s.mine.tick()
+    equal(row.branch,8) equal(s.job.progress.nextBranch,9)
+    assert(row.state~="done")
+  end)
+
+  test("missing pickaxe holds with a stationary park",function()
+    local s=fixture() local row=s.row() s.job.running=true
+    s.mods.lease.ensureTool=function() return false,"needs pickaxe" end
+    s.mine.tick()
+    equal(row.state,"hold");equal(row.error,"needs pickaxe")
+    equal(s.calls[1].steps,{{op="inspectDown"}})
+  end)
+
 end

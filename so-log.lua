@@ -2,6 +2,8 @@
 -- A snapshot file is written before its pointer, and old segments are
 -- removed only after that pointer is durable. A half-written segment
 -- loses at most the event in that write.
+-- New segments target 8 KB to bound synchronous rewrite work. The 64 KB
+-- read and single-event limit stays compatible with previous releases.
 
 local M, C, H = {}, {}, {}
 
@@ -9,6 +11,7 @@ C.log = "so-data/log/"
 C.snap = "so-data/snap/"
 C.latest = "so-data/snap/latest"
 C.seg = 65536
+C.target = 8192
 C.window = 1048576
 C.every = 2000
 
@@ -51,12 +54,7 @@ H.liveBytes = function(path)
   local pick = path
   if not fs.exists(pick) then pick = path .. ".bak" end
   if not fs.exists(pick) then return 0 end
-  local handle = fs.open(pick, "r")
-  if not handle then return 0 end
-  local text = handle.readAll()
-  handle.close()
-  if type(text) ~= "string" then return 0 end
-  return #text
+  return fs.getSize(pick)
 end
 
 H.validSeg = function(v)
@@ -97,6 +95,7 @@ end
 
 H.breathe = function(n)
   if n % 100 ~= 0 then return end
+  if type(SO) == "table" and SO.breathe then return SO.breathe() end
   os.queueEvent("so-log")
   local guard = 0
   while guard < 20 do
@@ -134,18 +133,26 @@ H.rotate = function(S)
   S.last = n
   S.box = box
   S.cur = {}
+  S.estimate = 96
   S.sizes[n] = 0
   return true
 end
 
 H.saveCur = function(S)
   local ok, err = S.box.save({ events = S.cur })
-  if ok then S.sizes[S.last] = H.liveBytes(H.segPath(S.last)) end
+  if ok then S.sizes[S.last] = S.box.bytes or H.liveBytes(H.segPath(S.last)) end
   return ok, err
 end
 
 H.drop = function(S, ev)
   if S.cur and #S.cur > 0 and S.cur[#S.cur] == ev then S.cur[#S.cur] = nil end
+end
+
+H.fits = function(ev)
+  local copy = {}
+  for key, value in pairs(ev) do copy[key] = value end
+  copy.seg = 999999
+  return #textutils.serialize({events={copy}}) + 96 <= C.seg
 end
 
 H.append = function(S, ev)
@@ -157,13 +164,16 @@ H.append = function(S, ev)
   ev.seq = S.seq + 1
   ev.seg = S.last
   S.cur[#S.cur + 1] = ev
-  local estimate = #textutils.serialize({ events = S.cur }) + 96
-  if estimate > C.seg and #S.cur > 1 then
+  -- A singleton wrapper overcounts each array entry, including its index.
+  local bytes = #textutils.serialize({ events = { ev } }, { compact = true }) + 16
+  local estimate = S.estimate + bytes
+  if estimate > C.target and #S.cur > 1 then
     H.drop(S, ev)
     local ok, err = H.rotate(S)
     if not ok then return false, err end
     ev.seg = S.last
     S.cur[#S.cur + 1] = ev
+    estimate = S.estimate + bytes
   end
   local ok, err = H.saveCur(S)
   if not ok and type(err) == "string" and err:find("budget", 1, true) and #S.cur > 1 then
@@ -172,6 +182,7 @@ H.append = function(S, ev)
     if not rotated then return false, rerr end
     ev.seg = S.last
     S.cur[#S.cur + 1] = ev
+    estimate = S.estimate + bytes
     ok, err = H.saveCur(S)
   end
   if not ok then
@@ -179,12 +190,13 @@ H.append = function(S, ev)
     return false, err
   end
   S.seq = ev.seq
+  S.estimate = estimate
   S.all[#S.all + 1] = ev
   return true
 end
 
-H.due = function(S)
-  if S.seq > 0 and S.seq % C.every == 0 then return true end
+H.due = function(S, pressure)
+  if S.seq > 0 and S.seq % (pressure and C.every * 5 or C.every) == 0 then return true end
   if H.raw(S) > C.window and S.first < S.last then return true end
   return false
 end
@@ -194,7 +206,9 @@ H.checkpoint = function(S, payload)
     return false, "snapshot"
   end
   local planned, drop = H.raw(S), S.first
-  while drop < S.last and planned > C.window do
+  local target = planned > C.window and C.window - C.seg or C.window
+  -- Small segments must not force a full snapshot after every 8 KB of growth.
+  while drop < S.last and planned > target do
     planned = planned - (S.sizes[drop] or 0)
     drop = drop + 1
   end
@@ -210,7 +224,7 @@ H.checkpoint = function(S, payload)
   if not latest then return false, lerr or "snapshot" end
   local pointed, perr = latest.save({ n = n, seq = S.seq, first = drop })
   if not pointed then return false, perr end
-  S.snapN = n
+  S.snapN, S.snap = n, payload
   H.pruneSnaps(n)
   while S.first < drop do
     S.sizes[S.first] = nil
@@ -221,7 +235,8 @@ H.checkpoint = function(S, payload)
   return true
 end
 
-H.take = function(S, n, evs)
+H.take = function(S, n, box)
+  local evs = box.value.events
   local e = 1
   while e <= #evs do
     local ev = evs[e]
@@ -233,10 +248,11 @@ H.take = function(S, n, evs)
     end
     e = e + 1
   end
-  S.sizes[n] = H.liveBytes(H.segPath(n))
+  S.sizes[n] = box.bytes or H.liveBytes(H.segPath(n))
   S.last = n
   S.box = nil
   S.cur = evs
+  S.estimate = #textutils.serialize({ events = evs }, { compact = true }) + 96
 end
 
 H.load = function(S)
@@ -276,7 +292,7 @@ H.load = function(S)
         break
       end
     else
-      H.take(S, n, box.value.events)
+      H.take(S, n, box)
       S.box = box
       n = n + 1
     end
@@ -292,10 +308,15 @@ M.open = function(store)
   return {
     snap = S.snap,
     events = function() return S.all end,
+    fits = H.fits,
     append = function(ev) return H.append(S, ev) end,
-    due = function() return H.due(S) end,
+    due = function(pressure) return H.due(S, pressure) end,
     checkpoint = function(payload) return H.checkpoint(S, payload) end,
     rawBytes = function() return H.raw(S) end,
+    status = function()
+      return { available=true, seq=S.seq, segments=math.max(0,S.last-S.first+1), bytes=H.raw(S),
+        snapshot=S.snapN, snapshotAt=S.snap and S.snap.gameAt, due=H.due(S) }
+    end,
   }
 end
 

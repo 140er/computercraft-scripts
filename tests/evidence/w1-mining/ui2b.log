@@ -1,0 +1,7 @@
+PASS UI2b lumber matches the M fixture
+PASS UI2b setup and back render within every size with spec contrast
+PASS UI2b start and stop taps use the text commands once per tap including refusals
+PASS UI2b navigation and unknown taps leave alerts events and saved jobs unchanged
+PASS UI2b every text command retains configuration and refusal behavior
+PASS UI2b gather keeps missing timers and daily counters stale
+6 passed, 0 failed, 0 skipped checks

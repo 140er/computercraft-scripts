@@ -5,7 +5,7 @@ import subprocess
 import time
 
 from .lua_data import parse
-from .model import Blocked, values
+from .model import Blocked, values, lumber_workers
 from .admission import admit
 
 HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local requests,failures=0,0
@@ -17,6 +17,18 @@ HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local request
   local ok,ran=pcall(shell.run,"install","update");http.get=original;print=originalPrint
   if not ok then error(ran) end
   return {ran=ran,requests=requests,failures=failures}'''
+
+
+def pinned_http_update(commit):
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ValueError("Update requires a full commit SHA")
+    resolver = "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only"
+    pin = f'''if url == {json.dumps(resolver)} then
+      return {{getResponseCode=function() return 200 end,
+        readAll=function() return '{{"commit":{{"sha":"{commit}"}}}}' end, close=function() end}} end
+    '''
+    return HTTP_UPDATE.replace("http.get=function(...)", "http.get=function(url,...)").replace(
+        "local r,e,f=original(...)", pin + "local r,e,f=original(url,...)")
 
 SECRET_FIELD = re.compile(r"^(?:keys?|secret|token|pair(?:ing)?_?code|private.*)$", re.I)
 
@@ -205,7 +217,7 @@ class Context:
         self.screen_input("lumber", f"area {' '.join(map(str, config['area']))} {config['ground']}")
         chest = self.fixture("saplings")
         self.screen_input("lumber", f"saplings {' '.join(map(str, chest['pos']))} {chest.get('side', 'front')}")
-        if not self.state()["lumber"].get("turtle"):
+        if str(self.computer("lumber")) not in lumber_workers(self.state()["lumber"]):
             self.anchor("lumber", "lumber")
         if start: self.screen_input("lumber", "start")
 

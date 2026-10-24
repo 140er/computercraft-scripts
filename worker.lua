@@ -70,6 +70,7 @@ end
 W.save = function()
   local p = W.pose
   W.journal.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
+  if W.journal.dim == "minecraft:overworld" then W.journal.dim=nil end
   local ok, err = W.box.save(W.journal)
   if not ok then print("worker: journal " .. tostring(err)) end
   return ok
@@ -80,7 +81,7 @@ W.load = function()
   if type(saved) ~= "table" then
     W.journal = {
       id = tostring(os.getComputerID()) .. "-0",
-      seq = 0,
+      seq = 0, dim = W.dimension() ~= "minecraft:overworld" and W.dimension() or nil,
       pose = { x = 0, y = 0, z = 0, f = 0 },
       moves = {},
       dug = {},
@@ -123,7 +124,7 @@ W.markPending = function(op)
     W.journal.pending.fuel = W.fuelRaw()
     if W.journal.pending.fuel == "unlimited" then W.journal.pending.gps = W.gpsFix() end
   end
-  W.save()
+  return W.save()
 end
 
 W.pushMove = function(op)
@@ -167,10 +168,63 @@ W.inv = function()
   return items
 end
 
+W.isTool = function(name)
+  return type(name) == "string" and (name:match("_pickaxe$") or name:match("_axe$")
+    or name:match("_shovel$") or name:match("_hoe$") or name:match("_sword$")) ~= nil
+end
+
+W.tools = function()
+  if type(turtle.getEquippedLeft) ~= "function" or type(turtle.getEquippedRight) ~= "function" then return nil end
+  local left, right = turtle.getEquippedLeft(), turtle.getEquippedRight()
+  return { left = left and left.name or false, right = right and right.name or false }
+end
+
+W.tool = function(step)
+  local tools = W.tools()
+  local kind = step.kind
+  if kind ~= "pickaxe" and kind ~= "axe" then return false, "bad tool" end
+  if not tools then return false, "tools unknown" end
+  for _, name in pairs(tools) do
+    if type(name) == "string" and name:match("_" .. kind .. "$") then return true end
+  end
+  if not W.autoToolSwap then return false, "tool swaps disabled" end
+  local slot
+  for _, item in ipairs(W.inv()) do
+    if item.name:match("_" .. kind .. "$") and item.count == 1 then slot = item.slot break end
+  end
+  if not slot then return false, "needs " .. kind end
+  local side
+  for _, candidate in ipairs({ "left", "right" }) do
+    if tools[candidate] == false or W.isTool(tools[candidate]) then side = candidate break end
+  end
+  if not side then return false, "no tool side free" end
+  local selected = turtle.getSelectedSlot()
+  if not turtle.select(slot) then return false, "tool slot unavailable" end
+  local ok, err = turtle[side == "left" and "equipLeft" or "equipRight"]()
+  turtle.select(selected)
+  return ok, err
+end
+
 W.counts = function()
   local counts = {}
   for slot = 1, 16 do counts[slot] = turtle.getItemCount(slot) end
   return counts
+end
+
+W.dimension = function()
+  local config = W.store.read("so-worker.cfg")
+  return type(config) == "table" and config.dim or nil
+end
+
+W.checkDimension = function()
+  local j, dim = W.journal, W.dimension() or "minecraft:overworld"
+  if (j.dim or "minecraft:overworld") == dim or j.dimensionChanged then return end
+  if j.seq == 0 and #j.moves == 0 and #j.dug == 0 and not j.pending then
+    j.dim=dim ~= "minecraft:overworld" and dim or nil return
+  end
+  j.uncertain, j.dimensionChanged = true, true
+  j.recovery = {outcome="dimension changed"}
+  W.save()
 end
 
 W.gpsFix = function()
@@ -190,10 +244,15 @@ W.gpsFix = function()
   if not ok or type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
     return nil
   end
-  return { x = x, y = y, z = z }
+  local fix = { x = x, y = y, z = z }
+  local config = W.store.read("so-worker.cfg")
+  if type(config) == "table" and type(config.dim) == "string"
+    and config.dim:match("^[%w_]+:[%w_./%-]+$") then fix.dim = config.dim end
+  return fix
 end
 
 W.resolvePending = function()
+  if W.journal.dimensionChanged then return end
   local pending = W.journal.pending
   if not pending or not C.moves[pending.op] then return end
   local moved
@@ -204,7 +263,7 @@ W.resolvePending = function()
       elseif fuel == pending.fuel - 1 then moved = true end
     elseif type(pending.gps) == "table" then
       local fix, before = W.gpsFix(), pending.gps
-      if fix then
+      if fix and (fix.dim == before.dim) and (fix.dim == "minecraft:overworld" or fix.dim == nil) then
         local dx, dy, dz = fix.x-before.x, fix.y-before.y, fix.z-before.z
         if dx == 0 and dy == 0 and dz == 0 then moved = false
         elseif pending.op == "up" and dx == 0 and dy == 1 and dz == 0 then moved = true
@@ -225,11 +284,15 @@ W.resolvePending = function()
 end
 
 W.hello = function()
+  W.checkDimension()
   local key = W.pair.key(W.server)
   if not key then return end
   local where = W.gpsFix()
   local body = {
     role = "turtle",
+    capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, autoToolSwap = W.autoToolSwap or nil },
+    tools = W.tools(),
+    dim = W.dimension(),
     fuel = W.fuelBody(),
     free = W.free(),
     inv = W.inv(),
@@ -239,6 +302,7 @@ W.hello = function()
   if type(label) == "string" and #label > 0 then body.label = label end
   if where then body.gps = where end
   W.transmit(W.server, W.proto.build(key, "hello", body))
+  W.lastHello = W.now()
 end
 
 W.beacon = function()
@@ -254,10 +318,13 @@ W.beacon = function()
 end
 
 W.report = function(results)
+  W.checkDimension()
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results,
+    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, autoToolSwap = W.autoToolSwap or nil },
+    tools = W.tools(),
+    dim = W.dimension(),
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
     uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
@@ -289,16 +356,15 @@ W.paint = function()
   local seen = age and (age < 60 and age .. "s ago" or math.floor(age / 60) .. "m ago") or "-"
   term.clear()
   term.setCursorPos(1, 1)
-  term.write("lease " .. (W.lease or "-"))
+  term.write((os.getComputerLabel() or ("turtle " .. os.getComputerID())):sub(1, 32))
   term.setCursorPos(1, 2)
-  term.write("step " .. (W.stepName or "-"))
+  term.write(W.job and (W.job .. " " .. (W.stepName or "idle")) or ("step " .. (W.stepName or "-")))
   term.setCursorPos(1, 3)
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
-  term.write("seen " .. seen)
-  term.setCursorPos(1, 9)
-  term.write("turtle " .. os.getComputerID())
-  term.setCursorPos(1, 10)
+  local width = term.getSize()
+  term.write((W.reason or ("seen " .. seen)):sub(1, width))
+  term.setCursorPos(1, 5)
   term.write(age and age < 60 and ("server " .. W.server .. " ok") or "waiting for server")
   if W.repair then
     term.setCursorPos(1, 6)
@@ -329,7 +395,7 @@ W.reanchor = function(body)
   if p.f < 0 or p.f > 3 then return end
   local old, pose = W.journal, W.pose
   W.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
-  W.journal = { seq = old.seq, moves = {}, dug = {}, park = true,
+  W.journal = { seq = old.seq, dim = W.dimension() ~= "minecraft:overworld" and W.dimension() or nil, moves = {}, dug = {}, park = true,
     recovery = { outcome = "anchored", journal = old.id } }
   W.bump()
   if not W.save() then W.journal, W.pose = old, pose return end
@@ -352,7 +418,11 @@ W.accept = function(sender, payload)
   if not W.proto.fresh(msg) then return end
   W.repair, W.codeText, W.pairError = nil, nil, nil
   W.seen = W.now()
-  if msg.t == "worker.anchor" then W.reanchor(msg.body)
+  if msg.t == "worker.status" then
+    if type(msg.body.job) == "string" and type(msg.body.reason) == "string" then
+      W.job, W.reason = msg.body.job:sub(1, 16), msg.body.reason:sub(1, 48)
+    end
+  elseif msg.t == "worker.anchor" then W.reanchor(msg.body)
   elseif msg.t == "lease.batch" then
     local body = msg.body
     if type(body) ~= "table" then return end
@@ -417,6 +487,68 @@ W.discard = function(step)
   return turtle[side[3]](step.n)
 end
 
+W.safeMove = function(step)
+  local dim, guard = W.dimension(), step.safety
+  if not guard and (dim == nil or dim == "minecraft:overworld") then return end
+  if type(guard) ~= "table" or guard.dim ~= dim then return "remote safety: dimension mismatch" end
+  local bounds = ({["minecraft:the_nether"]={1,126}, ["minecraft:the_end"]={1,255}})[dim]
+  if not bounds or type(guard.y) ~= "number" or guard.y ~= guard.y or guard.y%1 ~= 0 then
+    return "remote safety: invalid height"
+  end
+  if guard.y < bounds[1] or guard.y > bounds[2] then
+    return dim == "minecraft:the_nether" and "remote safety: Nether bedrock boundary" or "remote safety: End void boundary"
+  end
+  if dim == "minecraft:the_nether" then
+    for _,field in ipairs({"x","z","facing"}) do
+      local n=guard[field]
+      if type(n)~="number" or n~=n or n%1~=0 or math.abs(n)>=30000000 then return "remote safety: invalid position" end
+    end
+    if guard.facing<0 or guard.facing>3 then return "remote safety: invalid facing" end
+  end
+  local inspect = ({forward="inspect",up="inspectUp",down="inspectDown"})[step.op]
+  if not inspect then return "remote safety: reverse move requires inspection" end
+  local exists, block = turtle[inspect]()
+  if exists then
+    if type(block) ~= "table" or type(block.name) ~= "string" then return "remote safety: cell unknown" end
+    if block.name == "minecraft:lava" and dim=="minecraft:the_nether" then
+      return string.format("remote safety: lava at %d,%d,%d",guard.x,guard.y,guard.z)
+    end
+    if block.name == "minecraft:lava" or block.name == "minecraft:water" or block.name == "minecraft:bubble_column" then
+      return "remote safety: " .. block.name:gsub("^minecraft:", "")
+    end
+  elseif exists ~= false or block ~= "No block to inspect" then return "remote safety: cell unknown" end
+end
+
+W.scanNether = function(guard)
+  local hazard
+  local function inspect(op,x,y,z)
+    local exists,block=turtle[op]()
+    if exists and type(block)=="table" and block.name=="minecraft:lava" then
+      hazard=string.format("remote safety: lava at %d,%d,%d",x,y,z)
+    elseif exists and (type(block)~="table" or type(block.name)~="string")
+      or not exists and (exists~=false or block~="No block to inspect") then
+      hazard="remote safety: surroundings unknown"
+    end
+  end
+  inspect("inspectUp",guard.x,guard.y+1,guard.z)
+  if not hazard then inspect("inspectDown",guard.x,guard.y-1,guard.z) end
+  for turn=0,3 do
+    if not hazard then
+      local f=(guard.facing+turn)%4
+      inspect("inspect",guard.x+C.dx[f],guard.y,guard.z+C.dz[f])
+    end
+    if hazard and turn==0 then return hazard end
+    if not W.markPending("turnRight") then
+      W.journal.uncertain=true return "remote safety: surroundings journal failed"
+    end
+    local result=W.exec({op="turnRight"})
+    if not result.ok then W.journal.uncertain=true return "remote safety: surroundings turn failed" end
+    W.journal.pending=nil
+    if not W.save() then W.journal.uncertain=true return "remote safety: surroundings journal failed" end
+  end
+  return hazard
+end
+
 W.exec = function(step)
   local result = { ok = false, counts = W.counts() }
   if type(step) ~= "table" or type(step.op) ~= "string" then
@@ -424,6 +556,26 @@ W.exec = function(step)
     return result
   end
   local op = step.op
+  if op == "forward" or op == "back" or op == "up" or op == "down" then
+    local hazard = W.safeMove(step)
+    if hazard then result.err=hazard return result end
+  end
+  if op == "gps" then
+    local fix = W.gpsFix()
+    result.ok, result.data, result.err = fix ~= nil, fix, not fix and "no GPS" or nil
+    return result
+  end
+  if op == "tool" then
+    result.ok, result.err = W.tool(step)
+    result.ok = result.ok == true
+    if result.ok then result.err = nil end
+    return result
+  end
+  if op == "equipLeft" or op == "equipRight" then result.err = "use tool step" return result end
+  if op == "discard" or op == "drop" or op == "dropUp" or op == "dropDown" or op == "refuel" then
+    local item = turtle.getItemDetail()
+    if item and W.isTool(item.name) then result.err = "tool kept" return result end
+  end
   local fn = op == "discard" and function() return W.discard(step) end or turtle[op]
   if type(fn) ~= "function" then
     result.err = "bad op"
@@ -466,6 +618,14 @@ W.exec = function(step)
     if C.moves[op] then
       W.apply(op)
       W.pushMove(op)
+      if step.safety and step.safety.dim=="minecraft:the_nether" then
+        W.journal.pending=nil
+        if W.save() then result.hazard=W.scanNether(step.safety)
+        else
+          W.journal.uncertain=true
+          result.hazard="remote safety: movement journal failed"
+        end
+      end
     elseif C.digs[op] then
       local x, y, z = W.cell(C.digs[op])
       W.noteDug(x, y, z)
@@ -488,6 +648,7 @@ W.refuse = function(results, from, n)
 end
 
 W.startBatch = function(msg)
+  W.checkDimension()
   local body = msg.body
   if type(body) ~= "table" or type(body.lease) ~= "string" then return end
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
@@ -501,14 +662,22 @@ W.startBatch = function(msg)
     W.enterSlow()
     return
   end
-  W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
+  if body.journal ~= nil and body.journal ~= W.journal.id then
+    W.lease = body.lease
+    local results = {}
+    for i=1,n do results[i]={ok=false,err="journal changed"} end
+    W.report(results)
+    return
+  end
+  W.journal.park = type(body.steps[1]) == "table" and (body.steps[1].park == true or body.steps[1].op == "tool"
+    or n == 1 and body.steps[1].op == "inspectDown")
   W.mode = "idle"
   local deadline = msg.deadline
   if W.lease == body.lease and W.legacyExpires == msg.legacyExpires and W.expires then
     deadline = math.min(deadline, W.expires)
   end
   W.lease, W.expires, W.legacyExpires = body.lease, deadline, msg.legacyExpires
-  local results = {}
+  local results, safetyStop = {}, false
   for i = 1, n do
     if W.now() >= W.expires then
       W.refuse(results, i, n)
@@ -517,19 +686,40 @@ W.startBatch = function(msg)
     local step = body.steps[i]
     local op = "?"
     if type(step) == "table" and type(step.op) == "string" then op = step.op end
-    W.stepName = tostring(i)
+    W.stepName = op
     W.paint()
-    W.markPending(op)
+    local saved = W.markPending(op)
+    if op == "tool" and not saved then
+      results[i] = {ok=false,err="tool journal save failed",counts=W.counts()}
+      for j = i+1, n do results[j] = {ok=false,err="tool journal save failed",counts=W.counts()} end
+      W.journal.pending = nil
+      break
+    end
+    if body.journal ~= nil and not saved then
+      W.refuse(results,i,n)
+      break
+    end
     W.breathe(C.pause)
     if W.now() >= W.expires then
       W.refuse(results, i, n)
       break
     end
     results[i] = W.exec(step)
+    if results[i].hazard or not results[i].ok and (type(results[i].err)=="string" and results[i].err:match("^remote safety:")
+      or type(step)=="table" and step.safety and C.moves[op]) then
+      local hazard=results[i].hazard or results[i].err
+      if not hazard:match("^remote safety:") then hazard="remote safety: "..hazard results[i].err=hazard end
+      for j=i+1,n do results[j]={ok=false,err=hazard,counts=W.counts()} end
+      if not W.journal.uncertain then W.journal.pending=nil end
+      W.journal.park,safetyStop=true,true
+      W.save()
+      break
+    end
     W.journal.pending = nil
     W.save()
   end
   W.report(results)
+  if safetyStop then W.queued=nil W.enterSlow() return end
   if W.queued then
     W.mode = "idle"
     W.stepName = "idle"
@@ -546,7 +736,7 @@ W.startBatch = function(msg)
 end
 
 W.enterFast = function()
-  if W.journal.park or W.journal.uncertain then
+  if W.journal.park or W.journal.uncertain or W.dimension() and W.dimension() ~= "minecraft:overworld" then
     W.enterSlow()
     W.beacon()
     return
@@ -600,6 +790,7 @@ W.reverse = function(entry)
 end
 
 W.backOne = function()
+  if W.dimension() and W.dimension() ~= "minecraft:overworld" then W.enterSlow() return end
   local moves = W.journal.moves
   if #moves == 0 then
     W.enterSlow()
@@ -647,8 +838,8 @@ end
 
 W.onWake = function()
   local now = W.now()
+  if not W.lastHello or now - W.lastHello >= 30000 then W.hello() end
   if W.mode == "idle" then
-    if not W.seen or now - W.seen >= 30000 then W.hello() end
     if W.expires and now >= W.expires then W.enterFast() end
     return
   end
@@ -699,25 +890,44 @@ W.readCode = function()
     return nil
   end
   W.codeText = W.codeText or ""
+  -- The prompt also takes an enroll token, shown masked.
+  local function shown()
+    local text = W.codeText
+    return text:find("%D") and string.rep("*", #text) or text
+  end
   term.setCursorPos(1, 5)
-  term.write("Code: " .. W.codeText)
+  term.write("Code: " .. shown())
+  if W.pairError then
+    term.setCursorPos(1, 6)
+    term.write(W.pairError)
+  end
   local timer = os.startTimer(2)
   while true do
     local ev, value = os.pullEvent()
     if ev == "timer" and value == timer then return nil end
     if ev == "char" or ev == "paste" then
-      W.codeText = (W.codeText .. tostring(value):gsub("%D", "")):sub(1, 6)
+      W.codeText = (W.codeText .. tostring(value):upper():gsub("[^%w%-]", "")):sub(1, 32)
+      if not W.codeText:find("%D") then W.codeText = W.codeText:sub(1, 6) end
     elseif ev == "key" and value == 259 then
       W.codeText = W.codeText:sub(1, -2)
-    elseif ev == "key" and value == 257 and #W.codeText == 6 then
+    elseif ev == "key" and value == 257 and W.codeText:match("^%d%d%d%d%d%d$") then
       os.cancelTimer(timer)
       local code = W.codeText
       W.codeText = ""
       return code
+    elseif ev == "key" and value == 257 and W.pair.enrollSave(W.codeText) then
+      os.cancelTimer(timer)
+      W.codeText = ""
+      return nil
     end
     term.setCursorPos(1, 5)
-    term.write("Code: " .. W.codeText .. " ")
+    term.write("Code: " .. shown() .. " ")
   end
+end
+
+W.showEnroll = function(state, fp)
+  W.stepName = "enroll " .. fp .. " " .. state
+  W.paint()
 end
 
 W.boot = function()
@@ -735,15 +945,26 @@ W.boot = function()
   end
   rednet.open(peripheral.getName(modem))
   local store = dofile("so-store.lua")
+  W.store = store
+  local config = store.read("so-worker.cfg")
+  W.autoToolSwap = type(config) == "table" and config.autoToolSwap == true or false
   W.pair.open(W.proto, store, W.now)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()
+  W.checkDimension()
   W.resolvePending()
   W.mode = "idle"
   W.stepName = "idle"
   local saved = W.pair.peer()
+  if saved then fs.delete("so-enroll") end
   local delay, code = 2, nil
   while true do
+    -- A token names its server, so enrolling needs no lookup.
+    if not saved and fs.exists("so-enroll") then
+      local server, why = W.pair.enroll("turtle", W.showEnroll)
+      saved, W.pairError = server, not server and ("Enroll: " .. tostring(why)) or nil
+      W.stepName = "idle"
+    end
     local found = rednet.lookup("so", "server")
     W.server = type(found) == "number" and found or nil
     if saved then

@@ -2,15 +2,12 @@
  MINING   main   setup    
                           
  home    120,64,-340 n    
-                          
  bottom   -   Y -58   +   
-                          
  length   -     64    +   
-                          
  mode     fast   thorough 
-                          
  ores    all        edit  
-                          
+ branch  8 single         
+ fuel     auto   out 2    
  turtles #2 #3 #4 #6      
                           
                           
@@ -18,19 +15,19 @@
                           
                           
                           
+                          
+                          
+ READY ------------- 1/2  
     START       STOP      
 00000000088888800000000000
 00000000000000000000000000
 08888000000000000000000000
-00000000000000000000000000
 08888880000000000000000000
-00000000000000000000000000
 08888880000000000000000000
-00000000000000000000000000
 08888000088888800000000000
-00000000000000000000000000
 08888000000000000000000000
-00000000000000000000000000
+08888880000000000000000000
+088880000ffffff00000000000
 08888888000000000000000000
 00000000000000000000000000
 00000000000000000000000000
@@ -38,18 +35,21 @@
 00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0888880ccccccccccccc088800
 0888888888880eeeeeeeeeee00
 ffffffffffffffff7777777fff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
 fffffffff777fffffffff777ff
-ffffffffffffffffffffffffff
 fffffffff777fffffffff777ff
-ffffffffffffffffffffffffff
 ffffffffffffffff7777777777
-ffffffffffffffffffffffffff
 fffffffffffffffffff777777f
+ffffffffffffffffffffffffff
+fffffffff999999f7777777fff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

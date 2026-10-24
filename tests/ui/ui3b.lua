@@ -61,17 +61,21 @@ local function setup()
     local got;d.handlers['view.get']({from=id},function(_,b) got=b end);return got
   end
   s.tap=function(id,button,text)
-    d.handlers.input({from=id,body={id=button,text=text,x=1,y=1}})
+    local frame
+    d.handlers['view.get']({from=id},function(_,body) frame=body end)
+    local x,y=1,1
+    for _,b in ipairs(frame.buttons) do if b.id==button then x,y=b.x,b.y break end end
+    d.handlers.input({from=id,body={id=button,text=text,x=x,y=y}})
   end
   return s
 end
 
 local function model()
   local m={time='21:14',alerts={},oreShort='+12 / 10 min',tiles={}}
-  for i,t in ipairs({{'TURTLES','3','3 ok, 0 lost','d'},{'LEASES','2','open now','b'},
-    {'ALERTS','1','ore chest full','e'},{'ORE TODAY','214','+12 last 10 min','b'},
-    {'LOGS TODAY','96','4 trees','d'},{'DISK','13%','2.1 of 16 MB','d'},
-    {'DISPLAYS','4','all fresh','d'},{'DROPS','5','1 broken','1'},{'PAIR','','press P on server','9'}}) do
+  for i,t in ipairs({{'TURTLES','3','3 ok, 0 lost','d'},{'LEASES','2','','b'},
+    {'ALERTS','1','ore chest full','e'},{'ORE TODAY','214','+12','b'},
+    {'LOGS TODAY','96','','d'},{'DISK','13%','2.1 of 16 MB','d'},
+    {'DISPLAYS','4','all fresh','d'},{'DROPS','5','1 broken','1'},{'PAIR','','','9'}}) do
     m.tiles[i]={label=t[1],value=t[2],sub=t[3],bg=t[4]}
   end
   return m
@@ -141,6 +145,7 @@ return function(test,equal)
     for _,size in ipairs({{26,20},{57,24},{39,19},{15,10},{29,12}}) do
       local w,h=unpack(size)
       for _,page in ipairs({'panel-back','alerts','pair'}) do
+        if page~='panel-back' then s.tap(2,'panel-back') end
         s.tap(2,page)
         local f=s.frame(2,w,h);equal(f.role,'panel')
         local out=capture(f,w,h)
@@ -150,7 +155,7 @@ return function(test,equal)
             (bg=='9' or bg=='e' or bg=='a') and fg=='f','contrast '..fg..'/'..bg)
         end end
         if page=='pair' and w>=26 then
-          local text=table.concat(out.picture().text,'\n');assert(text:find('Press P on the server',1,true));assert(text:find('PAIR NEW CLIENT',1,true))
+          local text=table.concat(out.picture().text,'\n');assert(not text:find('Press P on the server',1,true));assert(text:find('PAIR NEW CLIENT',1,true))
         end
       end
     end
@@ -173,14 +178,15 @@ return function(test,equal)
     s.env.SO.store.store=function(path)
       if path=='so-data/lumber/job' then
         jobs[path]={dim='minecraft:overworld',spots={},running=false,ground=64,
-          area={x1=0,z1=0,x2=4,z2=4},turtle={id=4},inv={}}
+          area={x1=0,z1=0,x2=4,z2=4},turtle={id=4},fuel=4000,saplings={x=-10,y=64,z=0,side='down'},inv={}}
       end
       return {value=jobs[path],save=function(value) jobs[path]=value;saves[path]=(saves[path] or 0)+1;return true end}
     end
     s.env.SO.mods.state={canStart=function() return true end}
     jobs["so-data/mine/job"]={home={x=0,y=64,z=0,facing=0},homeSet=true,
-      dim="minecraft:overworld",bottom=-58,length=48,mode="thorough",ores={},turtles={},progress={done=0,nextBranch=1}}
-    s.env.SO.mods.lease={onReport=function() end}
+      dim="minecraft:overworld",bottom=-58,length=48,mode="thorough",ores={},turtles={["3"]={pose={x=0,y=64,z=0},fuel=4000}},progress={done=0,nextBranch=1}}
+    s.env.SO.mods.lease={onReport=function() end,status=function() return {open="park"} end}
+    s.env.SO.mods.drops={list=function() return {{id="ready",dim=0,x=100000,y=64,z=0,kind="any"}} end}
     local mine=assert(loadfile('so-mod-mine.lua','t',s.env))()
     local lumber=assert(loadfile('so-mod-lumber.lua','t',s.env))()
     s.env.SO.mods.mine=mine;s.env.SO.mods.lumber=lumber

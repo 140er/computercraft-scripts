@@ -92,6 +92,16 @@ return function(test)
           s.typeText("area 0 0 2 2 64")
           s.typeText("add 3 0 65 0 n")
         end
+        local key=string.rep("b",64)
+        assert(s.server.env.SO.pair.remember(3,key))
+        local worker=s.net.machine({id=3,modem=true,turtle=true,x=0,y=65,z=0,fuel=4000,capacity=1000000})
+        install(worker,{"worker.lua","so-store.lua","so-pair.lua","so-proto.lua"})
+        worker.files["so-keys"]=H.encode({schema=1,generation=1,value={keys={["1"]=key}}})
+        worker.boot("worker.lua") s.net.flush()
+        if role=="mining" then s.typeText("add 3 0 65 0 n")
+        else s.typeText("saplings -3 64 0 down") end
+        assert(s.server.env.SO.mods.drops.add({id="ready",dim=0,x=-2,y=64,z=0,side="down",kind="any"}))
+        s.net.advance(2)
         local path = role == "mining" and "so-data/mine/job" or "so-data/lumber/job"
         local function job()
           return s.server.env.SO.store.store(path, function() return true end).value

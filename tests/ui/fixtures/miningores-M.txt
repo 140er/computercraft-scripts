@@ -1,21 +1,21 @@
 57x24 Mining setup with the ore list open
  MINING   overview   setup  -------------------- running 
                                                          
- home       120,64,-340 n            |   coal            
-                                     |   copper          
- bottom      -    Y -58    +         |   iron            
-                                     |   gold            
- length      -      64     +         |   redstone        
-                                     |   lapis           
- mode        fast   thorough         |   diamond         
-                                     |                   
- ores       all               edit   |                   
-                                     |                   
- turtles    #2 #3 #4 #6              |                   
-                                                         
-                                                         
-                                                         
-                                                         
+ home       120,64,-340 n      |   coal                  
+                               |   copper                
+ bottom      -    Y -58    +   |   iron                  
+                               |   gold                  
+ length      -      64     +   |   redstone              
+                               |   lapis                 
+ mode        fast   thorough   |   diamond               
+                               |                         
+ ores       all         edit   |                         
+                               |                         
+ branches   8 single           |                         
+                               |                         
+ fuel        auto   out 2      |                         
+                               |                         
+ turtles    #2 #3 #4 #6        |                         
                                                          
                                                          
                                                          
@@ -25,21 +25,21 @@
                                                          
 0000000008888888888000000000cccccccccccccccccccc0ddddddd0
 000000000000000000000000000000000000000000000000000000000
-0888800000000000000000000000000000000c0000000000000000000
-0000000000000000000000000000000000000c0000000000000000000
-0888888000000000000000000000000000000c0000000000000000000
-0000000000000000000000000000000000000c0000000000000000000
-0888888000000000000000000000000000000c0000000000000000000
-0000000000000000000000000000000000000c0000000000000000000
-0888800000008888880000000000000000000c0000000000000000000
-0000000000000000000000000000000000000c0000000000000000000
-08888000000000000000000000000ffffff00c0000000000000000000
-0000000000000000000000000000000000000c0000000000000000000
-0888888800000000000000000000000000000c0000000000000000000
-000000000000000000000000000000000000000000000000000000000
-000000000000000000000000000000000000000000000000000000000
-000000000000000000000000000000000000000000000000000000000
-000000000000000000000000000000000000000000000000000000000
+0888800000000000000000000000000c0000000000000000000000000
+0000000000000000000000000000000c0000000000000000000000000
+0888888000000000000000000000000c0000000000000000000000000
+0000000000000000000000000000000c0000000000000000000000000
+0888888000000000000000000000000c0000000000000000000000000
+0000000000000000000000000000000c0000000000000000000000000
+0888800000008888880000000000000c0000000000000000000000000
+0000000000000000000000000000000c0000000000000000000000000
+08888000000000000000000ffffff00c0000000000000000000000000
+0000000000000000000000000000000c0000000000000000000000000
+0888888880000000000000000000000c0000000000000000000000000
+0000000000000000000000000000000c0000000000000000000000000
+088880000000ffffff0000000000000c0000000000000000000000000
+0000000000000000000000000000000c0000000000000000000000000
+0888888800000000000000000000000c0000000000000000000000000
 000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000
@@ -49,19 +49,19 @@
 000000000000000000000000000000000000000000000000000000000
 ffffffffffffffffffff7777777ffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffff777777fffffffffff
-ffffffffffffffffffffffffffffffffffffffff77777777fffffffff
-ffffffffffff777fffffffffff777fffffffffff777777fffffffffff
-ffffffffffffffffffffffffffffffffffffffff777777fffffffffff
-ffffffffffff777fffffffffff777fffffffffff7777777777fffffff
-ffffffffffffffffffffffffffffffffffffffff7777777ffffffffff
-fffffffffffffffffff7777777777fffffffffff777777777ffffffff
+ffffffffffffffffffffffffffffffffff777777fffffffffffffffff
+ffffffffffffffffffffffffffffffffff77777777fffffffffffffff
+ffffffffffff777fffffffffff777fffff777777fffffffffffffffff
+ffffffffffffffffffffffffffffffffff777777fffffffffffffffff
+ffffffffffff777fffffffffff777fffff7777777777fffffffffffff
+ffffffffffffffffffffffffffffffffff7777777ffffffffffffffff
+fffffffffffffffffff7777777777fffff777777777ffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffff999999ffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffff999999ffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff999999f7777777fffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

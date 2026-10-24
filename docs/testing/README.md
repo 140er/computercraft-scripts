@@ -154,8 +154,7 @@ files keep their original sequential runner after adapter installation.
 
 CI uses `scripts/test-suite --shards 4` on Linux, with the same Lua runner but
 without the lab slot scheduler. The final summary includes passed, failed and
-skipped counts and the names and reasons of skipped checks. UI PRs
-should run on Linux so the POSIX/Python generator comparison executes.
+skipped counts and the names and reasons of skipped checks. CI also requires a separate Linux UI0 generator comparison with no skips.
 
 `tests/run.lua` remains append-only. The full runner stages a copy as
 `tests/full.lua` and substitutes its local test callback at one checked marker.
@@ -176,8 +175,8 @@ with no root install, network access or native modules. The checked files are
 crypto code are outside this server-only gate. Extra file arguments check
 scratch code with the same config.
 
-Undefined reads, accidental global writes, writes to read-only globals and
-syntax errors fail lint. Unused locals and arguments print warnings. CC globals
+Undefined reads, accidental global writes, writes to read-only globals, syntax
+errors, unused locals and unused arguments all fail lint. CC globals
 and `SO` are declared explicitly; `SO.mods` module fields remain extensible.
 Only the boot wrappers that replace `print`, `package` and `require` receive
 file-specific write permissions. No blanket global suppression is used.
@@ -209,3 +208,65 @@ and Windows transport coverage, with identical check identities across all
 runs. Repeat the benchmark with several free slots to measure the parallel
 reduction. The measured CPU costs allocate about 86 seconds to each of four
 shards before queue, platform and transport effects.
+
+## Changed-file iteration
+
+Reinstall the adapter with `python3 tools/install-test-parts.py` after pulling
+these tools. Then run:
+
+```sh
+cc-test --changed
+cc-test --changed origin/server-only --lua-only
+cc-test --changed HEAD --part-timeout 30
+```
+
+`--changed [BASE]` compares the merge base of BASE and HEAD with the working
+copy. It includes staged, unstaged and untracked files. BASE defaults to
+`origin/server-only`. Root Lua modules use the same focused selection as
+`--part`; individual suite changes run that suite. This is an iteration shortcut.
+It does not replace the final full gate. Deleted modules, shared test helpers,
+UI documentation, tooling and unmapped inputs fall back to the full gate.
+Ordinary Markdown changes and saved evidence need no Lua parts. A bad base
+revision fails the command. An empty selection is printed explicitly.
+
+Each focused suite prints `PART-CPU` in Lua CPU seconds. Changed-file runs print
+`PART-TIME` per scheduled part in wall seconds, including queue and transport.
+Full shard runs print the ten slowest parts as `SLOW-PART`, and save all part
+CPU totals in `result.json`. SO11 A and B remain separate cost groups.
+
+CI requires UI0's generator comparison on Linux through
+`python3 tools/check-ui0.py`. A missing or skipped comparison fails this step,
+even when another suite shard runs on Windows. Lint now fails on every reported
+warning as well as errors. The eight existing warnings were unused parameters
+or overwritten initial values and have been removed without changing behavior.
+
+## Evidence and cost refresh
+
+CI uploads shard logs, `result.json`, generated `suite-costs.lua` and check
+outputs as the `server-only-test-evidence` artifact, retained for 30 days.
+New files under `tests/evidence/` are ignored except Markdown summaries.
+Existing tracked evidence stays available. Keep concise review summaries in
+git and link the CI run's artifact for raw logs and captures. Export evidence
+that needs to outlive the artifact retention period to durable storage.
+
+Once a week, download a successful Linux CI artifact and review its generated
+`shards/suite-costs.lua`. Copy that file to `tests/suite-costs.lua` in a PR to
+refresh shard allocation. Failed runs never generate replacement costs. Do not
+use Windows or mixed-platform timings for the Linux cost table. Generation runs
+on every CI pass, so the weekly refresh needs no profiling run.
+
+## Gate B selection for PRs
+
+List affected checks in the PR using the read-only planner:
+
+```sh
+python3 tools/gateb/run.py --changed origin/server-only..HEAD --plan
+```
+
+The orchestrator may run the same command without `--plan` to execute the
+selected checks on isolated test worlds. PR authors must not start Minecraft
+servers themselves. `--checks C3,C13` adds explicit checks to the selection.
+C8 and C10 now run three times, with a world reset between attempts. The report
+retains every attempt, its metrics and evidence, plus minimum, maximum and
+spread of wall time. Mixed outcomes are marked flaky and cannot pass. A blocked
+attempt also prevents a passing aggregate. Other checks still run once.

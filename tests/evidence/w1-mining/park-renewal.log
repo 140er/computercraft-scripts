@@ -1,0 +1,17 @@
+PASS mining park survives a lost renewal batch for 1800 game seconds at 1x
+PASS mining park survives a lost renewal report for 1800 game seconds at 1x
+PASS lumber park survives a lost renewal batch for 1800 game seconds at 1x
+PASS lumber park survives a lost renewal report for 1800 game seconds at 1x
+PASS lumber planting waits survive a lost renewal for 1800 game seconds at 1x
+PASS GPS lookup preserves inspectDown leases at 1x
+PASS GPS lookup preserves forward leases at 1x
+PASS anchor during GPS lookup leaves the worker responsive at 1x
+PASS mining park survives a lost renewal batch for 1800 game seconds at 4x
+PASS mining park survives a lost renewal report for 1800 game seconds at 4x
+PASS lumber park survives a lost renewal batch for 1800 game seconds at 4x
+PASS lumber park survives a lost renewal report for 1800 game seconds at 4x
+PASS lumber planting waits survive a lost renewal for 1800 game seconds at 4x
+PASS GPS lookup preserves inspectDown leases at 4x
+PASS GPS lookup preserves forward leases at 4x
+PASS anchor during GPS lookup leaves the worker responsive at 4x
+16 passed, 0 failed, 0 skipped checks

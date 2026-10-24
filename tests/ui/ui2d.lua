@@ -91,7 +91,7 @@ return function(test,equal)
     e.SO.store.store=function(...) local b=store(...);local save=b.save;b.save=function(v) n=n+1;return save(v) end;return b end
     local ar=e.dofile('so-mod-ar.lua');ar.tick(0);screens.ar.input({id='drops'});equal(n,1)
     local reloaded=e.dofile('so-mod-ar.lua');reloaded.tick(0)
-    assert(capture(screens.ar.render(57,24),57,24).picture().text[17]:find('layer off',1,true))
+    assert(capture(screens.ar.render(57,24),57,24).picture().text[15]:find('OFF',1,true))
   end)
   test('UI2d layouts fit all sizes and respect contrast',function()
     local d,_,screens,s,a=boot();points(d);assert(s.layout and a.layout,'pure layouts')
@@ -114,11 +114,16 @@ return function(test,equal)
   end)
   test('UI2d taps keep each role and the drop list draws no links',function()
     local _,_,screens,_,_,e=boot();local display=e.dofile('so-mod-display.lua');e.SO.mods.display=display
+    local U=e.dofile('so-ui.lua')
     for _,role in ipairs({'mining','lumber','shop','ar','generic'}) do
-      display.screen(role,screens[role] and screens[role].render or function() return {rows={},buttons={}} end,screens[role] and screens[role].input)
+      display.screen(role,screens[role] and screens[role].render or function(w,h) local c=U.canvas(w,h);c.button(1,h,w,'BACK','status','7',1);return c.frame() end,screens[role] and screens[role].input)
     end
     local function frame() local f;display.handlers['view.get']({from=2},function(_,v) f=v end);return f end
-    local function tap(id) display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
+    local function tap(id)
+      local f=frame();local x,y=1,1
+      for _,b in ipairs(f.buttons) do if b.id==id then x,y=b.x,b.y break end end
+      display.handlers.input({from=2,body={id=id,x=x,y=y}})
+    end
     display.handlers.hello({from=2,body={w=57,h=24}})
     equal(frame().role,'unassigned')
     for _,role in ipairs({'mining','lumber','shop','ar','generic'}) do

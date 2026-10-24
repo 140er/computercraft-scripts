@@ -1,0 +1,9 @@
+PASS lumber stops after three failed base digs and names start on screen
+PASS lumber reserves fuel for the actual chest distance
+PASS lumber clears junk when all inventory slots contain apples
+PASS lumber stops after failed travel movement despite successful inspections
+PASS lumber stops after failed ascent digs and moves
+PASS lumber drops excess saplings but keeps one for each known spot
+PASS lumber unloads a full log inventory during a climb
+PASS lumber clears a single junk stack at the end of a round
+8 passed, 0 failed, 0 skipped checks

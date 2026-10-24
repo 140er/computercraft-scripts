@@ -2,52 +2,52 @@
  MINING   overview   setup  -- running 
                                        
  home       120,64,-340 n              
-                                       
  bottom      -    Y -58    +           
-                                       
  length      -      64     +           
-                                       
  mode        fast   thorough           
-                                       
  ores       all                  edit  
-                                       
+ branches   8 single                   
+ fuel        auto   out 2              
  turtles    #2 #3 #4 #6                
                                        
                                        
                                        
                                        
                                        
+                                       
+                                       
+ READY -------------------------- 1/2  
        START               STOP        
 0000000008888888888000000000cc0ddddddd0
 000000000000000000000000000000000000000
 088880000000000000000000000000000000000
-000000000000000000000000000000000000000
 088888800000000000000000000000000000000
-000000000000000000000000000000000000000
 088888800000000000000000000000000000000
-000000000000000000000000000000000000000
 088880000000888888000000000000000000000
-000000000000000000000000000000000000000
 088880000000000000000000000000000000000
-000000000000000000000000000000000000000
+088888888000000000000000000000000000000
+088880000000ffffff000000000000000000000
 088888880000000000000000000000000000000
 000000000000000000000000000000000000000
 000000000000000000000000000000000000000
 000000000000000000000000000000000000000
 000000000000000000000000000000000000000
 000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+0888880cccccccccccccccccccccccccc088800
 08888888888888888880eeeeeeeeeeeeeeeeee0
 ffffffffffffffffffff7777777ffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffff
 ffffffffffff777fffffffffff777ffffffffff
-fffffffffffffffffffffffffffffffffffffff
 ffffffffffff777fffffffffff777ffffffffff
-fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffff7777777777ffffffffff
-fffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffff777777f
+fffffffffffffffffffffffffffffffffffffff
+ffffffffffff999999f7777777fffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff

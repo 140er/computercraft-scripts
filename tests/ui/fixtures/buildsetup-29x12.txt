@@ -1,0 +1,25 @@
+29x12 Builder setup 29x12
+                             
+ BUILD               stopped 
+                             
+ AREA -                      
+                             
+                             
+ MATERIAL -                  
+ TURTLE -                    
+                             
+                             
+    FLOOR           BACK     
+                             
+fffffffffffffffffffffffffffff
+f777777777777777777777777777f
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+77777777777777f77777777777777
+77777777777777f77777777777777
+77777777777777f77777777777777

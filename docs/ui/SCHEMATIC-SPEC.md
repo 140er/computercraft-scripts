@@ -232,8 +232,17 @@ see [display](../server-only/PROTOCOL.md#display).
   ore, logs, disk and trees as they fit.
 
 More rows than fit end with `+N more`; more alerts than fit end with `+N`. Alert rows are an
-`alerts` button when the state module raised an alert. The pocket fallback (no panel module)
-draws the same layout under `FLEET`.
+`alerts` button when the state module raised an alert; a broken drop's alert row is a `broken`
+button. The pocket fallback (no panel module) draws the same layout under `FLEET`.
+
+Some rows are controls that open a page inside the status role; the role itself never changes:
+
+- The `disk` row is a `disk` button that opens the disk page.
+- A broken drop's row, in DROPS or among the alerts, is a `broken` button that opens the drop
+  list on the first broken point.
+
+A page with no back control of its own gets a `×` chip (`visit-back`) at the right end of
+row 1.
 
 ## 14. Fixtures and the generator
 
@@ -306,7 +315,11 @@ The pocket role at 26x20 (26x19 for older clients); `so-mod-panel.lua` draws it 
   sent, coral when not.
 - **PAIR:** the code in line digits 3 cells wide and 7 tall, a teal 18-cell tick row counting
   its five minutes down with `m:ss`, and NEW CODE on row 18. Without a code the digits read
-  `------` in muted grey; `code in use` (amber) when another display holds one.
+  `------` in muted grey; `code in use` (amber) when another display holds one. Row 16 holds
+  PAIRED (`paired`), which opens the paired devices with their confirmed FORGET. With the enroll
+  window on, PAIRED and ENROLL (`enroll`, primary) share the row; ENROLL has no target and is
+  drawn muted while another display holds the window. Both pages draw in the panel's look, and
+  their BACK or CLOSE returns to PAIR.
 
 ## 17. System screens
 
@@ -340,7 +353,8 @@ hints, `[P] pair  [R] roles  [L] log`, with the keys teal. Under 48 columns DISK
 FLEET.
 
 - **P:** `PAIR CODE`, the six-digit code in line digits 5x7, a teal tick row with `m:ss`, and
-  `[P] new code  [Esc] cancel`.
+  `[P] new code  [Esc] cancel`. Senders refused while the code is open are listed on row h-2:
+  `Rejected` (muted), then their ids in coral.
 - **L:** the whole log under `LOG` with its line count, `[Esc] back  [↑↓] scroll`.
 - **R:** `DISPLAYS` with the count, then id, size (muted) and role (muted when unassigned),
   `+N more` when they do not fit, the last result above the prompt (two rows when long), and

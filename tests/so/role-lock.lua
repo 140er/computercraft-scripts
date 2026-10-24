@@ -125,6 +125,9 @@ return function(test, equal)
       assert(s.server.env.SO.mods.drops.add({id="drop" .. i, dim=0, x=i, y=64, z=0, side="down", kind="ore"}))
     end
     s.server.env.SO.mods.state.emit("mine.alert", {text="ore chest full"})
+    -- Mining STOP clears mine.alert during the walk; an alert no control clears keeps status
+    -- drawing its alert rows at every size.
+    s.server.env.SO.mods.state.emit("walk.alert", {text="walk check"})
     s.net.advance(1)
     local roles = {"status", "pocket", "mining", "lumber", "shop", "drops", "ar", "panel", "map", false}
     local reached = {}
@@ -164,7 +167,7 @@ return function(test, equal)
     s.net.advance(1)
     equal(s.frame().role, "generic")
     equal(s.saved(2), "generic")
-    for _, case in ipairs({{"2 bogus", "roles: status pocket mining lumber shop drops ar panel map"},
+    for _, case in ipairs({{"2 bogus", "roles: status pocket mining lumber shop drops ar panel map health attention alerts events errors disk build"},
         {"77 shop", "no display 77"}, {"x shop", "use <id> <role> or <id> -"}, {"2", "use <id> <role> or <id> -"},
         {"2 shop extra", "use <id> <role> or <id> -"}}) do
       equal({D.command(case[1])}, {false, case[2]})
@@ -202,7 +205,7 @@ return function(test, equal)
     s.net.advance(1)
     equal(s.frame().role, "lumber")
     typed("2 zz"); event("key", 28, false); s.net.flush()
-    equal(v.notice, "roles: status pocket mining lumber shop drops ar panel map")
+    equal(v.notice, "roles: status pocket mining lumber shop drops ar panel map health attention alerts events errors disk build")
     equal(v.input, "2 zz")
     event("key", 14, false); event("key", 14, false); event("key", 25, false); typed("map"); event("key", 28, false)
     s.net.flush()
@@ -328,7 +331,7 @@ return function(test, equal)
 
   test("role-lock: long notices wrap and long display lists end with a count", function()
     local s = setup()
-    local view = {id=1, mode="role", input="", notice="roles: status pocket mining lumber shop drops ar panel map",
+    local view = {id=1, mode="role", input="", notice="roles: status pocket mining lumber shop drops ar panel map health attention alerts events errors disk build",
       displays={}}
     for i = 1, 20 do view.displays[i] = {id=i, size="57x24", role="status"} end
     local frame = s.display().terminal({tiles={}}, view, 51, 19)
