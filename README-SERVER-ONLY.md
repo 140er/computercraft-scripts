@@ -661,15 +661,15 @@ wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/head
 If the turtle still shows `Code:` after the install, paste or type the token
 there and press Enter. Each turtle then appears on the panel as a row with its
 id, `TURTLE` and a four-character fingerprint. The turtle shows the same
-fingerprint on its screen. Tap OK or NO per row. APPROVE ALL approves every
-waiting turtle as of the last screen update, including rows below the bottom of
-the screen; a turtle that asks after that update waits for the next tap. CLOSE
-ends the window. Approved turtles keep their own keys;
+fingerprint on its screen. Tap OK or NO per row, or APPROVE ALL for the rows on
+the screen. Rows that did not fit wait for the next tap. CLOSE ends the window. Approved turtles keep their own keys;
 the token is never a key and the server does not save it.
 
 Only the display that opened the window sees the token and its controls.
-Anyone who has the token can ask to join, so approve only turtles you expect.
-A turtle stops and keeps no key when two different servers answer its token.
+Anyone who has the token can ask to join, so approve only turtles you expect;
+compare fingerprints if in doubt. When two requests use the same id, that id
+cannot join in this window. A turtle stops and keeps no key when two different
+servers answer its token.
 The token file on the turtle is deleted when it joins, is denied or the
 window closes. A server restart closes the window.
 

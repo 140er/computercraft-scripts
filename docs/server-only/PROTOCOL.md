@@ -147,6 +147,7 @@ tag1 = HMAC-SHA256(tk, "so-enroll-1 device\0"          .. lv(S, D, Xd, kind))
 tag2 = HMAC-SHA256(tk, "so-enroll-2 server pending\0"  .. lv(S, D, Xd, kind, Xs, K))
 tag3 = HMAC-SHA256(tk, "so-enroll-3 server approved\0" .. lv(S, D, Xd, kind, Xs, K))
 tag4 = HMAC-SHA256(tk, "so-enroll-4 server denied\0"   .. lv(S, D, Xd, kind, Xs, K))
+tag5 = HMAC-SHA256(tk, "so-enroll-5 server notice\0"   .. lv(S, D, Xd, kind, Xs, text))
 K    = X25519(sd, Xs) = X25519(ss, Xd)
 key  = pair.machineKey(SHA-512(lv("so-enroll isk", S, D, Xd, Xs, K)))
 ```
@@ -154,7 +155,8 @@ key  = pair.machineKey(SHA-512(lv("so-enroll isk", S, D, Xd, Xs, K)))
 `lv` is the `pair2` length-prefixed concatenation. `S` and `D` are decimal
 ids, `Xd` and `Xs` raw 32-byte public keys. Every tag has its own role label, so
 no tag passes as another, and tags 2 to 4 also cover `K`, so only the holder of
-the window's server scalar can make them. The machine key is derived like
+the window's server scalar can make them. Tag 5 has no `K`; it only shows which
+`Xs` answered. The machine key is derived like
 `pair2`'s and is never the token.
 
 The device sends `enroll` to `S` directly, never through the `so/server`
@@ -168,26 +170,39 @@ The server answers:
 - `ack` `{ state = "ok", pub, tag = hex tag3 }` after approval. The server saved
   the key through `pair.remember` at approval.
 - `err` `{ code = "enroll", text = "denied", pub, tag = hex tag4 }` after denial.
-- `err` with `text` `closed` (no window), `token` (tag1 wrong), `wait` (over the
-  pairing budget), `body` (malformed), `paired` (the id already has a key),
-  `busy` (the id has another request in this window), `full` (20 rows or 20
-  joins) or `share` (`Xd` equals `Xs` or gives an all-zero `K`).
+- `err` `{ code = "enroll", text, pub = hex Xs, tag = hex tag5 }` for a valid
+  tag1 that cannot get a row: `paired` (the id already has a key), `busy` (the
+  id has another request in this window), `full` (20 rows or 20 joins) or
+  `wait` (over the pairing budget).
+- untagged `err` with `text` `closed` (no window), `token` (tag1 wrong), `wait`
+  (a wrong tag1 over the budget), `body` (malformed) or `share` (`Xd` equals
+  `Xs` or gives an all-zero `K`).
+
+A second request with a valid tag1 for an id that has a pending row removes
+that row and marks the id contested: nobody can tell which request is the
+device, so neither joins in this window and both get `busy`. The terminal
+prints `so-server: enroll contested <id>`.
 
 A repeat of a known request, matched on `pub`, `kind` and tag1, gets the same
-answer and costs nothing. Answers to approved and denied rows stay for 600000 ms
+answer and costs nothing. tag1 is checked before the budget, so forged wrong
+guesses that use up an id's budget still leave the device a tagged `wait`. Answers to approved and denied rows stay for 600000 ms
 after the decision, also after the window closes, so a device that reboots
 after approval still collects its key. A new request first spends a
 `pair.charge(id, "start")`; a wrong tag1 or a malformed body also spends a
 `reject`. Enroll and `pair2` share that budget.
 
-The device checks tag2, tag3 and tag4 against its own `Xd`, `kind` and `K`. It
-ignores replies whose tag fails or whose `Xs` equals its own `Xd`. It keeps the
-first `Xs` with a valid tag. A valid tag under a different `Xs` means a second
-token holder answered, and the device stops with `conflict`. It saves the key
-only after a valid tag3, then deletes `so-enroll`. A valid tag4, `conflict`, or
-an untagged `closed`, `token`, `full`, `busy`, `paired`, `share` or `body` also
-deletes `so-enroll`. After 660000 ms without one of those it deletes the file
-with `timeout`.
+The device checks tags 2 to 5 against its own `Xd` and `kind`, and tags 2 to 4
+against its `K`. It ignores replies whose tag fails or whose `Xs` equals its own
+`Xd`. It keeps the first `Xs` with a valid tag. A valid tag under a different
+`Xs` means a second token holder answered, and the device stops with
+`conflict`. Since the real server tags every answer to a valid tag1, a forged
+tag3 loses whenever the device hears the real server in the same attempt. It
+keeps at most 16 replies per 3 s round and runs at most four new X25519
+exchanges per round. It saves the key only after a valid tag3, then deletes
+`so-enroll`. `conflict`, a valid tag4 or a tagged `busy`, `full` or `paired`,
+or, with nothing tagged that round, an untagged `closed`, `token`, `share` or
+`body` also deletes `so-enroll`. After 660000 ms without one of those it
+deletes the file with `timeout`.
 
 `so-enroll` on the device is a serialized `{ token, sk? }`. The installer writes
 the token. The worker adds its X25519 secret before the first request, so a
@@ -197,10 +212,13 @@ file at boot.
 Untagged errors can be forged, since the envelope key is public. A forger can
 end a device's attempt, which costs the owner a new install line, but cannot
 make it save a key. Anyone with the token is a token holder: it can ask to join
-under any unpaired id, and the owner must approve it. A token holder could also
-answer a device that cannot hear the real server; the conflict check only helps
-when the device hears both. The token reaches the owner's display in its signed
-`view.frame`, which is not encrypted.
+under any unpaired id, and the owner must approve it. A token holder that asks
+first under a turtle's id gets a row that looks like that turtle, apart from
+the fingerprint. It can also end any device's attempt by contesting its id. A
+token holder could answer a device that cannot hear the real server; the
+conflict check only helps when the device hears both. Pinning the server share
+in the token would close that gap but needs a longer token. The token reaches
+the owner's display in its signed `view.frame`, which is not encrypted.
 
 ### hello
 
@@ -1239,8 +1257,9 @@ the time left, joins out of 20 in big digits, one row per waiting device with
 OK and NO, then APPROVE ALL and CLOSE. Button ids are `enroll`,
 `enroll-ok:<id>:<n>`, `enroll-no:<id>:<n>`, `enroll-all` and `enroll-close`,
 where `n` is the row's window-unique number, so a delayed tap cannot decide a
-later request from the same id. APPROVE ALL decides the rows from that
-session's last render. Only the owner session gets the token and the controls;
+later request from the same id. APPROVE ALL is `enroll-all:<id>-<n>.<id>-<n>...`
+for exactly the drawn rows, and the display accepts only ids from the frame it
+was sent, so it approves what the owner saw. Only the owner session gets the token and the controls;
 other displays see ENROLL greyed while the window is open.
 
 ### lumber

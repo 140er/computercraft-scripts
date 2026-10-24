@@ -520,9 +520,11 @@ local E = {
   kinds = { turtle = true, pocket = true, computer = true },
   -- One fixed role label per tag, so no tag can stand in for another.
   label = { "so-enroll-1 device\0", "so-enroll-2 server pending\0",
-    "so-enroll-3 server approved\0", "so-enroll-4 server denied\0" },
-  final = { closed = true, token = true, full = true, busy = true, paired = true,
-    share = true, body = true },
+    "so-enroll-3 server approved\0", "so-enroll-4 server denied\0", "so-enroll-5 server notice\0" },
+  -- Answers the server tags with label 5, without K: notices to a valid tag1.
+  notice = { wait = true, busy = true, full = true, paired = true },
+  -- Untagged answers that end an attempt when nothing tagged arrived.
+  final = { closed = true, token = true, share = true, body = true },
   done = {},
   seq = 0,
 }
@@ -595,7 +597,7 @@ M.enrollOpen = function(owner)
   x = table.concat(x)
   local sk = S.rnd.random(32)
   S.win = { owner = owner, x = x, tk = E.key(x), exp = S.now() + E.life, sk = sk,
-    pk = S.x.publicKey(sk), joined = 0, rows = {}, order = {} }
+    pk = S.x.publicKey(sk), joined = 0, rows = {}, order = {}, contested = {} }
   print("so-server: enroll window open")
   return true
 end
@@ -643,7 +645,7 @@ M.enrollDecide = function(id, n, approve)
     w.joined = w.joined + 1
     t, body = "ack", { state = "ok", pub = S.proto.hex(w.pk), tag = S.proto.hex(row.yes) }
   end
-  E.done[name] = { pub = row.pub, tag = row.tag, kind = row.kind, t = t, body = body, at = S.now() }
+  E.done[name] = { pub = row.pub, tag = row.tag, kind = row.kind, t = t, body = body, at = S.now(), win = w }
   E.unrow(w, name)
   if w.joined >= E.cap then M.enrollClose() end
   return true
@@ -670,15 +672,35 @@ M.enrollAnswer = function(from, body)
     M.charge(from, "reject")
     return "err", E.err("body"), "rejected"
   end
-  if not M.charge(from, "start") then return "err", E.err("wait") end
   local server = tostring(os.getComputerID())
   if not C.same(tag, E.tag(w.tk, 1, server, name, pub, kind)) then
+    if not M.charge(from, "start") then return "err", E.err("wait") end
     M.charge(from, "reject")
     return "err", E.err("token"), "rejected"
   end
-  if S.keys[name] then return "err", E.err("paired") end
-  if row or done then return "err", E.err("busy") end
-  if #w.order >= E.cap or w.joined >= E.cap then return "err", E.err("full") end
+  -- From here the sender holds the token. Every answer is tagged under this
+  -- window's share, so a device that hears the real server notices another
+  -- token holder answering it.
+  local function notice(text)
+    local out = E.err(text)
+    out.pub, out.tag = S.proto.hex(w.pk), S.proto.hex(E.tag(w.tk, 5, server, name, pub, kind, w.pk, text))
+    return "err", out
+  end
+  if S.keys[name] then return notice("paired") end
+  -- Two requests for one id: nobody can tell which is the device, so
+  -- neither joins in this window.
+  if row or w.contested[name] then
+    if row then
+      E.unrow(w, name)
+      w.contested[name] = true
+      local t, out = notice("busy")
+      return t, out, "contested"
+    end
+    return notice("busy")
+  end
+  if done and done.win == w then return notice("busy") end
+  if #w.order >= E.cap or w.joined >= E.cap then return notice("full") end
+  if not M.charge(from, "start") then return notice("wait") end
   -- A mirrored share or a low-order point gives no usable secret.
   local k = pub ~= w.pk and S.x.exchange(w.sk, pub)
   if not k or k == string.rep("\0", 32) then return "err", E.err("share") end
@@ -732,19 +754,47 @@ E.ask = function(server, body)
     if ev == "timer" and a == timer then return out end
     if ev == "rednet_message" and c == "so" and a == server and type(b) == "table" then
       local reply = S.proto.decode(b)
+      -- A flood of forged replies costs at most 16 checks per round.
       if reply and reply.rid == msg.rid and reply.from == server and type(reply.body) == "table"
-        and S.proto.macOk(S.envelope, reply) then
+        and #out < 16 and S.proto.macOk(S.envelope, reply) then
         out[#out + 1] = reply
       end
     end
   end
 end
 
+-- Checks one reply against the device's request. Returns the server
+-- share, what it says and K, or nil. Notices carry no K. At most four new
+-- X25519 exchanges per round, and known shares reuse theirs.
+E.judge = function(ctx, reply)
+  local b = reply.body
+  local xs = raw32(b.pub)
+  if not xs or xs == ctx.pub then return nil end
+  local what = reply.t == "ack" and b.state or b.text
+  local n = reply.t == "ack" and ({ pending = 2, ok = 3 })[what]
+    or reply.t == "err" and (what == "denied" and 4 or E.notice[what] and 5)
+  if not n then return nil end
+  local tag = E.unhex(b.tag)
+  if n == 5 then
+    if C.same(tag, E.tag(ctx.tk, 5, ctx.s, ctx.d, ctx.pub, ctx.kind, xs, what)) then return xs, what end
+    return nil
+  end
+  local k = ctx.k[xs]
+  if k == nil then
+    if ctx.new >= 4 then return nil end
+    ctx.new = ctx.new + 1
+    k = S.x.exchange(ctx.sk, xs)
+    if k == string.rep("\0", 32) then k = false end
+    if ctx.size < 8 then ctx.k[xs], ctx.size = k, ctx.size + 1 end
+  end
+  if k and C.same(tag, E.tag(ctx.tk, n, ctx.s, ctx.d, ctx.pub, ctx.kind, xs, k)) then return xs, what, k end
+end
+
 -- Runs the device side from so-enroll. show(state, fingerprint) reports
 -- progress. Returns the server id once the machine key is saved, or nil
--- and a reason. Nothing is saved until tag3 checks out. The first valid
--- server share is kept; a second valid share means another token holder
--- is answering, and the attempt stops.
+-- and a reason. Nothing is saved until tag3 checks out. The first server
+-- share with a valid tag is kept; a valid tag under another share means a
+-- second token holder is answering, and the attempt stops.
 M.enroll = function(kind, show)
   if not S.proto then return nil, "not open" end
   local saved = E.read()
@@ -759,27 +809,32 @@ M.enroll = function(kind, show)
     sk = S.rnd.random(32)
     if not E.write({ token = saved.token, sk = S.proto.hex(sk) }) then return nil, "disk" end
   end
-  local pub, tk = S.x.publicKey(sk), E.key(x)
-  local sname, dname = tostring(server), tostring(os.getComputerID())
-  local body = { pub = S.proto.hex(pub), kind = kind, tag = S.proto.hex(E.tag(tk, 1, sname, dname, pub, kind)) }
+  local pub = S.x.publicKey(sk)
+  local ctx = { sk = sk, pub = pub, tk = E.key(x), s = tostring(server), d = tostring(os.getComputerID()),
+    kind = kind, k = {}, size = 0 }
+  local body = { pub = S.proto.hex(pub), kind = kind,
+    tag = S.proto.hex(E.tag(ctx.tk, 1, ctx.s, ctx.d, pub, kind)) }
   local fp, lock, stop = E.fp(pub), nil, S.now() + E.life + E.linger
-  local step = { ack = { pending = 2, ok = 3 }, err = { denied = 4 } }
   while S.now() < stop do
     if show then show(lock and "pending" or "wait", fp) end
     local outcome, plain, key
+    ctx.new = 0
     for _, reply in ipairs(E.ask(server, body)) do
-      local b = reply.body
-      local n = step[reply.t] and step[reply.t][reply.t == "ack" and b.state or b.text]
-      local xs = raw32(b.pub)
-      local k = n and xs and xs ~= pub and S.x.exchange(sk, xs)
-      if k and k ~= string.rep("\0", 32) and C.same(E.unhex(b.tag), E.tag(tk, n, sname, dname, pub, kind, xs, k)) then
+      local xs, what, k = E.judge(ctx, reply)
+      if xs then
         if lock and lock ~= xs then outcome = "conflict" end
-        lock = xs
-        if outcome ~= "conflict" and n == 3 then outcome, key = "ok", E.machine(sname, dname, pub, xs, k) end
-        if outcome ~= "conflict" and outcome ~= "ok" and n == 4 then outcome = "denied" end
-        outcome = outcome or "pending"
-      elseif reply.t == "err" and E.final[b.text] then
-        plain = b.text
+        lock = lock or xs
+        if outcome == "conflict" then
+          outcome = "conflict"
+        elseif what == "ok" then
+          outcome, key = "ok", E.machine(ctx.s, ctx.d, pub, xs, k)
+        elseif outcome ~= "ok" and what ~= "pending" and what ~= "wait" then
+          outcome = what
+        else
+          outcome = outcome or "pending"
+        end
+      elseif reply.t == "err" and E.final[reply.body.text] then
+        plain = reply.body.text
       end
     end
     if outcome == "ok" then
@@ -788,7 +843,7 @@ M.enroll = function(kind, show)
       fs.delete(E.file)
       return server
     end
-    if outcome == "conflict" or outcome == "denied" or (not outcome and plain) then
+    if (outcome and outcome ~= "pending") or (not outcome and plain) then
       fs.delete(E.file)
       return nil, outcome or plain
     end

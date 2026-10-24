@@ -148,10 +148,12 @@ P.enrollFrame = function(c, w, h, session, view)
   c.big(2,top+1,w-2,view.joined.."/"..view.cap,"9")
   local step = h >= 16 and 2 or 1
   local y = top+4+step-1
-  panel.enrollShown = {}
+  -- APPROVE ALL names the drawn rows, and the display only accepts ids
+  -- from the frame it was sent, so it approves what the owner saw.
+  local shown = {}
   for _,row in ipairs(view.rows) do
-    panel.enrollShown[#panel.enrollShown+1] = {id=row.id,n=row.n}
     if y <= h-2 then
+      shown[#shown+1] = row.id.."-"..row.n
       c.put(2,y,("#"..row.id.." "..row.kind:upper()):sub(1,w-16))
       c.put(w-13,y,row.fp)
       c.button(w-8,y,4,"OK","enroll-ok:"..row.id..":"..row.n,"9",1)
@@ -159,7 +161,7 @@ P.enrollFrame = function(c, w, h, session, view)
     end
     y = y+step
   end
-  c.button(1,h-1,w,"APPROVE ALL","enroll-all","9",1)
+  c.button(1,h-1,w,"APPROVE ALL","enroll-all:"..table.concat(shown,"."),"9",1)
   c.button(1,h,w,"CLOSE","enroll-close","7",1)
 end
 
@@ -304,8 +306,8 @@ P.enrollInput = function(event, panel, id)
   if id == "enroll-close" then
     SO.enroll.close()
     panel.page = "pair"
-  elseif id == "enroll-all" then
-    for _,row in ipairs(panel.enrollShown or {}) do decide(row.id,row.n,true) end
+  elseif id:match("^enroll%-all:[%d%-%.]*$") then
+    for device, n in id:gmatch("(%d+)%-(%d+)") do decide(tonumber(device),tonumber(n),true) end
   else
     local verb, device, n = id:match("^enroll%-(%a+):(%d+):(%d+)$")
     if verb == "ok" or verb == "no" then decide(tonumber(device),tonumber(n),verb == "ok") end

@@ -4,7 +4,7 @@ local SERVER = { "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
   "so-mod-state.lua", "so-mod-display.lua", "so-mod-panel.lua", "so-ui.lua" }
 local WORKER = { "worker.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" }
 local LABEL = { "so-enroll-1 device\0", "so-enroll-2 server pending\0",
-  "so-enroll-3 server approved\0", "so-enroll-4 server denied\0" }
+  "so-enroll-3 server approved\0", "so-enroll-4 server denied\0", "so-enroll-5 server notice\0" }
 local OWNER = 2
 
 local function read(path)
@@ -234,10 +234,12 @@ return function(test, equal)
     for id = 100, 119 do
       equal(select(2, P.enrollAnswer(id, (t.request(token, id, string.rep(string.char(id), 32))))).state, "pending")
     end
+    -- The window is full before the shared budget is asked.
+    local _, full = P.enrollAnswer(120, (t.request(token, 120, string.rep("x", 32))))
+    equal(full.text, "full")
+    assert(full.tag and full.pub, "a full answer to a valid tag1 is tagged")
     -- All senders share 20 starts per minute.
-    equal(select(2, P.enrollAnswer(120, (t.request(token, 120, string.rep("x", 32))))).text, "wait")
-    t.net.advance(61)
-    equal(select(2, P.enrollAnswer(120, (t.request(token, 120, string.rep("x", 32))))).text, "full")
+    equal(select(2, P.enrollAnswer(122, (t.request("1-AAAA-AAAA-AAAA-AAAA", 122, string.rep("z", 32))))).text, "wait")
     local view = t.so.enroll.view(OWNER)
     equal(#view.rows, 20)
     for _, row in ipairs(view.rows) do assert(t.so.enroll.decide(row.id, row.n, true)) end
@@ -543,6 +545,13 @@ return function(test, equal)
     assert(t.so.pair.key(10))
     equal(t.so.pair.key(11), nil)
     equal(#t.so.enroll.view(OWNER).rows, 1)
+    -- Rows below the bottom of a 29x12 screen are not approved.
+    local small = screen(t, 29, 12)
+    for id = 20, 25 do t.so.pair.enrollAnswer(id, (t.request(token, id, string.rep(string.char(id), 32)))) end
+    t.net.advance(61)
+    small.press(OWNER, "enroll-all")
+    equal(t.so.enroll.view(OWNER).joined, 5)
+    equal(#t.so.enroll.view(OWNER).rows, 3)
   end)
 
   test("enroll installer takes the token as an argument and writes so-enroll", function()
@@ -589,5 +598,125 @@ return function(test, equal)
       enroll = "12-K7QP-3MXA-9WTD-HR2E" })
     equal(refused, false)
     assert(tostring(err):find("turtles", 1, true), tostring(err))
+  end)
+
+  test("enroll answers every valid tag1 with a tagged notice", function()
+    local t = boot(true)
+    local token = t.open()
+    local P = t.so.pair
+    local function notice(id, sk, text)
+      local body, pub = t.request(token, id, sk)
+      local kind, reply = P.enrollAnswer(id, body)
+      equal(kind, "err")
+      equal(reply.text, text)
+      local xs = t.unhex(reply.pub)
+      equal(reply.tag, t.hex(t.tag(token, 5, "1", tostring(id), pub, "turtle", xs, text)))
+    end
+    notice(3, string.rep("\3", 32), "paired")
+    -- Budget used up by forged wrong guesses still gets a tagged wait.
+    for _ = 1, 2 do P.enrollAnswer(10, (t.request("1-AAAA-AAAA-AAAA-AAAA", 10, string.rep("\1", 32)))) end
+    notice(10, string.rep("\5", 32), "wait")
+    -- A second request for a pending id removes the row: neither joins.
+    P.enrollAnswer(11, (t.request(token, 11, string.rep("\6", 32))))
+    equal(#t.so.enroll.view(OWNER).rows, 1)
+    equal(select(3, P.enrollAnswer(11, (t.request(token, 11, string.rep("\7", 32))))), "contested")
+    equal(#t.so.enroll.view(OWNER).rows, 0)
+    notice(11, string.rep("\7", 32), "busy")
+    notice(11, string.rep("\6", 32), "busy")
+  end)
+
+  test("enroll keeps an approval for a turtle that asks again minutes later", function()
+    local t = boot(true)
+    local token = t.open()
+    local P = t.so.pair
+    local body = t.request(token, 10, string.rep("\5", 32))
+    P.enrollAnswer(10, body)
+    assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
+    t.net.advance(300)
+    equal(select(2, P.enrollAnswer(10, body)).state, "ok")
+  end)
+
+  test("enroll: a turtle denied in one window can join the next", function()
+    local t = boot(true)
+    local token = t.open()
+    local P = t.so.pair
+    P.enrollAnswer(10, (t.request(token, 10, string.rep("\5", 32))))
+    assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, false))
+    t.so.enroll.close()
+    local second = t.open()
+    assert(second ~= token)
+    equal(select(2, P.enrollAnswer(10, (t.request(second, 10, string.rep("\8", 32))))).state, "pending")
+  end)
+
+  -- A token holder forges an ok under its own share on every request the
+  -- turtle sends, after first blocking the real answer in one of two ways.
+  local function takeover(block)
+    local t = boot(true)
+    local token = t.open()
+    local P = t.so.pair
+    local fake = string.rep("f", 32)
+    local fx = t.x.publicKey(fake)
+    block(t, token, P)
+    local w = t.net.machine({ id = 10, modem = true, turtle = true, capacity = 1000000 })
+    w.install(WORKER)
+    libs(w)
+    w.files["so-enroll"] = H.encode({ token = token })
+    w.env.read = function() return coroutine.yield() end
+    local send = w.env.rednet.send
+    w.env.rednet.send = function(id, payload, protocol)
+      send(id, payload, protocol)
+      if type(payload) == "table" and payload.t == "enroll" then
+        local pub = t.unhex(payload.body.pub)
+        local k = t.x.exchange(fake, pub)
+        local body = { state = "ok", pub = t.hex(fx), tag = t.hex(t.tag(token, 3, "1", "10", pub, "turtle", fx, k)) }
+        w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1,
+          t.proto.encode(t.proto.build(P.envelopeKey(), "ack", body, payload.rid)), "so")
+      end
+    end
+    w.boot("worker.lua")
+    t.net.advance(8)
+    assert(w.alive(), tostring(w.error))
+    equal(savedKey(w, 1), nil, "turtle took the forged key")
+    equal(w.files["so-enroll"], nil)
+    equal(P.key(10), nil)
+    return t, w
+  end
+
+  test("enroll: a token holder squatting the turtle's id cannot take it over", function()
+    local _, w = takeover(function(t, token, P)
+      P.enrollAnswer(10, (t.request(token, 10, string.rep("q", 32))))
+    end)
+    assert(table.concat(w.screen, "\n"):find("Enroll: ", 1, true))
+  end)
+
+  test("enroll: a turtle kept on wait by forged guesses cannot be taken over", function()
+    takeover(function(t, _, P)
+      for _ = 1, 2 do P.enrollAnswer(10, (t.request("1-AAAA-AAAA-AAAA-AAAA", 10, string.rep("\1", 32)))) end
+    end)
+  end)
+
+  test("enroll: a flood of forged replies costs at most four exchanges a round", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    local x = assert(w.env.package.loaded["ccryptolib.x25519"])
+    local exchange, calls = x.exchange, 0
+    x.exchange = function(...) calls = calls + 1 return exchange(...) end
+    local send = w.env.rednet.send
+    w.env.rednet.send = function(id, payload, protocol)
+      send(id, payload, protocol)
+      if type(payload) == "table" and payload.t == "enroll" then
+        for i = 1, 40 do
+          local body = { state = "ok", pub = t.hex(t.x.publicKey(string.rep(string.char(i), 32))), tag = string.rep("cd", 32) }
+          w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1,
+            t.proto.encode(t.proto.build(t.so.pair.envelopeKey(), "ack", body, payload.rid)), "so")
+        end
+      end
+    end
+    t.net.advance(3)
+    assert(w.alive(), tostring(w.error))
+    assert(calls <= 4, "exchanges in one round: " .. calls)
+    equal(savedKey(w, 1), nil)
   end)
 end
