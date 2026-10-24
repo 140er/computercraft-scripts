@@ -233,7 +233,7 @@ S.run = function()
   }
 
   -- Batch enrollment stays off unless so-server.cfg sets enroll = true.
-  local config = store.read("so-server.cfg")
+  local config = type(store.read) == "function" and store.read("so-server.cfg")
   if type(config) == "table" and config.enroll == true then
     SO.enroll = {
       open = pair.enrollOpen,
