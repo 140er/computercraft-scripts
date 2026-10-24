@@ -84,6 +84,75 @@ return function(test, equal)
     assert(m.files["so-data/snap/000002"])
   end)
 
+  local function windowSeed(last)
+    local m = machine()
+    run(m, "local last=" .. (last or 24) .. boot .. [[
+      for i=1,16 do assert(log.append({kind="value",data=string.rep("x",50000)})) end
+      assert(log.checkpoint({values={mark=16},machines={}}))
+      for i=17,20 do assert(log.append({kind="value",data=string.rep("x",50000)})) end
+      assert(log.checkpoint({values={mark=20},machines={}}))
+      for i=21,last do assert(log.append({kind="value",data=string.rep("x",50000)})) end
+      assert(log.checkpoint({values={mark=last},machines={}}))
+    ]])
+    return m.files
+  end
+
+  test("snapshot fallback retains every event after the previous checkpoint", function()
+    local files = windowSeed()
+    for _, reboot in ipairs({false, true}) do
+      local m = machine(files)
+      if reboot then run(m, boot) end
+      m.files["so-data/snap/000003"] = "broken"
+      run(m, boot .. [[
+        assert(log.snap.seq == 20 and log.snap.values.mark == 20)
+        local nextSeq = log.snap.seq + 1
+        for _, ev in ipairs(log.events()) do
+          if ev.seq > log.snap.seq then
+            assert(ev.seq == nextSeq, "gap after previous snapshot")
+            nextSeq = nextSeq + 1
+          end
+        end
+        assert(nextSeq == 25, "missing events after previous snapshot")
+      ]])
+    end
+  end)
+
+  test("repeated checkpoints never move the segment floor backwards", function()
+    local m = machine(windowSeed(21))
+    run(m, boot .. [[
+      local first = log.snap.first
+      assert(log.checkpoint({values={mark=21},machines={}}))
+      local latest = store.store("so-data/snap/000004",function() return true end).value
+      assert(latest.first >= first, "segment floor moved backwards")
+    ]])
+    m.files["so-data/snap/000004"] = "broken"
+    run(m, boot .. [[
+      assert(log.snap.seq == 21)
+      local events = log.events()
+      assert(events[1].seg == log.snap.first and events[#events].seq == 21)
+    ]])
+  end)
+
+  test("checkpoint and startup remove only segments older than the previous snapshot", function()
+    local m = machine(windowSeed())
+    run(m, boot .. [[
+      local previous = store.store("so-data/snap/000002",function() return true end).value
+      assert(previous.first > 1 and previous.first < log.snap.first)
+      for n=1,24 do
+        local path = string.format("so-data/log/%06d",n)
+        assert(fs.exists(path) == (n >= previous.first), "wrong retained segment " .. n)
+      end
+      assert(log.checkpoint({values={mark=24},machines={}}))
+    ]])
+    run(m, boot .. [[
+      local previous = store.store("so-data/snap/000003",function() return true end).value
+      for n=1,24 do
+        local path = string.format("so-data/log/%06d",n)
+        assert(fs.exists(path) == (n >= previous.first), "stale segment " .. n)
+      end
+    ]])
+  end)
+
   test("partial snapshot and pointer writes preserve the published state", function()
     for _, path in ipairs({"so-data/snap/000003.tmp", "so-data/snap/latest.tmp"}) do
       local m = machine(seed())

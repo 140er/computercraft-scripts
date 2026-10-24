@@ -1,6 +1,7 @@
 -- so-log.lua - append-only event segments and snapshots for SO1.
 -- A snapshot file is written before its pointer, and old segments are
--- removed only after that pointer is durable. A half-written segment
+-- removed only after that pointer is durable, keeping the previous snapshot's
+-- segments for fallback. A half-written segment
 -- loses at most the event in that write.
 -- New segments target 8 KB to bound synchronous rewrite work. The 64 KB
 -- read and single-event limit stays compatible with previous releases.
@@ -197,7 +198,7 @@ end
 
 H.due = function(S, pressure)
   if S.seq > 0 and S.seq % (pressure and C.every * 5 or C.every) == 0 then return true end
-  if H.raw(S) > C.window and S.first < S.last then return true end
+  if H.raw(S) > C.window - C.seg and S.first < S.last then return true end
   return false
 end
 
@@ -205,10 +206,12 @@ H.checkpoint = function(S, payload)
   if type(payload) ~= "table" or type(payload.values) ~= "table" or type(payload.machines) ~= "table" then
     return false, "snapshot"
   end
+  local retain = S.snap and S.snap.first or 1
   local planned, drop = H.raw(S), S.first
-  local target = planned > C.window and C.window - C.seg or C.window
+  -- Leave room for another segment while the previous snapshot pins old ones.
+  local target = planned > C.window - C.seg and C.window - C.seg * 4 or C.window
   -- Small segments must not force a full snapshot after every 8 KB of growth.
-  while drop < S.last and planned > target do
+  while drop < S.last and (drop < retain or planned > target) do
     planned = planned - (S.sizes[drop] or 0)
     drop = drop + 1
   end
@@ -226,7 +229,7 @@ H.checkpoint = function(S, payload)
   if not pointed then return false, perr end
   S.snapN, S.snap = n, payload
   H.pruneSnaps(n)
-  while S.first < drop do
+  while S.first < retain do
     S.sizes[S.first] = nil
     H.wipe(H.segPath(S.first))
     S.first = S.first + 1
@@ -258,18 +261,23 @@ end
 H.load = function(S)
   H.dirs()
   local latest = H.readBox(S.store, C.latest, H.validLatest, 8000)
+  local previous
   if latest then
     H.pruneSnaps(latest.value.n)
     S.snapN = latest.value.n
+    if S.snapN > 1 then
+      previous = H.readBox(S.store, H.snapPath(S.snapN - 1), H.validSnap, 900000)
+    end
     local box = H.readBox(S.store, H.snapPath(S.snapN), H.validSnap, 900000)
     if not box and S.snapN > 1 then
-      box = H.readBox(S.store, H.snapPath(S.snapN - 1), H.validSnap, 900000)
+      box = previous
       if box then S.snapN = S.snapN - 1 end
     end
     if box then S.snap = box.value end
   end
   local first = 1
   if S.snap and type(S.snap.first) == "number" then first = S.snap.first end
+  if S.snap and previous then first = math.min(first, previous.value.first) end
   S.first = first
   if S.snap and type(S.snap.seq) == "number" and S.snap.seq > S.seq then S.seq = S.snap.seq end
   local i = 1
