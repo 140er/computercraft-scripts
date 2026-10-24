@@ -218,12 +218,27 @@ constellation in another dimension. An explicit pose anchors the journal
 without GPS. Interrupted moves with finite fuel use the saved fuel count.
 Unlimited-fuel moves without reliable evidence require an explicit re-add.
 
+Overworld journals keep their existing format. An absent journal dimension
+means overworld in memory, and saves omit the overworld dimension field.
+
 Remote turtle movement stays within Y 1..126 in the Nether and 1..255 in the
 End. The End's void below Y 0 is outside every route. Turtles fly, so a route
 can cross open air above that limit. Lumber also requires room for its ground
 plus four travel level. A worker inspects immediately before every remote move
 and refuses lava, water or an unknown cell. It stops the remaining batch on a
-failed move. Mining can seal fluids or scoop source lava before retrying.
+failed move. After each Nether move it also inspects all six adjacent cells.
+The horizontal scan turns in place and journals each turn, then restores its
+heading. Source or flowing lava stops the batch, parks the turtle and raises
+`lava at x,y,z` with the observed lava's world coordinates. A completed move
+still counts as movement, so recovery retains the turtle's new pose.
+
+Inspection and movement are separate commands. Lava can flow into the destination
+between them, and these checks cannot prevent every entry into liquid. Lava can
+also change during or after the surrounding scan. The post-move check reduces
+silent work beside lava; it does not make movement atomic or inspect the block
+occupied by the turtle. Turtles take no lava damage. Clear the reported hazard
+and check the turtle before restarting. Mining can seal fluids or scoop source
+lava before retrying.
 The ore filter accepts `quartz`, `nether_gold` and `ancient_debris`.
 
 Set ore, wood, fuel and sapling chests in the job's dimension. Drop-point

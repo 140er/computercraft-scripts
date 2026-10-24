@@ -70,6 +70,7 @@ end
 W.save = function()
   local p = W.pose
   W.journal.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
+  if W.journal.dim == "minecraft:overworld" then W.journal.dim=nil end
   local ok, err = W.box.save(W.journal)
   if not ok then print("worker: journal " .. tostring(err)) end
   return ok
@@ -80,14 +81,13 @@ W.load = function()
   if type(saved) ~= "table" then
     W.journal = {
       id = tostring(os.getComputerID()) .. "-0",
-      seq = 0, dim = W.dimension() or "minecraft:overworld",
+      seq = 0, dim = W.dimension() ~= "minecraft:overworld" and W.dimension() or nil,
       pose = { x = 0, y = 0, z = 0, f = 0 },
       moves = {},
       dug = {},
     }
   else
     W.journal = saved
-    W.journal.dim = W.journal.dim or "minecraft:overworld"
     if type(W.journal.moves) ~= "table" then W.journal.moves = {} end
     if type(W.journal.dug) ~= "table" then W.journal.dug = {} end
     if type(W.journal.id) ~= "string" then
@@ -218,8 +218,10 @@ end
 
 W.checkDimension = function()
   local j, dim = W.journal, W.dimension() or "minecraft:overworld"
-  if j.dim == dim or j.dimensionChanged then return end
-  if j.seq == 0 and #j.moves == 0 and #j.dug == 0 and not j.pending then j.dim=dim return end
+  if (j.dim or "minecraft:overworld") == dim or j.dimensionChanged then return end
+  if j.seq == 0 and #j.moves == 0 and #j.dug == 0 and not j.pending then
+    j.dim=dim ~= "minecraft:overworld" and dim or nil return
+  end
   j.uncertain, j.dimensionChanged = true, true
   j.recovery = {outcome="dimension changed"}
   W.save()
@@ -393,7 +395,7 @@ W.reanchor = function(body)
   if p.f < 0 or p.f > 3 then return end
   local old, pose = W.journal, W.pose
   W.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
-  W.journal = { seq = old.seq, dim = W.dimension() or "minecraft:overworld", moves = {}, dug = {}, park = true,
+  W.journal = { seq = old.seq, dim = W.dimension() ~= "minecraft:overworld" and W.dimension() or nil, moves = {}, dug = {}, park = true,
     recovery = { outcome = "anchored", journal = old.id } }
   W.bump()
   if not W.save() then W.journal, W.pose = old, pose return end
@@ -496,15 +498,55 @@ W.safeMove = function(step)
   if guard.y < bounds[1] or guard.y > bounds[2] then
     return dim == "minecraft:the_nether" and "remote safety: Nether bedrock boundary" or "remote safety: End void boundary"
   end
+  if dim == "minecraft:the_nether" then
+    for _,field in ipairs({"x","z","facing"}) do
+      local n=guard[field]
+      if type(n)~="number" or n~=n or n%1~=0 or math.abs(n)>=30000000 then return "remote safety: invalid position" end
+    end
+    if guard.facing<0 or guard.facing>3 then return "remote safety: invalid facing" end
+  end
   local inspect = ({forward="inspect",up="inspectUp",down="inspectDown"})[step.op]
   if not inspect then return "remote safety: reverse move requires inspection" end
   local exists, block = turtle[inspect]()
   if exists then
     if type(block) ~= "table" or type(block.name) ~= "string" then return "remote safety: cell unknown" end
+    if block.name == "minecraft:lava" and dim=="minecraft:the_nether" then
+      return string.format("remote safety: lava at %d,%d,%d",guard.x,guard.y,guard.z)
+    end
     if block.name == "minecraft:lava" or block.name == "minecraft:water" or block.name == "minecraft:bubble_column" then
       return "remote safety: " .. block.name:gsub("^minecraft:", "")
     end
   elseif exists ~= false or block ~= "No block to inspect" then return "remote safety: cell unknown" end
+end
+
+W.scanNether = function(guard)
+  local hazard
+  local function inspect(op,x,y,z)
+    local exists,block=turtle[op]()
+    if exists and type(block)=="table" and block.name=="minecraft:lava" then
+      hazard=string.format("remote safety: lava at %d,%d,%d",x,y,z)
+    elseif exists and (type(block)~="table" or type(block.name)~="string")
+      or not exists and (exists~=false or block~="No block to inspect") then
+      hazard="remote safety: surroundings unknown"
+    end
+  end
+  inspect("inspectUp",guard.x,guard.y+1,guard.z)
+  if not hazard then inspect("inspectDown",guard.x,guard.y-1,guard.z) end
+  for turn=0,3 do
+    if not hazard then
+      local f=(guard.facing+turn)%4
+      inspect("inspect",guard.x+C.dx[f],guard.y,guard.z+C.dz[f])
+    end
+    if hazard and turn==0 then return hazard end
+    if not W.markPending("turnRight") then
+      W.journal.uncertain=true return "remote safety: surroundings journal failed"
+    end
+    local result=W.exec({op="turnRight"})
+    if not result.ok then W.journal.uncertain=true return "remote safety: surroundings turn failed" end
+    W.journal.pending=nil
+    if not W.save() then W.journal.uncertain=true return "remote safety: surroundings journal failed" end
+  end
+  return hazard
 end
 
 W.exec = function(step)
@@ -576,6 +618,14 @@ W.exec = function(step)
     if C.moves[op] then
       W.apply(op)
       W.pushMove(op)
+      if step.safety and step.safety.dim=="minecraft:the_nether" then
+        W.journal.pending=nil
+        if W.save() then result.hazard=W.scanNether(step.safety)
+        else
+          W.journal.uncertain=true
+          result.hazard="remote safety: movement journal failed"
+        end
+      end
     elseif C.digs[op] then
       local x, y, z = W.cell(C.digs[op])
       W.noteDug(x, y, z)
@@ -627,7 +677,7 @@ W.startBatch = function(msg)
     deadline = math.min(deadline, W.expires)
   end
   W.lease, W.expires, W.legacyExpires = body.lease, deadline, msg.legacyExpires
-  local results = {}
+  local results, safetyStop = {}, false
   for i = 1, n do
     if W.now() >= W.expires then
       W.refuse(results, i, n)
@@ -655,17 +705,21 @@ W.startBatch = function(msg)
       break
     end
     results[i] = W.exec(step)
-    if not results[i].ok and (type(results[i].err)=="string" and results[i].err:match("^remote safety:")
+    if results[i].hazard or not results[i].ok and (type(results[i].err)=="string" and results[i].err:match("^remote safety:")
       or type(step)=="table" and step.safety and C.moves[op]) then
-      if not results[i].err:match("^remote safety:") then results[i].err="remote safety: "..results[i].err end
-      for j=i+1,n do results[j]={ok=false,err=results[i].err,counts=W.counts()} end
-      W.journal.pending=nil W.save()
+      local hazard=results[i].hazard or results[i].err
+      if not hazard:match("^remote safety:") then hazard="remote safety: "..hazard results[i].err=hazard end
+      for j=i+1,n do results[j]={ok=false,err=hazard,counts=W.counts()} end
+      if not W.journal.uncertain then W.journal.pending=nil end
+      W.journal.park,safetyStop=true,true
+      W.save()
       break
     end
     W.journal.pending = nil
     W.save()
   end
   W.report(results)
+  if safetyStop then W.queued=nil W.enterSlow() return end
   if W.queued then
     W.mode = "idle"
     W.stepName = "idle"

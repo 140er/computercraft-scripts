@@ -323,15 +323,16 @@ S.send = function(id, steps, opts)
     owner = opts.owner, journal = opts.journal, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
   if remote then
-    local y = opts.pose.y
+    local at = S.copyPose(opts.pose)
+    local reverse={forward="back",back="forward",up="down",down="up",turnLeft="turnRight",turnRight="turnLeft"}
     for i=#lease.steps,1,-1 do
       local step = lease.steps[i]
       if step.op=="forward" or step.op=="back" or step.op=="up" or step.op=="down" then
-        local err = S.rules().heightError(opts.pose.dim,y)
+        local err = S.rules().heightError(opts.pose.dim,at.y)
         if err then return nil, err end
-        step.safety={dim=opts.pose.dim,y=y}
-        y=y-(step.op=="up" and 1 or step.op=="down" and -1 or 0)
+        step.safety=S.copyPose(at)
       end
+      if reverse[step.op] then at=S.rules().apply(at,reverse[step.op]) end
     end
   end
   if #steps == 1 and steps[1].op == "inspectDown" then

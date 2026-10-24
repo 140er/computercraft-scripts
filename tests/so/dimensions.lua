@@ -5,8 +5,8 @@ local M = dofile("so-mine-plan.lua")
 local modules = {"so-plan.lua","so-ui.lua","so-log.lua","so-mod-state.lua","so-mod-lease.lua",
   "so-mod-cells.lua","so-mod-display.lua","so-mod-drops.lua","so-mod-mine.lua","so-mine-plan.lua",
   "so-mod-lumber.lua","so-lumber-plan.lua","so-mod-map.lua","so-mod-ar.lua"}
-local function setup(dim, enabled)
-  local a=F.setup({id=2,modem=true,turtle=true,capacity=1000000,fuel=10000},modules)
+local function setup(dim, enabled, opts)
+  local a=F.setup(opts or {id=2,modem=true,turtle=true,capacity=1000000,fuel=10000},modules)
   a.s.files["so-server.cfg"]=H.encode({pos={dim="minecraft:overworld",x=0,y=64,z=0},remoteDimensions=enabled})
   a.t.files["so-worker.cfg"]=H.encode({dim=dim})
   a.n.advance(31)
@@ -28,7 +28,53 @@ local function press(screen,w,h,id,session)
   end end
   error("missing button "..id)
 end
+local function floodOnMove(a, delta, level)
+  local update, moving = {}, false
+  local forward=a.t.env.turtle.forward
+  a.t.env.turtle.forward=function()
+    moving=true
+    local ok,err=forward()
+    moving=false
+    return ok,err
+  end
+  a.n.afterResume=function(worker)
+    if worker==a.t and moving and not update.lava then
+      local p,f=a.t.pos,a.t.heading
+      local x,z=p.x+({[0]=0,1,0,-1})[f],p.z+({[0]=-1,0,1,0})[f]
+      local cell={x=x+delta[1],y=p.y+delta[2],z=z+delta[3]}
+      a.n.world[x..","..p.y..","..z]={name="minecraft:lava",state={level=level}}
+      a.n.world[cell.x..","..cell.y..","..cell.z]={name="minecraft:lava",state={level=level}}
+      update.lava=cell
+    end
+  end
+  return update
+end
+local function physics()
+  return {id=2,modem=true,turtle=true,capacity=1000000,fuel=10000,physics=true,actionSeconds=0.05}
+end
 return function(test,equal)
+  test("legacy overworld journal saves byte-identically without dimension opt-in",function()
+    for _,configured in ipairs({false,true}) do
+      local n=H.new()
+      local m=n.machine({id=2,turtle=true})
+      m.install({"worker.lua","so-proto.lua","so-pair.lua","so-store.lua"})
+      if configured then m.files["so-worker.cfg"]=H.encode({dim="minecraft:overworld"}) end
+      local legacy={id="2-7",seq=7,pose={x=2,y=3,z=4,f=1},moves={{n=7,op="forward",ok=true}},dug={}}
+      local original=H.encode({schema=1,generation=3,value=legacy})
+      m.files["so-journal"]=original
+      local store=m.env.dofile("so-store.lua")
+      assert(store.store("so-journal",function() return true end,16000).save(legacy))
+      local expected=m.files["so-journal"]
+      m.files["so-journal"],m.files["so-journal.bak"]=original,nil
+      local source=m.files["worker.lua"]:gsub("W.boot%(%)%s*$","return W")
+      local worker=assert(load(source,"@worker.lua","t",m.env))()
+      worker.store=store;worker.box=store.store("so-journal",worker.valid,16000)
+      worker.load();worker.checkDimension()
+      assert(worker.save())
+      equal(m.files["so-journal"],expected)
+      equal(worker.journal.dim,nil)
+    end
+  end)
   test("dimension aliases normalize and remote opt-in requires literal true",function()
     equal(P.dimension("overworld"),"minecraft:overworld")
     equal(P.dimension("nether"),"minecraft:the_nether")
@@ -163,13 +209,88 @@ return function(test,equal)
   test("worker catches late lava before moving and aborts the rest of the batch",function()
     local a=setup("minecraft:the_nether",true)
     a.n.world["0,0,-1"]={name="minecraft:lava",state={level=0}}
-    F.send(a,{{op="forward",safety={dim="minecraft:the_nether",y=64}},
-      {op="up",safety={dim="minecraft:the_nether",y=65}}})
+    F.send(a,{{op="forward",safety={dim="minecraft:the_nether",x=0,y=64,z=-1,facing=0}},
+      {op="up",safety={dim="minecraft:the_nether",x=0,y=65,z=-1,facing=0}}})
     a.n.advance(1);F.check(a)
     equal(a.t.pos.z,0);equal(a.t.pos.y,0)
     local reports=F.sent(a.t,"step.report")
     local r=reports[#reports].body.results
-    equal(r[1].err,"remote safety: lava");equal(r[2].ok,false)
+    equal(r[1].err,"remote safety: lava at 0,64,-1");equal(r[2].ok,false)
+  end)
+  test("Nether post-move checks catch intervening source and flowing lava on all six sides",function()
+    for _,level in ipairs({0,3}) do
+      for _,delta in ipairs({{0,1,0},{0,-1,0},{0,0,-1},{1,0,0},{0,0,1},{-1,0,0}}) do
+        local a=setup("minecraft:the_nether",true,physics())
+        local update=floodOnMove(a,delta,level)
+        F.send(a,{{op="forward",safety={dim="minecraft:the_nether",x=0,y=64,z=-1,facing=0}},
+          {op="up",safety={dim="minecraft:the_nether",x=0,y=65,z=-1,facing=0}}})
+        a.n.advance(3);F.check(a)
+        assert(update.lava,"fluid update did not intervene")
+        equal(a.t.pos,{x=0,y=0,z=-1});equal(a.t.heading,0)
+        local reports=F.sent(a.t,"step.report")
+        local results=reports[#reports].body.results
+        equal(results[1].ok,true)
+        equal(results[1].hazard,"remote safety: lava at "..update.lava.x..","..(64+update.lava.y)..","..update.lava.z)
+        equal(results[2].ok,false);equal(F.journal(a.t).park,true)
+        a.n.advance(31);F.check(a)
+        equal(a.t.pos,{x=0,y=0,z=-1});equal(a.t.heading,0)
+        assert(#F.sent(a.t,"beacon")>0)
+      end
+    end
+  end)
+  for _,role in ipairs({"mining","lumber"}) do
+    test(role.." retains the moved pose and alerts after intervening lava",function()
+      local a=setup("minecraft:the_nether",true,physics())
+      if role=="mining" then
+        a.input(role,"home 0 64 0 n nether");a.input(role,"bottom 63");a.input(role,"length 1")
+      else
+        a.input(role,"area 0 0 3 3 62 nether");a.input(role,"saplings 5 63 0 down")
+      end
+      a.input(role,"add 2 0 64 0 n");a.n.advance(3)
+      a.s.env.SO.mods.drops.add({id="supply",dim=-1,x=100,y=64,z=0,kind="any",side="front"})
+      local update=floodOnMove(a,{0,1,0},3)
+      a.input(role,"start");a.n.advance(8);F.check(a)
+      assert(update.lava,"job never reached a movement")
+      local alert=a.s.env.SO.mods.state.get(role=="mining" and "mine.alert" or "lumber.alert")
+      equal(alert.text,"lava at "..update.lava.x..","..(64+update.lava.y)..","..update.lava.z)
+      local row=a.job(role=="mining" and "mine" or "lumber").turtles["2"]
+      local pose=role=="mining" and row.pose or row.turtle.pose
+      equal({pose.x,pose.y,pose.z},{a.t.pos.x,a.t.pos.y+64,a.t.pos.z})
+      local before={x=a.t.pos.x,y=a.t.pos.y,z=a.t.pos.z}
+      a.n.advance(5);F.check(a);equal(a.t.pos,before)
+      equal(F.journal(a.t).park,true)
+    end)
+  end
+  test("an interrupted Nether surroundings turn retains uncertainty without further movement",function()
+    local a=setup("minecraft:the_nether",true)
+    local turn=a.t.env.turtle.turnRight
+    a.t.env.turtle.turnRight=function()
+      turn();a.n.kill(a.t);error("power loss")
+    end
+    F.send(a,{{op="forward",safety={dim="minecraft:the_nether",x=0,y=64,z=-1,facing=0}}})
+    a.n.advance(1)
+    equal(F.journal(a.t).pending.op,"turnRight")
+    equal(a.t.pos,{x=0,y=0,z=-1});equal(a.t.heading,1)
+    a.t.env.turtle.turnRight=turn
+    a.t.killed=false;a.t.co,a.t.inbox,a.t.timers=nil,{},{}
+    a.t.boot("worker.lua");a.n.advance(3);F.check(a)
+    equal(F.journal(a.t).uncertain,true)
+    equal(F.journal(a.t).pending.op,"turnRight")
+    a.n.advance(31);F.check(a)
+    equal(a.t.pos,{x=0,y=0,z=-1});equal(a.t.heading,1)
+  end)
+  test("remote batch guards carry world coordinates across turns and height changes",function()
+    local a=setup("minecraft:the_nether",true)
+    local lease=a.s.env.SO.mods.lease
+    assert(lease.send(2,{{op="forward"},{op="turnRight"},{op="forward"},{op="up"}},
+      {pose={dim="minecraft:the_nether",x=1,y=65,z=-1,facing=1}}))
+    local sent=F.sent(a.s,"lease.batch")
+    local steps=sent[#sent].body.steps
+    equal(steps[1].safety,{dim="minecraft:the_nether",x=0,y=64,z=-1,facing=0})
+    equal(steps[3].safety,{dim="minecraft:the_nether",x=1,y=64,z=-1,facing=1})
+    equal(steps[4].safety,{dim="minecraft:the_nether",x=1,y=65,z=-1,facing=1})
+    a.n.advance(2);F.check(a)
+    equal(a.t.pos,{x=1,y=1,z=-1});equal(a.t.heading,1)
   end)
   test("worker refuses remote void bedrock missing guards and dimension mismatch",function()
     for _,case in ipairs({{"minecraft:the_end",0},{"minecraft:the_nether",127},

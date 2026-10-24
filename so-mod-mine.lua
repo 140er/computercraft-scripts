@@ -342,9 +342,11 @@ local function report(_, id, results, lease)
     call("cells", "rememberWorker", id, row.pose, history)
   end
   for _, result in ipairs(results) do
-    if not result.ok and type(result.err)=="string" and result.err:match("^remote safety:") then
-      row.safety=result.err row.error=result.err row.state="hold"
-      emit("mine.alert",{id=id,text=result.err})
+    local hazard=result.hazard or result.err
+    if type(hazard)=="string" and hazard:match("^remote safety:") then
+      row.safety=hazard row.error=hazard:gsub("^remote safety: ","") row.state="hold"
+      emit("mine.alert",{id=id,text=row.error})
+      break
     end
   end
   if action then
@@ -552,7 +554,7 @@ plan = function(id,row)
   if job.dim ~= "minecraft:overworld" then
     local err=P.dimensionError(job.dim,SO.store.read("so-server.cfg")) or P.heightError(job.dim,row.pose.y)
       or P.heightError(job.dim,job.home.y) or P.heightError(job.dim,job.bottom) or row.safety
-    if err then row.error=err row.state="hold" park(id,row,false) return end
+    if err then row.error=err:gsub("^remote safety: ","") row.state="hold" park(id,row,false) return end
   end
   if row.lane and row.lane.release then return end
   if not row.yield and (row.state=="range" or row.state=="hold")

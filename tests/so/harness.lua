@@ -80,7 +80,9 @@ local function attachTurtle(m, opts, world)
   end
   local function move(d)
     if m.fuel ~= "unlimited" and m.fuel < 1 then return false, "Out of fuel" end
-    if world[key(d)] then return false, "Movement obstructed" end
+    local block=world[key(d)]
+    local fluid=type(block)=="table" and (block.name=="minecraft:lava" or block.name=="minecraft:water")
+    if block and not (opts.physics and fluid) then return false, "Movement obstructed" end
     m.pos.x, m.pos.y, m.pos.z = spot(d)
     if m.fuel ~= "unlimited" then m.fuel = m.fuel - 1 end
     return true

@@ -608,6 +608,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   checks remote movement height and inspects immediately before moving. A failed
   remote move aborts its batch. Remote expiry stays stationary. Journal `dim`
   changes require re-anchor before retained dug history can be used again.
+  Legacy overworld journals omit `dim` on save. Nether moves carry world poses,
+  then inspect all six neighbours using journaled turns. A successful movement
+  result can carry `hazard`; planners retain its moved pose, hold and report
+  the lava coordinates. See the protocol for the remaining fluid race.
   `discard {side="front"|"up"|"down", n?}` checks for an empty cell and refuses
   adjacent inventories. The default side is down.
   It accepts authenticated server batches, not planner decisions. Keep it small
@@ -992,7 +996,9 @@ per-display WORLD/NETHER/END control when enabled. AR uses `arDim`, the server
 dimension, or overworld, in that order. It never overlays different dimensions.
 
 Remote movement stays within Nether Y 1..126 and End Y 1..255. End turtles can
-fly through open air above the void. Lava and other fluid entry refuses at the
-worker. Neither ender modems nor this feature load chunks. Silent remote leases
+fly through open air above the void. Workers refuse fluid detected before a
+move. Nether post-move scans stop beside observed lava and report its coordinates.
+Fluid can still change between commands; the scan cannot inspect the occupied
+block. Neither ender modems nor this feature load chunks. Silent remote leases
 show `remote silent; unloaded?`, retain reservations and recover in place.
 See [the operator guide](../README-SERVER-ONLY.md#nether-and-end-jobs).

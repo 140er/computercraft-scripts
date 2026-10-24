@@ -686,6 +686,13 @@ S.report = function(id, turtleId, results, lease)
   local action, result = pending.action, results[#results]
   local ok = true
   for _, row in ipairs(results) do if not row.ok then ok = false end end
+  for _,r in ipairs(results) do
+    local hazard=r.hazard or r.err
+    if type(hazard)=="string" and hazard:match("^remote safety:") then
+      j.blocked="hold" S.alert(hazard:gsub("^remote safety: ",""))
+      S.prune() S.save() return
+    end
+  end
   local attempted, failed
   for i, step in ipairs(pending.steps) do
     if step.op == "forward" or step.op == "back" or step.op == "up" or step.op == "down"
@@ -704,9 +711,6 @@ S.report = function(id, turtleId, results, lease)
     else j.failures = nil end
   end
   if failed then
-    for _, r in ipairs(results) do
-      if type(r.err)=="string" and r.err:match("^remote safety:") then j.blocked="hold" S.alert(r.err) break end
-    end
     if not S.row.pending then S.prune() end
     S.save()
     return
