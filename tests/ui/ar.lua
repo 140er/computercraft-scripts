@@ -108,6 +108,21 @@ return function(test, equal)
     assert(not table.concat(screen(b, 57, 24), '\n'):find('ALERTS', 1, true))
   end)
 
+  test('U2-AR a disk alert stays when the player stepped to another alert and turns alerts off', function()
+    local b = boot()
+    b.values['disk.alert'] = { text = 'DISK 90%' }
+    b.values['mine.alert'] = { text = 'CHEST FULL' }
+    b.tick(1000)
+    equal(b.ar.elements['alert:disk.alert'][4], 'DISK 90%')
+    b.screens.ar.input({ id = 'alert:next' })
+    b.tick(1100)
+    equal(b.ar.elements['alert:mine.alert'][4], 'CHEST FULL')
+    b.screens.ar.input({ id = 'alerts' })
+    b.tick(2100)
+    equal(b.ar.elements['alert:mine.alert'], nil)
+    equal(b.ar.elements['alert:disk.alert'][4], 'DISK 90%')
+  end)
+
   test('U2-AR drop labels read #n like the DROP POINTS rows', function()
     local b = boot()
     for i, kind in ipairs({ 'ore', 'fuel', 'ore' }) do

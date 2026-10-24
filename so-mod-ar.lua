@@ -312,7 +312,8 @@ A.scene = function(now)
     if newest and newest > (A.newest or -math.huge) then A.pick = nil end
     A.newest, A.active, A.shown = newest, alerts, nil
     local row, index = alerts[1], 1
-    for i, a in ipairs(alerts) do if a.key == A.pick then row, index = a, i end end
+    -- With the alerts layer off only the disk alert shows, so a stepped-to pick is ignored.
+    for i, a in ipairs(alerts) do if A.layers.alerts and a.key == A.pick then row, index = a, i end end
     if row and (row.key == "disk.alert" or A.layers.alerts) then
       local text = tostring(type(row.value) == "table" and row.value.text or row.value)
       local count = #alerts > 1 and index .. "/" .. #alerts or ""
