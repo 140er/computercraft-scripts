@@ -141,4 +141,111 @@ return function(test,equal)
     equal(f.job().alert,"turtle assigned to lumber")
   end)
 
+  test("builder probes a dry worker and places after a manual refuel",function()
+    local f=fixture() f.fuel=0 f.configure("floor",1,1,1) f.input("start")
+    f.tick() f.report()
+    f.tick()
+    equal(f.job().intent.action,"fuel")
+    equal(f.queued().steps,{{op="inspectDown",park=true}})
+    local sent=#f.calls f.tick() equal(#f.calls,sent)
+    f.fuel=5 f.report()
+    equal(f.job().fuel,5) equal(f.job().blocked,nil) equal(f.alert,false)
+    f.run() equal(f.count(),1) equal(f.world["0,0,0"],"minecraft:stone")
+  end)
+  test("builder keeps probing at zero fuel without moving and stops probing when stopped",function()
+    local f=fixture() f.fuel=0 f.configure("floor",1,1,1) f.input("start")
+    f.tick() f.report()
+    for _=1,3 do
+      f.tick() equal(f.queued().steps,{{op="inspectDown",park=true}}) f.report()
+      equal(f.job().alert,"out of fuel") equal(f.job().blocked,"fuel")
+    end
+    equal(f.count(),0)
+    f.input("stop") f.tick() equal(f.queued(),nil)
+  end)
+  test("builder fuel probe accepts unlimited fuel",function()
+    local f=fixture() f.fuel=0 f.configure("floor",1,1,1) f.input("start")
+    f.tick() f.report() f.tick() f.fuel="unlimited" f.report()
+    equal(f.job().blocked,nil) f.run() equal(f.count(),1)
+  end)
+  for _,conflict in ipairs({"below","current"}) do
+    test("builder resumes after refuelling with a fuel probe reservation conflict "..conflict,function()
+      local f=fixture()
+      f.setPose({dim="minecraft:overworld",x=0,y=1,z=0,facing=1})
+      f.inventory[1]={name="minecraft:stone",count=2}
+      f.configure("floor",2,1,1) f.input("start")
+      for _=1,20 do
+        f.tick() if f.queued() then f.report() end
+        if f.count()==1 then break end
+      end
+      equal(f.count(),1)
+      f.tick() equal(f.job().intent.action,"move")
+      equal(f.queued().steps,{{op="up",park=true}})
+      f.report(false,0)
+      local pose=f.job().turtle.pose
+      equal(pose.y,2)
+      local below=pose.x..","..(pose.y-1)..","..pose.z
+      local current=pose.x..","..pose.y..","..pose.z
+      local held=conflict=="below" and below or current
+      f.held[held]="mine:7"
+      local reserveMany=f.mods.cells.reserveMany
+      local reserved
+      f.mods.cells.reserveMany=function(owner,cells)
+        reserved=cells
+        return reserveMany(owner,cells)
+      end
+      for _=1,2 do
+        f.tick()
+        equal(f.job().blocked,"fuel") equal(f.job().alert,"out of fuel")
+        equal(#reserved,1) equal(reserved[1],pose)
+        if conflict=="below" then
+          equal(f.job().intent.action,"fuel")
+          equal(f.queued().steps,{{op="inspectDown",park=true}})
+          f.report()
+        else equal(f.queued(),nil) end
+        equal(f.job().blocked,"fuel") equal(f.job().alert,"out of fuel")
+        equal(f.held[held],"mine:7") equal(f.count(),1)
+      end
+      f.mods.cells.reserveMany=reserveMany
+      f.held[held]=nil f.fuel=5
+      f.tick() equal(f.job().intent.action,"fuel") f.report()
+      equal(f.job().blocked,nil) equal(f.job().fuel,5)
+      f.run() equal(f.count(),2)
+    end)
+  end
+  for _,case in ipairs({{0,"Movement obstructed","out of fuel","fuel"},
+    {5,"Out of fuel","out of fuel","fuel"},{5,"Movement obstructed","path blocked; clear route","path"}}) do
+    test("builder reports failed movement with fuel "..case[1].." and "..case[2],function()
+      local f=fixture() f.configure("floor",1,1,1) f.tick() f.report() f.input("start")
+      f.tick() equal(f.job().intent.action,"move")
+      f.fuel,f.moveError=case[1],case[2] f.report()
+      equal(f.job().alert,case[3]) equal(f.job().blocked,case[4])
+      equal(f.count(),0)
+    end)
+  end
+  test("builder replaces a forgotten worker while retaining its pending recovery cells",function()
+    local f=fixture() f.configure("floor",1,1,1) f.tick() f.report() f.input("start")
+    f.tick() equal(f.job().intent.action,"move")
+    local old=f.mods.cells.list("build:2") assert(#old>1)
+    assert(f.mod().forget(2)) equal(f.mod().assigned(2),false)
+    f.report(true) f.restart()
+    f.setPose({dim="minecraft:overworld",x=4,y=4,z=0,facing=3})
+    f.input("add 3")
+    equal(f.job().turtle.id,3) equal(f.job().alert,nil) equal(f.mod().assigned(3),true)
+    f.mod().handlers.hello({from=3,body={capabilities={parkBatch=true}}})
+    f.tick() f.report() f.restart() f.tick() f.report()
+    equal(#f.mods.cells.list("build:2"),#old)
+    for _,p in ipairs(old) do
+      equal(f.held[p.x..","..p.y..","..p.z],"build:2")
+      equal(f.mods.cells.reserveMany("build:3",{p}),false)
+    end
+  end)
+  test("builder keeps an active worker and requires an explicit pose to re-add a forgotten worker",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    f.input("add 3") equal(f.job().turtle.id,2)
+    equal(f.job().alert,"builder already has a turtle")
+    assert(f.mod().forget(2)) f.input("add 2")
+    equal(f.job().alert,"add needs x y z n|e|s|w")
+    f.input("add 2 -2 4 0 e") equal(f.job().turtle.forgotten,nil)
+  end)
+
 end

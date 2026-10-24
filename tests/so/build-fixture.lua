@@ -5,7 +5,7 @@ local function copy(v)
 end
 local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
 return function()
-  local f={world={},held={},saved=nil,now=1000,serial=0,placed={},calls={},saveOK=true,range=function() return true end}
+  local f={world={},held={},saved=nil,now=1000,serial=0,placed={},calls={},fuel=10000,saveOK=true,range=function() return true end}
   local pose={dim="minecraft:overworld",x=-2,y=4,z=0,facing=1}
   local inv,selected={},1
   local input,render,callback,queued,mod
@@ -26,10 +26,10 @@ return function()
   mods.display={screen=function(_,r,i) render,input=r,i end}
   mods.lease={status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost} end,
     inRange=function(_,p) return f.range(p) end,onReport=function(_,fn) callback=fn end,
-    send=function(_,steps,opts)
+    send=function(id,steps,opts)
       if f.sendError then return nil,f.sendError end
       f.serial=f.serial+1
-      queued={id=f.serial,steps=copy(steps),opts=opts}
+      queued={id=f.serial,turtleId=id,steps=copy(steps),opts=opts}
       f.calls[#f.calls+1]=queued
       return queued.id
     end}
@@ -63,9 +63,10 @@ return function()
   f.press=function(id,session) input({id=id,session=session}) end
   f.job=function() return copy(f.saved) end
   f.queued=function() return queued end
+  f.setPose=function(value) pose=copy(value) end
   f.mod=function() return mod end
   f.tick=function() f.now=f.now+100 mod.tick() end
-  f.report=function(drop)
+  f.report=function(drop,reportedFuel)
     local q=assert(queued,"no queued lease") queued=nil
     local results={}
     for i,step in ipairs(q.steps) do
@@ -79,7 +80,7 @@ return function()
         if block then result.data={name=type(block)=="table" and block.name or block} else result.err="No block to inspect" end
       elseif step.op=="placeDown" then
         local at={x=pose.x,y=pose.y-1,z=pose.z}
-        assert(f.held[key(at)]=="build:2","placement was not reserved")
+        assert(f.held[key(at)]=="build:"..q.turtleId,"placement was not reserved")
         local block=inv[selected]
         result.ok=not f.world[key(at)] and block and block.count>0 or false
         if result.ok then
@@ -94,13 +95,16 @@ return function()
         if result.ok then inv[selected]={name=supply.item or "minecraft:stone",count=n} supply.stock=supply.stock-n end
       else
         local nextPose=P.apply(pose,step.op)
-        if f.world[key(nextPose)] and (step.op=="forward" or step.op=="up" or step.op=="down") then result.ok=false result.err="Movement obstructed"
+        local move=step.op=="forward" or step.op=="up" or step.op=="down"
+        if move and (f.fuel==0 or f.moveError) then result.ok=false result.err=f.moveError or "Out of fuel"
+        elseif f.world[key(nextPose)] and move then result.ok=false result.err="Movement obstructed"
         else pose=nextPose end
       end
       results[i]=result
     end
+    if reportedFuel~=nil then f.fuel=reportedFuel end
     if not drop then
-      callback(q.id,2,results,{report={pose={x=pose.x,y=pose.y,z=pose.z,f=pose.facing},inv=inventory(),fuel=10000}})
+      callback(q.id,q.turtleId,results,{report={pose={x=pose.x,y=pose.y,z=pose.z,f=pose.facing},inv=inventory(),fuel=f.fuel}})
     end
     return q
   end

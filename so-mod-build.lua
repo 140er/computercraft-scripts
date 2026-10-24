@@ -110,14 +110,16 @@ local function send(steps, action, recover)
   steps[1].park = true
   local start, at = j.turtle.pose, j.turtle.pose
   local reserved = { start }
-  for _, step in ipairs(steps) do
-    at = P.apply(at, step.op)
-    reserved[#reserved+1] = at
-    if step.op == "placeDown" or step.op == "inspectDown" or step.op == "suckDown" then
-      reserved[#reserved+1] = {dim=j.dim,x=at.x,y=at.y-1,z=at.z}
-    elseif step.op == "inspect" or step.op == "suck" then
-      local x,y,z = P.ahead(at,"forward")
-      reserved[#reserved+1] = {dim=j.dim,x=x,y=y,z=z}
+  if action ~= "fuel" then
+    for _, step in ipairs(steps) do
+      at = P.apply(at, step.op)
+      reserved[#reserved+1] = at
+      if step.op == "placeDown" or step.op == "inspectDown" or step.op == "suckDown" then
+        reserved[#reserved+1] = {dim=j.dim,x=at.x,y=at.y-1,z=at.z}
+      elseif step.op == "inspect" or step.op == "suck" then
+        local x,y,z = P.ahead(at,"forward")
+        reserved[#reserved+1] = {dim=j.dim,x=x,y=y,z=z}
+      end
     end
   end
   if not recover then
@@ -126,7 +128,10 @@ local function send(steps, action, recover)
   end
   if not cells.reserveMany then alert("cells unavailable") return false end
   local ok, err = cells.reserveMany(owner(),reserved)
-  if not ok then alert(err == "held" and "cells held" or "reservation save failed", "cells") return false end
+  if not ok then
+    if action ~= "fuel" or err ~= "held" then alert(err == "held" and "cells held" or "reservation save failed", "cells") end
+    return false
+  end
   j.intent = {action=action, steps=steps, pose=start}
   if not save() then return false end
   local id
@@ -238,6 +243,10 @@ local function report(id, turtleId, results, lease)
   if action == "recover" then
     S.recover, j.blocked, j.alert, j.phase = false, nil, nil, "check"
     if j.service then j.service.stage = "travel" end
+  elseif action == "fuel" then
+    if j.fuel == "unlimited" or type(j.fuel) == "number" and j.fuel >= 1 then
+      j.blocked, j.alert = nil, nil
+    else alert("out of fuel", "fuel") end
   elseif action == "check" then
     if last.ok and last.data and last.data.name == j.material then advance()
     elseif last.ok then alert("build cell occupied")
@@ -258,7 +267,11 @@ local function report(id, turtleId, results, lease)
     else j.service.stage="check" j.retryAt=SO.now()+10000 alert("out of material", "material") end
   elseif action == "move" then
     for _, result in ipairs(results) do
-      if not result.ok then alert("path blocked; clear route", "path") break end
+      if not result.ok then
+        if j.fuel == 0 or tostring(result.err):lower():find("fuel", 1, true) then alert("out of fuel", "fuel")
+        else alert("path blocked; clear route", "path") end
+        break
+      end
     end
   end
   if save() then trim() end
@@ -330,10 +343,10 @@ local function input(ev)
     j.blueprint,j.shape,j.material,j.cursor,j.phase,j.service=b,b.shape,b.material,1,"check",nil
     S.targets=expand(b)
   elseif w[1] == "add" and (#w == 2 or #w == 6) then
-    if j.turtle and j.turtle.forgotten and #w ~= 6 then alert("add needs x y z n|e|s|w") return end
     local id=tonumber(w[2])
     if not whole(id) or id < 0 then alert("invalid turtle") return end
-    if j.turtle and j.turtle.id ~= id then alert("builder already has a turtle") return end
+    if j.turtle and j.turtle.forgotten and j.turtle.id == id and #w ~= 6 then alert("add needs x y z n|e|s|w") return end
+    if j.turtle and not j.turtle.forgotten and j.turtle.id ~= id then alert("builder already has a turtle") return end
     local lease=module("lease")
     local stat=lease.status and lease.status(id) or {}
     if stat.open and not stat.uncertain then alert("turtle has open lease") return end
@@ -434,11 +447,15 @@ local function tick()
   if j.blocked == "material" and j.retryAt and SO.now() >= j.retryAt then
     j.blocked=nil
   end
+  if j.running and (j.blocked == "fuel" or not j.blocked and type(j.fuel)=="number" and j.fuel>=0 and j.fuel<1) then
+    alert("out of fuel", "fuel")
+    send({{op="inspectDown"}},"fuel")
+    return
+  end
   if not j.running or j.blocked then return end
   S.targets=S.targets or expand(j.blueprint)
   local target=S.targets and S.targets[j.cursor]
   if not target then j.running=false save() return end
-  if type(j.fuel)=="number" and j.fuel>=0 and j.fuel<1 then alert("out of fuel","fuel") return end
   if j.service then
     local service=j.service
     if service.stage == "travel" then
@@ -477,4 +494,4 @@ local function forget(id)
   S.pending, S.recover = nil, true
   return save()
 end
-return {name="build",forget=forget,assigned=function(id) return j.turtle and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,expand=expand,import=import,dugProtection=protect}
+return {name="build",forget=forget,assigned=function(id) return j.turtle and not j.turtle.forgotten and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,expand=expand,import=import,dugProtection=protect}
