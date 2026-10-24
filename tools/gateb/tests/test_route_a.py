@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from checks import c2, c3, c13
@@ -228,7 +229,11 @@ class GogglesTests(unittest.TestCase):
 
     def test_run_passes_the_goggles_gate_and_records_the_link(self):
         world = World()
-        with self.assertRaises(Blocked) as raised:
+        world.manifest["client_views"] = {"wall": "tp GateBTester 0 64 0"}
+        def take(ctx, name, view, pocket=False):
+            ctx.screenshot(name)
+            return c13.camera.check(ctx, name)
+        with patch.object(c13.camera, "take", side_effect=take), self.assertRaises(Blocked) as raised:
             c13.run(world)
         # Without reviewed pixel references the check stops at the first photo, not at goggles.
         self.assertIn("pixel reference", str(raised.exception))

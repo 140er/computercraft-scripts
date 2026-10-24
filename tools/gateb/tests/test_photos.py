@@ -1,0 +1,285 @@
+"""Native C3 and C13 photos: pocket screen, settled frames, cameras and candidate collection."""
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import run
+from checks import c3, c13, photos
+from checks.model import Blocked, Verdict
+
+
+class Keys:
+    def __init__(self): self.events = []
+    def press(self, name): self.events.append(name)
+    def click(self, x, y, button=1): self.events.append(("click", x, y, button))
+
+
+class Client:
+    """A native client whose screenshots are scripted as states: world, pocket, menu, loading."""
+    def __init__(self, states, output, manifest=None):
+        self.states, self.output, self.run = list(states), Path(output), "private"
+        self.native_input, self.commands, self.evidence, self.manifest = Keys(), [], [], manifest or {}
+        self.shots, self.last = 0, None
+        self.output.mkdir(parents=True, exist_ok=True)
+
+    def shot(self):
+        self.shots += 1
+        self.last = self.states.pop(0) if len(self.states) > 1 else self.states[0]
+        path = self.output / f"shot-{self.shots}.png"
+        path.write_text(self.last)
+        return path
+
+    def keep(self, source, name):
+        (self.output / name).write_bytes(Path(source).read_bytes())
+        self.evidence.append(name)
+
+    def sleep(self, seconds): pass
+
+    def command(self, text):
+        self.commands.append(text)
+        if text.endswith(" Pos"): return {"output": "GateBTester has the following entity data: [-1.5d, 64.0d, -4.5d]"}
+        if text.endswith(" Rotation"): return {"output": "GateBTester has the following entity data: [0.0f, 10.0f]"}
+        return {"output": ""}
+
+
+def probes(test):
+    """Read the scripted state back from each fake screenshot."""
+    state = lambda p: Path(p).read_text()
+    for name, fn in (("pocket_open", lambda p: state(p) == "pocket"), ("menu_open", lambda p: state(p) == "menu"),
+                     ("loading", lambda p: state(p) == "loading"), ("changed", lambda a, b: 0.0 if state(a) == state(b) else 1.0)):
+        patcher = patch.object(photos, name, side_effect=fn)
+        patcher.start(); test.addCleanup(patcher.stop)
+
+
+class PocketScreenTests(unittest.TestCase):
+    def setUp(self):
+        probes(self)
+        self.dir = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.dir)
+
+    def test_pocket_is_held_and_used_until_its_bezel_shows(self):
+        ctx = Client(["world", "world", "pocket"], self.dir)
+        photos.open_pocket(ctx)
+        self.assertEqual(ctx.commands, ["gamemode creative GateBTester"])
+        self.assertEqual(ctx.native_input.events, ["Escape", "1", ("click", 640, 360, 3)])
+        photos.open_pocket(ctx)
+        self.assertEqual(ctx.commands.count("gamemode creative GateBTester"), 1)
+
+    def test_pause_menu_is_dismissed_before_using_the_pocket(self):
+        ctx = Client(["menu", "pocket"], self.dir)
+        photos.open_pocket(ctx)
+        self.assertEqual(ctx.native_input.events, ["Escape"])
+
+    def test_missing_bezel_blocks(self):
+        with self.assertRaisesRegex(Blocked, "pocket bezel not visible"):
+            photos.open_pocket(Client(["world"], self.dir), attempts=3)
+
+    def test_close_screens_leaves_the_world_in_view(self):
+        ctx = Client(["pocket", "menu", "world"], self.dir)
+        photos.close_screens(ctx)
+        self.assertEqual(ctx.native_input.events, ["Escape", "Escape"])
+
+
+class SettledFrameTests(unittest.TestCase):
+    def setUp(self):
+        probes(self)
+        self.dir = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.dir)
+
+    def test_loading_frames_are_skipped_until_two_frames_agree(self):
+        ctx = Client(["loading", "loading", "world", "world"], self.dir)
+        shot = photos.settled(ctx, "C13-layers-before.png", pocket=False)
+        self.assertEqual(Path(shot).read_text(), "world")
+        self.assertEqual(ctx.shots, 4)
+
+    def test_changing_frames_never_settle(self):
+        class Moving(Client):
+            def shot(self):
+                path = super().shot(); path.write_text(f"world {self.shots}"); return path
+        with patch.object(photos, "pocket_open", return_value=False), \
+             self.assertRaisesRegex(Blocked, "did not settle for C13-stability-0.png"):
+            photos.settled(Moving(["world"], self.dir), "C13-stability-0.png", pocket=False, seconds=0.05)
+
+    def test_a_closed_pocket_is_reopened_for_a_pocket_photo(self):
+        ctx = Client(["world", "pocket", "pocket", "pocket"], self.dir)
+        with patch.object(photos, "open_pocket", wraps=photos.open_pocket) as opened:
+            self.assertEqual(Path(photos.settled(ctx, "C3-pocket-map.png", pocket=True)).read_text(), "pocket")
+        self.assertEqual(opened.call_count, 1)
+
+
+class TakeTests(unittest.TestCase):
+    def setUp(self):
+        probes(self)
+        self.dir = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.dir)
+
+    def test_reviewed_mode_still_blocks_on_a_missing_reference(self):
+        ctx = Client(["world"], self.dir / "out")
+        with self.assertRaisesRegex(Blocked, "No reviewed deterministic pixel reference for C3-wall-map.png"):
+            photos.take(ctx, "C3-wall-map.png", "tp GateBTester -1.5 64 -4.5 0 10")
+        self.assertIn("tp GateBTester -1.5 64 -4.5 0 10", ctx.commands)
+        self.assertTrue((ctx.output / "C3-wall-map.png").exists())
+
+    def test_reviewed_mode_returns_the_comparison(self):
+        ctx = Client(["world"], self.dir / "out")
+        with patch.object(photos, "check", return_value=True) as compared:
+            self.assertIs(photos.take(ctx, "C3-wall-map.png", "view"), True)
+        compared.assert_called_once_with(ctx, "C3-wall-map.png")
+
+    def test_collect_mode_writes_photo_and_camera_and_gives_no_credit(self):
+        ctx = Client(["pocket"], self.dir / "out")
+        ctx.collect = self.dir / "candidates"
+        with patch.object(photos, "check") as compared:
+            self.assertIsNone(photos.take(ctx, "C3-pocket-map.png", "tp GateBTester -1.5 64 -4.5 -90 -90", pocket=True))
+        compared.assert_not_called()
+        self.assertEqual((ctx.collect / "C3-pocket-map.png").read_text(), "pocket")
+        camera = json.loads((ctx.collect / "C3-pocket-map.png.camera.json").read_text())
+        self.assertEqual(camera["view"], "tp GateBTester -1.5 64 -4.5 -90 -90")
+        self.assertIn("-4.5d", camera["pos"]["output"])
+        self.assertIn("10.0f", camera["rotation"]["output"])
+        self.assertEqual(ctx.candidates, ["C3-pocket-map.png"])
+
+    def test_photo_prepare_commands_run_once(self):
+        ctx = Client(["world"], self.dir / "out", {"photo_prepare": ["clone -1 64 -2 -1 64 -2 -10 64 -6 replace move"]})
+        ctx.collect = self.dir / "candidates"
+        photos.take(ctx, "a.png", "view"); photos.take(ctx, "b.png", "view")
+        self.assertEqual(ctx.commands.count("clone -1 64 -2 -1 64 -2 -10 64 -6 replace move"), 1)
+        self.assertLess(ctx.commands.index("clone -1 64 -2 -1 64 -2 -10 64 -6 replace move"), ctx.commands.index("view"))
+
+    def test_credit_needs_every_verdict(self):
+        self.assertIsNone(photos.credit([]))
+        self.assertIsNone(photos.credit([True, None]))
+        self.assertIs(photos.credit([True, False]), False)
+        self.assertIs(photos.credit([True, True]), True)
+
+
+@unittest.skipUnless(shutil.which("convert") and shutil.which("compare"), "ImageMagick unavailable")
+class ImageProbeTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.dir)
+
+    def image(self, name, *draw):
+        path = self.dir / name
+        subprocess.run(["convert", "-size", "1280x720", "xc:#5b8731", *draw, str(path)], check=True)
+        return path
+
+    def test_probes_read_bezel_menu_loading_and_motion(self):
+        world = self.image("world.png")
+        pocket = self.image("pocket.png", "-fill", "#e6e080", "-draw", "rectangle 392,120 407,519",
+                            "-draw", "rectangle 922,120 937,519")
+        menu = self.image("menu.png", "-fill", "#6f6f6f", "-draw", "rectangle 340,195 939,234")
+        loading = self.image("loading.png", "-fill", "#bb00bb", "-draw", "rectangle 640,0 1279,359")
+        self.assertTrue(photos.pocket_open(pocket)); self.assertFalse(photos.pocket_open(world))
+        self.assertTrue(photos.menu_open(menu)); self.assertFalse(photos.menu_open(world))
+        self.assertTrue(photos.loading(loading)); self.assertFalse(photos.loading(world))
+        self.assertEqual(photos.changed(world, world), 0)
+        self.assertAlmostEqual(photos.changed(world, loading), .25, places=2)
+
+
+class CameraTests(unittest.TestCase):
+    def test_c13_prefers_the_ar_camera_then_the_wall_camera(self):
+        class Ctx: manifest = {"client_views": {"ar": "ar view", "wall": "wall view"}}
+        self.assertEqual(c13.views(Ctx()), "ar view")
+        Ctx.manifest = {"client_views": {"wall": "wall view"}}
+        self.assertEqual(c13.views(Ctx()), "wall view")
+        Ctx.manifest = {"client_views": {"pocket": "x"}}
+        with self.assertRaisesRegex(Blocked, "client_views.ar or client_views.wall"):
+            c13.views(Ctx())
+
+    def test_c13_takes_its_five_photos_from_its_camera(self):
+        taken = []
+        class Ctx:
+            manifest = {"client_views": {"ar": "ar view"}, "fixtures": {"goggles": {
+                "linked_player_in_template": True, "verify_command": "v", "expected_turtles": 3}}}
+            run = "private"
+            def cli(self, *a, **k): return {}
+            def command(self, text): return {"output": "GATEB_GOGGLES_LINKED"}
+            def record(self, name, value): return value
+            def frame(self, name): return {"role": "ar", "buttons": [{"id": "turtles"}]}
+            def wait(self, predicate, seconds=30): return predicate()
+            def lua(self, name, code): return 3
+            def navigate(self, name, role): return {"role": role}
+            def read_store(self, computer, path): return {"turtles": len(taken) < 1}
+            def click(self, name, ident): pass
+            def power(self, name, action): pass
+            def sleep(self, seconds): pass
+        with patch.object(c13.camera, "take", side_effect=lambda ctx, name, view, pocket=False: taken.append((name, view, pocket))):
+            verdict = c13.run(Ctx())
+        self.assertEqual(taken, [("C13-layers-before.png", "ar view", False), ("C13-layers-toggled.png", "ar view", False)] +
+                         [(f"C13-stability-{i}.png", "ar view", False) for i in range(3)])
+        # Candidates earn no credit: the visual evidence is missing, never passed.
+        self.assertEqual(verdict.status, "blocked")
+        self.assertIn("Missing evidence: real photos", verdict.findings)
+
+    def test_c3_opens_the_pocket_only_for_pocket_photos_and_never_passes_candidates(self):
+        taken = []
+        class Ctx:
+            manifest = {"client_views": {"pocket": "pocket view", "wall": "wall view"},
+                        "computers": {"4": {"name": "miner1", "pos": [0, 0, 0]}, "5": {"name": "miner2", "pos": [1, 0, 0]}}}
+            run = "private"
+            def mining(self, start=True): pass
+            lumber = mining
+            def cli(self, *a, **k): return {}
+            def frame(self, name): return {"role": "generic", "buttons": [{"id": "x"}]}
+            def wait(self, predicate, seconds=30): return predicate()
+            def screenshot(self, name): pass
+            def navigate(self, name, role): return {"role": role, "rows": [], "buttons": []}
+            def record(self, name, value): return value
+            def request(self, *a, **k): return {}
+            def terminal(self, name): return {}
+            def computer(self, name): return 4
+            def power(self, name, action): pass
+            def type_text(self, name, text): pass
+            def click(self, name, ident): pass
+            def count_items(self, fixture, suffix): return 0
+            def lua(self, name, code): return "generic"
+        with patch.object(c3, "coordinates_of", return_value=[True, True]), \
+             patch.object(c3, "page", return_value=({}, True)), \
+             patch.object(c3.camera, "take", side_effect=lambda ctx, name, view, pocket=False: taken.append((name, view, pocket))):
+            verdict = c3.run(Ctx())
+        self.assertEqual(len(taken), 14)
+        self.assertTrue(all(pocket == (view == "pocket view") and name.startswith(f"C3-{view.split()[0]}-")
+                            for name, view, pocket in taken))
+        self.assertIn("Missing evidence: real photos", verdict.findings)
+
+
+class CandidateResultTests(unittest.TestCase):
+    def execute(self, verdict, collect, candidates):
+        class Ctx:
+            commit, run, tick_rate, evidence, output = "a" * 40, "private", 20, [], Path(tempfile.mkdtemp())
+            def command(self, text): pass
+            def record(self, name, value): return value
+        ctx = Ctx(); ctx.collect = collect
+        def check(c):
+            if candidates: c.candidates = list(candidates)
+            return verdict
+        with patch.object(run, "load", return_value=type("Check", (), {"run": staticmethod(check)})):
+            result = run.execute(ctx, "C3", Path("."), prepare=False)
+        shutil.rmtree(ctx.output)
+        return result
+
+    def test_candidates_never_pass_and_say_pending_review(self):
+        result = self.execute(Verdict("pass"), Path("/tmp/candidates"), ["C3-wall-map.png"])
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.findings[0], "Candidates collected, pending review: 1 photos in /tmp/candidates")
+        self.assertEqual(result.metrics["candidates"], ["C3-wall-map.png"])
+        blocked = self.execute(Verdict("blocked", ["Missing evidence: real photos"]), Path("/tmp/c"), ["a.png"])
+        self.assertEqual(blocked.findings[1:], ["Missing evidence: real photos"])
+
+    def test_failures_stay_failures(self):
+        self.assertEqual(self.execute(Verdict("fail", ["setups and returns"]), Path("/tmp/c"), ["a.png"]).status, "fail")
+
+    def test_without_the_flag_results_are_unchanged(self):
+        self.assertEqual(self.execute(Verdict("pass"), None, ["a.png"]).status, "pass")
+
+    def test_flag_is_parsed(self):
+        with patch.object(run, "resolve", return_value="a" * 40), patch("builtins.print") as out:
+            self.assertEqual(run.main(["--checks", "C3,C13", "--collect-photos", "/tmp/x", "--plan"]), 0)
+        self.assertEqual(json.loads(out.call_args.args[0])["checks"], ["C3", "C13"])
+
+
+if __name__ == "__main__":
+    unittest.main()

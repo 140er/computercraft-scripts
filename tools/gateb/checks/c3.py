@@ -1,5 +1,5 @@
 from .model import Criteria, Blocked, values, pocket_frame
-from .visual import check
+from . import photos as camera
 
 TITLE = "Pocket and physical monitor navigation"
 
@@ -103,11 +103,10 @@ def run(ctx):
                     ctx.record(f"C3-{name}-{role}-setup.json", setup)
                     _, returned = page(ctx, name, role, "main")
                     setups.append(opened and returned)
-                if ctx.manifest.get("client_views", {}).get(name):
-                    ctx.command(ctx.manifest["client_views"][name])
-                    photo = f"C3-{name}-{role}.png"
-                    ctx.screenshot(photo)
-                    photos.append(check(ctx, photo))
+                view = ctx.manifest.get("client_views", {}).get(name)
+                if view:
+                    # The pocket photo shows the pocket's own screen, so it is opened first.
+                    photos.append(camera.take(ctx, f"C3-{name}-{role}.png", view, pocket=name == "pocket"))
         ctx.power("storage", "on")
         ctx.navigate("wall", "shop")
         ctx.type_text("wall", "diamond")
@@ -124,6 +123,6 @@ def run(ctx):
         ctx.screenshot("C3-client-after.png")
         return evaluate(ctx.record("C3-observations.json", {"all_screens_reached": all(reached),
              "setups_and_returns": all(setups), "generic_survives_reboot": bool(survived),
-             "coordinates_fit": bool(coordinates) and all(coordinates), "single_order_delivery": single_order, "real_photos": all(photos) if len(photos) == 14 else None}))
+             "coordinates_fit": bool(coordinates) and all(coordinates), "single_order_delivery": single_order, "real_photos": camera.credit(photos) if len(photos) == 14 else None}))
     finally:
         ctx.cli("client", ctx.run, "stop")

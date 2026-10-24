@@ -111,13 +111,29 @@ mining list row, or else on its `turtle:<id>` details page, left through
 `turtle-back`. Optional
 `client_views.wall` and `client_views.pocket` console commands place the client
 for native photos of each role, such as `C3-pocket-mining.png`. Missing camera
-setup blocks photo credit. `visual_baselines` maps screenshot names to reviewed external
+setup blocks photo credit. Before each pocket photo C3 holds the pocket computer
+(hotbar 1, creative mode) and uses it with native X input until the pocket bezel
+shows; wall photos close the pocket screen first. Every photo waits for a
+settled frame: no "Loading terrain" checker, no pause menu, and under 2% of
+pixels changed from the previous screenshot. `photo_prepare` lists console
+commands run once before the first photo, for world setup the reviewed cameras
+assume. `visual_baselines` maps screenshot names to reviewed external
 references with `path`, `sha256`, and `regions` of `[width,height,x,y]`. Regions
 must exclude changing clocks or world animation. Exact pixels must match.
 Missing references block visual claims. Large images stay outside git.
 Pocket reboot uses native `os.reboot()` through the runtime bridge and requires an
 observed uptime reset. Its new Lua environment must receive the generic role;
 a cached frame cannot prove reboot recovery.
+
+C13 photographs from `client_views.ar`, else `client_views.wall`, and blocks
+without either. Its photos are `C13-layers-before.png`, `C13-layers-toggled.png`
+and `C13-stability-0.png` to `-2.png`.
+
+`--collect-photos DIR` writes every C3 and C13 photo with a `.camera.json`
+(camera command, position and rotation) to DIR as unreviewed candidates. They
+earn no visual credit: the check reports "Candidates collected, pending review"
+and is blocked, or failed when another criterion failed, never passed. Without
+the flag a photo without a reviewed reference blocks.
 
 C13 wears the template player's goggles: GateBTester carries goggles linked to
 the `ar` controller in hotbar slot 8, and C13 moves them to the head slot once
