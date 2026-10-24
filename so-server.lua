@@ -154,27 +154,49 @@ S.run = function()
     return { code = view.code, expires = view.expires }
   end
 
-  SO.forgetDevice = function(id, actor)
-    local previousKey = pair.key(id)
-    local ok, err = pair.forget(id)
-    if not ok then return false, err end
-    local failure
-    for _, name in ipairs({"mine", "lumber", "build", "drops"}) do
-      local mod = SO.mods[name]
-      if mod and mod.forget then
-        local ok, err = mod.forget(id)
-        if not ok then failure = failure or err or "assignment save failed" end
-      end
-    end
+  local forgetNames = {"mine", "lumber", "build", "drops", "lease", "display"}
+  local function finishForget(row)
+    local id = row.id
     sent[id] = nil
     if codeOwner == id then pair.clear(); codeOwner = nil; showPrompt() end
-    if SO.mods.lease then SO.mods.lease.forget(id, previousKey) end
-    if SO.mods.display then SO.mods.display.forget(id) end
+    local failure
+    for _, name in ipairs(forgetNames) do
+      local mod = SO.mods[name]
+      if mod and type(mod.forget) == "function" then
+        local called, ok, err = pcall(mod.forget, id, name == "lease" and row.key or nil)
+        if not called or ok == false or not ok and name ~= "lease" and name ~= "display" then
+          failure = failure or (called and (err or "assignment save failed") or tostring(ok))
+          if not called then S.error("so-server: forget " .. name .. " failed: " .. tostring(ok)) end
+        end
+      elseif row.modules[name] then
+        failure = failure or ("forget module unavailable: " .. name)
+      end
+    end
+    if failure then return false, failure end
+    local called, ok, err = pcall(pair.forgetDone, id)
+    if not called then return false, tostring(ok) end
+    return ok, err
+  end
+
+  local function retryForgets()
+    for _, row in ipairs(pair.forgetPending()) do finishForget(row) end
+  end
+
+  SO.forgetDevice = function(id, actor)
+    local row = { id = id, modules = {} }
+    for _, name in ipairs(forgetNames) do
+      local mod = SO.mods[name]
+      if mod and type(mod.forget) == "function" then row.modules[name] = true end
+    end
+    local ok, err = pair.forget(id, row.modules)
+    if not ok then return false, err end
+    for _, pending in ipairs(pair.forgetPending()) do
+      if pending.id == id then row = pending break end
+    end
+    local done, cleanupErr = finishForget(row)
     local state = SO.mods.state
     if state and state.emit then state.emit("pair.forgotten", {id=id, actor=actor, text="Forgot device "..id}) end
-    -- Keep a partially parked device revoked. Retrying completes its cleanup.
-    if failure then return false, failure end
-    return true
+    return done, cleanupErr
   end
 
   local function pairDone(id)
@@ -318,15 +340,14 @@ S.run = function()
       replied = true
       replyTo(msg, t, body, key)
     end
-    local found = false
+    local found, failed = false, false
     local built = builtin[msg.t]
     if built then
       found = true
       local ok, err = pcall(built, msg, reply)
       if not ok then
         S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err))
-        reply("err", { code = "handler" }, key)
-        return
+        failed = true
       end
     end
     for i = 1, #mods do
@@ -336,12 +357,12 @@ S.run = function()
         local ok, err = pcall(handler, msg, reply)
         if not ok then
           S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err))
-          reply("err", { code = "handler" }, key)
-          return
+          failed = true
         end
       end
     end
-    if not found then reply("err", { code = "unknown", text = "unknown type" }) end
+    if failed then reply("err", { code = "handler" }, key)
+    elseif not found then reply("err", { code = "unknown", text = "unknown type" }) end
   end
 
   local function dispatch(sender, payload)
@@ -456,6 +477,7 @@ S.run = function()
       if next(by) == nil then sent[from] = nil end
     end
     proto.prune()
+    retryForgets()
     for i = 1, #mods do
       local fn = mods[i].tick
       if type(fn) == "function" then
@@ -467,6 +489,7 @@ S.run = function()
     if S.errors then S.errors.flush(now) end
     timer, ticked = os.startTimer(1), os.clock()
   end
+  retryForgets()
   timer, ticked = os.startTimer(1), os.clock()
   while true do
     local ev, a, b, c = os.pullEvent()

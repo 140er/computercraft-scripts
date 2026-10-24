@@ -33,7 +33,7 @@ local function server()
   env.keys={p=25,l=38,escape=1,up=200,down=208}
   env.fs={getCapacity=function() return 16000000 end,exists=function() return true end,
     list=function() return {"so-mod-display.lua"} end}
-  local pair={open=function() end,pending=function()
+  local pair={open=function() end,forgetPending=function() return {} end,pending=function()
     if s.now >= (s.expires or 0) then s.code=nil end
     return s.code
   end,clear=function() s.clears=s.clears+1;s.code=nil end,

@@ -56,6 +56,14 @@ local function attention(so, net)
   error("missing health state")
 end
 
+local function private(fn, key)
+  for i = 1, 40 do
+    local name, value = debug.getupvalue(fn, i)
+    if name == key then return value end
+  end
+  error("missing " .. key)
+end
+
 return function(test, equal)
   for _, builtin in ipairs({ false, true }) do
     test("server caches a handler error for " .. (builtin and "an unpaired pair2 request" or "a module request"), function()
@@ -104,6 +112,143 @@ return function(test, equal)
     equal(last(m, so, 2).t, "ack")
     equal(#m.sent, count + 1)
     equal(calls, 1)
+  end)
+
+  for _, sendsReply in ipairs({ false, true }) do
+    test("server runs later handlers after a crash and caches " .. (sendsReply and "their reply" or "the error"), function()
+      local net, m, so = boot()
+      local key, crashed, worked = string.rep("ab", 32), 0, 0
+      assert(so.pair.remember(2, key))
+      so.mods.display.handlers.broken = function()
+        crashed = crashed + 1
+        error("first handler failed")
+      end
+      so.mods.state.handlers.broken = function(_, reply)
+        worked = worked + 1
+        if sendsReply then reply("ack", { ok = true }) end
+      end
+      local wire = packet(so, key, "broken", 2)
+      deliver(net, m, 2, wire)
+      local reply, original = last(m, so, 2)
+      equal(crashed, 1); equal(worked, 1)
+      equal(reply.t, sendsReply and "ack" or "err")
+      equal(reply.body, sendsReply and { ok = true } or { code = "handler" })
+      deliver(net, m, 2, wire)
+      local _, cached = last(m, so, 2)
+      equal(cached, original)
+      equal(crashed, 1); equal(worked, 1)
+    end)
+  end
+
+  test("server completes a failed planner forget after reboot and waits for a missing module", function()
+    for _, missing in ipairs({ false, true }) do
+      local net, m, so = boot(function(machine)
+        machine.install({ "so-mod-mine.lua", "so-mine-plan.lua", "so-plan.lua" })
+      end)
+      local mine = so.mods.mine
+      local job, save = private(mine.forget, "job"), private(mine.forget, "save")
+      job.turtles["2"] = { pose = {dim="minecraft:overworld",x=1,y=64,z=0}, state = "mining", recover = false }
+      assert(save())
+      assert(so.pair.remember(2, string.rep("ab", 32)))
+      private(save, "box").save = function() return false, "disk" end
+      equal(so.forgetDevice(2, 1), false)
+      equal(so.pair.key(2), nil)
+      equal(so.pair.forgetPending()[1].id, 2)
+      local stored = m.env.textutils.unserialize(m.files["so-data/mine/job"]).value.turtles["2"]
+      equal(stored.forgotten, nil); equal(stored.recover, false)
+      assert(m.env.textutils.unserialize(m.files["so-keys"]).value.forgetting["2"].modules.mine)
+      local source = m.files["so-mod-mine.lua"]
+      if missing then m.files["so-mod-mine.lua"] = nil end
+      net.kill(m)
+      m = net.boot(m)
+      net.flush()
+      assert(m.alive(), tostring(m.error))
+      if missing then
+        equal(m.env.SO.pair.forgetPending()[1].id, 2)
+        m.files["so-mod-mine.lua"] = source
+        net.kill(m)
+        m = net.boot(m)
+        net.flush()
+        assert(m.alive(), tostring(m.error))
+      end
+      so = m.env.SO
+      equal(so.pair.key(2), nil)
+      equal(so.pair.forgetPending(), {})
+      stored = m.env.textutils.unserialize(m.files["so-data/mine/job"]).value.turtles["2"]
+      assert(stored.forgotten and stored.recover)
+      equal(stored.state, "hold")
+      equal(m.env.textutils.unserialize(m.files["so-keys"]).value.forgetting, {})
+    end
+  end)
+
+  for _, broken in ipairs({ "mine", "lease" }) do
+    test("server retries a throwing " .. broken .. " forget without skipping the other cleanup", function()
+      local net, m, so = boot()
+      local key, calls = string.rep("ab", 32), {}
+      assert(so.pair.remember(2, key))
+      assert(so.pairCode(2))
+      deliver(net, m, 2, packet(so, key, "hello", 2))
+      for _, name in ipairs({ "mine", "lumber", "build", "drops", "lease" }) do
+        so.mods[name] = { forget = function(_, previousKey)
+          calls[name] = (calls[name] or 0) + 1
+          if name == "lease" then assert(previousKey == key, "missing revocation key") end
+          if name == broken then error("cleanup failed") end
+          return true
+        end }
+      end
+      local forgetDisplay = so.mods.display.forget
+      so.mods.display.forget = function(id)
+        calls.display = (calls.display or 0) + 1
+        return forgetDisplay(id)
+      end
+      equal(so.forgetDevice(2, 1), false)
+      for _, name in ipairs({ "mine", "lumber", "build", "drops", "lease", "display" }) do equal(calls[name], 1) end
+      equal(so.pair.key(2), nil)
+      equal(so.pair.pending(), nil)
+      equal(so.terminal.mode, "normal")
+      equal(private(private(so.forgetDevice, "finishForget"), "sent")[2], nil)
+      equal(so.mods.state.get("pair.forgotten").id, 2)
+      equal(so.pair.forgetPending()[1].id, 2)
+      equal(so.pair.remember(2, key), false)
+      -- A later successful pairing clears this value. Retries must leave it cleared.
+      assert(so.mods.state.emit("pair.forgotten", nil))
+      so.mods[broken].forget = function(_, previousKey)
+        calls[broken] = calls[broken] + 1
+        if broken == "lease" then assert(previousKey == key, "missing retry revocation key") end
+        return true
+      end
+      net.advance(1.05)
+      assert(m.alive(), tostring(m.error))
+      equal(so.pair.forgetPending(), {})
+      for _, name in ipairs({ "mine", "lumber", "build", "drops", "lease", "display" }) do equal(calls[name], 2) end
+      equal(so.mods.state.get("pair.forgotten"), nil)
+    end)
+  end
+
+  test("server retains pending cleanup when its completion save fails and other keys change", function()
+    local net, m, so = boot()
+    assert(so.pair.remember(2, string.rep("ab", 32)))
+    local box = private(so.pair.key, "S").box
+    local save = box.save
+    box.save = function(value)
+      if not value.forgetting["2"] then return false, "disk" end
+      return save(value)
+    end
+    equal(so.forgetDevice(2, 1), false)
+    equal(so.pair.key(2), nil)
+    equal(so.pair.forgetPending()[1].id, 2)
+    assert(so.pair.remember(3, string.rep("cd", 32)))
+    assert(m.env.textutils.unserialize(m.files["so-keys"]).value.forgetting["2"])
+    net.advance(1.05)
+    equal(so.pair.forgetPending()[1].id, 2)
+    box.save = save
+    net.advance(1.05)
+    assert(m.alive(), tostring(m.error))
+    equal(so.pair.forgetPending(), {})
+    local saved = m.env.textutils.unserialize(m.files["so-keys"]).value
+    equal(saved.forgetting, {})
+    equal(saved.keys["2"], nil)
+    equal(saved.keys["3"], string.rep("cd", 32))
   end)
 
   test("server pair2 emits pair.done and the next pairing clears the durable forgotten row", function()
