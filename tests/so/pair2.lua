@@ -1,6 +1,10 @@
 local H = dofile("tests/so/harness.lua")
 
-local V1 = "tests/so/fixtures/pair-v1/"
+local V1 = {
+  ["so-pair.lua"] = "tests/so/fixtures/pair-v1/so-pair.lua",
+  ["so-proto.lua"] = "tests/so/fixtures/pair-v1/so-proto.lua",
+  ["so-server.lua"] = "tests/so/fixtures/pair-v1/so-server.lua",
+}
 local SERVER = { "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
   "so-mod-state.lua", "so-mod-cells.lua", "so-mod-display.lua", "so-mod-drops.lua" }
 local CLIENT = { "so-proto.lua", "so-pair.lua", "so-store.lua" }
@@ -33,12 +37,12 @@ local function libs(m)
 end
 
 local function v1(m, names)
-  for _, name in ipairs(names) do m.files[name] = read(V1 .. name) end
+  for _, name in ipairs(names) do m.files[name] = read(V1[name]) end
 end
 
 local function logtext(m) return table.concat(m.log, "\n") end
 
-local function boot(old, kit, extra)
+local function boot(old, kit, extra, setup)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install(SERVER)
@@ -46,6 +50,7 @@ local function boot(old, kit, extra)
   if extra then server.install(extra) end
   libs(server)
   if old then v1(server, { "so-server.lua", "so-pair.lua", "so-proto.lua" }) end
+  if setup then setup(server) end
   server.boot("so-server.lua")
   net.flush()
   assert(server.alive(), tostring(server.error))
@@ -97,7 +102,106 @@ local function wrong(code, n)
   return string.format("%06d", (tonumber(code) + n) % 1000000)
 end
 
+local function entropy(m, failures, silent)
+  local calls = { attempts = 0, yields = 0, seeds = 0, mixes = 0 }
+  local dofile, queue = m.env.dofile, m.env.os.queueEvent
+  m.env.dofile = function(path)
+    local value = dofile(path)
+    if path == "lib/ccryptolib/random.lua" then
+      local timing, mix = value.initWithTiming, value.mix
+      value.initWithTiming = function()
+        calls.attempts = calls.attempts + 1
+        if calls.attempts <= failures then
+          if silent then return end
+          error("timing health check failed")
+        end
+        return timing()
+      end
+      value.init = function() calls.seeds = calls.seeds + 1 error("fallback seed used") end
+      value.mix = function(data) calls.mixes = calls.mixes + 1 return mix(data) end
+    end
+    return value
+  end
+  m.env.os.queueEvent = function(name, ...)
+    if name == "so-pair-random" then calls.yields = calls.yields + 1 end
+    return queue(name, ...)
+  end
+  m.env.sleep = function() error("entropy initialization called sleep") end
+  m.env.ENTROPY = calls
+  return calls
+end
+
 return function(test, equal)
+  local function unavailable(silent)
+    local net = H.new()
+    local m = client(net, 2)
+    local calls = entropy(m, math.huge, silent)
+    m.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = { ["1"] = string.rep("ab", 32) } } })
+    m.env.os.queueEvent("entropy-sentinel", 42, nil, "kept")
+    m.spawn([[
+      proto = dofile("so-proto.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, dofile("so-store.lua"))
+      OPEN_ATTEMPTS = ENTROPY.attempts
+      CODE, INVITE_ERR = pair.invite()
+      WINDOW, WINDOW_ERR = pair.enrollOpen(1)
+      JOINED, JOIN_ERR = pair.join("123456", 1)
+      assert(pair.enrollSave("1-AAAA-AAAA-AAAA-AAAA"))
+      ENROLLED, ENROLL_ERR = pair.enroll("turtle")
+      EVENT = table.pack(os.pullEventRaw())
+      DONE = true
+    ]])
+    net.flush()
+    assert(not m.error, tostring(m.error))
+    equal(m.env.DONE, true)
+    equal(m.env.OPEN_ATTEMPTS, 3)
+    equal(calls.attempts, 15)
+    equal(calls.yields, 10)
+    equal(calls.seeds, 0)
+    equal(calls.mixes, 0)
+    equal(#m.randomOut, 0)
+    for _, name in ipairs({ "INVITE", "WINDOW", "JOIN", "ENROLL" }) do
+      equal(m.env[name .. "_ERR"], "random source unavailable")
+    end
+    equal(m.env.CODE, nil)
+    equal(m.env.WINDOW, nil)
+    equal(m.env.JOINED, nil)
+    equal(m.env.ENROLLED, nil)
+    equal(m.env.pair.pending(), nil)
+    equal(m.env.pair.enrollView(1), nil)
+    equal(m.env.pair.key(1), string.rep("ab", 32))
+    equal(m.env.textutils.unserialize(m.files["so-enroll"]).sk, nil)
+    equal(m.env.EVENT, table.pack("entropy-sentinel", 42, nil, "kept"))
+    equal(#m.sent, 0)
+  end
+
+  test("pair2 refuses pairing and enroll secrets when timing initialization throws", function()
+    unavailable(false)
+  end)
+
+  test("pair2 refuses secrets when timing initialization returns without initializing", function()
+    unavailable(true)
+  end)
+
+  for _, failures in ipairs({ 0, 1 }) do
+    test("pair2 pairs after timing initialization succeeds on attempt " .. tostring(failures + 1), function()
+      local serverCalls
+      local net, server = boot(nil, nil, nil, function(m) serverCalls = entropy(m, failures) end)
+      local c = client(net, 2)
+      local clientCalls = entropy(c, failures)
+      equal(join(net, c, pressP(net, server)), { "ok" })
+      equal(savedKey(server, c.id), savedKey(c, server.id))
+      assert(savedKey(server, c.id), "pairing key missing")
+      equal(serverCalls.attempts, failures + 1)
+      equal(clientCalls.attempts, failures + 1)
+      equal(serverCalls.yields, failures)
+      equal(clientCalls.yields, failures)
+      equal(serverCalls.seeds + clientCalls.seeds, 0)
+      equal(serverCalls.mixes, 1)
+      equal(clientCalls.mixes, 1)
+    end)
+  end
+
   test("pair2 CPace matches the draft-irtf-cfrg-cpace-21 X25519 vectors", function()
     local net, server = boot()
     local P, x = server.env.SO.pair, server.env.require("ccryptolib.x25519")

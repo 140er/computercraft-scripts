@@ -232,8 +232,36 @@ local function proofFor(code, clientPk, serverPk)
   return S.proto.hex(S.proto.hmac(code, S.proof .. clientPk .. serverPk))
 end
 
+local function initRandom()
+  if S.rnd.isInit() then return true end
+  local material = table.concat({
+    tostring(os.epoch("utc")),
+    tostring(os.clock()),
+    tostring({}),
+    tostring(math.random(0, 16777215)),
+    tostring(os.getComputerID()),
+  }, "|")
+  for attempt = 1, 3 do
+    local ok = pcall(S.rnd.initWithTiming)
+    if ok and S.rnd.isInit() then
+      S.rnd.mix(material)
+      return true
+    end
+    if attempt < 3 then
+      -- Preserve queued events, including during boot before SO.breathe exists.
+      os.queueEvent("so-pair-random")
+      for _ = 1, 256 do
+        local event = table.pack(os.pullEventRaw())
+        if event[1] == "so-pair-random" then break end
+        os.queueEvent(table.unpack(event, 1, event.n))
+      end
+    end
+  end
+  return nil, "random source unavailable"
+end
+
 local function loadCrypto()
-  if S.x then return end
+  if S.x then return initRandom() end
   if type(package) ~= "table" then package = { loaded = {}, path = "", preload = {} } end
   package.loaded = package.loaded or {}
   package.preload = package.preload or {}
@@ -284,18 +312,7 @@ local function loadCrypto()
   S.fp = require("ccryptolib.internal.fp")
   S.rnd = require("ccryptolib.random")
   require("ccryptolib.config").usePeripherals(false)
-  if not S.rnd.isInit() then
-    local material = table.concat({
-      tostring(os.epoch("utc")),
-      tostring(os.clock()),
-      tostring({}),
-      tostring(math.random(0, 16777215)),
-      tostring(os.getComputerID()),
-    }, "|")
-    -- Timing noise can fail. The mix string still seeds the generator.
-    pcall(S.rnd.initWithTiming)
-    if S.rnd.isInit() then S.rnd.mix(material) else S.rnd.init(material) end
-  end
+  return initRandom()
 end
 
 M.open = function(proto, store, now)
@@ -486,6 +503,8 @@ M.start = function(from, body)
     and body.sid:match("^%x+$") and S.proto.unhex(body.sid)
   local ya = type(body) == "table" and raw32(body.y)
   if not sid or not ya then return nil, "body" end
+  local ready, err = loadCrypto()
+  if not ready then return nil, err end
   local yb, own = C.share(code, C.ci(from, os.getComputerID()), sid)
   local isk = own ~= ya and C.isk(yb, ya, sid, ya, own)
   if not isk then return nil, "share" end
@@ -591,7 +610,8 @@ M.enrollOpen = function(owner)
     if w.owner ~= owner then return nil, "busy" end
     return true
   end
-  loadCrypto()
+  local ready, err = loadCrypto()
+  if not ready then return nil, err end
   local raw, acc, bits, x = S.rnd.random(10), 0, 0, {}
   for i = 1, 10 do
     acc, bits = acc * 256 + raw:byte(i), bits + 8
@@ -820,7 +840,8 @@ M.enroll = function(kind, show)
     fs.delete(E.file)
     return nil, "token"
   end
-  loadCrypto()
+  local ready, err = loadCrypto()
+  if not ready then return nil, err end
   local sk = raw32(saved.sk)
   if not sk then
     sk = S.rnd.random(32)
@@ -875,7 +896,8 @@ M.enroll = function(kind, show)
 end
 
 M.invite = function(screen)
-  loadCrypto()
+  local ready, err = loadCrypto()
+  if not ready then return nil, err end
   local raw = S.rnd.random(4)
   local n = raw:byte(1) * 16777216 + raw:byte(2) * 65536 + raw:byte(3) * 256 + raw:byte(4)
   local code = string.format("%06d", n % 1000000)
@@ -940,7 +962,8 @@ M.join = function(code, serverId)
   local server = serverId
   if server == nil then server = rednet.lookup("so", "server") end
   if type(server) ~= "number" then return nil, "no server" end
-  loadCrypto()
+  local ready, initErr = loadCrypto()
+  if not ready then return nil, initErr end
   local machine, err = cpace(code, server, S.keys[tostring(server)])
   if not machine then return nil, err end
   -- remember keeps the old key when the save fails.
