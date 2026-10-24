@@ -231,6 +231,7 @@ return function(test, equal, read)
       utc = utc + 1000
       assert(s.state.emit("sample", { text = "event " .. i }))
     end
+    s.server.env.os.epoch = epoch
     local internal = s.state.history.page({ from = 100, count = 2 })
     equal(internal.entries[1].seq, 101)
     equal(internal.entries[2].seq, 102)
@@ -269,6 +270,7 @@ return function(test, equal, read)
     assert(s.state.emit("sample", {reason="older"}))
     utc = utc + 1000
     assert(s.state.emit("sample", false))
+    s.server.env.os.epoch = epoch
     s.send("history.page", {limit=2})
     equal(s.worker.env.replies[1].body, {entries={
       {at=utc,text="sample cleared"}, {at=utc,text="sample first"}}, next=utc})
