@@ -37,9 +37,9 @@ return function(test,equal)
     equal(s.events[#s.events].data.missing,{"home not set"})
     s.job.home=home s.input("start") assert(s.job.running)
     s.input("stop") assert(not s.job.running)
-    s.mods.state.canStart=function() return false,"disk >=80%; free space" end
+    s.mods.state.canStart=function() return false,"disk 83%: log 6.1 MB" end
     s.input("start") assert(not s.job.running)
-    equal(s.events[#s.events].data.text,"disk >=80%; free space")
+    equal(s.events[#s.events].data.text,"disk 83%: log 6.1 MB")
   end)
   test("lumber start lists exact missing items and accepts a complete paired job",function()
     local s=fixture("lumber") s.input("start")

@@ -48,8 +48,8 @@ return function(test,equal)
   test("mine requires home and clears command errors",function()
     local s=setup()
     local canStart=s.mods.state.canStart
-    s.mods.state.canStart=function() return false,"disk >=80%; free space" end
-    s.input("start") assert(contains(s,"disk >=80%; free space"))
+    s.mods.state.canStart=function() return false,"disk 83%: log 6.1 MB" end
+    s.input("start") assert(contains(s,"disk 83%: log 6.1 MB"))
     s.mods.state.canStart=canStart
     s.input("start") assert(contains(s,"home not set"))
     s.input("length 4") assert(not contains(s,"home not set"))
