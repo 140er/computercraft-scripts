@@ -176,12 +176,15 @@ and listeners use `listener(sender, message)`.
   `branchProgress(job, row)` returns clamped branch distance and length in constant time.
   Incomplete poses return nil distance; screens show unknown progress as `-`.
   `progress(canvas, x, y, width, done, total, color?)` draws a one-row bar.
-  `turtle.render(w, h, selection, row, now)` returns a pure detail or pose-editor frame;
+  `turtle.render(w, h, selection, row, now)` returns a pure route A detail or pose-editor frame;
   `turtle.pose(pose)` formats coordinates and facing, or `-` for an incomplete pose.
   `turtle.draft(pose)` fills missing editor coordinates and facing with zero.
   Detail BACK uses the bottom-row coordinates without rendering the editor first.
-  `pocketHeader(canvas, title)` draws MORE and MAP beside the title; only the Big Tiles
-  screens that came from server-only (build, health, turtle detail) still use it.
+  `pocketHeader(canvas, title)` draws MORE and MAP beside the title; no screen uses it since
+  build, health and turtle detail moved to route A. Those screens add `wrap(text, width)`,
+  `fit(text, width)` (cut at a word), `flagLines` (a wrapped `!` flag), `tabRows` (tab groups that
+  wrap to a second row), `pager` (the `prev` and `next` chips) and `controlRows` (chips flowed
+  over the last rows with BACK at the right end of row h); `docs/ui/schematic/other.py` is their twin.
   `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
   with EU summer time between the last Sundays of March and October at 01:00 UTC.
   Status, stock samples, panel headers and new terminal log lines use this clock.
@@ -425,7 +428,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and optional `requests` and `fuelAlerts`. The module gathers once per five game seconds.
   Jobs and paired IDs come from read-only generation recovery. An optional
   `SO.pair.requests()` supplies pairing requests; an open invitation also
-  appears. Other job modules may add read-only status APIs later.
+  appears. Other job modules may add read-only status APIs later. The pages draw in route A:
+  tabs HEALTH and NEEDS n, then EVENTS ALERTS ERRORS, leaders or list rows, and the `prev` and
+  `next` chips on the last row ([schematic spec](ui/SCHEMATIC-SPEC.md#23-health-pages)).
   Display inputs receive `event.open(role, actions?)`. Under the role lock it opens
   that screen as a page inside the display's own role (`session.visit`, closed by
   `visit-back`) and sends the listed input IDs to it with the same display session.
@@ -434,14 +439,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `pocket` screens from `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
   main/alerts/pair pages and alert paging in each display session. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
-  The status PAIR button opens the panel pair page directly. Unavailable NEW CODE
-  controls are grey and have no action target. Main-page inputs forward START
-  and STOP once to the mining or lumber screen.
+  The status PAIR button opens the panel pair page directly. Main-page inputs
+  forward START and STOP once to the mining or lumber screen.
   Keyboard-equipped panels call `shop.order(search, count)` once. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
   Monitor panels drop quick search and quantities and show only the job blocks.
-  ALERTS lists state alerts; PAIR offers NEW CODE.
+  ALERTS lists state alerts; PAIR offers NEW CODE. The panel pages are route A
+  (twin `docs/ui/schematic/panel.py`, SCHEMATIC-SPEC section 22): job blocks with
+  the pocket's facts in columns of 16 to 36 cells, HEALTH and `NEEDS n` chips in
+  row 1, ALERTS and PAIR chips on the last row, and bracketed `[FORGET]`,
+  `[CONFIRM]`, `[OK]` and `[NO]` actions in the PAIRED and ENROLL lists.
   The pocket screen (route A, twin of `docs/ui/schematic/pocket.py`) keeps
   `session.pocket = { page, search, selected, sent, alertPage, invitation,
   pairBusy }`; `display.assign` clears it. Tabs `tab:fleet`, `tab:jobs`,
@@ -462,7 +470,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Authenticated display input calls `SO.pairCode(from)` and keeps its result in
   that session. Big digits and remaining time clear on use, expiry or burn.
   Code frames use the display's own key; other displays never receive them.
-  Larger screens arrange the same controls using the kit grid. No saved panel file.
+  When a pocket opens PAIRED or ENROLL the panel draws them under the pocket's
+  tabs (`P.render(w, h, session, dot)`). No saved panel file.
   See [panel](server-only/PROTOCOL.md#panel).
   Dug-storage requests appear above every role, including status, pocket,
   generic and unassigned.
@@ -516,7 +525,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   ten seconds on `SO.now`. Builder requires the worker `parkBatch` capability and
   marks every lease for stationary expiry, including after a worker reboot.
   Recovery reads worker pose and inspects the current
-  target before another placement. MORE links to BUILD. See [builder jobs](server-only/BUILD.md).
+  target before another placement. MORE links to BUILD. The screen draws in route A with the
+  tabs `tab:job` and `tab:setup` ([schematic spec](ui/SCHEMATIC-SPEC.md#22-build)).
+  See [builder jobs](server-only/BUILD.md).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
   `assigned(id)` reports whether its job owns that worker.
@@ -988,8 +999,8 @@ persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
 Screen gather and pure layout helpers are private; public module APIs, saved
 files and client role lists are unchanged.
 
-UI-3b adds `tests/ui/ui3b.lua`. It checks the panel-P fixture
-on all 20 rows, pocket defaults and tabs, per-pocket pages and search,
+UI-3b adds `tests/ui/ui3b.lua`. It checks the typed search on the panel,
+pocket defaults and tabs, per-pocket pages and search,
 action forwarding, real shop orders, monitor layout, session revisions, role
 persistence, alert paging, pairing help, missing modules, contrast, bounds and
 server-only installation.
@@ -1033,6 +1044,14 @@ REMOVE and ADD act on the selected point once per tap, `facts()`, the pocket pro
 crowded jobs, missing modules, odd sizes, contrast, frames under 16 KB at 164x81 and
 generator parity.
 
+RA2 adds `tests/ui/ra2-other.lua` and `tests/ui/other-scene.txt`. `docs/ui/schematic/other.py`
+writes the build, health and turtle detail fixtures (`build-*`, `buildsetup-*`, `health-*`,
+`attention-*`, `alerts-*`, `events-*`, `errors-*`, `turtle-*`, `turtlepose-*`). The test draws
+the scene with the real build and health modules and `U.turtle`, compares every fixture cell by
+cell with contrast and bounds, and checks the old ids, the row targets, the kind chip, paging,
+CONFIRM and generator parity. The health scene fixes the disk numbers, so no fixture depends on
+the host.
+
 R5 rewrote `tests/so/map.lua`; S2 moved it to route A. It renders every
 `view` line in `tests/ui/map-scene.txt` (`map-*` and `schematic-map-XL`) through the
 real cells module and compares text, fg and bg, then checks the compass and that north
@@ -1058,7 +1077,11 @@ generator reproduces every shop fixture. `tests/parts/so-mod-shop.lua` runs it w
 UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
 clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded
 history work, stale fallbacks and server-only installation.
-`panel-P.txt` shows 22:14 for its existing 21:14 UTC test epoch.
+RA2 adds `tests/ui/panel.lua` and `tests/ui/panel-scene.txt`. It compares the
+panel main page (M, W, L, S, XS, P), ALERTS, PAIR with and without a code, PAIRED
+and ENROLL on the panel and under the pocket tabs with the `panel.py` fixtures,
+and checks route A colours, one-row controls without overlap and whole labels at
+eight sizes. `tests/parts/so-mod-panel.lua` runs it with ui3b and r3pocket.
 
 
 ## Open gaps

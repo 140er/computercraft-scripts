@@ -1,25 +1,37 @@
-29x12 ATTENTION
-    HEALTH        NEEDS 1    
- ATTENTION                   
-                             
- Chest ore broken            
-                             
-                             
-                             
+29x12 Needs at 29x12
+ HEALTH  NEEDS 3  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ ! Chest ore broken          
+ ! T3 lost                   
+ ! T8 out of saplings        
                              
                              
                              
-  PREV      BACK      NEXT   
- EVENTS    ALERTS    ERRORS  
-77777777777777f11111111111111
-f777777777777777777777777777f
+                             
+                             
+                             
+                 1/1  ◄   ►  
+888888880000000e00cccccccccc0
+8888888888888888888888880ccc0
+0e000000000000000000000000000
+0e000000000000000000000000000
+01000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000888088808880
+ffffffff777777777ffffffffffff
 fffffffffffffffffffffffffffff
-effffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-777777777f777777777f777777777
-777777777f777777777f777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777f777f

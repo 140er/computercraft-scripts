@@ -1,11 +1,9 @@
-26x20 ERRORS
-   HEALTH       NEEDS 1   
- ERRORS                   
+26x20 Errors at 26x20
+ HEALTH  NEEDS 3  ------- 
+ EVENTS  ALERTS  ERRORS   
                           
- 6s tick fixture failed   
-                          
-                          
-                          
+ • 10s lease 7 report     
+ • 3m tick failed:        
                           
                           
                           
@@ -17,12 +15,32 @@
                           
                           
                           
-  PREV     BACK     NEXT  
- EVENTS   ALERTS   ERRORS 
-7777777777777f111111111111
-f777777777777777777777777f
+                          
+                          
+                          
+              1/1  ◄   ►  
+888888888888888e80ccccccc0
+88888888888888880000000000
+00000000000000000000000000
+0e088800000000000000000000
+0e088000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000888088808880
 ffffffffffffffffffffffffff
-efffffffffffffffffffffffff
+ffffffffffffffff77777777ff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -37,5 +55,7 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-77777777f77777777f77777777
-77777777f77777777f77777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffff777f777f

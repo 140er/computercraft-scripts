@@ -126,10 +126,11 @@ return function(test,equal)
     assert(table.concat(capture(s.frame(3),26,20).picture().text,'\n'):find('TURTLES',1,true))
     assert(not table.concat(capture(s.frame(2),26,20).picture().text,'\n'):find('TURTLES',1,true))
   end)
-  test('UI3b panel fixture matches and controls dispatch once per tap',function()
+  -- The panel-P fixture is compared with the scene's data in tests/ui/panel.lua.
+  test('UI3b panel shows the typed search and controls dispatch once per tap',function()
     local s=setup();s.now=(21*60+14)*60000;s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,nil,'iron')
-    local diff=R.diff('tests/ui/fixtures/panel-P.txt',capture(s.frame(2),26,20))
-    assert(#diff==0,table.concat(diff,'\n'))
+    local text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')
+    assert(text:find('> iron_',1,true) and text:find('22:14',1,true),text)
     for _,role in ipairs({'mining','lumber'}) do for _,cmd in ipairs({'start','stop'}) do
       local n=#s.calls;s.tap(2,role..':'..cmd);equal(#s.calls,n+1);equal(s.calls[#s.calls],{role,cmd})
     end end
@@ -140,8 +141,8 @@ return function(test,equal)
   test('UI3b panel sessions, alert list, pairing help and monitor pages retain bounds and contrast',function()
     local s=setup();s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,nil,'iron')
     s.frame(3);assert(s.display.assign(3,'panel'));s.tap(3,nil,'gold')
-    assert(capture(s.frame(2),26,20).picture().text[14]:find('iron_',1,true))
-    assert(capture(s.frame(3),26,20).picture().text[14]:find('gold_',1,true))
+    assert(table.concat(capture(s.frame(2),26,20).picture().text,'\n'):find('> iron_',1,true))
+    assert(table.concat(capture(s.frame(3),26,20).picture().text,'\n'):find('> gold_',1,true))
     for _,size in ipairs({{26,20},{57,24},{39,19},{15,10},{29,12}}) do
       local w,h=unpack(size)
       for _,page in ipairs({'panel-back','alerts','pair'}) do
@@ -149,13 +150,18 @@ return function(test,equal)
         s.tap(2,page)
         local f=s.frame(2,w,h);equal(f.role,'panel')
         local out=capture(f,w,h)
+        -- Route A: no fills; coloured glyphs on f or 7, c only for structure.
         for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
-          local fg,bg=cell[2],cell[3]
-          assert((bg=='0' and fg=='f') or (bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-            (bg=='9' or bg=='e' or bg=='a') and fg=='f','contrast '..fg..'/'..bg)
+          local ch,fg,bg=cell[1],cell[2],cell[3]
+          assert(bg=='f' or bg=='7','fill '..bg)
+          assert(ch==' ' or fg~='c' and fg~='f' and fg~='7' or fg=='c' and (ch=='-' or ch=='|' or ch=='\183'),'contrast '..fg..'/'..bg)
         end end
-        if page=='pair' and w>=26 then
-          local text=table.concat(out.picture().text,'\n');assert(not text:find('Press P on the server',1,true));assert(text:find('PAIR NEW CLIENT',1,true))
+        if page=='pair' then
+          local text=table.concat(out.picture().text,'\n');assert(not text:find('Press P on the server',1,true))
+          local found={}
+          for _,b in ipairs(f.buttons) do found[b.id]=true end
+          -- This server has no SO.pairCode, so NEW CODE is not drawn.
+          assert(found.paired and found['panel-back'] and not found['pair-code'])
         end
       end
     end
@@ -169,7 +175,15 @@ return function(test,equal)
     local picture=capture(f,26,20).picture()
     local text=table.concat(picture.text,'\n')
     local _,n=text:gsub('not loaded','');equal(n,3)
-    for _,y in ipairs({4,9,16}) do equal(picture.bg[y]:sub(1,8),string.rep('c',8)) end
+    -- START, STOP and the order sizes stay as grey chips: muted text on the panel colour.
+    local grey=0
+    for y=1,20 do
+      for _,label in ipairs({'START','STOP','16'}) do
+        local x=picture.text[y]:find(label,1,true)
+        if x and picture.bg[y]:sub(x,x)=='7' then equal(picture.fg[y]:sub(x,x+#label-1),string.rep('8',#label));grey=grey+1 end
+      end
+    end
+    equal(grey,5)
     for _,b in ipairs(f.buttons) do assert(not b.id:match(':start$') and not b.id:match(':stop$') and not b.id:match('^order:')) end
     s.tap(2,'mining:start');s.tap(2,'order:16');equal(#s.calls,0)
   end)
@@ -269,7 +283,7 @@ return function(test,equal)
     local f=s.frame(2,57,24);local targets={}
     for _,b in ipairs(f.buttons) do
       targets[b.id]=b
-      if b.id:match('^order:') then assert(b.w>=8,'monitor quantity button minimum width') end
+      if b.id:match('^order:') then assert(b.w>=4,'monitor quantity button minimum width') end
     end
     assert(targets['mining:start'].x < targets['lumber:start'].x)
     assert(targets['lumber:start'].x < targets['order:16'].x)
@@ -291,7 +305,7 @@ return function(test,equal)
     assert(text:find('fault 1',1,true));assert(text:find('fault 15',1,true));assert(not text:find('fault 16',1,true))
     s.tap(2,'alert-next');text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')
     assert(text:find('fault 16',1,true));assert(text:find('fault 30',1,true))
-    s.tap(2,'alert-prev');assert(capture(s.frame(2),26,20).picture().text[5]:find('fault 1',1,true))
+    s.tap(2,'alert-prev');assert(capture(s.frame(2),26,20).picture().text[4]:find('fault 1',1,true))
     s.tap(2,'panel-back');s.tap(2,'pair');s.tap(2,'panel-back')
     assert(capture(s.frame(2),26,20).picture().text[3]:find('MINING',1,true))
   end)

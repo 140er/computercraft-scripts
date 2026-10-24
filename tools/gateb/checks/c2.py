@@ -1,4 +1,5 @@
 import json
+import re
 from .model import Criteria, Blocked
 
 TITLE = "Pair2 pairing and rejected invitations"
@@ -39,6 +40,19 @@ ATTEMPT = '''local code,server,sender=...
   if not opened then modem.close(channel) end
   if not ok then error(result) end
   return result'''
+
+
+# Route A footer "[P] pair" with no live code in the pair leader; older builds print "Press P".
+# The code screen's footer reads "[P] new code", so it never counts as the prompt.
+def prompt_restored(terminal):
+    lines = [l.get("text", "") for l in terminal.get("lines", [])]
+    text = " ".join(lines)
+    if "Press P" in text or "[P] pair a client" in text:
+        return True
+    if not any(re.search(r"\[P\] pair(?:\s|$)", line) for line in lines):
+        return False
+    live = [m.group(1) for line in lines for m in re.finditer(r"\bpair [\u00b7.]+ (\S+)", line)]
+    return all(code == "-" for code in live)
 
 
 def evaluate(d):
@@ -99,13 +113,13 @@ def run(ctx):
     for sender in senders[1:]:
         attempt(sender)
     unpaired = ctx.lua("server", f"return SO.pair.key({probe}) == nil")
-    terminal = ctx.terminal("server")
-    ctx.record("C2-server-prompt.json", terminal)
-    text = " ".join(l["text"] for l in terminal["lines"])
+    # The terminal redraws on the next tick after the burn.
+    restored = bool(ctx.wait(lambda: prompt_restored(ctx.terminal("server")), 10))
+    ctx.record("C2-server-prompt.json", ctx.terminal("server"))
     code = ctx.lua("server", "return SO.pair.invite()")
     success = attempt(probe, code)
     attempts.pop()
     return evaluate(ctx.record("C2-observations.json", {"paired_clients": paired, "attempts": attempts,
         "minute_limited": minute_limited, "sender_limited": sender_limited, "probe_unpaired": unpaired,
         "success": success, "server_key_saved": ctx.lua("server", f"return SO.pair.key({probe}) ~= nil"),
-        "server_prompt_restored": "Press P" in text or "[P] pair a client" in text}))
+        "server_prompt_restored": restored}))

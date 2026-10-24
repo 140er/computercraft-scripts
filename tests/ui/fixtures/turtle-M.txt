@@ -1,17 +1,15 @@
-57x24 Turtle detail
+57x24 Turtle detail, room monitor 57x24
+ TURTLE #2  ------------------------------------- mining 
                                                          
- #2                                                      
- mining                                                  
- POS 12,60,-5 E                                          
- FUEL 42                                                 
- INV 1/16 14 items                                       
- LEASE lease-2                                           
- STEP forward  ORE 14                                    
- SEEN 3s                                                 
+ pose ···················· 12,60,-5 E                    
+ fuel ···························· 42                    
+ inventory ················ 1/16 · 14                    
+ lease ······················ lease-2                    
+ step ······················· forward                    
+ ore ····························· 14                    
+ seen ···························· 3s                    
                                                          
-              B0 12/48                                   
-                                                         
-                                                         
+ b1 |||········· 12/48                                   
                                                          
                                                          
                                                          
@@ -21,19 +19,35 @@
                                                          
                                                          
                                                          
-          PARK ALL                      REMOVE           
-                          BACK                           
+                                                         
+                                                         
+                                                         
+  PARK ALL   REMOVE                                BACK  
+000000000000ccccccccccccccccccccccccccccccccccccc0dddddd0
+000000000000000000000000000000000000000000000000000000000
+088880cccccccccccccccccccc0000000000000000000000000000000
+088880cccccccccccccccccccccccccccc01100000000000000000000
+08888888880cccccccccccccccc000000000000000000000000000000
+0888880cccccccccccccccccccccc0000000000000000000000000000
+088880ccccccccccccccccccccccc0000000000000000000000000000
+08880ccccccccccccccccccccccccccccc00000000000000000000000
+088880cccccccccccccccccccccccccccc00000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088033388888888800000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000eeeeeeee0000000000000000000000000000000000000
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777777777f
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-777777777777777777777777777777777777777777777777777777777
-111111111111111111111111111111111111111111111111111111111
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-777777777777777777777777777777777777777777777777777777777
-777777777777777777777777777777777777777777777777777777777
-777777777777777777777777777777777777777777777777777777777
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fbbbcccccccccffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -45,5 +59,15 @@ fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-1111111111111111111111111111f7777777777777777777777777777
-777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777f77777777ffffffffffffffffffffffffffffff777777f

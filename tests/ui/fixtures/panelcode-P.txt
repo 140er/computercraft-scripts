@@ -1,31 +1,45 @@
-26x20 Panel pairing code P
+26x20 Panel PAIR 26x20 with a code
+ PANEL  ----------------  
                           
- PANEL              01:00 
- PAIR NEW CLIENT          
-    🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
-     ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
-    🬇🬌 🬍🬋🬃🬋🬋🬀 🬉 🬈🬋🬀🬈🬋🬀    
-        4:52 left         
+ | | +-+ --+ +-+  |  +--  
+ | | | |   | | |  |  |    
+ | | | |   | | |  |  |    
+ +-+ +-+ +-+ +-+  |  +-+  
+   | | | |     |  |    |  
+   | | | |     |  |    |  
+   | +-+ +-- --+  |  --+  
                           
-                          
-                          
-                          
-                          
-                          
+ ||||||||||········ 2:48  
                           
                           
-          PAIRED          
                           
-         NEW CODE         
                           
-           BACK           
+                          
+                          
+  PAIRED                  
+                          
+  NEW CODE          BACK  
+00000000cccccccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999999999888888880000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
 ffffffffffffffffffffffffff
-f777777777777777777777777f
-ffffffffffffffffffffffffff
-f999999999999999999999999f
-f999999999999999999999999f
-f999999999999999999999999f
-f999999999999999999999999f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -34,8 +48,14 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-77777777777777777777777777
-99999999999999999999999999
-99999999999999999999999999
-99999999999999999999999999
-77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777fffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777777ffffffff777777f

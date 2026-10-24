@@ -108,7 +108,7 @@ return function(test,equal)
     local f=fixture() local a,b={},{}
     f.press("setup",a)
     local function has(frame,id) for _,v in ipairs(frame.buttons) do if v.id==id then return true end end return false end
-    assert(has(f.render(26,20,a),"shape-next")) assert(has(f.render(26,20,b),"setup"))
+    assert(has(f.render(26,20,a),"shape-next")) assert(has(f.render(26,20,b),"tab:setup"))
     for _,size in ipairs({{26,20},{29,12}}) do
       for _,session in ipairs({a,b}) do
         local frame=f.render(size[1],size[2],session)
