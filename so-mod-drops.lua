@@ -609,7 +609,8 @@ S.setupSend = function()
     return
   end
   step.park=true
-  local lid,err=SO.mods.lease.send(task.id,{step},{owner="setup",ms=15000,journal=SO.mods.lease.status(task.id).journal,pose=dofile("so-plan.lua").apply(task.pose,step.op)})
+  local lid,err=SO.mods.lease.send(task.id,{step},{owner="setup",ms=15000,journal=SO.mods.lease.status(task.id).journal,
+    frame=task.frame,pose=dofile("so-plan.lua").apply(task.pose,step.op)})
   if lid then task.lease=lid else
     task.failed=true
     S.stopQueue(tostring(err))
@@ -752,6 +753,10 @@ S.beginSetup = function(id, point, facing, queued, preview)
     end
   end
   if not P.inRange(SO.mods.lease,id,cells) then return S.setupRefuse("test route out of range") end
+  if SO.mods.lease.boundaries and SO.mods.lease.boundaries() then
+    local check = SO.mods.lease.assess(id,pose,steps,{owner="setup",who="gps:"..id})
+    if not check.ok then return S.setupRefuse(check.reason) end
+  end
   for _,cell in ipairs(cells) do if S.inLane(cell) then return S.setupRefuse("mining lane") end end
   if preview then return true end
   local owner="setup:"..id

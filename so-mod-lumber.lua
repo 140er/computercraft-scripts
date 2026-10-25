@@ -455,10 +455,21 @@ S.noteBlocks = function(pending, results)
   end
 end
 
-S.send = function(steps, action, cells, recover, ms)
+S.send = function(steps, action, cells, recover, ms, route)
   local j, lease = S.row, S.module("lease")
   if not j.turtle or type(lease.send) ~= "function" or type(lease.status) ~= "function" then return false end
   if S.row.pending or lease.status(j.turtle.id).open then return false end
+  local boundary = lease.boundaries and lease.boundaries()
+  if boundary then
+    local prefix = P.boundary({from=j.turtle.pose,steps=steps})
+    if #prefix.rest > 0 or route then
+      route = route or {steps=steps,pose=j.turtle.pose,action=action,results={}}
+      route.rest = prefix.rest
+    end
+    steps = prefix.steps
+    local check = lease.assess(j.turtle.id,j.turtle.pose,steps,{owner="lumber"})
+    if not check.ok then j.blocked="hold" S.alert(check.reason) return false end
+  end
   cells = cells or { j.turtle.pose }
   local at = j.turtle.pose
   if S.job.dim ~= "minecraft:overworld" and not (recover or #steps==1 and steps[1].op=="inspectDown") then
@@ -515,18 +526,19 @@ S.send = function(steps, action, cells, recover, ms)
   j.inflight = { pose = j.turtle.pose, steps = steps }
   if not S.save() then S.prune() return false end
   local id, err = lease.send(j.turtle.id, steps, {
-    owner = "lumber", recover = recover == true, ms = ms, pose = pose,
+    owner = "lumber", recover = recover == true, ms = ms, pose = pose, frame = j.turtle.frame,
   })
   if not id then
     j.inflight = nil
-    S.prune()
+    if not boundary then S.prune() end
     S.row.idlePark, S.row.parkAt = nil, nil
     j.blocked = "hold"
     if err == "lost" then S.row.recover = true end
     S.alert("lease " .. tostring(err))
     return false
   end
-  S.row.pending = { id = id, action = action, steps = steps, pose = j.turtle.pose }
+  S.row.pending = { id = id, action = action, steps = steps, pose = j.turtle.pose,
+    boundary = boundary and not recover, route = route }
   S.row.idlePark = action == "park" or action == "recover"
   if S.row.idlePark then S.row.parkAt = SO.now() end
   return true
@@ -701,6 +713,27 @@ S.report = function(id, turtleId, results, lease)
     S.suspendService()
     S.alert("missing pose")
     return
+  end
+  if pending.boundary and (report.uncertain or not P.confirm(pending.pose,pending.steps,results,j.turtle.pose)) then
+    j.uncertain = S.possible(j.uncertain,pending)
+    j.recover, j.motion, j.blocked = true, nil, "lost"
+    S.suspendService()
+    S.alert("boundary unconfirmed; reservations held")
+    return
+  end
+  if pending.route then
+    local route = pending.route
+    for _, result in ipairs(results) do route.results[#route.results+1] = result end
+    if #route.rest > 0 then
+      if not S.send(route.rest,route.action,nil,false,nil,route) then
+        j.recover, j.blocked = true, "hold"
+        S.suspendService()
+        S.alert("route held; reservations retained")
+      end
+      return
+    end
+    pending = {action=route.action,pose=route.pose,steps=route.steps}
+    results = route.results
   end
   local cells = S.module("cells")
   if j.turtle.frame and type(cells.markDug) == "function" and type(cells.isDug) == "function" then

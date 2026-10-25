@@ -79,7 +79,7 @@ end
 S.world = function(id, dim)
   local row = S.row(id)
   if not SO.pair.key(id) then return nil, "turtle not paired" end
-  if row.uncertain or row.anchor then return nil, "pose uncertain; use explicit add" end
+  if row.uncertain or row.anchor or row.boundaryHold then return nil, "pose uncertain; use explicit add" end
   if row.lost then return nil, "turtle lost; wait for hello" end
   if row.open and not (#row.open.steps == 1 and row.open.steps[1].op == "inspectDown") then return nil, "turtle has open lease" end
   local fix = row.fix
@@ -126,6 +126,7 @@ S.locate = function(id, dim, done)
   local pose, err = S.world(id, dim)
   if not pose then done(nil, err) return end
   if pose.facing ~= nil then done(pose) return end
+  if S.safety then done(nil, "facing unknown; use explicit add") return end
   local row, cells = S.row(id), S.module("cells")
   if row.open then done(nil, "turtle has open lease") return end
   if not row.parkBatch then done(nil, "probe needs worker update; use explicit add") return end
@@ -330,6 +331,7 @@ S.reanchor = function(id, pose)
     pose = { x = pose.x, y = pose.y, z = pose.z, f = pose.facing } } }
   local ok, err = S.anchorSend(id, row)
   if not ok then row.anchor = nil return nil, err or "send" end
+  row.worldFrame, row.reconciled = nil, false
   local lease = row.open
   row.open = nil
   if lease then lease.status = "reanchored" S.notify(lease, nil) end
@@ -353,6 +355,125 @@ S.remoteReady = function(id, dim)
   return true
 end
 
+S.boundaries = function() return S.safety == true end
+
+S.assess = function(id, from, steps, opts)
+  opts = opts or {}
+  local cells, row = S.module("cells"), S.turtles[id]
+  if not cells or not cells.assessment then return {ok=false,reason="cells unavailable"} end
+  local checks = cells.assessment(opts.who or (opts.owner or "lease") .. ":" .. id, opts.exit)
+  if not opts.clear then checks.clear = nil end
+  checks.limit = S.pos and (not from or from.dim == "minecraft:overworld") and ((row and row.range or 16) + 8) or nil
+  checks.range = function(p) return S.inRange(id, p), S.distance(p), checks.limit end
+  return S.rules().assess(from, steps, checks)
+end
+
+S.protectionReady = function()
+  for _, row in pairs(S.turtles) do
+    if row.open or row.uncertain or row.anchor or row.boundaryHold then return false end
+  end
+  return true
+end
+
+S.frameFor = function(row, frame)
+  if frame then return SO.store.copy(frame) end
+  if row.worldFrame then return SO.store.copy(row.worldFrame) end
+  if row.fix and row.fix.pose and row.rotation and row.fix.dim and row.pose then
+    return S.rules().frame({dim=row.fix.dim,x=row.fix.x,y=row.fix.y,z=row.fix.z,
+      facing=(row.fix.pose.f+row.rotation.rot)%4}, row.fix.pose)
+  end
+end
+
+S.exitPlan = function(id, from, steps)
+  local cells, row, P = S.module("cells"), S.turtles[id], S.rules()
+  local protection, err = cells.protected()
+  if err then return nil, err end
+  local route = {revision=protection.revision,start=P.membership(from,protection.boxes),departed={},steps={},cells={from},from=from}
+  if not next(route.start) then return nil, "exit must start inside protection" end
+  if type(steps) ~= "table" or #steps < 1 or #steps > 64 then return nil, "exit steps" end
+  local at, moves = from, 0
+  for _, step in ipairs(steps) do
+    if type(step) ~= "table" or not (P.moves[step.op] or P.turns[step.op]) then return nil, "exit moves and turns only" end
+    local check = S.assess(id, at, {step}, {who="gps:"..id,exit=route,clear=true})
+    if not check.ok then return nil, check.reason end
+    at = P.apply(at,step.op)
+    if P.moves[step.op] then
+      moves = moves + 1
+      route.cells[#route.cells+1] = at
+      local membership = P.membership(at,protection.boxes)
+      for box in pairs(route.start) do if not membership[box] then route.departed[box] = true end end
+    end
+    route.steps[#route.steps+1] = {op=step.op}
+  end
+  if moves > 16 or next(P.membership(at,protection.boxes)) then return nil, "exit must end outside within 16 moves" end
+  if row.fuel ~= "unlimited" and (type(row.fuel) ~= "number" or row.fuel >= 0 and row.fuel < moves) then
+    return nil, "exit fuel unknown or insufficient"
+  end
+  route.departed, route.at, route.next = {}, from, 1
+  return route
+end
+
+S.exitNext = function(id, row)
+  local route, P = row.exitRoute, S.rules()
+  local remaining = {}
+  for i=route.next,#route.steps do remaining[#remaining+1] = route.steps[i] end
+  local prefix = P.boundary({from=route.at,steps=remaining})
+  local lid, err = S.send(id,prefix.steps,{owner="protectedExit",who="gps:"..id,pose=prefix.pose,exit=route,clear=true})
+  if not lid then row.exitRoute = nil return nil, err end
+  route.sent = #prefix.steps
+  return lid
+end
+
+S.exitRequest = function(id, steps, actor, token)
+  local row, cells = S.turtles[id], S.module("cells")
+  if not S.safety or not cells or not (SO.store.read("so-server.cfg") or {}).protectedAreas then return nil, "protection disabled" end
+  if not row or row.open or row.uncertain or row.boundaryHold or row.lost or S.assigned(id) then return nil, "exit needs idle certain worker" end
+  if not row.parkBatch or not row.setupFence or not row.pose or not row.journal then return nil, "exit needs fenced worker" end
+  if type(actor) ~= "number" and type(actor) ~= "string" then return nil, "exit actor" end
+  local frame = S.frameFor(row)
+  if not frame then return nil, "pose unknown" end
+  local from = S.rules().toWorld(frame,row.pose)
+  local route, err = S.exitPlan(id,from,steps)
+  if not route then row.exitOffer = nil return nil, err end
+  if not token then
+    S.exitSerial = (S.exitSerial or 0) + 1
+    row.exitOffer = {actor=actor,token=id.."-exit-"..SO.now().."-"..S.exitSerial,
+      untilAt=SO.now()+30000,journal=row.journal,route=route}
+    return SO.store.copy(row.exitOffer)
+  end
+  local offer = row.exitOffer
+  row.exitOffer = nil
+  if not offer or offer.actor ~= actor or offer.token ~= token or SO.now() > offer.untilAt
+    or offer.journal ~= row.journal or offer.route.revision ~= route.revision or not S.rules().samePose(offer.route.from,from)
+    or #offer.route.steps ~= #route.steps then return nil, "exit approval changed" end
+  for i, step in ipairs(route.steps) do if step.op ~= offer.route.steps[i].op then return nil, "exit approval changed" end end
+  local ok, why = cells.reserveMany("gps:"..id,route.cells)
+  if not ok then return nil, why end
+  row.exitRoute, row.worldFrame, row.probeOwner = route, frame, "gps:"..id
+  return S.exitNext(id,row)
+end
+
+S.exitReported = function(lease, row, results)
+  local route, P = row.exitRoute, S.rules()
+  if not route then return end
+  if not results then row.exitRoute, row.exitOffer = nil, nil return end
+  route.at = P.toWorld(lease.frame,row.pose)
+  route.next = route.next + route.sent
+  local protection = S.module("cells").protected()
+  local membership = P.membership(route.at,protection.boxes)
+  for box in pairs(route.start) do if not membership[box] then route.departed[box] = true end end
+  if route.next <= #route.steps then S.exitNext(lease.turtleId,row)
+  else
+    row.exitRoute = nil
+    local cells = S.module("cells")
+    for _, p in ipairs(route.cells) do
+      if p.x ~= route.at.x or p.y ~= route.at.y or p.z ~= route.at.z then
+        cells.release("gps:"..lease.turtleId,p.x,p.y,p.z,p.dim)
+      end
+    end
+  end
+end
+
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
@@ -370,10 +491,40 @@ S.send = function(id, steps, opts)
   if count ~= #steps then return nil, "steps" end
   if opts ~= nil and type(opts) ~= "table" then return nil, "opts" end
   opts = opts or {}
+  if opts.exit and (opts.exit ~= row.exitRoute or opts.owner ~= "protectedExit") then return nil, "exit approval required" end
   local ms = opts.ms or 60000
   if not S.number(ms) or ms <= 0 then return nil, "ms" end
   if opts.owner ~= nil and type(opts.owner) ~= "string" then return nil, "owner" end
   if opts.pose ~= nil and not S.position(opts.pose) then return nil, "pose" end
+  local frame, from, expected, reconcile
+  if S.safety then
+    if not row.parkBatch or not row.setupFence or not row.journal or not row.pose then
+      return nil, "boundary needs certain fenced worker"
+    end
+    local prefix = S.rules().boundary({steps=steps})
+    if #prefix.steps ~= #steps then return nil, "acknowledged boundary required" end
+    local motion, observation = false, true
+    for _, step in ipairs(steps) do
+      if S.rules().moves[step.op] or S.rules().turns[step.op] or S.rules().digs[step.op] then motion = true end
+      if step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" and step.op ~= "gps" then observation = false end
+    end
+    reconcile = opts.recover == true and observation
+    if row.boundaryHold and not reconcile then return nil, "boundary reconciliation required" end
+    frame = S.frameFor(row, opts.frame)
+    if frame then from = S.rules().toWorld(frame, row.pose) end
+    if motion then
+      local assessment = S.assess(id, from, steps, opts)
+      if not assessment.ok then return nil, assessment.reason end
+    end
+    expected = SO.store.copy(row.pose)
+    for _, step in ipairs(steps) do expected = S.rules().apply(expected, step.op) end
+    if from and opts.pose and not reconcile then
+      local at = from
+      for _, step in ipairs(steps) do at = S.rules().apply(at, step.op) end
+      if not S.rules().samePose(at, opts.pose) then return nil, "expected pose mismatch" end
+    end
+    if opts.journal and opts.journal ~= row.journal then return nil, "journal changed" end
+  end
   local remote = opts.pose and (opts.pose.dim == "minecraft:the_nether" or opts.pose.dim == "minecraft:the_end")
   if remote and not (#steps == 1 and steps[1].op == "inspectDown") then
     local ready, why = S.remoteReady(id, opts.pose.dim)
@@ -396,6 +547,12 @@ S.send = function(id, steps, opts)
     id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
     owner = opts.owner, journal = opts.journal, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
+  if S.safety then
+    lease.journal, lease.frame, lease.from, lease.expected, lease.reconcile = row.journal, frame, from, expected, reconcile
+    if frame then lease.pose = S.rules().toWorld(frame,expected) end
+    lease.steps[1].park, lease.boundary = true, true
+    row.worldFrame = frame
+  end
   if remote then
     local at = S.copyPose(opts.pose)
     local reverse={forward="back",back="forward",up="down",down="up",turnLeft="turnRight",turnRight="turnLeft"}
@@ -426,9 +583,10 @@ S.snapshot = function(row)
     last = SO.store.copy(row.last), tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
     settings = SO.store.copy(row.settings), workerSettings = row.workerSettings, settingsControl = row.settingsControl,
     settingsPending = row.settingsPending and {rid=row.settingsPending.rid,n=row.settingsPending.n} or nil,
-    settingsError = row.settingsError,
+    settingsError = row.settingsError, reconciled = row.reconciled, boundaryHold = row.boundaryHold,
     fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
-    pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
+    pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt,
+    uncertain = row.uncertain or row.anchor and true or nil }
 end
 
 S.status = function(id) return S.snapshot(S.row(id)) end
@@ -458,6 +616,7 @@ S.forget = function(id, key)
   -- Without a final report, every reserved cell may still be occupied.
   row.open, row.probe, row.anchor = nil, nil, nil
   row.uncertain, row.lost = true, true
+  row.worldFrame, row.reconciled = nil, false
   row.pose, row.poseAt = nil, nil
   row.settings, row.settingsPending, row.settingsKey, row.settingsN = nil, nil, nil, nil
 end
@@ -501,6 +660,22 @@ S.report = function(msg, reply)
   row.uncertain = lease.report.uncertain
   if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
+  if lease.boundary then
+    local facts = lease.report
+    local certain = not facts.uncertain and facts.pose and facts.journal and facts.journal ~= lease.journal
+    local actual = certain and {dim="journal",x=facts.pose.x,y=facts.pose.y,z=facts.pose.z,facing=facts.pose.f}
+    local before = lease.expected and {dim="journal",x=lease.expected.x,y=lease.expected.y,z=lease.expected.z,facing=lease.expected.f}
+    local success = certain and (lease.reconcile or S.rules().samePose(before, actual))
+    for i, step in ipairs(lease.steps) do
+      if not results[i].ok and not step.op:match("^inspect") then success = false end
+      if results[i].err == "journal changed" then success = false end
+    end
+    if not success then row.boundaryHold, row.reconciled, results, allOk = true, false, nil, false
+    else
+      row.boundaryHold, row.reconciled = nil, true
+      if lease.reconcile and lease.frame then lease.pose = S.rules().toWorld(lease.frame,facts.pose) end
+    end
+  end
   lease.status = "reported"
   row.last = {status="reported", ok=allOk, at=row.seen}
   if allOk and lease.pose and not row.uncertain then
@@ -511,7 +686,8 @@ S.report = function(msg, reply)
     S.observe(row, pose)
   end
   if lease.owner == "tools" then
-    row.toolError = not allOk and ("tool swap failed: "..tostring(results[1].err or "failed")) or nil
+    row.toolError = not allOk and ("tool swap failed: "..tostring(body.results[1].err or "failed")) or nil
+  elseif lease.owner == "protectedExit" then S.exitReported(lease,row,results)
   elseif lease.owner == "gps" then S.probed(row, results, lease) else S.notify(lease, results) end
   if reply then reply("ack", {command="step.report", lease=lease.id}) end
 end
@@ -620,8 +796,10 @@ S.tick = function(now)
     if lease and now > lease.expires + 10000 then
       row.open = nil
       lease.status = "expired"
+      if lease.boundary then row.boundaryHold, row.reconciled = true, false end
       row.last = {status="expired", ok=false, at=now}
-      if lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
+      if lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
+      elseif lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
     elseif lease and lease.retryAt and now >= lease.retryAt and now < lease.expires then
       lease.retryAt = now + 1000
       local key = SO.pair.key(lease.turtleId)
@@ -695,6 +873,7 @@ S.dugProtection = function(protect)
 end
 
 local config = SO.store.read("so-server.cfg")
+S.safety = type(config) == "table" and (config.protectedAreas == true or config.alternateAxisOrders == true or config.storageDeliveries == true)
 if type(config) == "table" then S.pos = S.copyPose(config.pos) end
 if not S.pos and type(gps) == "table" and type(gps.locate) == "function" then
   local ok, x, y, z = pcall(gps.locate, 2)
@@ -719,6 +898,8 @@ return {
   },
   tick = S.tick,
   send = S.send,
+  boundaries = S.boundaries, assess = S.assess, protectionReady = S.protectionReady,
+  exitRequest = S.exitRequest,
   reanchor = S.reanchor,
   clearProbe = S.clearProbe, claimProbe = S.claimProbe,
   locate = S.locate, world = S.world, candidates = S.candidates,

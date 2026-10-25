@@ -217,6 +217,107 @@ S.owner = function(x, y, z, dim)
   return S.reservations[S.cell(x, y, z, dim)]
 end
 
+S.protectedValid = function(value)
+  if type(value) ~= "table" or value.v ~= 1 or type(value.revision) ~= "number"
+    or value.revision < 0 or value.revision % 1 ~= 0 or value.revision >= 2^53
+    or type(value.boxes) ~= "table" or #value.boxes > 64 then return false end
+  local ids, count = {}, 0
+  for i, box in pairs(value.boxes) do
+    if type(i) ~= "number" or i % 1 ~= 0 or i < 1 or i > #value.boxes
+      or type(box) ~= "table" or type(box.id) ~= "string" or box.id == "" or #box.id > 64 or ids[box.id]
+      or not ({["minecraft:overworld"]=true,["minecraft:the_nether"]=true,["minecraft:the_end"]=true})[box.dim] then return false end
+    ids[box.id], count = true, count + 1
+    for _, axis in ipairs({"x", "y", "z"}) do
+      local lo, hi = box[axis .. "1"], box[axis .. "2"]
+      if type(lo) ~= "number" or type(hi) ~= "number" or lo ~= lo or hi ~= hi
+        or lo % 1 ~= 0 or hi % 1 ~= 0 or math.abs(lo) >= 2^53 or math.abs(hi) >= 2^53 or lo > hi then return false end
+    end
+  end
+  return count == #value.boxes
+end
+
+S.membership = function(p, boxes)
+  local found = {}
+  for _, box in ipairs(boxes) do
+    if p.dim == box.dim and p.x >= box.x1 and p.x <= box.x2 and p.y >= box.y1 and p.y <= box.y2
+      and p.z >= box.z1 and p.z <= box.z2 then found[box.id] = true end
+  end
+  return found
+end
+
+S.protectionReady = function()
+  local lease = SO.mods.lease
+  if not lease or not lease.protectionReady or not lease.protectionReady() then return false, "reconcile leases first" end
+  for _, who in pairs(S.reservations) do
+    local id = type(who) == "string" and tonumber(who:match(":(%d+)$"))
+    local row = id and lease.peek(id)
+    if not row or row.open or row.uncertain or row.boundaryHold or row.lost or not row.pose or not row.journal or not row.reconciled then
+      return false, "reconcile reservations first"
+    end
+  end
+  return true
+end
+
+S.protected = function()
+  return SO.store.copy(S.protectedState), S.protectionError
+end
+
+S.protect = function(boxes)
+  if not S.protectedBox then return false, "protected data unreadable" end
+  local value = {v=1,revision=S.protectedState.revision+1,boxes=SO.store.copy(boxes)}
+  if type(value.boxes) == "table" then
+    local plan = dofile("so-plan.lua")
+    for _, box in ipairs(value.boxes) do
+      if type(box) == "table" then
+        box.dim = plan.dimension(box.dim)
+        for _, axis in ipairs({"x","y","z"}) do
+          local a,b = box[axis.."1"],box[axis.."2"]
+          if type(a)=="number" and type(b)=="number" and a>b then box[axis.."1"],box[axis.."2"]=b,a end
+        end
+      end
+    end
+  end
+  if not S.protectedValid(value) then return false, "invalid protected boxes" end
+  local ready, reason = S.protectionReady()
+  if not ready then return false, reason end
+  local ok, err = S.protectedBox.save(value)
+  if not ok then return false, err end
+  S.protectedState, S.protectionError, S.protectionActive = value, nil, S.protectionEnabled
+  return true
+end
+
+S.assessment = function(who, exit)
+  local reservations, protection = {}, SO.store.copy(S.protectedState)
+  for key, holder in pairs(S.reservations) do reservations[key] = holder end
+  local blocked = S.protectionEnabled and (S.protectionError or not S.protectionActive and "reconcile protection first")
+  return {
+    admit = function(from, op, to)
+      if S.protectionEnabled then
+        if blocked then return false, blocked end
+        local start, target = S.membership(from, protection.boxes), S.membership(to, protection.boxes)
+        if exit then
+          if protection.revision ~= exit.revision or not ({forward=true,back=true,up=true,down=true})[op] then return false, "protected" end
+          for id in pairs(target) do
+            if not exit.start[id] or exit.departed[id] then return false, "protected" end
+          end
+        elseif next(start) or next(target) then return false, "protected" end
+      end
+      local holder = reservations[S.cell(to.x, to.y, to.z, to.dim)]
+      if holder and holder ~= who then return false, "held", holder end
+      return true
+    end,
+    clear = function(p)
+      local bits = S.dugBits(p.dim, math.floor(p.x/16), math.floor(p.y/16), math.floor(p.z/16), true)
+      return type(bits) == "string" and S.bit(bits, p.x%16+16*(p.y%16)+256*(p.z%16)) or false
+    end,
+  }
+end
+
+S.admit = function(who, from, op, to)
+  if not ({forward=true,back=true,up=true,down=true,dig=true,digUp=true,digDown=true})[op] then return true end
+  return S.assessment(who).admit(from, op, to)
+end
+
 S.release = function(who, x, y, z, dim)
   local key = S.cell(x, y, z, dim)
   if S.reservations[key] ~= who then return true end
@@ -666,6 +767,9 @@ S.decideRetirement = function(id, choice)
 end
 
 S.tick = function(now)
+  if S.protectionEnabled and not S.protectionActive and not S.protectionError and S.protectionReady() then
+    S.protectionActive = true
+  end
   now = now or SO.now()
   if S.policyDirty then
     local ok, err = S.savePolicy(S.policy)
@@ -710,8 +814,21 @@ S.loading = true
 fs.makeDir(S.root)
 S.box = SO.store.store(S.root .. "res", S.resValid)
 S.reservations = S.box.value or {}
+S.protectionEnabled = SO.store.read and (SO.store.read("so-server.cfg") or {}).protectedAreas == true
+local protectionOK, protectionBox = pcall(SO.store.store, S.root .. "protected", S.protectedValid, 32768)
+S.protectedBox = protectionOK and protectionBox or nil
+if not protectionOK then S.protectionError = "protected data unreadable" end
+S.protectedState = S.protectedBox and S.protectedValid(S.protectedBox.value) and S.protectedBox.value or {v=1,revision=0,boxes={}}
+for _, suffix in ipairs({"", ".bak", ".tmp"}) do
+  local path = S.root .. "protected" .. suffix
+  if fs.exists and fs.exists(path) then
+    local raw = SO.store.read(path)
+    if type(raw) ~= "table" or not S.protectedValid(raw.value) then S.protectionError = "protected data unreadable" end
+  end
+end
 for _, dim in ipairs(fs.list(S.root)) do
-  if dim ~= "res" and dim ~= "res.tmp" and dim ~= "res.bak" then
+  if dim ~= "res" and dim ~= "res.tmp" and dim ~= "res.bak"
+    and dim ~= "protected" and dim ~= "protected.tmp" and dim ~= "protected.bak" then
     local directory = S.root .. dim
     if not fs.isDir or fs.isDir(directory) then
       local seen = {}
@@ -737,5 +854,6 @@ return {
   retirement = S.retirement, decideRetirement = S.decideRetirement, rememberWorker = S.rememberWorker,
   markDug = S.markDug, isDug = S.isDug, forget = S.forget, counts = S.counts, list = S.list,
   dugColumns = S.dugColumns, dugBits = S.dugBits, reserved = S.reserved,
+  protected = S.protected, protect = S.protect, admit = S.admit, assessment = S.assessment,
   dugVersion = function() return S.columnsVersion, S.marks end,
 }

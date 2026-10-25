@@ -176,6 +176,12 @@ local function send(steps, action, recover)
   local lease, cells = module("lease"), module("cells")
   if S.pending or not lease.send or lease.status(j.turtle.id).open then return false end
   if not recover and not S.safe[j.turtle.id] then alert("update worker for builder safety", "worker_safety") return false end
+  local boundary = lease.boundaries and lease.boundaries()
+  if boundary then
+    steps = P.boundary({from=j.turtle.pose,steps=steps}).steps
+    local check = lease.assess(j.turtle.id,j.turtle.pose,steps,{owner="build"})
+    if not check.ok then alert(check.reason,"path") return false end
+  end
   steps[1].park = true
   local start, at = j.turtle.pose, j.turtle.pose
   local reserved = { start }
@@ -205,7 +211,7 @@ local function send(steps, action, recover)
   if action=="place" then j.placement={cursor=j.cursor,material=j.material} end
   if not save() then return false end
   local id
-  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at})
+  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at,frame=j.turtle.frame})
   if not id then
     j.intent = nil
     if action=="place" then j.placement=nil end
@@ -214,7 +220,7 @@ local function send(steps, action, recover)
     alert("lease " .. tostring(err), cause)
     return false
   end
-  S.pending = { id=id, action=action, steps=steps, pose=start }
+  S.pending = { id=id, action=action, steps=steps, pose=start, boundary=boundary and not recover }
   return true
 end
 local function item()
@@ -375,6 +381,12 @@ local function report(id, turtleId, results, lease)
     return
   end
   local facts = lease.report
+  if pending.boundary and (facts.uncertain or not j.turtle.frame
+    or not P.confirm(pending.pose,pending.steps,results,P.toWorld(j.turtle.frame,facts.pose))) then
+    S.recover = true
+    alert("boundary unconfirmed; reservations held", "pose_uncertain")
+    return
+  end
   if j.turtle.anchor then
     j.turtle.frame = P.frame(j.turtle.anchor,facts.pose)
     j.turtle.anchor = nil

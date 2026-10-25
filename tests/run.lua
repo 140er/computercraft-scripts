@@ -836,3 +836,8 @@ if failed > 0 then os.exit(1) end
 dofile("tests/so/worker-idle-lease.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+
+dofile("tests/so/plan.lua")(test, equal)
+dofile("tests/so/protected.lua").run(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
