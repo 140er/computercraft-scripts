@@ -1,0 +1,37 @@
+29x12 Mining recall-fence at 29x12
+ MINING   main   setup  ---  
+                             
+ state ············· running 
+ busy ·················· 1/1 
+ done ················· 7/10 
+ ► 2  b8 40/64               
+                             
+                             
+                             
+ ! recall needs parkBatch    
+   and setupFence #2         
+     START         STOP      
+000000000000000088888880ccc00
+00000000000000000000000000000
+0888880ccccccccccccc000000000
+088880cccccccccccccccccc00000
+088880ccccccccccccccccc000000
+0d000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+0e000000000000000000000000000
+00000000000000000000000000000
+088888888888880eeeeeeeeeeeee0
+fffffffff777777ffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777777f7777777777777f

@@ -92,6 +92,36 @@ end
 
 -- Literal paths, so part runs declare every fixture they read.
 local FIXTURE = {
+  ['lumberonce-fence-P'] = 'tests/ui/fixtures/lumberonce-fence-P.txt',
+  ['lumberonce-fence-29x12'] = 'tests/ui/fixtures/lumberonce-fence-29x12.txt',
+  ['lumbercycle-refused-P'] = 'tests/ui/fixtures/lumbercycle-refused-P.txt',
+  ['lumbercycle-refused-29x12'] = 'tests/ui/fixtures/lumbercycle-refused-29x12.txt',
+  ['minekeep-slots-P'] = 'tests/ui/fixtures/minekeep-slots-P.txt',
+  ['minekeep-slots-29x12'] = 'tests/ui/fixtures/minekeep-slots-29x12.txt',
+  ['minekeep-stock-P'] = 'tests/ui/fixtures/minekeep-stock-P.txt',
+  ['minekeep-stock-29x12'] = 'tests/ui/fixtures/minekeep-stock-29x12.txt',
+  ['minekeep-refused-P'] = 'tests/ui/fixtures/minekeep-refused-P.txt',
+  ['minekeep-refused-29x12'] = 'tests/ui/fixtures/minekeep-refused-29x12.txt',
+  ['minerecall-disabled-P'] = 'tests/ui/fixtures/minerecall-disabled-P.txt',
+  ['minerecall-disabled-29x12'] = 'tests/ui/fixtures/minerecall-disabled-29x12.txt',
+  ['minerecall-fence-P'] = 'tests/ui/fixtures/minerecall-fence-P.txt',
+  ['minerecall-fence-29x12'] = 'tests/ui/fixtures/minerecall-fence-29x12.txt',
+  ['minerecall-returning-P'] = 'tests/ui/fixtures/minerecall-returning-P.txt',
+  ['minerecall-returning-29x12'] = 'tests/ui/fixtures/minerecall-returning-29x12.txt',
+  ['minerecall-staged-P'] = 'tests/ui/fixtures/minerecall-staged-P.txt',
+  ['minerecall-staged-29x12'] = 'tests/ui/fixtures/minerecall-staged-29x12.txt',
+  ['miningcomplete-P'] = 'tests/ui/fixtures/miningcomplete-P.txt',
+  ['miningcomplete-29x12'] = 'tests/ui/fixtures/miningcomplete-29x12.txt',
+  ['lumberonce-P'] = 'tests/ui/fixtures/lumberonce-P.txt',
+  ['lumberonce-29x12'] = 'tests/ui/fixtures/lumberonce-29x12.txt',
+  ['lumberrepeat-P'] = 'tests/ui/fixtures/lumberrepeat-P.txt',
+  ['lumberrepeat-29x12'] = 'tests/ui/fixtures/lumberrepeat-29x12.txt',
+  ['lumbercomplete-P'] = 'tests/ui/fixtures/lumbercomplete-P.txt',
+  ['lumbercomplete-29x12'] = 'tests/ui/fixtures/lumbercomplete-29x12.txt',
+  ['lumberspecies-refused-P'] = 'tests/ui/fixtures/lumberspecies-refused-P.txt',
+  ['lumberspecies-refused-29x12'] = 'tests/ui/fixtures/lumberspecies-refused-29x12.txt',
+  ['lumberonce-setup-P'] = 'tests/ui/fixtures/lumberonce-setup-P.txt',
+  ['lumberonce-setup-29x12'] = 'tests/ui/fixtures/lumberonce-setup-29x12.txt',
   ['miningsetup-29x12'] = 'tests/ui/fixtures/miningsetup-29x12.txt',
   ['miningores-29x12'] = 'tests/ui/fixtures/miningores-29x12.txt',
   ['mining-M'] = 'tests/ui/fixtures/mining-M.txt', ['mining-W'] = 'tests/ui/fixtures/mining-W.txt',
@@ -314,6 +344,107 @@ local function drops(opts)
 end
 
 return function(test, equal)
+  for _, size in ipairs({ { 'P', 26, 20 }, { '29x12', 29, 12 } }) do
+    local suffix, w, h = size[1], size[2], size[3]
+    test('B4-UJ P4-6 KEEP holds and batch refusal match Lua at ' .. w .. 'x' .. h, function()
+      for _, reason in ipairs({ { 'slots', 'two free slots' }, { 'stock', 'sealing stock' } }) do
+        local t = mining()
+        local status = t.env.SO.mods.lease.status
+        t.env.SO.mods.lease.status = function() return {} end
+        t.type('keep minecraft:dirt minecraft:cobblestone minecraft:dirt')
+        equal(t.job.keep, { 'minecraft:cobblestone', 'minecraft:dirt' })
+        t.env.SO.mods.lease.status = status
+        local row = t.job.turtles['2']
+        row.state, row.error = 'hold', 'KEEP needs ' .. reason[2]
+        match('minekeep-' .. reason[1] .. '-' .. suffix, t.render(w, h, { id = 7 }))
+      end
+      local t = mining()
+      t.type('keep minecraft:dirt')
+      equal(t.job.keep, {})
+      match('minekeep-refused-' .. suffix, t.render(w, h, { id = 7 }))
+    end)
+
+    test('B4-UJ P4-14 recall refusals, returning and staged match Lua at ' .. w .. 'x' .. h, function()
+      local t = mining()
+      t.type('recall')
+      equal(t.job.recall, nil)
+      match('minerecall-disabled-' .. suffix, t.render(w, h, { id = 7 }))
+      t = mining()
+      for id in pairs(t.job.turtles) do if id ~= '2' then t.job.turtles[id] = nil end end
+      t.type('recall on')
+      t.type('recall')
+      equal(t.job.recallEnabled, true)
+      equal(t.job.recall, nil)
+      match('minerecall-fence-' .. suffix, t.render(w, h, { id = 7 }))
+      -- Render saved recall phases without dispatching movement from this UI fixture.
+      for _, phase in ipairs({ 'returning', 'staged' }) do
+        t = mining()
+        t.job.recallEnabled, t.job.running = true, phase == 'returning'
+        t.job.recall = { phase = phase, workers = { ['2'] = { phase = phase } } }
+        t.job.turtles['2'].state = phase
+        match('minerecall-' .. phase .. '-' .. suffix, t.render(w, h, { id = 7 }))
+      end
+      t = mining()
+      t.job.running, t.job.complete = false, true
+      match('miningcomplete-' .. suffix, t.render(w, h, { id = 7 }))
+    end)
+
+    test('B4-UJ P4-15 and P4-16 cycle and species commands match Lua at ' .. w .. 'x' .. h, function()
+      local t, session = lumber(), { id = 7 }
+      local function input(text) t.input({ text = text, session = session }) end
+      equal(t.job.cycleMode, 'repeat')
+      equal(t.job.species, false)
+      match('lumberrepeat-' .. suffix, t.render(w, h, session))
+      input('stop')
+      input('mode once')
+      equal(t.job.cycleMode, 'once')
+      equal(t.job.nextRound, nil)
+      for _, selection in ipairs({
+          { 'minecraft:oak_log minecraft:birch_log minecraft:oak_log', { 'minecraft:birch_log', 'minecraft:oak_log' } },
+          { 'none', {} }, { 'false', false } }) do
+        input('species ' .. selection[1])
+        equal(t.job.species, selection[2])
+        match('lumberonce-' .. suffix, t.render(w, h, session))
+        t.tap(session, 'tab:setup')
+        match('lumberonce-setup-' .. suffix, t.render(w, h, session))
+        t.tap(session, 'tab:overview')
+      end
+      input('mode repeat')
+      equal(t.job.cycleMode, 'repeat')
+      match('lumberonce-' .. suffix, t.render(w, h, session))
+      t.job.cycleMode, t.job.cycle = 'once', { phase = 'complete' }
+      match('lumbercomplete-' .. suffix, t.render(w, h, session))
+    end)
+
+    test('B4-UJ P4-16 unsupported species refusal matches Lua at ' .. w .. 'x' .. h, function()
+      local t = lumber()
+      t.input({ text = 'stop' })
+      t.input({ text = 'species mod:unknown_log' })
+      equal(t.job.species, false)
+      match('lumberspecies-refused-' .. suffix, t.render(w, h, { id = 7 }))
+    end)
+
+    test('B4-UJ P4-15 fenced START and unfinished-cycle refusals match Lua at ' .. w .. 'x' .. h, function()
+      local t = lumber()
+      local function input(text) t.input({ text = text }) end
+      input('stop')
+      input('mode once')
+      t.env.SO.pair = { key = function() return 'paired' end }
+      input('start')
+      equal(t.job.running, false)
+      equal(t.job.cycle, nil)
+      match('lumberonce-fence-' .. suffix, t.render(w, h, { id = 7 }))
+      t.job.alert = nil
+      t.job.cycle = { phase = 'survey', members = { ['5'] = true, ['7'] = true } }
+      for _, text in ipairs({ 'mode repeat', 'species none' }) do
+        input(text)
+        equal(t.job.cycleMode, 'once')
+        equal(t.job.species, false)
+        match('lumbercycle-refused-' .. suffix, t.render(w, h, { id = 7 }))
+      end
+    end)
+  end
+
   test('S3 mining overview, setup and ore list match every size fixture', function()
     local t = mining()
     for _, size in ipairs({ { 'mining-M', 57, 24 }, { 'mining-W', 100, 38 }, { 'mining-L', 39, 19 },
@@ -592,7 +723,7 @@ return function(test, equal)
       equal(read(dir .. '/' .. name .. '.txt'), read(assert(FIXTURE[name], name)))
       count = count + 1
     end
-    equal(count, 30)
+    equal(count, 60)
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
 

@@ -1,0 +1,61 @@
+26x20 Lumber repeat at 26x20
+ LUMBER   main   setup    
+                          
+ +-----------+            
+ | ♠  ♠  ♣  ♠|            
+ | ♠  ►  ♠  ♣| • saplings 
+ |     5     |            
+ | ♠  ♣  ♠  ♠| • wood     
+ +---------◄-+            
+            7             
+                          
+                          
+ ► 5  felling             
+ ◄ 7  wait chest          
+                          
+ state ·········· running 
+ ready ············· 9/12 
+ next grow ········· 6:20 
+ fuel ··············· 640 
+                          
+    START       STOP      
+00000000000000008888888000
+00000000000000000000000000
+0ccccccccccccc000000000000
+0c0d00d00800dc000000000000
+0c0d00d00d008c000888888880
+0c00000d00000c000000000000
+0c0d00800d00dc000888800000
+0cccccccccc1cc000000000000
+00000000000010000000000000
+00000000000000000000000000
+00000000000000000000000000
+0d000000000000000000000000
+01000011111111110000000000
+00000000000000000000000000
+0888880cccccccccc000000000
+0888880ccccccccccccc0dddd0
+08888888880ccccccccc000000
+088880ccccccccccccccc00000
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+fffffffff777777fffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff
