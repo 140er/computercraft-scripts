@@ -59,7 +59,7 @@ return function(test, equal)
     local cells, m, net = F.setup(nil, 500)
     assert(cells.tick(net.time))
     assert(cells.decideRetirement(cells.retirement().id, "keep"))
-    equal(cells.retirement().text, "Kept. More server storage (sharding) is a future option.")
+    equal(cells.retirement().text, "Kept.")
     local policy = m.env.SO.store.read("so-data/dug-policy").value
     equal(policy.choice, "keep")
     F.seed(m, 700, 501)
@@ -70,6 +70,7 @@ return function(test, equal)
     equal(cells.counts().dug, 700)
     F.seed(m, 800, 701)
     cells, m, net = F.setup(m.files)
+    net.time = net.time + 600000
     assert(cells.tick(net.time))
     equal(cells.retirement().status, "pending")
     equal(cells.counts().dug, 800)
@@ -100,7 +101,7 @@ return function(test, equal)
     equal(marked(reboot,60),true)
   end)
 
-  test("dug retirement: approval rechecks reservations and accesses without expanding the offer", function()
+  test("dug retirement: a touched candidate is rechecked at ALLOW without expanding the offer", function()
     local cells, m, net=F.setup(nil,500)
     assert(cells.tick(net.time))
     local request=cells.retirement()
@@ -108,9 +109,9 @@ return function(test, equal)
     equal(marked(cells,2),true)
     assert(cells.decideRetirement(request.id,"allow"))
     equal(marked(cells,1),true)
-    equal(marked(cells,2),true)
+    equal(marked(cells,2),false)
     equal(marked(cells,3),false)
-    equal(cells.counts().dug,500-request.count+2)
+    equal(cells.counts().dug,500-request.count+1)
     equal(cells.decideRetirement(request.id,"allow"),false)
   end)
 
@@ -160,4 +161,68 @@ return function(test, equal)
     equal(marked(cells,1),true)
     equal(marked(cells,2),false)
   end)
+
+  test("dug retirement: no ask during the 10 min snooze, including growth and reboot", function()
+    local cells, m, net = F.setup(nil, 500)
+    local pressure = true
+    m.env.SO.mods.state = { disk = function() return { pressure = pressure } end }
+    assert(cells.tick(net.time))
+    assert(cells.decideRetirement(cells.retirement().id, "keep"))
+    equal(cells.retirement().text, "Kept.")
+    local start = net.time
+    F.seed(m, 800, 501)
+    cells, m, net = F.setup(m.files)
+    m.env.SO.mods.state = { disk = function() return { pressure = pressure } end }
+    for _, elapsed in ipairs({ 60000, 300000, 599999 }) do
+      net.time = start + elapsed
+      assert(cells.tick(net.time))
+      equal(cells.retirement().status, "snoozed")
+      equal(cells.retirement().text, "Disk full. Add disk space.")
+      equal(cells.counts().dug, 800)
+    end
+    pressure = false
+    equal(cells.retirement(), nil)
+    pressure = true
+    net.time = start + 600000
+    assert(cells.tick(net.time))
+    equal(cells.retirement().status, "pending")
+  end)
+
+  test("dug retirement: pressure asks for any choice after its gap", function()
+    for _, choice in ipairs({ "unset", "allow", "keep" }) do
+      local _, m, net = F.setup(nil, 500)
+      saved(m, "so-data/dug-policy", { nextAsk = 2000000, workers = {},
+        choice = choice ~= "unset" and choice or nil, pressureAfter = net.time + 60000 })
+      local cells
+      cells, m, net = F.setup(m.files)
+      m.env.SO.mods.state = { disk = function() return { pressure = true } end }
+      net.time = net.time + 59999
+      assert(cells.tick(net.time))
+      assert(not cells.retirement() or cells.retirement().status ~= "pending", choice)
+      net.time = net.time + 1
+      assert(cells.tick(net.time))
+      equal(cells.retirement().status, "pending", choice)
+    end
+  end)
+
+  test("dug retirement: request copies section bounds with dimensions and negative coordinates", function()
+    local _, m = F.setup(nil, 500)
+    local path = "so-data/cells/minecraft%3athe_nether/-2_-1_-3"
+    for _, suffix in ipairs({ "", ".bak" }) do
+      m.files[path .. suffix], m.files[F.path(1) .. suffix] = m.files[F.path(1) .. suffix], nil
+    end
+    local cells, net
+    cells, m, net = F.setup(m.files)
+    assert(cells.tick(net.time))
+    local request = cells.retirement()
+    equal(#request.areas, request.count)
+    local area = request.areas[1]
+    equal(area.dim, "minecraft:the_nether")
+    equal(area.x1, -32) equal(area.x2, -17)
+    equal(area.y1, -16) equal(area.y2, -1)
+    equal(area.z1, -48) equal(area.z2, -33)
+    area.x1 = 999
+    equal(cells.retirement().areas[1].x1, -32)
+  end)
+
 end

@@ -5,7 +5,7 @@ return function(test, equal)
   for _, size in ipairs({{26,20},{29,12}}) do
     for _, role in ipairs({"generic","status","mining","lumber","shop","ar"}) do
       for _, choice in ipairs({"allow","keep"}) do
-        test("dug consent: drawn "..choice.." on "..role.." at "..size[1].."x"..size[2], function()
+        test("dug consent: banner at most 3 rows with drawn "..choice.." on "..role.." at "..size[1].."x"..size[2], function()
           local s=setup(size[1],size[2],function(server)
             server.opts.directories=true
             F.seed(server,500)
@@ -18,8 +18,9 @@ return function(test, equal)
           local text={}
           for _, row in ipairs(s.frame().rows) do text[#text+1]=row.text end
           local message=table.concat(text," ")
-          assert(message:find("Nothing in the world changes.",1,true),message)
-          assert(message:find("Turtles re%-check blocks if they return%."),message)
+          assert(message:find(request.text,1,true),message)
+          assert(s.button("allow").y <= 3, "banner exceeds 3 rows")
+          assert(s.button("keep").y <= 3, "banner exceeds 3 rows")
           s.button("allow") s.button("keep")
           s.press(choice)
           equal(cells.retirement().status,choice=="allow" and "allowed" or "kept")

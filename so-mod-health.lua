@@ -66,6 +66,8 @@ local function attention(facts)
   end
   if facts.retirement and facts.retirement.status == "pending" then
     add("dug",2,"Dug marks consent","status")
+  elseif facts.retirement and facts.retirement.status == "snoozed" then
+    add("disk-snooze",2,"Add disk space","health")
   end
   if (facts.disk.ratio or 0) >= 0.8 then add("disk",1,"Disk "..math.floor(facts.disk.ratio*100).."% full","health") end
   if facts.clockRefused then add("clock",1,"Clock frozen; checkpoint refused","health") end
