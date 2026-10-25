@@ -988,27 +988,28 @@ local K = {}
 
 K.output = { path = "room.output" }
 
-function K.output.integer(n)
+do
+local o = K.output
+function o.integer(n)
   return type(n) == "number" and n % 1 == 0 and n >= 0 and n < 9007199254740991
 end
 
-function K.output.point(p)
+function o.point(p)
   return type(p) == "table" and (p.dim == "minecraft:overworld" or p.dim == "minecraft:the_nether"
     or p.dim == "minecraft:the_end") and type(p.x) == "number" and p.x % 1 == 0
     and math.abs(p.x) <= 30000000 and type(p.y) == "number" and p.y % 1 == 0 and math.abs(p.y) <= 30000000
     and type(p.z) == "number" and p.z % 1 == 0 and math.abs(p.z) <= 30000000
 end
 
-function K.output.same(a, b)
-  return K.output.point(a) and K.output.point(b) and a.dim == b.dim and a.x == b.x and a.y == b.y and a.z == b.z
+function o.same(a, b)
+  return o.point(a) and o.point(b) and a.dim == b.dim and a.x == b.x and a.y == b.y and a.z == b.z
 end
 
-function K.output.token(t)
+function o.token(t)
   return type(t) == "string" and #t > 0 and #t <= 128
 end
 
-function K.output.valid(s)
-  local o = K.output
+function o.valid(s)
   if type(s) ~= "table" or s.v ~= 1 or not o.integer(s.generation) or s.generation < 1
     or not o.integer(s.highWater) or not o.integer(s.barrier)
     or s.barrier > s.generation or not ({busy=true,claimed=true,settled=true,quarantined=true})[s.state] then return false end
@@ -1031,32 +1032,31 @@ function K.output.valid(s)
   return true
 end
 
-function K.output.copy(s)
+function o.copy(s)
   return textutils.unserialize(textutils.serialize(s, { compact = true }))
 end
 
-function K.output.read(path)
+function o.read(path)
   if not fs.exists(path) then return nil end
-  local h = assert(fs.open(path, "r"), "output open failed")
+  local h = assert(fs.open(path, "r"), "open failed")
   local bytes = h.readAll()
   h.close()
-  assert(#bytes <= 65536, "output state too large")
+  assert(#bytes <= 65536, "state too large")
   local s = textutils.unserialize(bytes)
-  assert(K.output.valid(s), "invalid output state")
+  assert(o.valid(s), "invalid state")
   return s, bytes
 end
 
-function K.output.save(s)
-  local o = K.output
+function o.save(s)
   if o.fault or o.saving or s.generation ~= o.state.generation then return false end
   o.saving = true
   s = o.copy(s)
   s.generation = o.state.generation + 1
   local h
   local ok = pcall(function()
-    assert(o.valid(s), "invalid output state")
+    assert(o.valid(s), "invalid state")
     local bytes = textutils.serialize(s, { compact = true })
-    assert(#bytes <= 65536, "output state too large")
+    assert(#bytes <= 65536, "state too large")
     if o.source and o.source ~= o.path then
       if fs.exists(o.path) then fs.delete(o.path) end
       fs.move(o.source, o.path)
@@ -1067,7 +1067,7 @@ function K.output.save(s)
     h.close()
     h = nil
     local checked, written = o.read(o.path .. ".tmp")
-    assert(checked and written == bytes, "output verification failed")
+    assert(checked and written == bytes, "verification failed")
     if fs.exists(o.path .. ".bak") then fs.delete(o.path .. ".bak") end
     if fs.exists(o.path) then fs.move(o.path, o.path .. ".bak") end
     fs.move(o.path .. ".tmp", o.path)
@@ -1079,8 +1079,7 @@ function K.output.save(s)
   return true
 end
 
-function K.output.init()
-  local o = K.output
+function o.init()
   o.state = { v=1, generation=0, highWater=0, barrier=0, state="busy" }
   o.enabled = cfg.managedOutput == true
   for _, path in ipairs({o.path, o.path .. ".tmp", o.path .. ".bak"}) do
@@ -1097,17 +1096,17 @@ function K.output.init()
   o.save(s)
 end
 
-function K.output.closed()
-  local o = K.output
+function o.closed()
   return o.enabled and (o.fault or o.saving or o.reconcile or o.state.state == "quarantined")
 end
 
-function K.output.quarantine()
-  local o = K.output
+function o.quarantine()
   if not o.enabled then return end
   local s = o.copy(o.state)
   s.state = "quarantined"
   o.save(s)
+end
+
 end
 
 K.output.init()
@@ -2355,6 +2354,7 @@ end
 
 -- Fuel in its own slots (also what you put straight into the turtle): no moving needed
 function refuelCarried()
+  if K.output.enabled and K.output.state.state ~= "settled" then return false end
   -- Lava buckets are always burnt when they fit (1000 each), never stored; the empty
   -- buckets go to storage
   for _, c in ipairs(carried(function(n) return n == "minecraft:lava_bucket" end)) do
@@ -2375,7 +2375,7 @@ function refuelCarried()
 end
 
 function refuelSelf()
-  refuelCarried()
+  if refuelCarried() == false then return end
   if fuelLeft() >= cfg.minFuel then return end
   -- Lava buckets in storage first (put there by older versions), then coal and the like
   if (totals()["minecraft:lava_bucket"] or 0) > 0 and fuelRoom() >= 1000 and freeSlots() > 1 then
@@ -2785,6 +2785,7 @@ end
 
 local function deliver(req)
   if K.output.closed() then error("Output quarantined", 0) end
+  if K.output.enabled then assert(storeAll(true) and carriedCount() == 0, "Existing cargo remains") end
   if K.output.enabled and K.output.state.cell then
     if idx[K.output.state.cell] ~= outputEntry() then error("Output changed", 0) end
   end

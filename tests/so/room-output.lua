@@ -9,7 +9,10 @@ local function fixture(managed, previous)
   local function copy(v) return e.textutils.unserialize(H.encode(v)) end
   local s = {net=net,m=m,e=e,serial=100}
   m.files = previous and copy(previous.files) or {}
-  if previous then m.inv, m.pos, m.heading = copy(previous.inv), copy(previous.pos), previous.heading end
+  if previous then
+    m.inv, m.pos, m.heading = copy(previous.inv), copy(previous.pos), previous.heading
+    m.fuel = previous.fuel or m.fuel
+  end
   if not previous then
     m.files["room.cfg"] = H.encode({managedOutput=managed,minFuel=0,maxFurnaces=0,v2=true})
     m.files["room.map"] = H.encode({home="0,0,0",slots={},layout=2,badCleared=true,cells={
@@ -144,7 +147,7 @@ local W, H = term.getSize()]],1)
   s.count=function(k,name)
     local n=0 for _,it in pairs(world[k].inv) do if not name or it.name==name then n=n+it.count end end return n
   end
-  s.snapshot=function() return {files=copy(m.files),inv=copy(m.inv),world=copy(world),pos=copy(m.pos),heading=m.heading} end
+  s.snapshot=function() return {files=copy(m.files),inv=copy(m.inv),world=copy(world),pos=copy(m.pos),heading=m.heading,fuel=m.fuel} end
   return s
 end
 
@@ -161,6 +164,68 @@ return function(test,equal)
     s.start()
     equal(s.count("0,0,1"),8)
     equal(s.m.files["room.output"],nil)
+  end)
+  for _,item in ipairs({"minecraft:lava_bucket","minecraft:coal"}) do
+    test("quarantined "..item.." survives restart and reconciliation without refuelling",function()
+      local s=fixture(true) s.start()
+      local count=item=="minecraft:coal" and 5 or 1
+      s.world["1,0,0"].inv={[1]={name=item,count=count}}
+      s.api.idx["1,0,0"].items={[1]={name=item,count=count}}
+      s.ask("output.claim")
+      local order=s.ask("get",{text=item,n=count}) equal(order.state,"busy")
+      local cut
+      s.beforeDrop=function()
+        cut=s.snapshot() error("power cut before output drop")
+      end
+      s.wake() assert(cut)
+      local cfg=s.e.textutils.unserialize(cut.files["room.cfg"])
+      cfg.minFuel=1000
+      cut.files["room.cfg"]=H.encode(cfg) cut.fuel=10
+      local r=fixture(true,cut) r.start()
+      equal(r.m.fuel,10) equal(r.m.inv[1],{name=item,count=count})
+      equal(r.ask("output.status",{requestRid=order.requestRid}).state,"quarantined")
+      r.reconcile()
+      equal(r.m.fuel,10) equal(next(r.m.inv),nil)
+      equal(r.count("1,0,0",item),count) equal(r.count("1,0,0","minecraft:bucket"),0)
+      equal(r.count("0,0,1"),0)
+      local receipt=r.ask("output.status",{requestRid=order.requestRid})
+      equal(receipt.state,"settled") equal(receipt.requestRid,order.requestRid)
+      local saved=r.e.textutils.unserialize(r.m.files["room.output"])
+      equal(saved.barrier,receipt.barrier) equal(saved.work,nil)
+      local legacy=fixture(false)
+      legacy.m.inv[1]={name=item,count=count} legacy.m.fuel=10 legacy.api.cfg.minFuel=1000
+      legacy.start()
+      assert(legacy.m.fuel>10,"legacy automatic refuelling changed")
+    end)
+  end
+  test("managed delivery stores three sorting stone before fetching four, with legacy behavior unchanged",function()
+    for _,managed in ipairs({false,true}) do
+      local s=fixture(managed) s.start()
+      if managed then s.ask("output.claim") end
+      s.m.inv[1]={name="minecraft:stone",count=3}
+      local order
+      if managed then order=s.ask("get",{text="minecraft:stone",n=4})
+      else s.o.network(1,{cmd="get",text="minecraft:stone",n=4}) end
+      s.wake()
+      equal(s.count("0,0,1","minecraft:stone"),managed and 4 or 7)
+      equal(s.count("1,0,0","minecraft:stone"),managed and 19 or 16)
+      equal(next(s.m.inv),nil)
+      if managed then
+        local receipt=s.ask("output.status",{requestRid=order.requestRid})
+        equal(receipt.state,"settled") equal(receipt.requestRid,order.requestRid)
+        local saved=s.e.textutils.unserialize(s.m.files["room.output"])
+        equal(saved.barrier,receipt.barrier) equal(saved.work,nil)
+      end
+    end
+  end)
+  test("managed delivery holds existing sorting cargo when storage cannot accept it",function()
+    local s=fixture(true) s.start() s.ask("output.claim")
+    s.m.inv[1]={name="minecraft:stone",count=3}
+    s.world["1,0,0"].full=true
+    s.ask("get",{text="minecraft:stone",n=4}) s.wake()
+    equal(s.ask("output.status").state,"quarantined")
+    equal(s.m.inv[1],{name="minecraft:stone",count=3})
+    equal(s.count("1,0,0"),20) equal(s.count("0,0,1"),0)
   end)
   test("first claim waits for the worker drain rather than an empty output chest",function()
     local s=fixture(true)
