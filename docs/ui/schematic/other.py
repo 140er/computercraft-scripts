@@ -495,7 +495,7 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
             if name == (kind or "all"):
                 cv.put(2, y, "•", "0")
             cv.put(4, y, name[:w - 4], "0" if name == (kind or "all") else "8")
-            cv.hit("pick:%d" % (i + 1), 1, y, w, 1)
+            cv.hit("pick:%d" % (i + 1), 1, y, w, 1, name)
         chip(cv, 2, h, "BACK", "kind-back")
         pager(cv, h, "1/%d" % pages, False, pages > 1)
         return cv

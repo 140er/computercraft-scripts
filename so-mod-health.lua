@@ -257,7 +257,7 @@ H.render = function(role,w,h,session)
       if not kind then break end
       if kind == (v.kind or "all") then c.put(2,y,U.g.bullet,"0") end
       c.put(4,y,kind:sub(1,w-4),kind == (v.kind or "all") and "0" or "8")
-      c.hit("pick:"..n,1,y,w,1)
+      c.hit("pick:"..n,1,y,w,1,kind)
     end
     c.chip(2,h,"BACK","kind-back")
     U.pager(c,h,v.picker.page.."/"..pages,v.picker.page>1,v.picker.page<pages)
