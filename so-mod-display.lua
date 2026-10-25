@@ -7,7 +7,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  budget = 15500,
+  budget = 15400,
   order = { "status", "pocket", "mining", "lumber", "shop", "generic", "ar", "panel", "map",
     "health", "attention", "alerts", "events", "errors", "disk", "build" },
   known = {},

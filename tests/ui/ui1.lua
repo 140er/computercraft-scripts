@@ -351,4 +351,30 @@ return function(test,equal)
     tap(2,'drop:2')
     equal(got,{'list','focus:2'})
   end)
+  test('P-U1-5 the XL status wall keeps every drop row hit under the 15400 byte budget',function()
+    local S=dofile('tests/ui/scene.lua')
+    local fixture,calls=R.load('tests/ui/fixtures/status-XL.txt'),{}
+    local byte={}
+    for b=0,255 do if b<128 or b>159 then byte[R.char(b)]=b end end
+    -- The fixture's own map cells stand in for the thumbnail, as in tests/ui/s0.lua.
+    local s=S.new({thumb=function(C,x,y,w,h)
+      calls[#calls+1]=h
+      for j=0,h-1 do
+        local text,fg,bg=S.chars(fixture.text[y+j]),fixture.fg[y+j],fixture.bg[y+j]
+        for i=0,w-1 do
+          local ch=text[x+i]
+          if ch~=' ' then C.put(x+i,y+j,string.char(byte[ch]),fg:sub(x+i,x+i),bg:sub(x+i,x+i)) end
+        end
+      end
+    end})
+    local frame=s.frame({alertSeen={}},164,81)
+    local ids,drops={},0
+    for _,b in ipairs(frame.buttons) do ids[b.id]=true end
+    for _,p in ipairs(s.env.SO.mods.drops.list()) do drops=drops+1 assert(ids['drop:'..p.id],'drop:'..p.id) end
+    assert(drops>=5,'drops '..drops)
+    -- A 30-row thumbnail means the wall did not fall back to its tight layout.
+    equal(calls[#calls],30)
+    local bytes=#s.env.SO.proto.ser({rows=frame.rows,buttons=frame.buttons})
+    assert(bytes<=15400,'frame bytes '..bytes)
+  end)
 end

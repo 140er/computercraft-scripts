@@ -294,7 +294,7 @@ def wall(cv, m):
         cv.put(2, y, "×" if p["broken"] else "•", c)
         cv.put(4, y, str(p["id"]), c)
         cv.put(7, y, p["kind"][:9], c)
-        cv.put(17, y, at(p, True), "8")
+        cv.put(17, y, at(p, True), "e" if p["broken"] else "8")
         cv.put(31, y, "broken" if p["broken"] else "ok", "e" if p["broken"] else "8")
         cv.hit("drop:%s" % p["id"], 2, y, 35, 1)
     ey = dy + nd + 2
