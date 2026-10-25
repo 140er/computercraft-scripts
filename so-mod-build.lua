@@ -11,6 +11,7 @@ local dimensions = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1,
 local function whole(n)
   return type(n) == "number" and n == n and math.abs(n) < 30000000 and n % 1 == 0
 end
+local function normalizeFuel(value) return value == -1 and "unlimited" or value end
 local function module(name) return SO.mods and SO.mods[name] or {} end
 local function same(a, b) return a.x == b.x and a.y == b.y and a.z == b.z end
 local function material(name)
@@ -68,6 +69,10 @@ local box = SO.store.store("so-data/build/job", function(j)
   return type(j) == "table" and type(j.dim) == "string" and whole(j.cursor) and j.cursor >= 1
 end)
 local j = box.value or { dim="minecraft:overworld", cursor=1, running=false, phase="check" }
+j.fuel=normalizeFuel(j.fuel)
+if not j.placement and j.intent and j.intent.action=="place" then
+  j.placement={cursor=j.cursor,material=j.material}
+end
 if j.fuel==nil and j.inv and next(j.inv)==nil then j.inv=nil end
 if not S.workerPark and j.turtle and (j.turtle.paused or j.turtle.removeRequested or j.turtle.parkConfirmed) then
   j.turtle.paused,j.turtle.removeRequested,j.turtle.parkConfirmed,j.turtle.state=nil,nil,nil,nil
@@ -157,11 +162,13 @@ local function send(steps, action, recover)
     return false
   end
   j.intent = {action=action, steps=steps, pose=start}
+  if action=="place" then j.placement={cursor=j.cursor,material=j.material} end
   if not save() then return false end
   local id
   id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at})
   if not id then
     j.intent = nil
+    if action=="place" then j.placement=nil end
     if err == "lost" then S.recover = true end
     alert("lease " .. tostring(err))
     return false
@@ -255,7 +262,7 @@ local function supply(kind)
   save()
 end
 local function fuelItem()
-  for _,v in ipairs(j.inv or {}) do if v.count>0 and P.fuelValue(v.name)>0 then return v end end
+  for _,v in ipairs(j.inv or {}) do if v.name~=j.material and v.count>0 and P.fuelValue(v.name)>0 then return v end end
 end
 local function fuelNeed(target)
   local stand=j.service and j.service.kind~="fuel" and j.service.access or {x=target.x,y=target.y+1,z=target.z}
@@ -270,6 +277,7 @@ local function readiness()
   local pose=j.turtle and j.turtle.pose
   local lease=module("lease")
   local stat=pose and lease.status and lease.status(j.turtle.id) or {}
+  if j.fuel~=nil and stat.fuel~=nil then j.fuel=normalizeFuel(stat.fuel) end
   local picked=pose and choose("storage",pose)
   checks[#checks+1]={ok=picked and picked.point~=nil,text=picked and picked.alert or "no storage chest set"}
   checks[#checks+1]={ok=pose and SO.pair and SO.pair.key(j.turtle.id) and not j.turtle.forgotten and not stat.uncertain and not stat.lost,
@@ -296,6 +304,23 @@ local function advance()
   j.cursor, j.phase = j.cursor+1, "check"
   if j.cursor > #S.targets then j.running, j.alert = false, nil end
 end
+local function reconcile(last)
+  local pending=j.placement
+  local target=S.targets and S.targets[pending.cursor]
+  local pose=j.turtle.pose
+  if pending.cursor~=j.cursor or not target or pose.dim~=target.dim
+    or pose.x~=target.x or pose.y~=target.y+1 or pose.z~=target.z then
+    alert("pending placement pose changed") return false
+  end
+  if last.ok and last.data and last.data.name==pending.material then
+    j.placement=nil
+    advance()
+  elseif not last.ok and last.err=="No block to inspect" then
+    j.placement=nil
+    j.phase="check"
+  else alert(last.ok and "build cell occupied" or "build cell unknown") return false end
+  return true
+end
 local function report(id, turtleId, results, lease)
   local pending = S.pending
   if not j.turtle or j.turtle.forgotten or turtleId ~= j.turtle.id or not pending or pending.id ~= id then return end
@@ -313,7 +338,7 @@ local function report(id, turtleId, results, lease)
   end
   j.turtle.pose = P.toWorld(j.turtle.frame,facts.pose)
   if facts.inv then j.inv = facts.inv end
-  if facts.fuel ~= nil then j.fuel = facts.fuel end
+  if facts.fuel ~= nil then j.fuel = normalizeFuel(facts.fuel) end
   local action, last = pending.action, results[#results]
   j.intent = nil
   if action == "workerPark" then
@@ -322,6 +347,7 @@ local function report(id, turtleId, results, lease)
   elseif action == "recover" then
     S.recover, j.blocked, j.alert, j.phase = false, nil, nil, "check"
     if j.service then j.service.stage = "travel" end
+    if j.placement and not reconcile(last) then S.recover=true end
   elseif action == "fuel" then
     local target=S.targets and S.targets[j.cursor]
     local required=S.fuelTrips and target and fuelNeed(target) or 1
@@ -329,12 +355,13 @@ local function report(id, turtleId, results, lease)
       j.blocked, j.alert = nil, nil
     else alert("out of fuel", "fuel") end
   elseif action == "check" then
-    if last.ok and last.data and last.data.name == j.material then advance()
+    if j.placement then reconcile(last)
+    elseif last.ok and last.data and last.data.name == j.material then advance()
     elseif last.ok then alert("build cell occupied")
     elseif last.err == "No block to inspect" then j.phase = "place"
     else alert("build cell unknown") end
   elseif action == "place" then
-    if last.ok then advance() else j.phase="check" alert("placement failed") end
+    if last.ok then j.placement=nil advance() else j.phase="check" alert("placement failed") end
   elseif action == "supplyCheck" then
     if last.ok and last.data and (last.data.name:find("chest",1,true)
       or last.data.name:find("barrel",1,true) or last.data.name:find("shulker",1,true)) then
@@ -435,6 +462,7 @@ local function input(ev)
   local status = j.turtle and module("lease").status and module("lease").status(j.turtle.id) or {}
   local reanchor = w[1] == "add" and j.turtle and tonumber(w[2]) == j.turtle.id and status.uncertain
   if (j.running or S.pending or status.open) and not reanchor then alert("stop before configuring") return end
+  if j.placement and w[1]~="add" then alert("reconcile placement before configuring") return end
   if w[1] == "area" and #w == 7 then
     local n={}
     for i=2,7 do n[i]=tonumber(w[i]) if not whole(n[i]) then alert("invalid area") return end end

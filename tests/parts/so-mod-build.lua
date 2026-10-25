@@ -268,7 +268,10 @@ return function(test,equal)
   end)
   test("builder START refuses unknown and zero fuel and requires a certain pose and parkBatch",function()
     local f=fixture() f.configure("floor",1,1,1)
+    local status=f.mods.lease.status
+    f.mods.lease.status=function() local value=status() value.fuel=10000 return value end
     f.input("start") equal(f.job().running,false) equal(f.job().alert,"fuel unknown; wait for report")
+    f.mods.lease.status=status
     ready(f)
     f.uncertain=true f.input("start") equal(f.job().running,false)
     assert(f.job().alert:find("pose missing or uncertain",1,true))
@@ -379,5 +382,76 @@ return function(test,equal)
     assert(f.job().running,tostring(f.job().alert))
     f.finish() equal(f.places,1)
   end)
+
+  test("builder refused zero-fuel START accepts manual refuel and an authenticated hello",function()
+    local f=dofile("tests/so/build-world-fixture.lua")()
+    f.worker.fuel=0 f.configure("floor",1,1,1)
+    equal(f.job().fuel,0) f.command("start")
+    equal(f.job().running,false) equal(f.job().alert,"out of fuel")
+    local sent=#f.worker.sent
+    f.worker.fuel=10000 f.advance(31)
+    local hello=false
+    for i=sent+1,#f.worker.sent do
+      local packet=f.worker.sent[i].payload
+      if packet.t=="hello" and packet.body.fuel==10000 then hello=true end
+    end
+    assert(hello,"manual refuel did not reach an authenticated hello")
+    equal(f.server.env.SO.mods.lease.status(2).fuel,10000)
+    equal(f.job().fuel,0)
+    f.command("start") assert(f.job().running,tostring(f.job().alert))
+    equal(f.job().fuel,10000) f.finish() equal(f.places,1)
+  end)
+  test("builder real worker unlimited reports normalize minus one before START",function()
+    local f=dofile("tests/so/build-world-fixture.lua")()
+    f.worker.fuel="unlimited" f.configure("floor",1,1,1)
+    equal(f.server.env.SO.mods.lease.status(2).fuel,-1)
+    equal(f.job().fuel,"unlimited")
+    f.command("start") assert(f.job().running,tostring(f.job().alert))
+    f.finish() equal(f.places,1) equal(f.job().fuel,"unlimited")
+  end)
+  test("builder fuel 3 preserves three carried coal blocks and takes separate fuel",function()
+    local f=fixture({builderFuelTrips=true}) f.fuel=3 f.consumeFuel=true
+    f.fuelChest={id="fuel",kind="fuel",dim=0,x=-2,y=3,z=0,side="down"}
+    f.world["-2,3,0"]={name="minecraft:chest",item="minecraft:coal",stock=8}
+    f.configure("floor",1,1,1) f.input("material coal_block")
+    f.inventory[1]={name="minecraft:coal_block",count=3}
+    ready(f) f.input("start")
+    local refuelled=false
+    for _=1,100 do
+      local q=step(f)
+      if q and q.steps[#q.steps].op=="refuel" then
+        assert(q.steps[1].slot~=1,"burned building material")
+        equal(f.inventory[1].count,3)
+        assert(f.world["-2,3,0"].stock<8,"fuel chest was untouched")
+        refuelled=true break
+      end
+      assert(not f.job().blocked,f.job().alert)
+    end
+    assert(refuelled,"builder never refuelled") f.run()
+    equal(f.inventory[1].count,2) equal(f.world["0,0,0"],"minecraft:coal_block")
+  end)
+  for _,legacy in ipairs({false,true}) do
+    test("builder reconciles an unreported stone placement before changing to dirt after recovery"..(legacy and " from a legacy intent" or ""),function()
+      local f=fixture() f.configure("floor",2,1,1)
+      f.inventory[1]={name="minecraft:stone",count=3}
+      f.inventory[2]={name="minecraft:dirt",count=3}
+      ready(f) f.input("start")
+      for _=1,100 do
+        f.tick()
+        local q=f.queued()
+        if q and q.steps[#q.steps].op=="placeDown" then f.report(true) break end
+        if q then f.report() end
+      end
+      equal(f.count(),1) equal(f.job().cursor,1)
+      equal(f.job().placement.material,"minecraft:stone")
+      if legacy then f.saved.placement=nil end
+      f.restart() f.report()
+      f.input("stop") f.input("material dirt")
+      equal(f.job().cursor,2) equal(f.job().placement,nil) equal(f.job().material,"minecraft:dirt")
+      f.input("start") f.run()
+      equal(f.world["0,0,0"],"minecraft:stone") equal(f.world["1,0,0"],"minecraft:dirt")
+      equal(f.placed["0,0,0"],1) equal(f.placed["1,0,0"],1)
+    end)
+  end
 
 end
