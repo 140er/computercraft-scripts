@@ -126,6 +126,7 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
         if prepare:
             admit(timeout=getattr(ctx, "load_wait_timeout", 300),
                   on_wait=lambda seconds: record_load_wait(ctx, seconds))
+            ctx.load_admitted = True
             if reset:
                 ctx.cli("reset", ctx.run, timeout=180)
                 ctx.cli("serve", ctx.run, timeout=180)
@@ -136,6 +137,7 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
             ctx.manifest = ctx.request("manifest")
             if not ctx.wait(lambda: ctx.lua("server", 'return SO and SO.mods and SO.mods.display and SO.mods.display.screen("mining") ~= nil'), 60):
                 raise Blocked("Installed server did not finish booting")
+        ctx.load_admitted = True
         ctx.command(f"tick rate {ctx.tick_rate:g}")
         if ctx.tick_rate != 20 and ctx.lua("server", 'return SO and type(SO.now) == "function"') is not True:
             raise Blocked("Installed server has no SO.now tick-scaled clock; refusing speed-up")
@@ -276,7 +278,7 @@ def main(argv=None):
             admit(timeout=cli.load_wait_timeout, on_wait=lambda seconds: record_load_wait(cli, seconds))
             reservation.enter_context(reserve_local_slot())
             created.extend(worlds)
-            resources = cli.cli("pool", "up", len(worlds), "--prefix", prefix, timeout=180 * len(worlds))
+            resources = cli.cli("pool", "up", len(worlds), "--prefix", prefix, timeout=(180 + args.load_wait_timeout) * len(worlds))
             cli.record("pool-start.json", resources)
             def worker(world):
                 output_results = []
@@ -325,6 +327,7 @@ def main(argv=None):
             report = merge_results(results, selected, commit, time.monotonic()-start)
             report["cleanup"] = cleanup
             report["startup_load_wait_seconds"] = round(cli.load_wait_seconds, 3)
+            report["pool_load_waits"] = cli.pool_load_waits
             write_report(report, output)
         print(f"Report {output / 'report.md'}", flush=True)
         return 0 if report["status"] == "pass" else 1

@@ -120,19 +120,54 @@ class LoadWaitTests(unittest.TestCase):
         self.assertEqual([r["metrics"]["load_wait_seconds"] for r in report["checks"]], [0, 10])
         self.assertIn("Pool startup load wait 5.00 seconds", markdown)
 
-    def test_runtime_operations_use_the_configured_timeout_and_record_wait(self):
+    def test_c8_internal_reset_ignores_load_but_keeps_lock_admission(self):
+        from checks import c8
         with tempfile.TemporaryDirectory() as temp:
-            ctx = Context(None, "fixture", {}, temp, "a" * 40)
-            ctx.load_wait_timeout = 12
-            def admission(**kwargs):
-                self.assertEqual(kwargs["timeout"], 12)
-                kwargs["on_wait"](5)
-            with patch("checks.context.admit", side_effect=admission), \
-                 patch("checks.context.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout='{"result": {}}')):
-                ctx.cli("reset", "fixture")
-                ctx.cli("client", "fixture", "start")
-            self.assertEqual(ctx.load_wait_seconds, 10)
-            self.assertEqual(json.loads((Path(temp) / "load-wait.json").read_text())["load_wait_seconds"], 10)
+            root = Path(temp)
+            proc = root / "proc"
+            proc.mkdir()
+            (proc / "locks").write_text("")
+            ctx = Context(None, "fixture", {}, root / "C8", "a" * 40)
+            ctx.load_wait_timeout = 0
+            commands = []
+            def cli(command, **kwargs):
+                commands.append(command)
+                return SimpleNamespace(returncode=0, stdout=json.dumps({"result": {"sha": ctx.commit, "errors": []}}))
+            with patch("checks.admission.os.getloadavg", side_effect=[(7, 0, 0), (11, 0, 0)]) as loads, \
+                 patch.object(run, "admit", side_effect=lambda **kw: admit(proc, root, **kw)), \
+                 patch("checks.context.admit", side_effect=lambda **kw: admit(proc, root, **kw)) as locks, \
+                 patch("checks.context.subprocess.run", side_effect=cli), \
+                 patch.object(ctx, "fixture", return_value={"pos": [0, 0, 0]}), \
+                 patch.object(ctx, "request", return_value={}), patch.object(ctx, "wait", return_value=True), \
+                 patch.object(ctx, "command"), patch.object(ctx, "mining"), patch.object(ctx, "set_fuel"), \
+                 patch.object(ctx, "lua", return_value=[]), patch.object(ctx, "game_clock", return_value=0), \
+                 patch.object(ctx, "sample", return_value=[]), patch.object(c8, "resume_stats", return_value={}), \
+                 patch.object(c8, "evaluate", return_value=Verdict("pass")):
+                result = run.execute(ctx, "C8", root, reset=False)
+                self.assertEqual(loads.call_count, 1)
+                self.assertEqual(loads()[0], 11)
+            self.assertEqual(result.status, "pass")
+            self.assertTrue((ctx.output / "C8-fuel-installed-build.json").exists())
+            self.assertTrue(all(call.kwargs == {"check_load": False} for call in locks.call_args_list))
+            self.assertEqual(locks.call_count, 1)
+            self.assertTrue(any("reset" in command and "--load-admitted" in command for command in commands))
+
+    def test_lock_refusal_still_blocks_an_internal_reset(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            proc = root / "proc"
+            proc.mkdir()
+            (proc / "locks").write_text("")
+            ctx = Context(None, "fixture", {}, root / "C8", "a" * 40)
+            ctx.load_admitted = True
+            with patch("checks.context.admit", side_effect=lambda **kw: admit(proc, root, **kw)), \
+                 patch("checks.admission.os.getloadavg") as loads, \
+                 patch("checks.admission.full_local_suite", return_value="test-suite.lock"), \
+                 patch("checks.context.subprocess.run") as command:
+                with self.assertRaisesRegex(run.Blocked, "held by a full or unclassified"):
+                    ctx.cli("reset", ctx.run)
+            loads.assert_not_called()
+            command.assert_not_called()
 
     def test_timeout_must_be_nonnegative(self):
         with patch("sys.stderr"), self.assertRaises(SystemExit):

@@ -34,11 +34,12 @@ def record_load_wait(ctx, seconds):
     ctx.record("load-wait.json", {"load_wait_seconds": round(ctx.load_wait_seconds, 3)})
 
 
-def admit(proc=Path("/proc"), work=None, *, timeout=300, on_wait=None):
+def admit(proc=Path("/proc"), work=None, *, timeout=300, on_wait=None, check_load=True):
+    load = None
     start = time.monotonic()
     waited = False
     try:
-        while True:
+        while check_load:
             load = os.getloadavg()[0]
             if load < 8:
                 break

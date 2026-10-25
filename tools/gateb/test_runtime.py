@@ -99,7 +99,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_pool_refuses_its_first_world_before_cloning_when_overloaded(self):
         with patch.object(self.runtime,'status',return_value={}),patch('os.getloadavg',return_value=(8,8,8)),patch.object(self.runtime,'clone') as clone:
-            with self.assertRaisesRegex(RuntimeError,'load1=8.00'): self.runtime.pool('up',1,prefix='driver')
+            with self.assertRaisesRegex(RuntimeError,'load1=8.00'): self.runtime.pool('up',1,prefix='driver',load_wait_timeout=0)
             clone.assert_not_called()
 
     def test_ports_are_unique_under_concurrency_and_skip_bound_socket(self):
