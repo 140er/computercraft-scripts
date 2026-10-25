@@ -86,6 +86,73 @@ local function private(fn, key)
   error('missing upvalue '..key)
 end
 
+-- B-P: the panel controls of the merged backend rows, on the scene's paired keys (tests/ui/panel-scene.txt).
+local REV,OLD=string.rep('a',40),string.rep('b',40)
+local function bp(o)
+  o=o or {}
+  local e={now=50000000,switches={},updates={},forgot={},sent={},enabled=o.enabled~=false,keys={},status=o.status or {}}
+  local env=setmetatable({},{__index=_G})
+  env.os=setmetatable({epoch=function() return 0 end},{__index=os})
+  local proto=assert(loadfile('so-proto.lua','t',env))()
+  local machines,rows,screens={},{},{}
+  local f=assert(io.open('tests/ui/panel-scene.txt','rb'))
+  for line in f:read('*a'):gmatch('[^\n]+') do
+    local k,id,kind,seen=line:match('^(%S+)%s+(%S+)%s*(%S*)%s*(%S*)')
+    if k=='paired' then
+      id=tonumber(id)
+      e.keys[id]='key'
+      rows[#rows+1]={id=id,fingerprint=proto.hex(proto.sha256(string.rep(string.format('%02x',id),32))):sub(1,4):upper()}
+      machines[tostring(id)]={role=kind~='-' and kind or nil,seen=tonumber(seen) and e.now-tonumber(seen),
+        revision=kind=='turtle' and ((id==4 or id==6) and o.stale and OLD or REV) or nil}
+    end
+  end
+  f:close()
+  env.SO={now=function() return e.now end,proto=proto,
+    health={revision=REV,config={panelUpdates=o.updates~=false,workerSettings=o.settings~=false}},
+    mods={state={get=function(key) if key=='machines' then return machines end end},
+      display={screen=function(role,render,input) if render then screens[role]={render=render,input=input} end end},
+      lease={status=function(id) return e.status[id] or {} end,
+        settings=function(id,changes)
+          e.sent[#e.sent+1]={id,changes}
+          if o.refuse then return nil,o.refuse end
+          e.status[id].settingsPending={rid=1,n=1};return 1
+        end}},
+    pair={key=function(id) return e.keys[id] end,pending=function() end,list=function() return rows end},
+    pairCode=function() end,
+    forgetImpact=function() return {text=o.impact or 'parks 1 job'} end,
+    forgetDevice=function(id,by) e.forgot[#e.forgot+1]={id,by};e.keys[id]=nil;return true end,
+    workerUpdate=function(id) if id==6 then return {state='requested'} end end,
+    updateWorker=function(id) e.updates[#e.updates+1]=id;if o.refuse then return nil,o.refuse end;return 'rid' end,
+    enroll={view=function() end,open=function() return true end,close=function() end,decide=function() return true end,
+      enabled=function() return e.enabled end,
+      setEnabled=function(on)
+        e.switches[#e.switches+1]=on
+        if o.saveFails then return nil,'config verification failed' end
+        e.enabled=on;return true
+      end}}
+  local p=assert(loadfile('so-mod-panel.lua','t',env))();p.tick(0)
+  e.session={id=2,isDisplay=true,w=o.w or 57,panel={page=o.page or 'paired',search=''},pocket={page='panel'}}
+  e.draw=function()
+    local w,h=o.w or 57,o.h or 24
+    if o.pocket then return screens.pocket.render(w,h,e.session) end
+    return screens.panel.render(w,h,e.session)
+  end
+  e.button=function(id)
+    for _,b in ipairs(e.draw().buttons) do if b.id==id or b.id:sub(1,#id+1)==id..':' then return b end end
+  end
+  e.tap=function(id,from)
+    local b=assert(e.button(id),'missing '..id)
+    local event={session=e.session,from=from or 2,id=b.id,x=b.x,y=b.y}
+    if o.pocket then screens.pocket.input(event) else screens.panel.input(event) end
+  end
+  e.match=function(name)
+    local fixture=R.load('tests/ui/fixtures/'..name..'.txt')
+    local diff=R.diff(fixture,capture(e.draw(),fixture.w,fixture.h))
+    assert(#diff==0,name..'\n'..table.concat(diff,'\n'))
+  end
+  return e
+end
+
 return function(test,equal)
   test('UI3b roleless pockets default to the pocket role; other sizes are unassigned',function()
     local s=setup();equal(s.frame(2).role,'pocket')
@@ -499,5 +566,171 @@ return function(test,equal)
     local roles=assert(load('return '..source:match('local ROLES = (.-)\nlocal BASE'),'roles','t',{}))()
     local function contains(list) for _,name in ipairs(list) do if name=='so-mod-panel.lua' then return true end end return false end
     assert(contains(roles.server));assert(not contains(roles.common));assert(not contains(roles.worker));assert(not contains(roles.display))
+  end)
+  test('B-P ENROLL ON and OFF flip the saved switch once from the drawn PAIR chip',function()
+    local e=bp({page='pair',w=29,h=12})
+    e.match('panelenroll-S')
+    e.tap('enroll-off',8);equal(e.switches,{})
+    e.tap('enroll-off');equal(e.switches,{false})
+    e.match('panelenrolloff-S')
+    assert(not e.button('enroll'),'ENROLL has no target while enrollment is off')
+    e.tap('enroll-on');equal(e.switches,{false,true})
+    assert(e.button('enroll') and e.button('enroll-off'))
+    local failed=bp({page='pair',w=29,h=12,saveFails=true})
+    failed.tap('enroll-off');equal(failed.switches,{false})
+    local text=capture(failed.draw(),29,12).picture().text
+    assert(text[10]:find('ON  save',1,true),text[10])
+  end)
+  test('B-P stale turtles show amber ids and UPDATE asks SO.updateWorker once behind panelUpdates',function()
+    local e=bp({stale=true})
+    e.match('pairedupdate-M')
+    assert(not e.button('update:5') and not e.button('update:6'),'current and updating rows have no UPDATE')
+    e.tap('update:4');equal(e.updates,{4})
+    equal(capture(e.draw(),57,24).picture().text[3]:match('(%S+)%s*$'),'9')
+    local refused=bp({stale=true,refuse='worker busy'})
+    refused.tap('update:4');equal(refused.updates,{4})
+    assert(capture(refused.draw(),57,24).picture().text[3]:find('#4 worker busy',1,true))
+    local off=bp({stale=true,updates=false})
+    for _,b in ipairs(off.draw().buttons) do assert(not b.id:match('^update:'),b.id) end
+    local out=capture(off.draw(),57,24).picture()
+    equal(out.fg[6]:sub(2,3),'11','a stale id stays amber without the switch')
+  end)
+  test('B-P FORGET arms through U.confirm and its CONFIRM row names what it parks',function()
+    local e=bp({pocket=true,w=26,h=20})
+    e.tap('forget:4')
+    assert(e.session.panel.confirm.confirm:match('^forget:4:%d+$'),'armed through U.confirm')
+    e.match('pairedimpact-P')
+    e.tap('forget-confirm:4')
+    equal(e.forgot,{{4,2}})
+    equal(e.session.panel.confirm,nil)
+    local long=bp({impact='parks 1 job; holds 1 scan'})
+    long.tap('forget:4')
+    long.match('pairedimpact-M')
+    -- Any other tap disarms, as U.confirm does.
+    long.tap('paired-next')
+    equal(long.session.panel.confirm,nil)
+    equal(long.forgot,{})
+  end)
+  test('B-P the main page shows the builder from build.facts()',function()
+    local S=dofile('tests/ui/scene.lua')
+    local s=S.new({panel=true,shop=true,facts=true})
+    s.env.SO.mods.health={count=function() return 2 end}
+    s.env.SO.mods.build={facts=function() return {state='held',done=37,total=120,turtleId=6,
+      alert={key='build:fuel',severity=2,text='out of fuel'}} end}
+    s.d.handlers.hello({from=21,body={w=57,h=24}})
+    assert(s.d.assign(21,'panel'))
+    local fixture=R.load('tests/ui/fixtures/panelbuild-M.txt')
+    local diff=R.diff(fixture,S.capture(s.view(21),57,24))
+    assert(#diff==0,table.concat(diff,'\n'))
+    s.env.SO.mods.build={facts=function() error('broken') end}
+    assert(not table.concat(S.capture(s.view(21),57,24).picture().text,'\n'):find('BUILD',1,true))
+  end)
+  test('B-P WORKER opens from a turtle row, shows confirmed settings and sends one change per tap',function()
+    local status={[4]={workerSettings=true,settingsControl=true,settings={seq=1,dim='minecraft:the_nether',autoToolSwap=false}},
+      [5]={workerSettings=true,settingsControl=true,open='l',settings={seq=1,dim='minecraft:overworld',autoToolSwap=true}}}
+    local e=bp({pocket=true,w=26,h=20,status=status})
+    assert(not e.button('worker:2') and not e.button('worker:3'),'only other turtles open WORKER')
+    e.tap('worker:4')
+    e.match('worker-P')
+    e.tap('worker-dim:nether');equal(e.sent,{})
+    e.tap('worker-swap:on');equal(e.sent,{{4,{autoToolSwap=true}}})
+    local panel=bp({w=29,h=12,page='worker',status=status})
+    panel.session.panel.worker=4
+    status[4].settingsPending={rid=1,n=1}
+    panel.match('worker-S')
+    assert(not panel.button('worker-dim') and not panel.button('worker-swap'))
+    status[4].settingsPending=nil
+    panel.tap('worker-dim:end');equal(panel.sent,{{4,{dim='minecraft:the_end'}}})
+    panel.session.panel.worker=5
+    panel.match('workerbusy-S')
+    local refused=bp({w=29,h=12,page='worker',refuse='worker busy',status={[4]={workerSettings=true,settingsControl=true,
+      settings={seq=1,autoToolSwap=false}}}})
+    refused.session.panel.worker=4
+    refused.tap('worker-swap:on')
+    assert(capture(refused.draw(),29,12).picture().text[3]:find('worker busy',1,true))
+    local off=bp({settings=false,status=status})
+    for _,b in ipairs(off.draw().buttons) do assert(not b.id:match('^worker'),b.id) end
+    off.session.panel.page,off.session.panel.worker='worker',4
+    assert(off.button('paired-back'),'WORKER closes with workerSettings off')
+  end)
+  test('B-P WORKER stays pending until the real lease matches the ack or a newer hello',function()
+    local H=dofile('tests/so/harness.lua')
+    local key=string.rep('a',64)
+    local net=H.new()
+    local server=net.machine({id=1,modem=true})
+    server.install({'so-server.lua','so-proto.lua','so-pair.lua','so-store.lua','so-mod-state.lua','so-log.lua',
+      'so-mod-lease.lua','so-mod-cells.lua','so-ui.lua','so-mod-panel.lua'})
+    for _,name in ipairs({'x25519','random','blake3','chacha20','config','internal/util','internal/hw',
+        'internal/curve25519','internal/fp','internal/edwards25519','internal/packing'}) do
+      local path='lib/ccryptolib/'..name..'.lua'
+      local f=assert(io.open(path,'rb'));server.files[path]=f:read('*a');f:close()
+    end
+    server.files['so-keys']=H.encode({schema=1,generation=1,value={keys={['2']=key,['3']=key}}})
+    server.files['so-server.cfg']=H.encode({pos={dim=0,x=0,y=0,z=0},workerSettings=true})
+    server.boot('so-server.lua')
+    assert(server.alive(),tostring(server.error))
+    local worker=net.machine({id=2,modem=true,turtle=true})
+    worker.install({'so-proto.lua'})
+    worker.env.KEY=key
+    worker.spawn([[
+      P = dofile("so-proto.lua")
+      function send(t, body, rid) rednet.send(1, assert(P.encode(P.build(KEY, t, body, rid))), "so") end
+      while true do os.pullEvent() end
+    ]])
+    local function send(t,body,rid) worker.env.send(t,body,rid);net.flush();assert(not server.error,tostring(server.error)) end
+    local function hello(settings) send('hello',{role='turtle',capabilities={workerSettings=true},settingsControl=true,settings=settings}) end
+    hello({seq=1,dim='minecraft:overworld',autoToolSwap=false,remoteN=4})
+    local SO,screens=server.env.SO,{}
+    local mods=setmetatable({display={screen=function(role,render,input) if render then screens[role]={render=render,input=input} end end}},{__index=SO.mods})
+    local penv=setmetatable({SO=setmetatable({mods=mods},{__index=SO})},{__index=server.env})
+    assert(server.env.loadfile('so-mod-panel.lua','t',penv))().tick(0)
+    local session={id=3,isDisplay=true,w=29,panel={page='worker',worker=2,search=''}}
+    local function text() return capture(screens.panel.render(29,12,session),29,12).picture().text end
+    local function tap(id)
+      for _,b in ipairs(screens.panel.render(29,12,session).buttons) do
+        if b.id==id then screens.panel.input({session=session,from=3,id=id,x=b.x,y=b.y});net.flush();return end
+      end
+      error('missing '..id)
+    end
+    local function pendingRid()
+      for i=#server.sent,1,-1 do
+        local msg=SO.proto.decode(server.sent[i].payload)
+        if msg and msg.t=='worker.settings' then return msg.rid,msg.body.n end
+      end
+    end
+    assert(text()[4]:find('WORLD',1,true))
+    tap('worker-dim:nether')
+    local rid,n=pendingRid()
+    assert(rid,'no worker.settings sent')
+    assert(text()[3]:find('pending',1,true) and text()[4]:find('WORLD',1,true),'confirmed value kept while pending')
+    send('ack',{command='worker.settings',n=n,settings={seq=2,dim='minecraft:the_nether',autoToolSwap=false,remoteN=n}},'wrong')
+    assert(text()[3]:find('pending',1,true) and text()[4]:find('WORLD',1,true),'an unmatched ack confirms nothing')
+    send('ack',{command='worker.settings',n=n,settings={seq=2,dim='minecraft:the_nether',autoToolSwap=false,remoteN=n}},rid)
+    assert(not text()[3]:find('pending',1,true) and text()[4]:find('NETHER',1,true),'the matched ack confirms')
+    tap('worker-swap:on')
+    local rid2,n2=pendingRid()
+    assert(rid2~=rid and text()[5]:find('off',1,true))
+    hello({seq=3,dim='minecraft:the_nether',autoToolSwap=true,remoteN=n2})
+    assert(not text()[3]:find('pending',1,true) and text()[5]:find('on',1,true),'a newer hello confirms')
+    send('ack',{command='worker.settings',n=n2,settings={seq=2,dim='minecraft:overworld',autoToolSwap=false,remoteN=n2}},rid2)
+    assert(text()[4]:find('NETHER',1,true) and text()[5]:find('on',1,true),'a delayed ack cannot replace the newer hello')
+  end)
+  test('B-P schematic generator reproduces the panel control fixtures',function()
+    local started,pipe=pcall(io.popen,'pwd')
+    local root=started and pipe and pipe:read('*l')
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1,1)~='/' or not os.execute('python3 -V > /dev/null 2>&1') then
+      return dofile('tests/skips.lua').record('B-P schematic generator','needs host processes, a POSIX shell and python3')
+    end
+    local function read(path) local f=assert(io.open(path,'rb')) local text=f:read('*a') f:close() return text end
+    local dir=os.tmpname()
+    os.remove(dir)
+    assert(os.execute("mkdir -p '"..dir.."'"))
+    assert(os.execute("python3 -I '"..root.."/docs/ui/schematic/screens.py' --fixtures '"..dir.."' > /dev/null"))
+    for _,name in ipairs({'panelbuild-M','panelenroll-S','panelenrolloff-S','pairedupdate-M','pairedimpact-P',
+        'pairedimpact-M','worker-P','worker-S','workerbusy-S'}) do
+      equal(read(dir..'/'..name..'.txt'),read('tests/ui/fixtures/'..name..'.txt'))
+    end
+    assert(os.execute("rm -r '"..dir.."'"))
   end)
 end

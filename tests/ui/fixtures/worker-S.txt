@@ -1,0 +1,37 @@
+29x12 Panel WORKER #4, a change waiting for its ack
+ PANEL  -------------------  
+                             
+ WORKER #4 -------- pending  
+ dimension ·········· NETHER 
+ tool swap ············· off 
+                             
+                             
+                             
+                             
+                             
+                             
+                       BACK  
+00000000ccccccccccccccccccc00
+00000000000000000000000000000
+08888888880cccccccc0111111100
+08888888880cccccccccc00000000
+08888888880ccccccccccccc00000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+ffffffffffffffffffffff777777f
