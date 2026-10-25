@@ -757,4 +757,234 @@ return function(test,equal)
     assert(f.job().fuel>200) equal(f.job().retryAt,nil)
   end)
 
+  local function returningBuilder(options)
+    local f=fixture(options)
+    f.configure("floor",1,1,1)
+    f.inventory[1]={name="minecraft:stone",count=1}
+    ready(f) f.input("return on") equal(f.job().returnHome,true)
+    f.input("start")
+    for _=1,100 do
+      step(f)
+      if f.job().completion then break end
+    end
+    equal(f.count(),1) equal(f.job().cursor,2)
+    equal(f.job().completion.phase,"returning") equal(f.job().complete,false)
+    return f
+  end
+  test("B4-B opt-in return uses acknowledged non-digging move and turn prefixes with certain pose and facing",function()
+    local f=returningBuilder()
+    local P=dofile("so-plan.lua")
+    local moves,turns=0,0
+    while not f.job().complete do
+      local before=f.job().turtle.pose
+      f.tick()
+      local q=assert(f.queued(),f.job().alert)
+      equal(#q.steps,1) equal(q.steps[1].park,true) equal(q.opts.journal,f.journal)
+      local op=q.steps[1].op
+      assert(P.moves[op] or P.turns[op],op)
+      if P.moves[op] then moves=moves+1 else turns=turns+1 end
+      local calls=#f.calls
+      f.tick() f.tick() equal(#f.calls,calls) equal(f.job().turtle.pose,before)
+      f.report()
+      equal(f.job().turtle.pose,P.apply(before,op))
+      if P.samePose(f.job().turtle.pose,f.job().home) then f.tick() break end
+    end
+    assert(moves>0 and turns>0)
+    equal(f.job().turtle.pose,f.job().home) equal(f.job().completion.phase,"complete")
+    equal(f.mod().facts().state,"complete") equal(f.alert,"build complete")
+  end)
+  for _,op in ipairs({"move","turn"}) do
+    test("B4-B failed return "..op.." holds reservations and never dispatches the old remainder",function()
+      local f=returningBuilder()
+      f.tick()
+      if op=="turn" then
+        while not f.queued().steps[1].op:match("^turn") do f.report() f.tick() end
+      end
+      local before,held=f.job().turtle.pose,f.mods.cells.list("build:2")
+      if op=="move" then f.moveError="Movement obstructed" else f.turnError="Turn failed" end
+      local q=f.report()
+      equal(f.job().blocked,"path") equal(f.job().turtle.pose,before)
+      equal(f.mods.cells.list("build:2"),held) equal(f.job().complete,false)
+      f.tick() equal(f.queued().opts.recover,true)
+      equal(f.queued().steps,{{op="inspectDown",park=true}})
+      assert(f.queued().id~=q.id)
+      f.report() equal(f.job().blocked,"path")
+      local calls=#f.calls
+      for _=1,5 do f.tick() end
+      equal(#f.calls,calls) equal(f.job().completion.phase,"returning")
+      f.moveError,f.turnError=nil,nil f.input("start") f.run()
+      equal(f.job().turtle.pose,f.job().home) equal(f.count(),1)
+    end)
+  end
+  for _,kind in ipairs({"reservation","protected","range","fuel"}) do
+    test("B4-B blocked return retains the occupied reservation for "..kind,function()
+      local f=returningBuilder()
+      local before=f.job().turtle.pose
+      local occupied=before.x..","..before.y..","..before.z
+      local held=f.mods.cells.list("build:2")
+      if kind=="reservation" then f.held["0,2,0"]="mine:7"
+      elseif kind=="protected" then f.protected={["0,2,0"]=true}
+      elseif kind=="range" then f.range=function() return false end
+      else f.saved.fuel=0 f.fuel=0 f.restart() f.report() end
+      local calls=#f.calls
+      f.tick() equal(#f.calls,calls) equal(f.queued(),nil)
+      equal(f.job().complete,false) equal(f.job().completion.phase,"returning")
+      equal(f.held[occupied],"build:2") equal(f.job().turtle.pose,before)
+      if kind~="reservation" then equal(f.mods.cells.list("build:2"),held) end
+      equal(f.job().blocked,kind=="protected" and "path" or kind)
+    end)
+  end
+  for _,change in ipairs({"uncertain","journal","position","facing","missing facing","missing result"}) do
+    test("B4-B unexpected return report holds reservations for "..change,function()
+      local f=returningBuilder() f.tick()
+      local before,held=f.job().turtle.pose,f.mods.cells.list("build:2")
+      f.queuedJournal=f.queued().opts.journal
+      f.reportChange=function(results,facts)
+        if change=="uncertain" then facts.uncertain=true
+        elseif change=="journal" then facts.journal=f.queuedJournal
+        elseif change=="position" then facts.pose.x=facts.pose.x+1
+        elseif change=="facing" then facts.pose.f=(facts.pose.f+1)%4
+        elseif change=="missing facing" then facts.pose.f=nil
+        else results[1]=nil end
+      end
+      f.report()
+      equal(f.job().blocked,"pose_uncertain") equal(f.job().turtle.pose,before)
+      equal(f.mods.cells.list("build:2"),held) equal(f.job().complete,false)
+    end)
+  end
+  test("B4-B missing and stale return reports retain reservations until stationary recovery",function()
+    local f=returningBuilder() f.tick()
+    local q=f.queued()
+    local held=f.mods.cells.list("build:2")
+    f.deliver(q.id+1,{}, {}) equal(f.queued(),q)
+    f.expire() equal(f.job().blocked,"lost") equal(f.mods.cells.list("build:2"),held)
+    f.lost=false f.tick() equal(f.queued().opts.recover,true) f.report()
+    f.run() equal(f.job().complete,true) equal(f.count(),1)
+  end)
+  for _,unreported in ipairs({false,true}) do
+    test("B4-B completion phase and placement cursor survive restart"..(unreported and " after an unreported return move" or ""),function()
+      local f=returningBuilder()
+      local completion=f.job().completion
+      f.tick() if unreported then f.report(true) end
+      f.restart()
+      equal(f.job().completion,completion) equal(f.job().cursor,2) equal(f.job().complete,false)
+      equal(f.queued().opts.recover,true) equal(f.queued().steps,{{op="inspectDown",park=true}})
+      f.report() equal(f.job().completion,completion) equal(f.job().cursor,2)
+      f.run() equal(f.count(),1) equal(f.placed["0,0,0"],1)
+      equal(f.job().completion.phase,"complete") equal(f.job().turtle.pose,f.job().home)
+      f.restart() equal(f.job().completion.phase,"complete") equal(f.job().cursor,2)
+    end)
+  end
+  test("B4-B COMPLETE waits for confirmed arrival and the saved home facing",function()
+    local f=returningBuilder()
+    local home=f.job().home
+    for _=1,100 do
+      f.tick()
+      local q=f.queued()
+      if q then
+        if q.opts.pose.x==home.x and q.opts.pose.y==home.y and q.opts.pose.z==home.z
+          and q.opts.pose.facing==home.facing then
+          equal(f.job().complete,false) equal(f.mod().facts().state,"returning")
+          assert(f.alert~="build complete")
+          f.tick() equal(f.job().complete,false)
+          f.report() f.tick() break
+        end
+        f.report()
+        equal(f.job().complete,false)
+      end
+    end
+    equal(f.job().turtle.pose,home) equal(f.job().complete,true)
+    equal(f.job().completion.phase,"complete")
+  end)
+  test("B4-B default-off builders complete at the structure and retain the captured home",function()
+    local f=fixture() f.configure("floor",1,1,1) ready(f)
+    local home=f.job().home
+    equal(f.job().returnHome,false)
+    f.input("start") f.run()
+    equal(f.job().complete,true) equal(f.job().completion,nil)
+    equal(f.job().turtle.pose.x,0) equal(f.job().home,home)
+  end)
+  for _,cap in ipairs({"parkBatch","setupFence","journal"}) do
+    test("B4-B return-on and START refuse a worker without "..cap,function()
+      local f=fixture() f.configure("floor",1,1,1) ready(f)
+      f[cap]=false
+      if cap=="journal" then f.journal=nil end
+      f.input("return on") equal(f.job().returnHome,false)
+      f.saved.returnHome=true f.restart() f.report()
+      f.input("start") equal(f.job().running,false) equal(f.job().blocked,"worker_safety")
+    end)
+  end
+  test("B4-B stopped operators set home and unfinished returns reject configuration changes",function()
+    local f=fixture() f.configure("floor",1,1,1) ready(f)
+    f.input("home -4 5 1 w") equal(f.job().home,{dim="minecraft:overworld",x=-4,y=5,z=1,facing=3})
+    f.input("return on") equal(f.job().returnHome,true)
+    f.input("return off") equal(f.job().returnHome,false)
+    f=returningBuilder() f.input("stop")
+    local before=f.job()
+    for _,cmd in ipairs({"return off","home 0 4 0 n","area 0 0 0 2 0 0","material dirt","add 2"}) do
+      f.input(cmd) equal(f.job(),before)
+    end
+    f.restart() f.report() equal(f.job().running,false) equal(f.job().completion,before.completion)
+    local calls=#f.calls f.tick() equal(#f.calls,calls)
+    f.input("start") f.run() equal(f.count(),1) equal(f.job().complete,true)
+  end)
+  test("B4-B missing home refuses opt-in return",function()
+    local f=fixture() f.configure("floor",1,1,1) ready(f)
+    f.saved.home=nil f.restart() f.report()
+    f.input("return on") equal(f.job().returnHome,false)
+    f.feedback("set builder home before return-on")
+  end)
+  test("B4-B failed save of the final placement cannot dispatch a return",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    f.inventory[1]={name="minecraft:stone",count=1}
+    ready(f) f.input("return on") f.input("start")
+    for _=1,100 do
+      f.tick()
+      local q=f.queued()
+      if q and q.steps[#q.steps].op=="placeDown" then f.saveOK=false f.report() break end
+      if q then f.report() end
+    end
+    equal(f.count(),1) equal(f.job().cursor,1) equal(f.job().completion,nil)
+    local calls=#f.calls f.tick() equal(#f.calls,calls)
+    f.saveOK=true f.restart() f.report()
+    equal(f.job().cursor,2) equal(f.job().completion.phase,"returning")
+    f.run() equal(f.job().complete,true) equal(f.count(),1)
+  end)
+
+  for _,restart in ipairs({false,true}) do
+    test("B4-B real worker and lease confirm home arrival"..(restart and " across server restart" or ""),function()
+      local f=dofile("tests/so/build-world-fixture.lua")()
+      f.configure("floor",1,1,1)
+      local home=f.job().home
+      f.command("return on") equal(f.job().returnHome,true)
+      f.command("start")
+      local returning,first
+      for _=1,1200 do
+        f.advance(0.05)
+        if f.job().completion and f.job().completion.phase=="returning" then
+          returning=true first=#f.server.sent
+          equal(f.job().complete,false) equal(f.job().cursor,2)
+          if restart then f.restart() first=0 f.advance(31) end
+          break
+        end
+      end
+      assert(returning,"real worker never entered RETURNING")
+      f.finish()
+      equal(f.job().complete,true) equal(f.job().completion.phase,"complete") equal(f.places,1)
+      equal(f.job().turtle.pose,home)
+      equal({f.worker.pos.x,f.worker.pos.y,f.worker.pos.z,f.worker.heading},{home.x,home.y,home.z,home.facing})
+      local batches=0
+      for i=first+1,#f.server.sent do
+        local wire=f.server.sent[i].payload
+        if wire.t=="lease.batch" then
+          batches=batches+1
+          equal(#wire.body.steps,1) equal(wire.body.steps[1].park,true)
+          assert(type(wire.body.journal)=="string","return batch was not journal fenced")
+          assert(not wire.body.steps[1].op:match("^dig"))
+        end
+      end
+      assert(batches>0,"no return batches reached the real worker")
+    end)
+  end
+
 end
