@@ -807,7 +807,7 @@ S.send = function(id, steps, opts)
   local lease = {
     id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
     owner = opts.owner, intent = SO.store.copy(opts.intent),
-    journal = opts.journal or row.setupFence and row.journal or nil,
+    journal = opts.journal or row.setupFence and not (#steps == 1 and steps[1].op == "inspectDown") and row.journal or nil,
     frame = SO.store.copy(opts.frame), recovery = recovery or nil,
     pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
