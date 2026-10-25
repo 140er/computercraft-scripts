@@ -588,7 +588,7 @@ S.checkRetirement = function(now)
     S.pause()
   end
   S.request = { id = tostring(now) .. ":" .. policy.serial, bytes = S.total,
-    candidates = candidates, reclaim = reclaim, areas = areas,
+    candidates = candidates, reclaim = reclaim, areas = areas, pressure = pressure,
     text = "Dug marks " .. S.amount(S.total) .. ". Forget " .. #candidates .. " areas ("
       .. S.amount(reclaim) .. ")?" }
 end
@@ -606,7 +606,7 @@ S.decideRetirement = function(id, choice)
     local protected = S.protection()
     for _, candidate in ipairs(request.candidates) do
       local path, section = candidate.path, S.sections[candidate.path]
-      if protected and not protected(path) and S.total > S.target then
+      if protected and not protected(path) and (request.pressure or S.total > S.target) then
         if section and section.dirty then
           ok, err = S.saveSection(section)
           if not ok then break end

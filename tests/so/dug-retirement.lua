@@ -225,4 +225,80 @@ return function(test, equal)
     equal(cells.retirement().areas[1].x1, -32)
   end)
 
+  test("dug retirement: pressure ALLOW frees a 2222-byte section below the target", function()
+    local _, m = F.setup(nil, 1)
+    for _, suffix in ipairs({ "", ".bak" }) do
+      local path = F.path(1) .. suffix
+      local bytes = m.files[path]
+      m.files[path] = bytes .. string.rep(" ", 1111 - #bytes)
+    end
+    local cells, net
+    cells, m, net = F.setup(m.files)
+    m.env.SO.mods.state = { disk = function() return { pressure = true } end }
+    assert(cells.tick(net.time))
+    local request = assert(cells.retirement())
+    equal(request.bytes, 2222)
+    equal(request.reclaim, 2222)
+    equal(request.count, 1)
+    assert(cells.decideRetirement(request.id, "allow"))
+    equal(cells.counts().dug, 0)
+    equal(m.files[F.path(1)], nil)
+    equal(m.files[F.path(1) .. ".bak"], nil)
+    net.time = net.time + 60001
+    assert(cells.tick(net.time))
+    equal(cells.retirement(), nil)
+  end)
+
+  test("dug retirement: pressure never asks when no sections are retirable", function()
+    for _, count in ipairs({ 0, 1 }) do
+      local cells, m, net = F.setup(nil, count)
+      m.env.SO.mods.state = { disk = function() return { pressure = true } end }
+      if count == 1 then assert(cells.reserve("holder", 1616, 0, 0)) end
+      assert(cells.tick(net.time))
+      equal(cells.retirement(), nil)
+      net.time = net.time + 60001
+      assert(cells.tick(net.time))
+      equal(cells.retirement(), nil)
+      equal(cells.counts().dug, count)
+    end
+  end)
+
+  test("dug retirement: pressure ALLOW retires only offered sections", function()
+    local cells, m, net = F.setup(nil, 3)
+    m.env.SO.mods.state = { disk = function() return { pressure = true } end }
+    assert(cells.tick(net.time))
+    local request = assert(cells.retirement())
+    equal(request.count, 1)
+    assert(cells.decideRetirement(request.id, "allow"))
+    equal(cells.counts().dug, 2)
+    equal(marked(cells, 1), false)
+    equal(marked(cells, 2), true)
+    equal(marked(cells, 3), true)
+  end)
+
+  test("dug retirement: protected touched, reserved and leased candidates survive pressure ALLOW", function()
+    for _, kind in ipairs({ "worker", "reservation", "lease" }) do
+      local cells, m, net = F.setup(nil, 3)
+      m.env.SO.mods.state = { disk = function() return { pressure = true } end }
+      assert(cells.tick(net.time))
+      local request = assert(cells.retirement())
+      equal(request.count, 1)
+      equal(marked(cells, 1), true)
+      local pose = { dim = "minecraft:overworld", x = 1616, y = 0, z = 0 }
+      if kind == "worker" then
+        cells.rememberWorker(9, pose, { pose })
+      elseif kind == "reservation" then
+        assert(cells.reserve("holder", pose.x, pose.y, pose.z))
+      else
+        local lease = m.env.dofile("so-mod-lease.lua")
+        m.env.SO.mods.lease = lease
+        assert(lease.send(8, {{ op = "forward" }}, { pose = pose }))
+      end
+      assert(cells.decideRetirement(request.id, "allow"))
+      equal(cells.counts().dug, 3, kind)
+      for i = 1, 3 do equal(marked(cells, i), true, kind) end
+      assert(m.files[F.path(1)] and m.files[F.path(1) .. ".bak"], kind)
+    end
+  end)
+
 end
