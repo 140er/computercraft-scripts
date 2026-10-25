@@ -159,9 +159,12 @@ D.retireOversized = function()
   for _, path in ipairs(paths) do fs.delete(path) end
   return true
 end
-D.tick = function(gameNow)
+D.currentDate = function()
   local now = os.epoch("utc")
-  local date = U.clock(SO.now()).date
+  return U.clock(now).date
+end
+D.tick = function(gameNow)
+  local date = D.currentDate()
   local changed = D.roll(date)
   local state = SO.mods.state
   if state and state.history and type(state.history.page) == "function" then
@@ -171,14 +174,13 @@ D.tick = function(gameNow)
         if ev.seq > D.value.cursor + 1 then
           D.partial()
         end
-        local at = ev.gameAt or ev.at
+        local at = ev.at
         local data = type(ev.data) == "table" and ev.data or {}
         local count = data.count
         local ore = ev.kind == "mine.ore" and type(data.name) == "string"
         if D.integer(at) and D.integer(count) and count > 0 and (ore or ev.kind == "lumber.logs") then
           local row = D.row(U.clock(at).date)
           if row then
-            if not ev.gameAt and at > now then row.partial = true end
             if row.ore == false then row.ore, row.logs = 0, 0 end
             if not D.integer((ore and row.ore or row.logs) + count) then
               row.partial = true
@@ -189,10 +191,11 @@ D.tick = function(gameNow)
                 names[data.name] = (names[data.name] or 0) + count
                 row.oreByName = D.names(names)
               end
-              if row == D.value and at > gameNow - 600000 and at <= gameNow then
-                local second = tostring(math.floor(at / 1000))
+              local atGame = ev.gameAt or at
+              if row == D.value and D.integer(atGame) and atGame > gameNow - 600000 and atGame <= gameNow then
+                local second = tostring(math.floor(atGame / 1000))
                 local bucket = D.value.recent[second] or { total = 0, counts = {} }
-                local stamp = tostring(at)
+                local stamp = tostring(atGame)
                 bucket.total = bucket.total + count
                 bucket.counts[stamp] = (bucket.counts[stamp] or 0) + count
                 D.value.recent[second] = bucket
@@ -234,7 +237,7 @@ D.today = function()
 end
 D.days = function()
   local rows, v = {}, D.value
-  local day = D.day(v.date) or D.day(U.clock(SO.now()).date)
+  local day = D.day(v.date) or D.day(D.currentDate())
   for n = day - 6, day do
     local date = D.date(n)
     local row = { date = date, ore = false, logs = false, partial = true }
