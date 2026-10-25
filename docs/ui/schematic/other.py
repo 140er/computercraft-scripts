@@ -406,6 +406,22 @@ def metrics(hs):
     return rows
 
 
+def footer_rows(w, label, note):
+    """The footer's left chip sits on the last row when it ends a blank column before the pager's
+    note and arrows, else on the row above."""
+    return 1 if len(label) + 5 <= (w - 8 - len(note) if note else w - 7) else 2
+
+
+def fit_pages(count, capacity, page, w, label):
+    """Rows per page, pages and footer rows for count lines under a left chip and an n/m note."""
+    pages = max(1, -(-count // capacity))
+    rows = footer_rows(w, label, "%d/%d" % (max(1, min(page, pages)), pages))
+    if rows == 2:
+        capacity = max(1, capacity - 1)
+        pages = max(1, -(-count // capacity))
+    return capacity, pages, rows
+
+
 FACTS = [("id", "id"), ("label", "label"), ("role", "role"), ("pos", None), ("count", "count"), ("item", "name"),
          ("total", "total"), ("fuel", "fuel"), ("level", "level"), ("branch", "branch"), ("done", "done"),
          ("op", "op"), ("reason", "reason")]
@@ -488,15 +504,14 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
         return cv
     if role == "events" and picker:
         kinds = ["all"] + sorted({e["kind"] for e in hs["events"]})
-        capacity = max(1, h - gap - top)
-        pages = max(1, -(-len(kinds) // capacity))
+        capacity, pages, foot = fit_pages(len(kinds), max(1, h - gap - top), 1, w, "BACK")
         for i, name in enumerate(kinds[:capacity]):
             y = top + i
             if name == (kind or "all"):
                 cv.put(2, y, "•", "0")
             cv.put(4, y, name[:w - 4], "0" if name == (kind or "all") else "8")
             cv.hit("pick:%d" % (i + 1), 1, y, w, 1, name)
-        chip(cv, 2, h, "BACK", "kind-back")
+        chip(cv, 2, h - foot + 1, "BACK", "kind-back")
         pager(cv, h, "1/%d" % pages, False, pages > 1)
         return cv
     if role == "events":
@@ -508,17 +523,21 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
             chip(cv, 7, top, find[:w - 9], "find")
             top += 1 + gap
     capacity = max(0, h - gap - top)
+    if history:
+        left = ("LATEST", "latest", "plain") if page > 1 else ("LIVE", "live", "primary") if held else ("HOLD", "hold", "plain")
+        note = str(page) if page > 1 else ""
+        foot = footer_rows(w, left[0], note)
+        capacity = max(0, capacity - foot + 1)
     if role == "errors" and error is not None:
         cv.put(2, top, duration(now - error["at"]) + " ago", "8")
         top += 1 + gap
-        capacity = max(1, h - gap - top)
         text = re.sub(r"[\x00-\x1f\x7f]", " ", error["text"])
         rows = wrap(text, lw)
-        pages = max(1, math.ceil(len(rows) / capacity))
+        capacity, pages, foot = fit_pages(len(rows), max(1, h - gap - top), error_page, w, "BACK")
         error_page = max(1, min(error_page, pages))
         for i, line in enumerate(rows[(error_page - 1) * capacity:error_page * capacity]):
             cv.put(2, top + i, line, "0")
-        chip(cv, 2, h, "BACK", "error-back")
+        chip(cv, 2, h - foot + 1, "BACK", "error-back")
         pager(cv, h, "%d/%d" % (error_page, pages), error_page > 1, error_page < pages)
         return cv
     if role == "health":
@@ -582,13 +601,8 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
                 cv.hit("event:%d" % (i + 1), 1, y, w, 1)
     pages = max(1, -(-len(rows) // max(1, capacity)))
     if history:
-        if page > 1:
-            chip(cv, 2, h, "LATEST", "latest")
-        elif held:
-            chip(cv, 2, h, "LIVE", "live", "primary")
-        else:
-            chip(cv, 2, h, "HOLD", "hold")
-        pager(cv, h, str(page) if page > 1 else "", page > 1, more)
+        chip(cv, 2, h - foot + 1, *left)
+        pager(cv, h, note, page > 1, more)
     else:
         pager(cv, h, "1/%d" % pages, False, pages > 1)
     return cv
@@ -658,6 +672,10 @@ for _w, _h in ((26, 20), (29, 12)):
     ):
         HEALTH_FIXTURES.append(("health/%s-%dx%d" % (_name, _w, _h),
                                 lambda w=_w, h=_h, o=_options: history_case(w, h, **o)))
+# A 1x1 monitor at scale 0.5: the footer's left chip moves above the page number and arrows.
+for _name, _options in (("events-15x10", {}), ("events-page2-15x10", dict(page=2)),
+                        ("events-picker-15x10", dict(picker=True))):
+    HEALTH_FIXTURES.append(("health/" + _name, lambda o=_options: history_case(15, 10, **o)))
 
 
 def _health(role, w, h, title, kind=None):

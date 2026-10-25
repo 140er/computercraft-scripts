@@ -187,6 +187,24 @@ local function errorWrap(text, width)
   return rows
 end
 
+-- The footer's left chip sits on the last row when it ends a blank column before the pager's note
+-- and arrows, else on the row above. Returns the rows the footer takes.
+local function footerRows(w, label, note)
+  return #label+5 <= (note ~= "" and w-8-#note or w-7) and 1 or 2
+end
+
+-- Rows per page and pages for count lines under a left chip and an n/m note. Returns the capacity,
+-- the pages and the footer rows.
+local function fitPages(count, capacity, page, w, label)
+  local pages = math.max(1,math.ceil(count/capacity))
+  local rows = footerRows(w,label,math.max(1,math.min(page or 1,pages)).."/"..pages)
+  if rows == 2 then
+    capacity = math.max(1,capacity-1)
+    pages = math.max(1,math.ceil(count/capacity))
+  end
+  return capacity, pages, rows
+end
+
 -- An event's recorded facts as leaders { label, value }, from an allowlist of scalar data fields,
 -- then its text as the last row.
 local FACTS = {{"id","id"},{"label","label"},{"role","role"},{"pos"},{"count","count"},{"item","name"},
@@ -247,8 +265,7 @@ H.render = function(role,w,h,session)
   if role == "events" and v.picker then
     -- The kind picker: ALL and every kind in the log, the current one marked.
     local kinds = v.picker.kinds
-    local capacity = math.max(1,h-gap-top)
-    local pages = math.max(1,math.ceil(#kinds/capacity))
+    local capacity, pages, foot = fitPages(#kinds,math.max(1,h-gap-top),v.picker.page,w,"BACK")
     v.picker.page = math.max(1,math.min(v.picker.page,pages))
     v.targets = {}
     for i=1,capacity do
@@ -259,7 +276,7 @@ H.render = function(role,w,h,session)
       c.put(4,y,kind:sub(1,w-4),kind == (v.kind or "all") and "0" or "8")
       c.hit("pick:"..n,1,y,w,1,kind)
     end
-    c.chip(2,h,"BACK","kind-back")
+    c.chip(2,h-foot+1,"BACK","kind-back")
     U.pager(c,h,v.picker.page.."/"..pages,v.picker.page>1,v.picker.page<pages)
     return c.frame()
   end
@@ -274,12 +291,20 @@ H.render = function(role,w,h,session)
     end
   end
   local capacity = math.max(0,h-1-gap-top+1)
+  -- Page 1 follows new events until HOLD pins its newest sequence; LIVE and LATEST return to it.
+  local left, note, foot
+  if history then
+    left = v.page > 1 and {"LATEST","latest"} or v.cursors[1] and {"LIVE","live","primary"} or {"HOLD","hold"}
+    note = v.page > 1 and tostring(v.page) or ""
+    foot = footerRows(w,left[1],note)
+    capacity = math.max(0,capacity-foot+1)
+  end
   if role == "errors" and v.error then
     c.put(2,top,duration(H.now-v.error.at).." ago","8")
     top = top+1+gap
-    capacity = math.max(1,h-gap-top)
     local lines = errorWrap(v.error.text:gsub("[%c]"," "),lw)
-    local pages = math.max(1,math.ceil(#lines/capacity))
+    local pages, foot
+    capacity, pages, foot = fitPages(#lines,math.max(1,h-gap-top),v.errorPage,w,"BACK")
     v.errorPage = math.max(1,math.min(v.errorPage or 1,pages))
     v.errorNext = v.errorPage < pages
     v.targets = {}
@@ -287,7 +312,7 @@ H.render = function(role,w,h,session)
       local line = lines[(v.errorPage-1)*capacity+i]
       if line then c.put(2,top+i-1,line,"0") end
     end
-    c.chip(2,h,"BACK","error-back")
+    c.chip(2,h-foot+1,"BACK","error-back")
     U.pager(c,h,v.errorPage.."/"..pages,v.errorPage>1,v.errorNext)
     return c.frame()
   end
@@ -366,13 +391,8 @@ H.render = function(role,w,h,session)
     end
   end
   local pages = math.max(1,math.ceil(#rows/math.max(1,capacity)))
-  if history then
-    -- Page 1 follows new events until HOLD pins its newest sequence; LIVE and LATEST return to it.
-    if v.page > 1 then c.chip(2,h,"LATEST","latest")
-    elseif v.cursors[1] then c.chip(2,h,"LIVE","live","primary")
-    else c.chip(2,h,"HOLD","hold") end
-  end
-  U.pager(c,h,not history and (v.page.."/"..pages) or v.page > 1 and tostring(v.page) or "",v.page>1,v.next~=nil)
+  if history then c.chip(2,h-foot+1,left[1],left[2],left[3]) end
+  U.pager(c,h,note or (v.page.."/"..pages),v.page>1,v.next~=nil)
   return c.frame()
 end
 

@@ -17,6 +17,8 @@ local FIXTURES = {
   "tests/ui/fixtures/health/events-picker-26x20.txt", "tests/ui/fixtures/health/events-picker-29x12.txt",
   "tests/ui/fixtures/health/events-find-26x20.txt", "tests/ui/fixtures/health/events-find-29x12.txt",
   "tests/ui/fixtures/health/event-facts-26x20.txt", "tests/ui/fixtures/health/event-facts-29x12.txt",
+  "tests/ui/fixtures/health/events-15x10.txt", "tests/ui/fixtures/health/events-page2-15x10.txt",
+  "tests/ui/fixtures/health/events-picker-15x10.txt",
 }
 
 -- The real so-mod-state with the log of other.py's history_events: 40 events 20 s apart, a single
@@ -89,7 +91,7 @@ local function capture(frame,w,h)
 end
 
 local function match(name,frame,w,h)
-  local path = "tests/ui/fixtures/health/"..name.."-"..w.."x"..h..".txt"
+  local path = "tests/ui/fixtures/health/"..name..(name:match("%d+x%d+$") and "" or "-"..w.."x"..h)..".txt"
   local declared = false
   for _,v in ipairs(FIXTURES) do if v==path then declared=true end end
   assert(declared,path)
@@ -434,6 +436,87 @@ return function(test,equal)
       t.input("events",s,"fact-back")
       equal(s.visibility.events.page,2)
       equal(text(t.render("events",w,h,s)),list)
+    end
+  end)
+
+  -- Footer controls on the last two rows: each draws its own label in its touch area, the page
+  -- number sits outside every touch area, and a tap anywhere in an area reaches only that control.
+  local function footer(frame,w,h,note)
+    capture(frame,w,h)
+    local list,cells = {},{}
+    for _,b in ipairs(frame.buttons) do
+      if b.y >= h-1 and not b.id:match("^event:") and not b.id:match("^pick:") then
+        list[#list+1] = b
+        equal(frame.rows[b.y].text:sub(b.x,b.x+b.w-1):match("^%s*(.-)%s*$"),b.label,b.id.." label at "..w)
+        for x=b.x,b.x+b.w-1 do cells[b.y*100+x]=b.id end
+      end
+    end
+    if note then
+      local row,at = frame.rows[h].text,nil
+      for x=1,#row do
+        if row:sub(x,x+#note-1) == note and not cells[h*100+x] then at = x end
+      end
+      assert(at and not cells[h*100+at+#note-1],"page number "..note.." clear of the chips at "..w)
+    end
+    return list,cells
+  end
+  local function tapAt(t,s,frame,x,y)
+    local hit
+    for _,b in ipairs(frame.buttons) do
+      if x >= b.x and x < b.x+b.w and y >= b.y and y < b.y+b.h then assert(not hit,"two controls at "..x..","..y);hit=b.id end
+    end
+    t.input("events",s,assert(hit,"no control at "..x..","..y))
+    return hit
+  end
+
+  test("health history footers draw each control once and taps reach only it at 15x10, 26x20 and 29x12",function()
+    for _,size in ipairs({{15,10},{26,20},{29,12}}) do
+      local w,h=size[1],size[2]
+      local t,s=health(history().state),{}
+      local frame=t.render("events",w,h,s)
+      if w==15 then match("events-15x10",frame,w,h) end
+      local list=footer(frame,w,h)
+      equal(#list,3)
+      -- Page 3: LATEST, PREV and NEXT each lead to their own page from every cell they cover.
+      for _,want in ipairs({{"latest",1},{"prev",2},{"next",4}}) do
+        local fresh,go={},nil
+        t.render("events",w,h,fresh);t.input("events",fresh,"next")
+        t.render("events",w,h,fresh);t.input("events",fresh,"next")
+        frame=t.render("events",w,h,fresh)
+        for _,b in ipairs(footer(frame,w,h,"3")) do if b.id==want[1] then go=b end end
+        assert(go,want[1].." drawn at "..w)
+        for x=go.x,go.x+go.w-1 do
+          local again={}
+          for k,v in pairs(fresh.visibility.events) do again[k]=v end
+          again.cursors={}
+          for k,v in pairs(fresh.visibility.events.cursors) do again.cursors[k]=v end
+          local session={visibility={events=again}}
+          t.render("events",w,h,session)
+          equal(tapAt(t,session,frame,x,go.y),want[1])
+          equal(session.visibility.events.page,want[2],want[1].." at "..w)
+        end
+      end
+      -- Page 2 draws its number clear of LATEST and the arrows.
+      s={}
+      t.render("events",w,h,s);t.input("events",s,"next")
+      frame=t.render("events",w,h,s)
+      if w==15 then match("events-page2-15x10",frame,w,h) end
+      footer(frame,w,h,"2")
+      -- Page 1: HOLD holds and stays on page 1; the picker's BACK closes it.
+      s={}
+      frame=t.render("events",w,h,s)
+      for _,b in ipairs(footer(frame,w,h)) do
+        if b.id=="hold" then tapAt(t,s,frame,b.x+b.w-1,b.y) end
+      end
+      assert(s.visibility.events.cursors[1] and s.visibility.events.page==1)
+      footer(t.render("events",w,h,s),w,h)
+      t.input("events",s,"kind")
+      frame=t.render("events",w,h,s)
+      if w==15 then match("events-picker-15x10",frame,w,h) end
+      for _,b in ipairs(footer(frame,w,h,"1/1")) do
+        if b.id=="kind-back" then tapAt(t,s,frame,b.x+b.w-1,b.y) end
+      end
+      equal(s.visibility.events.picker,nil)
     end
   end)
 end
