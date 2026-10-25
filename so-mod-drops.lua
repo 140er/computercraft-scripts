@@ -17,7 +17,9 @@ local S = {
     front = { "inspect", "drop" },
     down = { "inspectDown", "dropDown" },
   },
-  draft = { dim = 0, x = 0, y = 64, z = 0, side = "front", kind = "ore" },
+  -- Each display keeps its own draft; one with no input for idle ms is dropped unsaved.
+  blank = { dim = 0, x = 0, y = 64, z = 0, side = "front", kind = "ore" },
+  idle = 300000,
   nudge = {
     ["dim+"] = { "dim", 1 }, ["dim-"] = { "dim", -1 },
     ["x+"] = { "x", 1 }, ["x-"] = { "x", -1 },
@@ -130,16 +132,23 @@ S.commit = function(previous, op, id)
   return true
 end
 
-S.add = function(point)
-  if type(point) ~= "table" or type(point.id) ~= "string" or not point.id:match("^[%w_%-]+$") then
-    return false, "bad"
-  end
+S.check = function(point)
+  if type(point) ~= "table" then return false, "bad" end
   if not S.whole(point.dim) or not S.whole(point.x) or not S.whole(point.y) or not S.whole(point.z) then
     return false, "bad"
   end
   if not S.kinds[point.kind] then return false, "kind" end
   if not S.face[point.side] then return false, "side" end
   if point.room ~= nil and (type(point.room) ~= "boolean" or point.room and point.kind ~= "ore" and point.kind ~= "wood") then return false,"kind" end
+  return true
+end
+
+S.add = function(point)
+  if type(point) ~= "table" or type(point.id) ~= "string" or not point.id:match("^[%w_%-]+$") then
+    return false, "bad"
+  end
+  local valid, why = S.check(point)
+  if not valid then return false, why end
   local idx = S.find(point.id)
   if idx then
     if S.same(S.points[idx], point) then return true end
@@ -152,6 +161,32 @@ S.add = function(point)
     side = point.side, kind = point.kind, fails = 0, room = point.room or nil,
   }
   return S.commit(previous, "add", point.id)
+end
+
+-- The index of a point other than skip at point's place, side and kind.
+S.match = function(point, skip)
+  for i, p in ipairs(S.points) do
+    if i ~= skip and p.dim == point.dim and p.x == point.x and p.y == point.y and p.z == point.z
+      and p.side == point.side and p.kind == point.kind then return i end
+  end
+end
+
+-- Changes a point in place in one save; a failed save restores the list. The point keeps its id, and
+-- keeps its strikes and verified state only while its place and side are unchanged.
+S.edit = function(id, point)
+  local idx = S.find(id)
+  if not idx then return false, "missing" end
+  local valid, why = S.check(point)
+  if not valid then return false, why end
+  local other = S.match(point, idx)
+  if other then return false, "exists" end
+  local p = S.points[idx]
+  if S.same(p, point) then return true end
+  local previous = S.clone(S.points)
+  local moved = p.dim ~= point.dim or p.x ~= point.x or p.y ~= point.y or p.z ~= point.z or p.side ~= point.side
+  p.dim, p.x, p.y, p.z, p.side, p.kind, p.room = point.dim, point.x, point.y, point.z, point.side, point.kind, point.room or nil
+  if moved then p.fails, p.verified = 0, nil end
+  return S.commit(previous, "edit", id)
 end
 
 S.setRoomSink = function(on)
@@ -577,6 +612,24 @@ S.view = function(id)
   if not S.views[id] then S.views[id] = { page = 1, pages = 1 } end
   return S.views[id]
 end
+S.copy = function(p)
+  return { dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind, room = p.room or nil }
+end
+S.draftOf = function(view)
+  view.draft = view.draft or S.copy(S.blank)
+  return view.draft
+end
+-- Two-tap controls (U.confirm); the kit-free screen carries its own copy.
+S.confirm = U and U.confirm or function(state, tapped, now)
+  if state.confirm and now - (state.confirmAt or now) > 5000 then state.confirm = nil end
+  if tapped == nil or state.confirm == tapped then
+    local hit = tapped ~= nil
+    state.confirm = nil
+    return hit
+  end
+  state.confirm, state.confirmAt = tapped, now
+  return false
+end
 setmetatable(S.views, { __mode = "k" })
 
 S.legacyRender = function(w, h, clientId)
@@ -594,12 +647,12 @@ S.legacyRender = function(w, h, clientId)
     rows[#rows + 1] = S.row(p.id:sub(1, math.max(1, w - #detail)) .. detail)
     rows[#rows + 1] = S.row("")
     buttons[#buttons + 1] = S.button("fix:" .. p.id, 1, #rows, "fix")
-    buttons[#buttons + 1] = S.button("remove:" .. p.id, 6, #rows, "remove")
+    buttons[#buttons + 1] = S.button("remove:" .. p.id, 6, #rows, view.confirm == "remove:" .. p.id and "confirm" or "remove")
   end
   rows[#rows + 1] = S.row("          " .. view.page .. "/" .. view.pages)
   buttons[#buttons + 1] = S.button("prev", 1, #rows, "prev")
   buttons[#buttons + 1] = S.button("next", 6, #rows, "next")
-  local d = S.draft
+  local d = view.draft or S.blank
   rows[#rows + 1] = S.row(string.format("draft %s %s dim %d", d.kind, d.side, d.dim))
   rows[#rows + 1] = S.row(string.format("%d %d %d", d.x, d.y, d.z))
   for _, names in ipairs({ { "kind", "side", "add", "dim+", "dim-" },
@@ -615,16 +668,30 @@ S.legacyRender = function(w, h, clientId)
   return { rev = S.rev, rows = rows, buttons = buttons }
 end
 
-S.addDraft = function()
-  local d = S.draft
-  local id = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)
-  local ok, err = S.add({
-    id = id, dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind, room = d.room,
-  })
+-- A draft's id comes from its place, side and kind. An edited point keeps its old id, so when that id
+-- is taken by a point that has since moved, the new one gets the first free numbered id.
+S.idOf = function(d)
+  local base = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)
+  local id, n = base, 1
+  while S.find(id) do n = n + 1 id = base .. "_" .. n end
+  return id
+end
+-- ADD makes a new point; the next NEW starts again from the selection. A point already at the
+-- draft's place, side and kind is a duplicate whatever its id: a tapped ADD says so, and a typed
+-- add of the same point still reads as added.
+S.addDraft = function(view, tapped)
+  local d = S.draftOf(view)
+  local same = S.match(d)
+  if same and tapped then S.message = S.errText.exists return end
+  local ok, err = same and S.same(S.points[same], d), "exists"
+  if not same then
+    ok, err = S.add({ id = S.idOf(d), dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind, room = d.room })
+  end
   S.message = ok and "point added" or (S.errText[err] or tostring(err))
+  if ok then view.drafted, view.edit = false, nil end
 end
 
-S.typed = function(text)
+S.typed = function(text, view)
   local scan=text:match("^scan%s+(%d+)$")
   if scan then S.beginSetup(tonumber(scan)) return end
   local visit=text:match("^test%s+([%w_%-]+)$")
@@ -641,7 +708,7 @@ S.typed = function(text)
     S.message = ok and "room saved" or (S.errText[err] or tostring(err))
     return
   end
-  local d = S.draft
+  local d = S.draftOf(view)
   local dim, kind, side = d.dim, d.kind, d.side
   local x, y, z
   local direct = words[1] == "add"
@@ -670,10 +737,10 @@ S.typed = function(text)
   if not S.whole(dim) or not S.whole(x) or not S.whole(y) or not S.whole(z) then
     S.message = "dim/x/y/z: integers only" return
   end
-  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side, room = (kind == "ore" or kind == "wood") and d.room or nil }
-  S.drafted = true
+  view.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side, room = (kind == "ore" or kind == "wood") and d.room or nil }
+  view.drafted = true
   S.message = nil
-  if direct then S.addDraft() end
+  if direct then S.addDraft(view) end
 end
 
 -- Route A screen (docs/ui/SCHEMATIC-SPEC.md); docs/ui/schematic/jobs.py is the twin of S.gather
@@ -689,7 +756,7 @@ S.selectedPoint = function(view)
   for _, p in ipairs(S.points) do if p.fails >= S.strikes then return p.id end end
   return S.points[1] and S.points[1].id
 end
-S.fromTurtle = function(id)
+S.fromTurtle = function(id, view)
   S.fromError = true
   local lease = SO.mods.lease
   local config = SO.store.read("so-server.cfg")
@@ -698,12 +765,12 @@ S.fromTurtle = function(id)
   if not number or not lease or not lease.world then S.message = "turtle world pose unavailable" return end
   local p, err = lease.world(id, dim)
   if not p then S.message = err return end
-  local x, y, z = p.x, p.y, p.z
-  if S.draft.side == "down" then y = y-1
+  local x, y, z, d = p.x, p.y, p.z, S.draftOf(view)
+  if d.side == "down" then y = y-1
   elseif p.facing == nil then S.message = "facing unknown; add turtle first" return
   else x, z = x+({[0]=0,1,0,-1})[p.facing], z+({[0]=-1,0,1,0})[p.facing] end
-  S.draft.x, S.draft.y, S.draft.z, S.draft.dim = x, y, z, number
-  S.drafted, S.message, S.fromError = true, nil, nil
+  d.x, d.y, d.z, d.dim = x, y, z, number
+  view.drafted, S.message, S.fromError = true, nil, nil
 end
 S.call = function(name, fn)
   local mod = SO.mods[name]
@@ -743,10 +810,13 @@ S.gather = function(view)
   end
   if lease and lease.candidates then turtles = lease.candidates() end
   table.sort(turtles)
+  local edit = view.edit and S.find(view.edit)
   return { points = list, selected = S.selectedPoint(view), page = view.page, editing = view.editing,
+    edit = view.editing and edit or nil,
+    confirm = view.confirm and SO.now() - (view.confirmAt or 0) <= 5000 and view.confirm or nil,
     -- A turtle waiting for its facing shows the compass on every drop display until it is answered.
     testing = view.testing or S.compass ~= nil and not view.editing,
-    message = S.message, draft = S.draft, roomSink = S.roomSink, turtles = turtles,
+    message = S.message, draft = view.draft or S.blank, roomSink = S.roomSink, turtles = turtles,
     from = view.fromPage or 0, compass = S.compass, found = S.candidates, task = S.task and S.task.id,
     failed = S.task and S.task.failed,
     server = ctx.server, shaft = ctx.shaft, area = ctx.area }
@@ -892,11 +962,13 @@ S.list = function(C, m)
   -- SCAN opens chest setup from 24 columns; narrow rows shorten REMOVE before they cut it.
   local n, gap = w >= 24 and 4 or 3, room and 2 or 1
   local bw = math.floor((w - 2 - gap * (n - 1)) / n)
-  local fix, rem = "FIX" .. tag, "REMOVE" .. tag
-  if #rem > bw then fix, rem = "FIX", "REMOVE" end
+  -- EDIT takes FIX's place while the selection is not broken; an armed REMOVE reads CONFIRM.
+  local first = sel and not sel.broken and "EDIT" or "FIX"
+  local fix, rem = first .. tag, "REMOVE" .. tag
+  if #rem > bw then fix, rem = first, "REMOVE" end
   if n == 4 and #rem > bw then rem = "DEL" end
-  local items = { { fix, "fix", sel and sel.broken and "primary" or "muted" }, { rem, "remove", sel and "stop" or "muted" },
-    { "ADD", "new", "plain" } }
+  local items = { { fix, "fix", sel and (sel.broken and "primary" or "plain") or "muted" },
+    U.confirmChip(m, sel and "remove:" .. sel.id or false, rem, "remove", sel and "stop" or "muted"), { "ADD", "new", "plain" } }
   if n == 4 then items[4] = { "SCAN", "testing", "plain" } end
   U.actions(C, ya, items, gap)
   if room then
@@ -920,7 +992,8 @@ end
 -- doing setup), the chests the scans found, and TEST, FIX and BACK. A turtle without a facing
 -- asks for it first.
 S.okText = { ["chest found"] = true, ["scan complete"] = true, ["setup released"] = true, ["scanning"] = true,
-  ["testing chest"] = true, ["confirming release"] = true, ["room saved"] = true, ["point added"] = true }
+  ["testing chest"] = true, ["confirming release"] = true, ["room saved"] = true, ["point added"] = true,
+  ["point saved"] = true }
 S.setup = function(C, m)
   local w, h = C.w, C.h
   local room = w >= 52 and h >= 22
@@ -987,7 +1060,7 @@ S.editor = function(C, m)
   local w, h = C.w, C.h
   local room = w >= 52 and h >= 22
   local ya, d = room and h - 1 or h, m.draft
-  C.bar("ADD DROP POINT", {}, nil, "", "8")
+  C.bar(m.edit and "EDIT POINT " .. m.edit or "ADD DROP POINT", {}, nil, "", "8")
   local step, vx, vw = h >= 19 and 2 or 1, w >= 36 and 13 or 8, w >= 36 and 8 or 6
   local y = h >= 12 and 3 or 2
   for _, field in ipairs({ "kind", "side" }) do
@@ -1021,7 +1094,7 @@ S.editor = function(C, m)
   end
   if S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
   elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
-  U.actions(C, ya, { { "ADD", "add", "primary" }, { "BACK", "list", "plain" } }, room and 3 or 1)
+  U.actions(C, ya, { m.edit and { "SAVE", "save", "primary" } or { "ADD", "add", "primary" }, { "BACK", "list", "plain" } }, room and 3 or 1)
   if room then
     local rx = vx + vw + 13
     local bottom = S.plan(C, m, rx + 2, 3, math.min(w - rx - 2, 48), math.min(ya - 4, 32), d)
@@ -1053,7 +1126,9 @@ S.render = function(w, h, session)
     view.focus=nil
   end
   model.page = math.min(model.page, size.pages)
-  view.page, view.armed = model.page, true
+  view.page = model.page
+  local sel = S.find(model.selected or "")
+  view.chip = sel and { model.selected, S.points[sel].fails < S.strikes and "edit" or "fix" } or nil
   local frame = S.layout(model, w, h)
   frame.rev = S.rev
   return frame
@@ -1062,8 +1137,18 @@ end
 S.input = function(ev)
   if type(ev) ~= "table" then return end
   local view = S.view(S.key(ev.session, ev.from))
+  local now = SO.now()
+  view.touched = now
+  -- REMOVE arms on the first tap and removes on the second; any other tap or text disarms. The key
+  -- names the point, so a selection that moved on arms again instead of removing.
+  local removing = ev.id == "remove" and S.selectedPoint(view) or type(ev.id) == "string" and ev.id:match("^remove:(.+)$")
+  local confirmed = S.confirm(view, removing and "remove:" .. removing or nil, now)
+  if removing then
+    if confirmed then S.remove(removing) end
+    return
+  end
   if type(ev.text) == "string" then
-    S.typed(ev.text)
+    S.typed(ev.text, view)
     -- Typed scan, test and release follow on the setup tab; room changes leave the page alone.
     if U and (ev.text:match("^scan%s") or ev.text:match("^test%s") or ev.text:match("^release%s")) then
       view.testing, view.editing = true, false
@@ -1071,13 +1156,33 @@ S.input = function(ev)
     return
   end
   if type(ev.id) ~= "string" then return end
+  -- NEW starts from the selected point, room mark included, unless this display has an unsaved draft.
   if ev.id == "new" then
     view.editing, view.testing = true, false
+    if view.edit then view.edit, view.draft, view.drafted = nil, nil, false end
     local idx = S.find(S.selectedPoint(view) or "")
-    if not S.drafted and idx then
-      local p = S.points[idx]
-      S.draft = { dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind }
-    end
+    if not view.drafted and idx then view.draft = S.copy(S.points[idx]) end
+    S.draftOf(view)
+    return
+  end
+  -- The first chip is FIX on a broken point and EDIT otherwise; a tap does what the last frame drew
+  -- for that point, so a double-tapped FIX never opens the editor. A second EDIT of a point keeps its unsaved changes.
+  local id = (ev.id == "fix" or ev.id == "edit") and S.selectedPoint(view)
+  local chip = id and (view.chip and view.chip[1] == id and view.chip[2]
+    or S.points[S.find(id)].fails >= S.strikes and "fix" or "edit")
+  if ev.id == "fix" and chip == "fix" then view.selected = id S.fix(id) return end
+  if ev.id == "fix" or ev.id == "edit" then
+    if not id then return end
+    if view.edit ~= id or not view.drafted then view.draft, view.drafted = S.copy(S.points[S.find(id)]), false end
+    view.edit, view.selected, view.editing, view.testing = id, id, true, false
+    return
+  end
+  if ev.id == "save" then
+    if not view.edit then return end
+    local saved = view.edit
+    local ok, err = S.edit(saved, S.draftOf(view))
+    if not ok then S.message = S.errText[err] or tostring(err) return end
+    S.message, view.drafted, view.selected = "point saved", false, saved
     return
   end
   -- BACK and CANCEL drop an unanswered FACING prompt.
@@ -1092,21 +1197,23 @@ S.input = function(ev)
     S.message = ok and "room saved" or tostring(err)
     return
   end
+  local d = (ev.id == "room-point" or ev.id == "kind" or ev.id == "side" or ev.id == "add" or S.nudge[ev.id])
+    and S.draftOf(view)
   if ev.id == "room-point" then
-    if S.draft.kind == "ore" or S.draft.kind == "wood" then S.draft.room, S.drafted = not S.draft.room or nil, true
+    if d.kind == "ore" or d.kind == "wood" then d.room, view.drafted = not d.room or nil, true
     else S.message = "room needs ore or wood" end
     return
   end
   local facing=tonumber(ev.id:match("^facing:([0-3])$"))
   if facing and S.compass then local pick=S.compass S.beginSetup(pick.id,pick.point,facing) return end
-  if ev.id == "test" then local id=S.selectedPoint(view); if id then S.testPoint(id) end return end
+  if ev.id == "test" then if S.selectedPoint(view) then S.testPoint(S.selectedPoint(view)) end return end
   if ev.id == "release" and S.task then S.releaseSetup(S.task.id) return end
   local scan=ev.id:match("^scan:(%d+)$")
   if scan then S.beginSetup(tonumber(scan)) return end
   local candidate=tonumber(ev.id:match("^candidate:(%d+)$"))
   if candidate and S.candidates[candidate] then
     local p=S.candidates[candidate]
-    S.draft,S.drafted={dim=p.dim,x=p.x,y=p.y,z=p.z,side=p.side,kind="ore"},true
+    view.draft,view.drafted,view.edit={dim=p.dim,x=p.x,y=p.y,z=p.z,side=p.side,kind="ore"},true,nil
     view.testing,view.editing=false,true return
   end
   if not U and (ev.id == "prev" or ev.id == "next") then
@@ -1117,52 +1224,48 @@ S.input = function(ev)
   if ev.id == "prev" then view.page = math.max(1, view.page-1) return end
   if ev.id == "from-next" then view.fromPage = (view.fromPage or 0)+1 return end
   local from = ev.id:match("^from:(%d+)$")
-  if from then S.fromTurtle(tonumber(from)) return end
+  if from then S.fromTurtle(tonumber(from), view) return end
   local focused = ev.id:match("^focus:(.+)$")
   if focused and S.find(focused) then
     view.editing,view.testing,view.selected,view.focus=false,false,focused,focused return
   end
   local selected = ev.id:match("^select:(.+)$")
   if selected and S.find(selected) then view.selected = selected return end
-  if ev.id == "fix" then local id = S.selectedPoint(view); if id then view.selected = id; S.fix(id) end return end
-  -- A second REMOVE before the next frame would hit the fallback selection, so it waits for a frame.
-  if ev.id == "remove" then
-    local id = S.selectedPoint(view)
-    if id and view.armed ~= false then view.armed = false S.remove(id) end
-    return
-  end
   local fixId = ev.id:match("^fix:(.+)$")
   if fixId then S.fix(fixId) return end
-  local removeId = ev.id:match("^remove:(.+)$")
-  if removeId then S.remove(removeId) return end
   if ev.id == "kind" then
     local at = 1
     for i = 1, #S.kindOrder do
-      if S.kindOrder[i] == S.draft.kind then at = i end
+      if S.kindOrder[i] == d.kind then at = i end
     end
-    S.draft.kind, S.drafted = S.kindOrder[at % #S.kindOrder + 1], true
-    if S.draft.kind ~= "ore" and S.draft.kind ~= "wood" then S.draft.room = nil end
+    d.kind, view.drafted = S.kindOrder[at % #S.kindOrder + 1], true
+    if d.kind ~= "ore" and d.kind ~= "wood" then d.room = nil end
     return
   end
   if ev.id == "side" then
-    if S.draft.side == "front" then S.draft.side = "down" else S.draft.side = "front" end
-    S.drafted = true
+    if d.side == "front" then d.side = "down" else d.side = "front" end
+    view.drafted = true
     return
   end
   if ev.id == "add" then
     -- The tapped ADD says when the draft is a point that already exists; typed add stays as it was.
-    local d = S.draft
-    if S.find(string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)) then S.message = S.errText.exists return end
-    S.addDraft()
+    S.addDraft(view, true)
     return
   end
   local step = S.nudge[ev.id]
   if not step then return end
-  S.draft[step[1]] = S.draft[step[1]] + step[2]
-  S.drafted = true
+  d[step[1]] = d[step[1]] + step[2]
+  view.drafted = true
 end
 
 S.tick = function()
+  -- A draft with no input for five minutes is dropped unsaved, and its display goes back to the list.
+  local now = SO.now()
+  for _, view in pairs(S.views) do
+    if (view.draft or view.editing) and now - (view.touched or now) >= S.idle then
+      view.draft, view.drafted, view.edit, view.editing = nil, false, nil, false
+    end
+  end
   if not S.callback and SO.mods.lease and SO.mods.lease.onReport then
     SO.mods.lease.onReport("setup",S.setupReport) S.callback=true
   end

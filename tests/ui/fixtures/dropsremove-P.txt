@@ -1,0 +1,61 @@
+26x20 REMOVE 2 armed at 26x20
+ DROPS  --------------- 5 
+                          
+ id kind    where         
+ 1  ore     117,64,-337 · 
+ 2  fuel    120,64,-337 • 
+ 3  junk    123,64,-337 × 
+ 4  wood    110,64,-344 · 
+ 5  storage 110,64,-348 · 
+                          
+ ! 3 junk broken          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+ EDIT  CONFI  ADD  SCAN   
+00000000ccccccccccccccc080
+00000000000000000000000000
+08808888000088888000000000
+00008880000088888888888080
+000000000000888888888880d0
+0e00eeee0000888888888880e0
+00000000000088888888888080
+00000000000088888888888080
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0000000eeeee00000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+7777777777777777777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777f77777f77777f77777ff
