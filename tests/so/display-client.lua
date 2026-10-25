@@ -23,7 +23,7 @@ local function grid(w,h)
   g.text=function() local a={} for n=1,h do a[n]=g.line(n) end return table.concat(a,"\n") end
   return g
 end
-local function setup(w,h,wall,absent,cfg,server)
+local function setup(w,h,wall,absent,cfg,server,prep)
   local n=H.new()
   local s=n.machine({id=1,modem=true}); install(s,true)
   if server then s.files["so-server.cfg"]=H.encode(server) end
@@ -57,6 +57,7 @@ local function setup(w,h,wall,absent,cfg,server)
     lookups=lookups+1
     return lookup(...)
   end
+  if prep then prep(c,s) end
   c.boot("display.lua"); n.flush()
   return {n=n,s=s,c=c,face=face,own=own,w=w,h=h,lookups=function() return lookups end}
 end
@@ -720,5 +721,89 @@ return function(test,equal)
     equal(#challenges(t),0)
     equal(#acks(t),0)
     assert(t.face.text():find("display 2",1,true),t.face.text())
+  end)
+
+  -- B1-D: install tokens enroll pockets and wall displays; so-display.cfg.server picks the unpaired join.
+  local ENROLL={pos={dim="minecraft:overworld",x=0,y=0,z=0},enroll=true}
+  local function enrolling(w,h,wall,cfg,isPocket,off)
+    local token
+    local t=setup(w,h,wall,false,cfg,ENROLL,function(c,s)
+      assert(s.env.SO.enroll.open(50)); token=s.env.SO.enroll.view(50).token
+      c.files["so-enroll"]=H.encode({token=token})
+      if isPocket then c.env.pocket={} end
+      -- A real modem sends nothing until rednet.open.
+      local send=c.env.rednet.send
+      c.env.rednet.send=function(...)
+        if not c.env.rednet.isOpen() then return false end
+        return send(...)
+      end
+      if off then assert(s.env.SO.enroll.setEnabled(false)) end
+    end)
+    return t,token
+  end
+  local function approve(t,kind)
+    local so=t.s.env.SO
+    local row=assert(so.enroll.view(50) and so.enroll.view(50).rows[1],"no enroll row")
+    equal(row.kind,kind)
+    assert(so.enroll.decide(t.c.id,row.n,true))
+    t.n.advance(7)
+    equal(boxKeys(t),"1")
+    equal(t.c.files["so-enroll"],nil)
+    assert(last(t,"view.sub"),"enrolled display did not subscribe")
+    equal(t.c.env.textutils.unserialize(t.c.files["so-keys"]).value.keys["1"],so.pair.key(t.c.id))
+  end
+  local function enrolls(t)
+    local n=0
+    for _,p in ipairs(t.c.sent) do if p.payload.t=="enroll" then n=n+1 end end
+    return n
+  end
+  for _,case in ipairs({{26,20,false,true,"pocket"},{29,12,true,false,"computer"}}) do
+    test("B1-D: an install token enrolls a "..case[5].." display after owner approval",function()
+      local t=enrolling(case[1],case[2],case[3],{keep="me"},case[4])
+      t.n.advance(4)
+      assert(shows(t.face,"Enroll "),t.face.text())
+      assert(shows(t.own,"Enroll "),t.own.text())
+      equal(boxKeys(t),"")
+      approve(t,case[5])
+      equal(t.c.files["so-display.cfg"],H.encode({keep="me"}))
+      reboot(t); t.n.advance(3)
+      equal(boxKeys(t),"1")
+      assert(not shows(t.face,"Enroll "),t.face.text())
+    end)
+  end
+  for _,pick in ipairs({false,true}) do
+    test("B1-D: so-display.cfg server "..(pick and "3 overrides" or "missing uses").." discovery and keeps every flag",function()
+      local cfg={retryInput=true,repairServer=true,keep="me"}
+      if pick then cfg.server=3 end
+      local t=setup(29,12,true,true,cfg)
+      local s3=replace(t,3)
+      t.s.boot("so-server.lua"); t.n.flush()
+      equal(t.c.env.rednet.lookup("so","server"),1)
+      t.n.advance(31)
+      typeText(t,codeOn(t,pick and s3 or t.s)); t.n.advance(2)
+      equal(boxKeys(t),pick and "3" or "1")
+      equal(t.c.files["so-display.cfg"],H.encode(cfg))
+      assert(last(t,"view.sub"))
+    end)
+  end
+  test("B1-D: monitor_touch never enrolls or resumes a paused enrollment; terminal paste does",function()
+    local t=enrolling(29,12,true,{retryInput=true,repairServer=true},false,true)
+    t.n.advance(7)
+    equal(t.c.env.textutils.unserialize(t.c.files["so-enroll"]).paused,"off")
+    assert(shows(t.face,"Enroll off"),t.face.text())
+    local asked=enrolls(t)
+    t.s.env.SO.enroll.setEnabled(true)
+    assert(t.s.env.SO.enroll.open(50))
+    local token=t.s.env.SO.enroll.view(50).token
+    for y=1,12 do for x=1,29,3 do event(t,"monitor_touch","right",x,y) end t.n.advance(0.5) end
+    reboot(t); t.n.advance(10)
+    for y=1,12 do for x=1,29,3 do event(t,"monitor_touch","right",x,y) end end
+    t.n.advance(30)
+    equal(enrolls(t),asked,"monitor_touch or reboot sent enroll")
+    equal(t.c.env.textutils.unserialize(t.c.files["so-enroll"]).paused,"off")
+    equal(boxKeys(t),"")
+    equal(t.s.env.SO.enroll.view(50).rows[1],nil)
+    event(t,"paste",token); t.n.advance(4)
+    approve(t,"computer")
   end)
 end
