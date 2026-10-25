@@ -487,6 +487,7 @@ return function(test, equal, read)
 
   test("lease legacy hellos keep dimension and tool facts when settings control is off", function()
     local s=setup(origin)
+    s.server.install({"so-plan.lua"})
     s.server.files["so-server.cfg"]=H.encode({remoteDimensions=true})
     s.send("hello",{role="turtle",capabilities={workerSettings=true,dimensionSafety=true},
       settings={seq=0,autoToolSwap=false}})
