@@ -299,6 +299,11 @@ S.run = function()
     return type(store.read) == "function" and store.read(path) or nil
   end
   local config = readConfig()
+  print("The next server-only release removes legacy pair. " ..
+    "Old turtles must run install update before pairing again. " ..
+    "Update pockets and wall displays too. Saved pairings keep working. Updated clients use pair2 only.")
+  local retireLegacyPair = type(config) == "table" and config.retireLegacyPair == true
+  if retireLegacyPair then builtin.pair = nil end
   local enrollConfigCached = true
   local function enrollEnabled()
     if not enrollConfigCached then
@@ -520,6 +525,8 @@ S.run = function()
       print("so-server: bad message from " .. tostring(sender))
       return
     end
+    -- Drop legacy traffic before key selection and cached replies.
+    if msg.t == "pair" and retireLegacyPair then return end
     local key
     if msg.t == "pair2" or msg.t == "enroll" then
       key = pair.envelopeKey()
