@@ -1,12 +1,12 @@
 26x20 Mining setup at 26x20
  MINING   main   setup    
-                          
+ fuel ~902                
  home    120,64,-340 n    
  bottom   -   Y -58   +   
  length   -     64    +   
  mode     fast   thorough 
  ores    all        edit  
- branch  8 single         
+  SINGLE   CONTINUOUS     
  fuel     auto   out 2    
  turtles #2 #3 #4 #6      
                           
@@ -20,13 +20,13 @@
  READY ------------- 1/2  
     START       STOP      
 00000000088888800000000000
-00000000000000000000000000
+08888888880000000000000000
 08888000000000000000000000
 08888880000000000000000000
 08888880000000000000000000
 08888000088888800000000000
 08888000000000000000000000
-08888880000000000000000000
+00000000008888888888880000
 088880000ffffff00000000000
 08888888000000000000000000
 00000000000000000000000000
@@ -46,7 +46,7 @@ fffffffff777fffffffff777ff
 fffffffff777fffffffff777ff
 ffffffffffffffff7777777777
 fffffffffffffffffff777777f
-ffffffffffffffffffffffffff
+f77777777fffffffffffffffff
 fffffffff999999f7777777fff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

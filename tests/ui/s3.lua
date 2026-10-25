@@ -92,6 +92,8 @@ end
 
 -- Literal paths, so part runs declare every fixture they read.
 local FIXTURE = {
+  ['miningsetup-29x12'] = 'tests/ui/fixtures/miningsetup-29x12.txt',
+  ['miningores-29x12'] = 'tests/ui/fixtures/miningores-29x12.txt',
   ['mining-M'] = 'tests/ui/fixtures/mining-M.txt', ['mining-W'] = 'tests/ui/fixtures/mining-W.txt',
   ['mining-L'] = 'tests/ui/fixtures/mining-L.txt', ['mining-P'] = 'tests/ui/fixtures/mining-P.txt',
   ['mining-XS'] = 'tests/ui/fixtures/mining-XS.txt', ['miningsetup-M'] = 'tests/ui/fixtures/miningsetup-M.txt',
@@ -318,7 +320,7 @@ return function(test, equal)
         { 'mining-P', 26, 20 }, { 'mining-XS', 15, 10 } }) do
       match(size[1], t.render(size[2], size[3], { id = 7 }))
     end
-    for _, size in ipairs({ { 'miningsetup-M', 57, 24 }, { 'miningsetup-L', 39, 19 }, { 'miningsetup-P', 26, 20 } }) do
+    for _, size in ipairs({ { 'miningsetup-M', 57, 24 }, { 'miningsetup-L', 39, 19 }, { 'miningsetup-P', 26, 20 }, { 'miningsetup-29x12', 29, 12 } }) do
       local session = { id = 7 }
       t.tap(session, 'tab:setup')
       match(size[1], t.render(size[2], size[3], session))
@@ -329,6 +331,37 @@ return function(test, equal)
     end
     equal(t.saves, 0)
   end)
+
+  for _, size in ipairs({ {29,12}, {26,20}, {36,16}, {52,22} }) do
+    test('S3 every ore filter can be tapped at '..size[1]..'x'..size[2], function()
+      local t, session = mining(), {id=7}
+      t.type('stop')
+      t.tap(session, 'tab:setup')
+      t.tap(session, 'ores-edit')
+      for _, alert in ipairs({false,true}) do
+        t.job.turtles['2'].error = alert and 'no fuel chest' or nil
+        for _, name in ipairs({'coal','copper','iron','gold','redstone','lapis','diamond','quartz','nether_gold','ancient_debris'}) do
+          for _, count in ipairs({9,10}) do
+            local frame=t.render(size[1],size[2],session)
+            capture(frame,size[1],size[2])
+            local button=assert(ids(frame)['ore-'..name], 'unreachable ore '..name)
+            assert(frame.rows[button.y].text:sub(button.x,button.x+button.w-1):find(name,1,true), name..' clipped')
+            for _,other in ipairs(frame.buttons) do
+              if other~=button then
+                assert(button.y~=other.y or button.x+button.w<=other.x or other.x+other.w<=button.x, name..' overlaps '..other.id)
+              end
+            end
+            t.tap(session,button.id)
+            equal(#t.job.ores,count)
+          end
+        end
+      end
+      if size[1]==29 then
+        t.tap(session,'ores-edit')
+        assert(ids(t.render(size[1],size[2],session))['set-length+'], 'BACK did not return to setup')
+      end
+    end)
+  end
 
   test('S3 mining before the first branch matches the empty fixtures', function()
     local t = mining({ empty = true })
@@ -422,11 +455,14 @@ return function(test, equal)
   test('S3 setup controls change the job exactly like the typed commands, one save per tap', function()
     for _, case in ipairs({ { 'set-bottom-', 'bottom -59' }, { 'set-bottom+', 'bottom -57' }, { 'set-length-', 'length 56' },
         { 'set-length+', 'length 72' }, { 'mode-fast', 'mode fast' }, { 'mode-thorough', 'mode thorough' },
-        { 'ore-coal', 'ores copper,iron,gold,redstone,lapis,diamond' } }) do
+        { 'ore-coal', 'ores copper,iron,gold,redstone,lapis,diamond,quartz,nether_gold,ancient_debris' },
+        { 'single', 'continuous off' }, { 'continuous', 'continuous on' },
+        { 'set-branches-', 'branches 7' }, { 'set-branches+', 'branches 9' } }) do
       local a, b, session = mining(), mining(), { id = 7 }
       a.type('stop') b.type('stop')
-      a.saves, b.saves = 0, 0
       a.tap(session, 'tab:setup')
+      if case[1]:find('^set%-branches') then a.type('continuous on') b.type('continuous on') end
+      a.saves, b.saves = 0, 0
       if case[1]:find('^ore') then a.tap(session, 'ores-edit') end
       assert(ids(a.render(57, 24, session))[case[1]], 'no drawn ' .. case[1])
       a.tap(session, case[1])
@@ -438,9 +474,9 @@ return function(test, equal)
     t.type('stop')
     t.tap(session, 'tab:setup')
     t.tap(session, 'ore-coal')
-    equal(#t.job.ores, 6)
+    equal(#t.job.ores, 9)
     t.tap(session, 'ore-coal')
-    equal(#t.job.ores, 7)
+    equal(#t.job.ores, 10)
     assert(capture(t.render(57, 24, session), 57, 24).picture().text[11]:find('ores       all', 1, true))
     t.type('ores iron')
     local saves = t.saves
@@ -553,7 +589,7 @@ return function(test, equal)
       equal(read(dir .. '/' .. name .. '.txt'), read(assert(FIXTURE[name], name)))
       count = count + 1
     end
-    equal(count, 28)
+    equal(count, 30)
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
 

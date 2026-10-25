@@ -1,7 +1,165 @@
 local M = dofile("so-mine-plan.lua")
 local P = dofile("so-plan.lua")
 local S = {}
+local function setupFixture(oldSave)
+  local function copy(v)
+    if type(v) ~= "table" then return v end
+    local out = {} for k, value in pairs(v) do out[k] = copy(value) end return out
+  end
+  local s = {now=0,saved={},screens={},orders={}}
+  s.job = {homeSet=true,home={x=0,y=64,z=0,facing=0},dim="minecraft:overworld",bottom=-58,
+    length=64,branches=8,continuous=false,mode="thorough",ores={},turtles={},
+    progress={nextBranch=0,done=0},running=false}
+  if oldSave then s.job.ores = nil end
+  local mods = {}
+  local env = setmetatable({SO={mods=mods,now=function() return s.now end,store={copy=copy,
+    store=function(path, valid)
+      local value = path == "so-data/mine/job" and s.job or copy(s.saved[path])
+      if value and valid then assert(valid(value)) end
+      return {value=value,save=function(nextValue)
+        if s.failSave then return false,"disk full" end
+        if valid then assert(valid(nextValue)) end
+        s.saved[path] = copy(nextValue) return true
+      end}
+    end}},os={epoch=function() return 0 end},
+    rednet={broadcast=function() end,send=function(_,body)
+      if body.cmd == "order" then s.orders[#s.orders+1] = copy(body) end
+      return true
+    end}}, {__index=_G})
+  mods.display = {screen=function(name,render,input) s.screens[name]={render=render,input=input} end}
+  mods.state = {emit=function() end}
+  mods.drops = {list=function() return {} end}
+  mods.cells = {owner=function() return "mine:2" end,reserve=function() return true end,
+    reserveMany=function() return true end}
+  mods.lease = {status=function() return {} end,inRange=function() return true end,
+    onReport=function(_,fn) s.report=fn end,send=function(_,steps) s.steps=steps return "lease" end}
+  s.restartShop = function()
+    mods.shop = assert(loadfile("so-mod-shop.lua","t",env))()
+    s.shop = mods.shop
+    s.shop.tick(s.now)
+  end
+  s.restartShop()
+  s.mods=mods
+  s.mine = assert(loadfile("so-mod-mine.lua","t",env))()
+  s.mine.tick()
+  s.stock = function() s.shop.listen.roomsorter_stock(9,{totals={["minecraft:charcoal"]=128}}) end
+  s.stock()
+  s.session = {id=7}
+  s.tap = function(id) s.screens.mining.input({id=id,session=s.session}) end
+  s.tap("tab:setup")
+  s.frame = function(w,h)
+    local frame = s.screens.mining.render(w,h,s.session)
+    local text, buttons = {}, {}
+    for _,row in ipairs(frame.rows) do assert(#row.text<=w) text[#text+1]=row.text end
+    for _,b in ipairs(frame.buttons) do
+      assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=w and b.y+(b.h or 1)-1<=h,b.id)
+      assert(frame.rows[b.y].text:sub(b.x,b.x+b.w-1):find(b.label,1,true),b.id.." label clipped")
+      for _,other in pairs(buttons) do
+        assert(b.x+b.w<=other.x or other.x+other.w<=b.x or b.y~=other.y,b.id.." overlaps "..other.id)
+      end
+      buttons[b.id]=b
+    end
+    return table.concat(text,"\n"),buttons
+  end
+  return s
+end
 function S.run(test, equal)
+  test("mining loads an old save without ores and keeps setup and filter taps usable",function()
+    local s=setupFixture(true)
+    equal(s.job.ores,{})
+    local text=s.frame(29,12)
+    assert(text:find("fuel ~902",1,true))
+    s.tap("ores-edit")
+    local _,buttons=s.frame(29,12)
+    assert(buttons["ore-coal"] and buttons["ore-ancient_debris"])
+    s.tap("ore-coal") equal(#s.job.ores,9)
+    s.tap("ore-ancient_debris") equal(#s.job.ores,8)
+    equal(s.saved["so-data/mine/job"].ores,s.job.ores)
+  end)
+  test("mining fuel estimate sums branch routes and the shaft round trip",function()
+    local s=setupFixture()
+    equal(M.fuelEstimate(s.job),902)
+    local routes=2*(1+math.abs(s.job.home.y-s.job.bottom))
+    for branch=0,s.job.branches-1 do routes=routes+#M.route(s.job,branch)-2 end
+    equal(M.fuelEstimate(s.job),routes)
+    s.job.mode="fast" equal(M.fuelEstimate(s.job),830)
+    s.job.branches,s.job.length=4096,4096
+    equal(M.fuelEstimate(s.job),33558774)
+  end)
+  for _,size in ipairs({{26,20},{29,12},{36,16},{52,22}}) do
+    test("mining SETUP mode and branch controls fit "..size[1].."x"..size[2],function()
+      local s=setupFixture()
+      local text,b=s.frame(size[1],size[2])
+      assert(text:find("fuel ~902",1,true),text)
+      assert(b.single and b.continuous and not b["set-branches+"])
+      s.tap("continuous") equal(s.job.continuous,true)
+      text,b=s.frame(size[1],size[2])
+      assert(text:find("fuel ~902",1,true),text)
+      assert(b["set-branches-"] and b["set-branches+"])
+      s.tap("set-branches+") equal(s.job.branches,9)
+      s.tap("set-branches-") equal(s.job.branches,8)
+      s.job.branches=1 s.tap("set-branches-") equal(s.job.branches,1)
+      s.job.branches=4096 s.tap("set-branches+") equal(s.job.branches,4096)
+      s.tap("single") equal(s.job.continuous,false)
+      _,b=s.frame(size[1],size[2]) assert(not b["set-branches+"])
+    end)
+  end
+  for _,size in ipairs({{36,16},{52,22}}) do
+    test("all ten mining ore chips fit and preserve Nether filters at "..size[1].."x"..size[2],function()
+      local s=setupFixture() s.tap("ores-edit")
+      local _,b=s.frame(size[1],size[2])
+      for name in pairs(M.ores) do assert(b["ore-"..name],name) end
+      s.job.ores={"ancient_debris","quartz","nether_gold"}
+      s.tap("ore-coal") equal(s.job.ores,{"coal","quartz","nether_gold","ancient_debris"})
+      s.tap("ore-nether_gold") equal(s.job.ores,{"coal","quartz","ancient_debris"})
+      s.tap("ore-ancient_debris") equal(s.job.ores,{"coal","quartz"})
+      s.job.ores={} s.tap("ore-coal") equal(#s.job.ores,9)
+      s.tap("ore-coal") equal(#s.job.ores,10)
+    end)
+  end
+  test("mining retries a lost fuel order after its durable timeout and chest cooldown",function()
+    local s=setupFixture()
+    local point={id="fuel",dim=0,x=10,y=63,z=0,side="down",kind="fuel"}
+    local pose={dim=s.job.dim,x=10,y=64,z=0,facing=0}
+    local row={pose=pose,anchor=pose,frame={dim=pose.dim,ox=0,oy=0,oz=0,rot=0},inv={},fuel=1,state="fuel",
+      trip={kind="fuel",point=point,stand=pose,back=pose,stage="out",path={pose},reserve=2000,shared=true}}
+    s.job.turtles["2"],s.job.running=row,true
+    s.mods.drops.list=function() return {point} end
+    assert(s.shop.fuelConfig(nil,point.id)) assert(s.shop.fuelConfig(true))
+    local function empty(at)
+      s.now=at s.stock() s.mine.tick()
+      equal(s.steps[#s.steps].op,"suckDown")
+      s.report("lease",2,{{ok=true,data={name="minecraft:chest"}},{ok=true},{ok=false,err="No items to take"}},
+        {report={pose={x=pose.x,y=pose.y,z=pose.z,f=0},inv={},fuel=1}})
+      equal(row.dropRetry.after,at+60000)
+    end
+    empty(0) equal(#s.orders,1)
+    local first=s.shop.fuelConfig().waiting.rid
+    s.now=59999 s.mine.tick() equal(s.steps[1].op,"inspectDown")
+    s.report("lease",2,{{ok=true}},{report={pose={x=pose.x,y=pose.y,z=pose.z,f=0},inv={},fuel=1}})
+    empty(60000) equal(#s.orders,1)
+    s.now=120000 s.failSave=true s.shop.tick(s.now)
+    equal(s.shop.fuelConfig().waiting.rid,first)
+    s.failSave=false s.shop.tick(s.now)
+    equal(s.shop.fuelConfig().waiting,nil)
+    equal(s.shop.fuelAlerts()[1].reason,"fuel order timed out")
+    s.restartShop() s.stock()
+    equal(s.shop.fuelConfig().waiting,nil)
+    equal(s.shop.fuelAlerts()[1].reason,"fuel order timed out")
+    s.shop.listen.roomsorter(9,{rid=first,"Delivered 64 minecraft:charcoal"})
+    equal(s.shop.fuelAlerts()[1].reason,"fuel order timed out")
+    for at=120000,540000,60000 do empty(at) equal(#s.orders,1) end
+    empty(600000) equal(#s.orders,2)
+    local second=s.shop.fuelConfig().waiting.rid
+    assert(second~=first)
+    s.shop.listen.roomsorter(9,{rid=first,"Delivered 64 minecraft:charcoal"})
+    equal(s.shop.fuelConfig().waiting.rid,second)
+    empty(660000) equal(#s.orders,2)
+    assert(s.shop.fuelClear()) equal(s.shop.fuelConfig().waiting,nil)
+    empty(720000) equal(#s.orders,2)
+    empty(1200000) equal(#s.orders,3)
+  end)
+
   for facing = 0, 3 do
     test("mine supply follows shaft and spine facing " .. facing, function()
       local job = {dim="minecraft:overworld",home={x=0,y=12,z=0,facing=facing},bottom=-8,

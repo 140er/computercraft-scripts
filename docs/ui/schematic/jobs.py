@@ -13,7 +13,7 @@ EXTRA = {}
 for _p in lines("jobs-scene.txt"):
     EXTRA.setdefault(_p[0], []).append(_p[1:])
 
-ORES = ["coal", "copper", "iron", "gold", "redstone", "lapis", "diamond"]
+ORES = ["coal", "copper", "iron", "gold", "redstone", "lapis", "diamond", "quartz", "nether_gold", "ancient_debris"]
 TABS, SHORT = ["overview", "setup"], ["main", "setup"]
 PHASES = {"scan": "scanning", "base": "felling", "climb": "felling", "descend": "felling",
           "plant": "planting", "plantPlace": "planting"}
@@ -85,6 +85,8 @@ def mining_setup(m, rows):
     """The setup tab's extra facts: start checks, unassigned turtles and the shop's fuel policy.
     The scene's drop lines are the drop list with ids 1, 2, ...; no turtle is paired."""
     h = m["home"]
+    branches = m["branches"]
+    m["fuelNeed"] = branches * m["length"] + m["gap"] * branches * (branches + 1) // 2 + 2 * (1 + abs(h["y"] - m["bottom"]))
     points = [dict(d, id=str(i + 1)) for i, d in enumerate(x for x in S["drops"] if x["kind"] != "saplings")]
     ready = [(True, "home %d,%d,%d" % (h["x"], h["y"], h["z"]))]
     ready += [chest_check(points, kind, h) for kind in ("ore", "fuel")]
@@ -373,6 +375,17 @@ def ore_on(m, name):
     return not m["ores"] or name in m["ores"]
 
 
+def ore_rows(cv, m, x, y, right, stop):
+    cx = x
+    for name in ORES:
+        if cx + len(name) + 2 > right + 1:
+            cx, y = x, y + 1
+        if y <= stop:
+            chip(cv, cx, y, name, "ore-" + name, "plain" if ore_on(m, name) else "off")
+        cx += len(name) + 3
+    return y
+
+
 def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
     """The setup controls from row y, step rows apart, none below row stop. Returns the last row."""
     if m["dim"] != "minecraft:overworld":
@@ -404,18 +417,16 @@ def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
         chip(cv, ex, y, "edit", "ores-edit", "on" if editing else "plain")
     last = y
     if editing and cv.w < 52:
-        cx, y = x, y + 1
-        for name in ORES:
-            if cx + len(name) + 2 > right + 1:
-                cx, y = x, y + 1
-            if y <= stop:
-                chip(cv, cx, y, name, "ore-" + name, "plain" if ore_on(m, name) else "off")
-            cx += len(name) + 3
-        return y
+        return ore_rows(cv, m, x, y + 1, right, stop)
     y += step
     if y <= stop:
-        cv.put(x, y, "branches" if vx - x >= 9 else "branch", "8")
-        cv.put(vx, y, ("%d %s" % (m["branches"], "continuous" if m["continuous"] else "single"))[:right - vx + 1], "0")
+        nx = chip(cv, x, y, "SINGLE", "single", "off" if m["continuous"] else "plain") + 1
+        chip(cv, nx, y, "CONTINUOUS", "continuous", "plain" if m["continuous"] else "off")
+    if m["continuous"]:
+        y += step
+        if y <= stop:
+            cv.put(x, y, "branches" if vx - x >= 9 else "branch", "8")
+            stepper(cv, vx, y, m["branches"], "set-branches", vw)
     if m.get("policy"):
         y += step
         if y <= stop:
@@ -465,6 +476,7 @@ def ready_rows(cv, m, x, y, right, stop, page=0, lead=0):
 def setup_room(cv, m, editing):
     w, h = cv.w, cv.h
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
+    cv.put(2, 2, "fuel ~%d" % m["fuelNeed"], "8")
     ya = last_row(h, True)
     rx = max(32, w // 2)
     left = setup_rows(cv, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
@@ -484,6 +496,7 @@ def setup_room(cv, m, editing):
 def setup_column(cv, m, editing):
     w, h = cv.w, cv.h
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
+    cv.put(2, 2, "fuel ~%d" % m["fuelNeed"], "8")
     ya = last_row(h, False)
     wide = w >= 36
     stop = ya - 2 if m["alert"] else ya - 1
@@ -491,7 +504,12 @@ def setup_column(cv, m, editing):
     # READY follows the controls; when it does not fit under them it gets pages of its own after
     # the controls' page, which ends with the READY row.
     last = setup_rows(Canvas(w, h, ""), m, 2, 3, 1, vx, vw, w - 1, editing, stop)
-    if len(ready_items(m)[0]) <= max(0, stop - last - 2):
+    if editing and last > stop - 1:
+        if stop >= 3:
+            cv.put(2, 3, "ores", "8")
+            chip(cv, w - 7, 3, "BACK", "ores-edit", "plain")
+        ore_rows(cv, m, 2, 5, w - 1, stop)
+    elif len(ready_items(m)[0]) <= max(0, stop - last - 2):
         setup_rows(cv, m, 2, 3, 1, vx, vw, w - 1, editing, stop)
         ready_rows(cv, m, 2, last + 2, w - 1, stop)
     elif stop >= 4:
@@ -1140,6 +1158,8 @@ FIXTURES = [
     ("miningsetup-M", _mining(57, 24, "Mining setup, room monitor 57x24", True)),
     ("miningsetup-L", _mining(39, 19, "Mining setup, wall monitor 4x3", True)),
     ("miningsetup-P", _mining(26, 20, "Mining setup at 26x20", True)),
+    ("miningsetup-29x12", _mining(29, 12, "Mining setup at 29x12", True)),
+    ("miningores-29x12", _mining(29, 12, "Mining ore editor at 29x12", True, True)),
     ("miningores-M", _mining(57, 24, "Mining setup with the ore list open", True, True)),
     ("miningores-P", _mining(26, 20, "Mining setup at 26x20 with the ore list open", True, True)),
     ("lumber-M", _lumber(57, 24, "Lumber, room monitor 57x24")),

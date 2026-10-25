@@ -9,6 +9,7 @@ local unloadKeep = {
 local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "table" and type(v.turtles) == "table" end)
 local job = box.value or { homeSet = false, dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
   length = 64, branches = 8, continuous = false, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
+job.ores = job.ores or {}
 local function branchLine(branch)
   local d = ({[0]={0,-1},{1,0},{0,1},{-1,0}})[job.home.facing]
   local distance = 1 + (branch+1)*(job.mode=="fast" and 2 or 4)
@@ -473,13 +474,18 @@ local function report(_, id, results, lease)
         end
         local enough = action.kind == "refuel" and type(row.fuel) == "number"
           and (row.fuel < 0 or row.fuel >= tripReserve(row.trip))
-        if failed and inspected and row.trip.kind == "fuel" and reason == "empty" then
-          call("shop", "fuelEmpty", row.trip.point)
-        end
+        local fuelWaiting = failed and inspected and row.trip.kind == "fuel" and reason == "empty"
+          and call("shop", "fuelEmpty", row.trip.point)
         if failed and enough and inspected and reason=="empty" then
           row.trip.stage = "back"
           row.state, row.dropRetry, row.error = "fuel", nil, nil
-        elseif failed then dropFailure(id, row, row.trip.kind, row.trip.point, not inspected and "broken" or reason)
+        elseif failed then
+          dropFailure(id, row, row.trip.kind, row.trip.point, not inspected and "broken" or reason)
+          if fuelWaiting then
+            -- Recheck the chest and shared policy after a minute, including after an order times out.
+            row.dropRetry.after = SO.now() + 60000
+            row.state = "hold"
+          end
         else row.dropRetry, row.error = nil, nil end
         if action.kind == "unload" then row.trip.stage = "out"
         elseif type(row.fuel) == "number" and row.fuel >= math.max(2000,tripReserve(row.trip)) then row.trip.stage = "back" end
@@ -885,7 +891,7 @@ local function view(session)
 end
 -- Route A screen (docs/ui/SCHEMATIC-SPEC.md); docs/ui/schematic/jobs.py is the twin of V.gather
 -- and the layouts and writes their fixtures.
-local V = { ores = { "coal", "copper", "iron", "gold", "redstone", "lapis", "diamond" },
+local V = { ores = { "coal", "copper", "iron", "gold", "redstone", "lapis", "diamond", "quartz", "nether_gold", "ancient_debris" },
   tabs = { "overview", "setup" }, short = { "main", "setup" }, dirs = { [0] = { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } } }
 V.oreOn = function(m, name)
   if #m.ores == 0 then return true end
@@ -898,14 +904,27 @@ V.command = function(id)
   if id == "set-length-" or id == "set-length+" then
     return "length " .. math.max(1, math.min(4096, job.length + (id == "set-length+" and 8 or -8)))
   end
+  if id == "set-branches-" or id == "set-branches+" then
+    return "branches " .. math.max(1, math.min(4096, (job.branches or 8) + (id == "set-branches+" and 1 or -1)))
+  end
+  if id == "single" then return "continuous off" end
+  if id == "continuous" then return "continuous on" end
   local mode = id:match("^mode%-(%a+)$")
   if mode then return "mode " .. mode end
-  local ore = id:match("^ore%-(%a+)$")
+  local ore = id:match("^ore%-([%a_]+)$")
   if not ore or not M.ores[ore] then return end
+  local selected = {}
+  if #job.ores == 0 then
+    for name in pairs(M.ores) do selected[name] = true end
+  else
+    for _, name in ipairs(job.ores) do selected[name] = true end
+  end
+  selected[ore] = not selected[ore]
   local on = {}
   for _, name in ipairs(V.ores) do
-    if V.oreOn({ ores = job.ores }, name) ~= (name == ore) then on[#on + 1] = name end
+    if selected[name] then on[#on + 1] = name selected[name] = nil end
   end
+  for name, yes in pairs(selected) do if yes then on[#on + 1] = name end end
   if #on > 0 then return "ores " .. table.concat(on, ",") end
 end
 -- Job facts, one row per turtle placed on the job diagram, and the dug extent of every branch.
@@ -979,6 +998,7 @@ end
 -- The setup tab's extra facts: start checks, unassigned turtles and the shop's fuel policy.
 V.setup = function(m)
   m.checks, m.available = {}, {}
+  m.fuelNeed = M.fuelEstimate(job)
   for _, check in ipairs(readiness()) do m.checks[#m.checks + 1] = { text = check.text, ok = check.ok } end
   for _, id in ipairs(call("lease", "candidates") or {}) do
     local machine = call("state", "get", "machines/" .. id) or {}
@@ -1177,6 +1197,15 @@ V.tiny = function(C, m)
   V.list(C, m, y, stop, w - 1)
   V.run(C, h, m, 1)
 end
+V.oreRows = function(C, m, x, y, right, stop)
+  local cx = x
+  for _, name in ipairs(V.ores) do
+    if cx + #name + 2 > right + 1 then cx, y = x, y + 1 end
+    if y <= stop then C.chip(cx, y, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
+    cx = cx + #name + 3
+  end
+  return y
+end
 -- The setup controls from row y, step rows apart, none below row stop. Returns the last row.
 V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
   local h = m.home
@@ -1217,20 +1246,18 @@ V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
     C.chip(ex, y, "edit", "ores-edit", editing and "on" or "plain")
   end
   local last = y
-  if editing and C.w < 52 then
-    local cx = x
-    y = y + 1
-    for _, name in ipairs(V.ores) do
-      if cx + #name + 2 > right + 1 then cx, y = x, y + 1 end
-      if y <= stop then C.chip(cx, y, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
-      cx = cx + #name + 3
-    end
-    return y
-  end
+  if editing and C.w < 52 then return V.oreRows(C, m, x, y + 1, right, stop) end
   y = y + step
   if y <= stop then
-    C.put(x, y, vx - x >= 9 and "branches" or "branch", "8")
-    C.put(vx, y, (m.branches .. " " .. (m.continuous and "continuous" or "single")):sub(1, right - vx + 1), "0")
+    local nx = C.chip(x, y, "SINGLE", "single", m.continuous and "off" or "plain") + 1
+    C.chip(nx, y, "CONTINUOUS", "continuous", m.continuous and "plain" or "off")
+  end
+  if m.continuous then
+    y = y + step
+    if y <= stop then
+      C.put(x, y, vx - x >= 9 and "branches" or "branch", "8")
+      U.stepper(C, vx, y, m.branches, "set-branches", vw)
+    end
   end
   if m.policy then
     y = y + step
@@ -1287,6 +1314,7 @@ end
 V.setupRoom = function(C, m, editing)
   local w, ya = C.w, C.h - 1
   U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
+  C.put(2, 2, "fuel ~" .. m.fuelNeed, "8")
   local rx = math.max(32, math.floor(w / 2))
   local left = V.setupRows(C, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
   local right
@@ -1301,12 +1329,19 @@ end
 V.setupColumn = function(C, m, editing)
   local w, h = C.w, C.h
   U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
+  C.put(2, 2, "fuel ~" .. m.fuelNeed, "8")
   local wide, stop = w >= 36, m.alert and h - 2 or h - 1
   local vx, vw = wide and 13 or 10, wide and 8 or 6
   -- READY follows the controls; when it does not fit under them it gets pages of its own after
   -- the controls' page, which ends with the READY row.
   local last = V.setupRows(U.canvas(w, h), m, 2, 3, 1, vx, vw, w - 1, editing, stop)
-  if #V.items(m) <= math.max(0, stop - last - 2) then
+  if editing and last > stop - 1 then
+    if stop >= 3 then
+      C.put(2, 3, "ores", "8")
+      C.chip(w - 7, 3, "BACK", "ores-edit", "plain")
+    end
+    V.oreRows(C, m, 2, 5, w - 1, stop)
+  elseif #V.items(m) <= math.max(0, stop - last - 2) then
     V.setupRows(C, m, 2, 3, 1, vx, vw, w - 1, editing, stop)
     V.ready(C, m, 2, last + 2, w - 1, stop, m.setupPage)
   elseif stop >= 4 then

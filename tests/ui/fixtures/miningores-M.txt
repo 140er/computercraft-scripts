@@ -1,6 +1,6 @@
 57x24 Mining setup with the ore list open
  MINING   overview   setup  -------------------- running 
-                                                         
+ fuel ~902                                               
  home       120,64,-340 n      |   coal                  
                                |   copper                
  bottom      -    Y -58    +   |   iron                  
@@ -8,10 +8,10 @@
  length      -      64     +   |   redstone              
                                |   lapis                 
  mode        fast   thorough   |   diamond               
-                               |                         
- ores       all         edit   |                         
-                               |                         
- branches   8 single           |                         
+                               |   quartz                
+ ores       all         edit   |   nether_gold           
+                               |   ancient_debris        
+  SINGLE   CONTINUOUS          |                         
                                |                         
  fuel        auto   out 2      |                         
                                |                         
@@ -24,7 +24,7 @@
            START                         STOP            
                                                          
 0000000008888888888000000000cccccccccccccccccccc0ddddddd0
-000000000000000000000000000000000000000000000000000000000
+088888888800000000000000000000000000000000000000000000000
 0888800000000000000000000000000c0000000000000000000000000
 0000000000000000000000000000000c0000000000000000000000000
 0888888000000000000000000000000c0000000000000000000000000
@@ -35,7 +35,7 @@
 0000000000000000000000000000000c0000000000000000000000000
 08888000000000000000000ffffff00c0000000000000000000000000
 0000000000000000000000000000000c0000000000000000000000000
-0888888880000000000000000000000c0000000000000000000000000
+0000000000888888888888000000000c0000000000000000000000000
 0000000000000000000000000000000c0000000000000000000000000
 088880000000ffffff0000000000000c0000000000000000000000000
 0000000000000000000000000000000c0000000000000000000000000
@@ -56,10 +56,10 @@ ffffffffffffffffffffffffffffffffff777777fffffffffffffffff
 ffffffffffff777fffffffffff777fffff7777777777fffffffffffff
 ffffffffffffffffffffffffffffffffff7777777ffffffffffffffff
 fffffffffffffffffff7777777777fffff777777777ffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffff999999ffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffff77777777fffffffffffffff
+fffffffffffffffffffffff999999fffff7777777777777ffffffffff
+ffffffffffffffffffffffffffffffffff7777777777777777fffffff
+f77777777ffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffff999999f7777777fffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
