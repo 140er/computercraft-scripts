@@ -137,18 +137,14 @@ H.descend = function(root, rest)
     end
     cur = nxt
   end
-  if type(cur) == "table" then return H.copy(cur) end
-  return cur
+  return H.copy(cur)
 end
 
 H.tail = function(evs)
-  local out, start = {}, #evs - 49
-  if start < 1 then start = 1 end
-  local i = start
-  while i <= #evs do
+  local out = {}
+  for i = math.max(1, #evs - 49), #evs do
     local ev = evs[i]
     out[#out + 1] = { seq = ev.seq, at = ev.at, gameAt = ev.gameAt, kind = ev.kind, data = ev.data }
-    i = i + 1
   end
   return out
 end
@@ -161,11 +157,8 @@ H.fleet = function(S)
     if na and nb then return na < nb end
     return tostring(a) < tostring(b)
   end)
-  local out, i = {}, 1
-  while i <= #ids do
-    out[i] = H.machine(S.machines[ids[i]])
-    i = i + 1
-  end
+  local out = {}
+  for i, id in ipairs(ids) do out[i] = H.machine(S.machines[id]) end
   return out
 end
 
@@ -259,10 +252,8 @@ H.events = function()
 end
 
 do
-  local evs, i = H.events(), 1
-  while i <= #evs do
-    if evs[i].seq > S.seq then H.apply(S, evs[i]) end
-    i = i + 1
+  for _, ev in ipairs(H.events()) do
+    if ev.seq > S.seq then H.apply(S, ev) end
   end
 end
 
@@ -299,11 +290,7 @@ H.flush = function()
 end
 
 H.touch = function()
-  local i = 1
-  while i <= #S.subs do
-    S.subs[i].dirty = true
-    i = i + 1
-  end
+  for _, sub in ipairs(S.subs) do sub.dirty = true end
   H.flush()
 end
 
@@ -438,6 +425,8 @@ local history = {
       start = reverse and hi or lo
     end
     local entries, i, step = {}, start, reverse and -1 or 1
+    -- text is a case-insensitive plain substring of the kind, the data string or the data's
+    -- text, reason, name and label, cut to 32 bytes.
     local text = type(query.text) == "string" and query.text:sub(1, 32):lower() or ""
     local function found(ev)
       if text == "" then return true end
@@ -469,6 +458,7 @@ local history = {
     end
     return { entries = entries, next = nxt }
   end,
+  -- Every kind in the log, sorted, at most 64.
   kinds = function()
     local seen, out = {}, {}
     for _, ev in ipairs(H.events()) do

@@ -22,3 +22,4 @@ so-server.lua	proto.since(os.epoch("utc"))
 so-store.lua	local origin = box.value and box.value.ceiling or os.epoch("utc")
 worker.lua	if ttl == nil and type(body.expires) == "number" then ttl = math.max(0, body.expires - os.epoch("utc")) end
 so-server.lua	local wall = os.epoch("utc")
+worker.lua	local now = math.floor(os.epoch("utc") / 1000)

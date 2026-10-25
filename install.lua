@@ -247,9 +247,10 @@ local function retryDeadline(value, at)
   if month ~= "Jan" and month ~= "Feb" and year%4 == 0 and (year%100 ~= 0 or year%400 == 0) then days=days+1 end
   return days*86400+hour*3600+minute*60+second
 end
-local function provePinned(target, localUpdate, running)
+local function provePinned(target, localUpdate, running, role)
   assert(validRevision(target) and target == target:lower(), "Expected a lowercase full commit SHA")
-  local cfg, state, store = clientConfig("/so-worker.cfg")
+  local path = "/so-" .. (role or "worker") .. ".cfg"
+  local cfg, state, store = clientConfig(path)
   assert(not state.hold, "Config recovery; refusing update")
   local now = math.floor(os.epoch("utc") / 1000)
   assert(type(cfg.updateApiRetryAt) ~= "number" or cfg.updateApiRetryAt <= now,
@@ -263,7 +264,7 @@ local function provePinned(target, localUpdate, running)
     local untilAt = math.max(at+60, retryDeadline(headers["retry-after"], at),
       tonumber(headers["x-ratelimit-reset"]) or 0)
     cfg.updateApiRetryAt = untilAt
-    if not store or not store.saveConfig("/so-worker.cfg", cfg) then
+    if not store or not store.saveConfig(path, cfg) then
       error("Update API refused; retry after " .. untilAt .. "; cannot save cooldown", 0)
     end
     return untilAt
@@ -288,7 +289,7 @@ local function provePinned(target, localUpdate, running)
     for k,v in pairs(headers) do normalized[k:lower()] = v end
     local remaining = tonumber(normalized["x-ratelimit-remaining"])
     apiRemaining, apiHeaders = remaining, normalized
-    if status == 403 or status == 429 or remaining and remaining < needed-calls then
+    if status == 403 or status == 429 or not remaining or remaining < needed-calls then
       error("Update API refused; retry after " .. cooldown(normalized), 0)
     end
     assert(status == 200, "Update API HTTP " .. tostring(status))
@@ -848,7 +849,7 @@ local function main(...)
     assert(validRevision(handoff.revision) and type(handoff.previous) == "table", "Bad installer handoff")
     if handoff.noStart then
       if authorizePinned then authorizePinned(handoff.revision) pinnedAttempt=true
-      else provePinned(handoff.revision, false) end
+      else provePinned(handoff.revision, false, nil, handoff.role) end
     end
   elseif not kit and not requestedRevision then recover() end
   local enroll = handoff and enrollToken(handoff.enroll)
@@ -910,7 +911,7 @@ local function main(...)
     end
   end
   if requestedRevision then
-    provePinned(requestedRevision, not noStart, running)
+    provePinned(requestedRevision, not noStart, running, role)
     recover()
   end
   local config = handoff and handoff.config
@@ -977,14 +978,14 @@ local function main(...)
         nextInstaller = prepareInstaller(installer,clientOptions,noStart and sha)
       end
       assert(type(nextInstaller) == "function", "Commit installer does not support pinned updates")
-      nextInstaller(command, { revision = sha, previous = previousFilesList, role = role, config = config, updating = updating,
+      return nextInstaller(command, { revision = sha, previous = previousFilesList, role = role, config = config, updating = updating,
         enroll = enroll, server = selectedServer, noStart=noStart, manifest=manifest,index=index,bytes=bytes,offline=kit ~= nil })
     end)
     if not ok then
       if not fs.exists(OLD .. "/manifest") and not fs.exists(NEW .. "/committed") then fs.delete(NEW) end
       print("Install failed: " .. tostring(err))
     end
-    return
+    return ok and err
   end
   if not handoff.manifest and fs.exists(NEW .. "/install.lua") then
     -- Installers before B4-G stage the pinned bootstrap and pass only the original handoff.

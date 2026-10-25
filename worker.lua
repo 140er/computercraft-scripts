@@ -419,7 +419,7 @@ W.paint = function()
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
   local width = term.getSize()
-  term.write((not W.pair.peer() and "UNPAIRED" or W.reason or ("seen " .. seen)):sub(1, width))
+  term.write((not W.pair.peer() and "UNPAIRED" or W.updateError or W.reason or ("seen " .. seen)):sub(1, width))
   term.setCursorPos(1, 5)
   term.write(age and age < 60 and ("server " .. W.server .. " ok") or "waiting for server")
   if W.repair then
@@ -598,11 +598,15 @@ W.accept = function(sender, payload)
     W.transmit(W.server, W.proto.build(key, ok and "ack" or "err", body, msg.rid))
   elseif msg.t == "worker.update" then
     local target, config = msg.body.revision, W.readConfig()
-    local ok, why = W.idle()
+    local ok, why = false
+    local now = math.floor(os.epoch("utc") / 1000)
     if not config or config.remoteUpdates ~= true then ok, why = false, "updates disabled"
     elseif type(target) ~= "string" or #target ~= 40 or target:find("[^0-9a-f]")
-      or not W.revision or target == W.revision then ok, why = false, "invalid revision" end
-    if ok then ok, why = W.idle() end
+      or not W.revision or target == W.revision then why = "invalid revision"
+    elseif type(config.updateApiRetryAt) == "number" and config.updateApiRetryAt > now then why = "api cooldown"
+    else ok, why = W.idle() end
+    W.updateError = not ok and why or nil
+    if not ok then print("worker: update refused " .. why) end
     local body = {command="worker.update", revision=target}
     if ok then body.state="accepted" else body.code, body.text="update", why end
     local sent = W.transmit(W.server, W.proto.build(key, ok and "ack" or "err", body, msg.rid))
@@ -1251,8 +1255,18 @@ W.boot = function()
   W.hello()
   W.paint()
   W.loop()
-  local ok, why = pcall(shell.run, "/install.lua", "worker-update", W.update, W.revision)
-  if not ok or why == false then print("worker: update failed " .. tostring(why)) end
+  local message
+  local env = setmetatable({print=function(...)
+    local words = table.pack(...)
+    for i=1,words.n do words[i]=tostring(words[i]) end
+    message = table.concat(words, " ")
+    print(...)
+  end}, {__index=_ENV})
+  env.printError = env.print
+  local ok, result = pcall(function()
+    return assert(loadfile("/install.lua", nil, env))("worker-update", W.update, W.revision)
+  end)
+  if not ok or not result then print("worker: update failed " .. tostring(not ok and result or message or result)) end
   os.reboot()
 end
 

@@ -624,13 +624,20 @@ return function(test, equal)
       if msg.t=="ack" and msg.body.command=="worker.update" then trace[#trace+1]="ack" end
       return send(id,msg,protocol)
     end
-    w.env.shell={run=function(path,command,revision,running)
-      equal({path,command,revision,running},{"/install.lua","worker-update",target,current})
+    local loader=w.env.loadfile
+    w.env.loadfile=function(path,mode,env)
+      if path~="/install.lua" then return loader(path,mode,env) end
+      equal(path,"/install.lua")
+      equal(mode,nil)
+      return function(command,revision,running)
+      equal({command,revision,running},{"worker-update",target,current})
       trace[#trace+1]="installer"
       if outcome=="throw" then error("handled failure") end
-      if outcome then w.files[".so-revision"]=target end
+      if outcome then w.files[".so-revision"]=target
+      else env.print("Install failed: ancestry refused") end
       return outcome == true
-    end}
+      end
+    end
     w.env.os.reboot=function() trace[#trace+1]="reboot" coroutine.yield("reboot") end
     return trace
   end
@@ -646,6 +653,43 @@ return function(test, equal)
       serverSend(n,s,"lease.batch",{lease="after-ack",ttl=1000,expires=n.time+1000,steps={{op="forward"}}})
       equal(w.fuel,fuel)
       assert(rid)
+    end
+  end)
+  test("worker API cooldown refuses before ack installer or reboot and remains visible after status repaint",function()
+    local n,s,w=updateSetup()
+    local trace=updater(n,w,true)
+    local config=cfg(w)
+    config.updateApiRetryAt=math.floor(w.env.os.epoch("utc")/1000)+60
+    w.files["so-worker.cfg"]=H.encode(config)
+    local before=w.files["so-worker.cfg"]
+    for _=1,2 do
+      assert(s.env.SO.updateWorker(2));n.flush()
+      local row=s.env.SO.workerUpdate(2)
+      equal(row.state,"refused");equal(row.text,"api cooldown")
+      equal(trace,{})
+      equal(w.files["so-worker.cfg"],before)
+    end
+    serverSend(n,s,"worker.status",{job="",reason=""})
+    n.advance(6)
+    assert(w.screen[4]:find("api cooldown",1,true))
+    assert(table.concat(w.log," "):find("update refused api cooldown",1,true))
+    assert(w.alive(),tostring(w.error))
+    config.updateApiRetryAt=math.floor(w.env.os.epoch("utc")/1000)
+    w.files["so-worker.cfg"]=H.encode(config)
+    assert(s.env.SO.updateWorker(2));n.flush()
+    equal(trace,{"ack","installer","reboot"})
+  end)
+  test("worker logs the real installer refusal or exception before reboot",function()
+    for _,outcome in ipairs({false,"throw"}) do
+      local n,s,w=updateSetup()
+      local reboot
+      updater(n,w,outcome)
+      w.env.os.reboot=function() reboot=table.concat(w.log," ");coroutine.yield("reboot") end
+      assert(s.env.SO.updateWorker(2));n.flush()
+      local message=outcome==false and "ancestry refused" or "handled failure"
+      assert(reboot and reboot:find("worker: update failed",1,true))
+      assert(reboot:find(message,1,true),reboot)
+      assert(not reboot:find("worker: update failed false",1,true))
     end
   end)
   test("worker hello caches revision at boot and target hello confirms only after reboot",function()
@@ -716,7 +760,11 @@ return function(test, equal)
       if msg.body.command=="worker.update" then return true end
       return send(id,msg,protocol)
     end
-    w.env.shell={run=function() return false end}
+    local loader=w.env.loadfile
+    w.env.loadfile=function(path,mode,env)
+      if path~="/install.lua" then return loader(path,mode,env) end
+      return function() return false end
+    end
     w.env.os.reboot=function() coroutine.yield("reboot") end
     local rid=assert(s.env.SO.updateWorker(2)); n.flush()
     local proto=w.env.dofile("so-proto.lua")
@@ -753,7 +801,11 @@ return function(test, equal)
       end
       return send(id,msg,protocol)
     end
-    w.env.shell={run=function() return false end}; w.env.os.reboot=function() coroutine.yield("reboot") end
+    local loader=w.env.loadfile
+    w.env.loadfile=function(path,mode,env)
+      if path~="/install.lua" then return loader(path,mode,env) end
+      return function() return false end
+    end; w.env.os.reboot=function() coroutine.yield("reboot") end
     assert(s.env.SO.updateWorker(2)); n.flush()
     equal(s.env.SO.workerUpdate(2).state,"refused")
     equal(s.env.SO.workerUpdate(2).text,"worker busy")

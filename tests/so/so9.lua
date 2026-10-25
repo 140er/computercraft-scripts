@@ -170,7 +170,8 @@ return function(test, equal, read)
             status=base == head and "identical" or "ahead",ahead_by=base == head and 0 or 1}
         end
         if m.proof then return m.proof(url,body) end
-        return {getResponseCode=function() return 200 end, readAll=function() return m.jsonEncode(body) end,close=function() end}
+        return {getResponseCode=function() return 200 end, getResponseHeaders=function() return {["X-RateLimit-Remaining"]="60"} end,
+          readAll=function() return m.jsonEncode(body) end,close=function() end}
       end
       if url:find("/git/trees/",1,true) then
         if m.treeFail then return nil,"metadata unavailable" end
@@ -189,7 +190,8 @@ return function(test, equal, read)
         end
         m.tree = m.treeOverride or {tree=list}
         if m.proof then return m.proof(url,m.tree) end
-        return {getResponseCode=function() return 200 end,readAll=function() return "tree-json" end,close=function() end}
+        return {getResponseCode=function() return 200 end, getResponseHeaders=function() return {["X-RateLimit-Remaining"]="60"} end,
+          readAll=function() return "tree-json" end,close=function() end}
       end
       if url == "https://github.com/140er/computercraft-scripts.git/info/refs?service=git-upload-pack" then
         if not m.gitBody then return nil, "Git refs unavailable" end
@@ -1815,8 +1817,9 @@ return function(test, equal, read)
     assert(table.concat(m.log):find("Install path crosses a mount",1,true))
   end)
 
-  local function pinned()
-    local m = installed("worker")
+  local function pinned(role)
+    local m = installed(role or "worker")
+    if role == "server" then m.files["so-server.cfg"]=m.env.textutils.serialize({pos={x=1,y=2,z=3}}) end
     m.files[".so-revision"] = string.rep("a",40)
     m.sha, m.tip = string.rep("b",40), string.rep("c",40)
     m.apiCalls, m.pauses = {}, {}
@@ -1827,14 +1830,14 @@ return function(test, equal, read)
       local step=#m.apiCalls
       if m.networkAt==step then return nil,"offline" end
       return {getResponseCode=function() return m.statusAt==step and m.apiCode or 200 end,
-        getResponseHeaders=function() return m.headers or {} end,
+        getResponseHeaders=not m.noHeaders and function() return m.headers or {["X-RateLimit-Remaining"]="60"} end or nil,
         readAll=function() return m.jsonEncode(body) end,close=function() end}
     end
     return m
   end
   test("SO9 pinned update proves both ancestries before immutable tree and raw downloads within four API calls",function()
     local m=pinned()
-    m.run("worker-update",m.sha)
+    equal(m.run("worker-update",m.sha),true)
     equal(#m.apiCalls,4)
     local api="https://api.github.com/repos/140er/computercraft-scripts/"
     equal(m.apiCalls,{api.."git/ref/heads/server-only",api.."compare/"..m.sha.."..."..m.tip,
@@ -1901,6 +1904,46 @@ return function(test, equal, read)
       before["so-worker.cfg"]=m.files["so-worker.cfg"]
       unchanged(m,before)
       equal(pcall(m.run,"worker-update",m.sha),false)
+      equal(#m.apiCalls,1)
+    end
+  end)
+  test("SO9 missing nonnumeric and inaccessible API budgets refuse unchanged at every step",function()
+    for _,kind in ipairs({"missing","nonnumeric","no accessor"}) do
+      for step=1,4 do
+        local m=pinned()
+        m.alter=function(n)
+          if n==step then
+            m.headers=kind=="nonnumeric" and {["X-RateLimit-Remaining"]="unknown"} or {}
+            m.noHeaders=kind=="no accessor"
+          end
+        end
+        local before=snapshot(m)
+        local ok,why=pcall(m.run,"worker-update",m.sha)
+        equal(#m.apiCalls,step);equal(m.calls,0)
+        local refusal=ok and table.concat(m.log) or tostring(why)
+        assert(refusal:find("Update API refused; retry after",1,true),refusal)
+        local cfg=m.env.textutils.unserialize(m.files["so-worker.cfg"])
+        assert(cfg.updateApiRetryAt>m.env.os.epoch("utc")/1000)
+        before["so-worker.cfg"]=m.files["so-worker.cfg"]
+        unchanged(m,before)
+      end
+    end
+  end)
+  test("SO9 API cooldown stays in the installed server or display config without a stray worker config",function()
+    for _,role in ipairs({"server","display"}) do
+      local m=pinned(role)
+      m.headers={["X-RateLimit-Remaining"]="1"}
+      local before=snapshot(m)
+      equal(pcall(m.run,"update",m.sha),false)
+      equal(#m.apiCalls,1);equal(m.calls,0)
+      local path="so-"..role..".cfg"
+      local cfg=m.env.textutils.unserialize(m.files[path])
+      assert(cfg.updateApiRetryAt>m.env.os.epoch("utc")/1000)
+      equal(m.files[path..".bak"],before[path])
+      before[path],before[path..".bak"]=m.files[path],m.files[path..".bak"]
+      equal(m.files["so-worker.cfg"],nil)
+      unchanged(m,before)
+      equal(pcall(m.run,"update",m.sha),false)
       equal(#m.apiCalls,1)
     end
   end)
