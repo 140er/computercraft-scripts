@@ -269,7 +269,16 @@ return function(test,equal)
       a.ui.input({text="test ore"}) press(a.ui,29,12,"facing:1",{})
       a.n.advance(3) F.check(a)
       local cells=a.s.env.SO.mods.cells
-      local held=cells.list("setup:2",100)
+      local function ordered(list)
+        table.sort(list,function(a,b)
+          if a.dim~=b.dim then return a.dim<b.dim end
+          if a.x~=b.x then return a.x<b.x end
+          if a.y~=b.y then return a.y<b.y end
+          return a.z<b.z
+        end)
+        return list
+      end
+      local held=ordered(cells.list("setup:2",100))
       assert(#held>0 and a.s.env.SO.mods.drops.busy(2))
       a.t.env.gps.locate=function() return nil end
       a.hello()
@@ -287,7 +296,7 @@ return function(test,equal)
         send(1,pending,"so") a.n.flush() a.n.advance(1) F.check(a)
       end
       assert(a.s.env.SO.mods.drops.busy(2),"release report forgot the failed task")
-      equal(a.s.env.SO.mods.cells.list("setup:2",100),held)
+      equal(ordered(a.s.env.SO.mods.cells.list("setup:2",100)),held)
       local task=a.s.env.SO.store.read("so-data/cells/setup").value.task
       assert(task and task.failed and task.id==2,"failed task was not persisted")
       local session={}
