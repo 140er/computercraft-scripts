@@ -1,0 +1,61 @@
+26x20 Chest verification queue at 26x20, facing
+ SETUP  ----------------  
+ 2/3 stopped              
+ ore-west                 
+                          
+ FACING #12 ------------  
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  N   E   S   W   CANCEL  
+                    BACK  
+00000000cccccccccccccccc00
+00000000000000000000000000
+08888888800000000000000000
+00000000000000000000000000
+088888888880cccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09990999099909990000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777f777f777f777f77777777f
+fffffffffffffffffff777777f

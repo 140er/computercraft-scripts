@@ -1,0 +1,31 @@
+15x10 Chest verification queue at 15x10, facing
+ SETUP  -----  
+ 2/3 stopped   
+ ore-west      
+               
+ FACING #12 -  
+               
+               
+  N   E   S    
+  W   CANCEL   
+         BACK  
+00000000ccccc00
+000000000000000
+088888888000000
+000000000000000
+088888888880c00
+000000000000000
+000000000000000
+099909990999000
+099900000000000
+000000000000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777f777f777fff
+f777f77777777ff
+ffffffff777777f

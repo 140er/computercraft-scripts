@@ -491,7 +491,7 @@ S.inLane = function(p)
     turtles={{branch=math.max(0,(map.branches or 0)-1)}}},p)
 end
 
-S.freeTurtle = function(id, facing)
+S.freeTurtle = function(id, facing, queued)
   local lease = SO.mods.lease
   if not lease or not lease.candidates or not lease.world then return nil,"lease unavailable" end
   local found = false
@@ -501,11 +501,103 @@ S.freeTurtle = function(id, facing)
   if not status.parkBatch or not status.setupFence then return nil,"update worker for setup safety" end
   local config=SO.store.read("so-server.cfg") or {}
   local pose,err=lease.world(id,config.pos and config.pos.dim)
+  local proof = S.setupProof
+  if not pose and queued and err == "no fresh GPS; use explicit add" and proof and proof.id == id
+    and config.pos and proof.pose.dim == config.pos.dim and SO.now() - proof.at <= 60000
+    and not status.uncertain and not status.lost and status.journal == proof.journal and status.poseAt == proof.poseAt
+    and status.pose and status.pose.x == proof.journalPose.x and status.pose.y == proof.journalPose.y
+    and status.pose.z == proof.journalPose.z and status.pose.f == proof.journalPose.f then
+    pose = SO.store.copy(proof.pose)
+  end
   if not pose then return nil,err end
   if pose.facing == nil then pose.facing=facing end
   if pose.facing == nil then return nil,"facing unknown" end
   if not status.pose then return nil,"journal pose unavailable" end
   return pose
+end
+
+S.queueEnabled = function()
+  return (SO.store.read("so-server.cfg") or {}).dropsTestQueue == true
+end
+S.queueBusy = function()
+  return S.queue and (S.queue.state == "running" or S.queue.state == "stopping")
+end
+S.stopQueue = function(reason)
+  local q = S.queue
+  if not q or not S.queueBusy() then return end
+  q.pending, q.reason = {}, reason
+  q.state = S.task and not S.task.failed and "stopping" or "stopped"
+end
+S.queuePoint = function(entry, inspected)
+  local idx = S.find(entry.id)
+  if not idx or not S.same(S.points[idx], entry.geometry) then return nil, "point changed; test again" end
+  local ok, why = S.usable(entry.id)
+  if not ok and not (inspected and why == "broken") then return nil, why end
+  local p = S.points[idx]
+  if p.room and not S.roomSink then return nil, "room sink off" end
+  return p
+end
+S.advanceQueue = function()
+  local q = S.queue
+  if not q or q.state ~= "running" or S.task or S.releasing then return end
+  local entry = table.remove(q.pending, 1)
+  if not entry then q.state = "done" return end
+  q.current = {id=entry.id, geometry=entry.geometry, verified=false}
+  local point, why = S.queuePoint(entry)
+  if not point then S.stopQueue(why) return end
+  if not SO.pair or not SO.pair.key(q.workerId) then S.stopQueue("worker forgotten") return end
+  local ok, err = S.beginSetup(q.workerId, point, nil, true)
+  if not ok then S.stopQueue(err) end
+end
+S.startQueue = function(view, owner, selected)
+  if not S.queueEnabled() then return S.setupRefuse("dropsTestQueue off") end
+  if (SO.store.read("so-server.cfg") or {}).setupMovement ~= true then return S.setupRefuse("setupMovement off") end
+  if S.queueBusy() or S.task or S.releasing or S.compass then return S.setupRefuse("setup busy") end
+  local pending, dim, seen = {}, view.dim, {}
+  if dim == nil then
+    local idx = S.find(S.selectedPoint(view) or "")
+    dim = idx and S.points[idx].dim
+  end
+  if selected then
+    for id in pairs(view.queueSelected or {}) do
+      local idx = S.find(id)
+      local p = idx and S.points[idx]
+      if not p or p.dim ~= dim or not S.usable(id) or p.room and not S.roomSink then
+        return S.setupRefuse("selection unavailable")
+      end
+    end
+  end
+  for _, p in ipairs(S.points) do
+    local eligible = p.dim == dim and S.usable(p.id) and not (p.room and not S.roomSink)
+    if not seen[p.id] and (selected and (view.queueSelected or {})[p.id] or not selected and eligible and not p.verified) then
+      seen[p.id] = true
+      pending[#pending+1] = {id=p.id, geometry=S.copy(p)}
+    end
+  end
+  if #pending == 0 then return S.setupRefuse("no points to test") end
+  local worker = view.turtle
+  if not worker then
+    local lease = SO.mods.lease
+    local ids = lease and lease.candidates and lease.candidates() or {}
+    table.sort(ids)
+    for _, id in ipairs(ids) do
+      local pose, why = S.freeTurtle(id, nil, true)
+      if SO.pair and SO.pair.key(id) then
+        if why == "facing unknown" then worker = id break end
+        if pose and S.dimOf[pose.dim] == dim and S.beginSetup(id, S.points[S.find(pending[1].id)], nil, true, true) then
+          worker = id break
+        end
+      end
+    end
+  end
+  if not worker then return S.setupRefuse("no idle turtle") end
+  S.queue = {ownerDisplay=owner, workerId=worker, pending=pending, completed=0, total=#pending, state="running"}
+  S.advanceQueue()
+  return true
+end
+S.setupRefuse = function(reason)
+  S.message = reason
+  return false, reason
 end
 
 S.setupSend = function()
@@ -518,7 +610,12 @@ S.setupSend = function()
   end
   step.park=true
   local lid,err=SO.mods.lease.send(task.id,{step},{owner="setup",ms=15000,journal=SO.mods.lease.status(task.id).journal,pose=dofile("so-plan.lua").apply(task.pose,step.op)})
-  if lid then task.lease=lid else S.message=tostring(err) task.failed=true end
+  if lid then task.lease=lid else
+    task.failed=true
+    S.stopQueue(tostring(err))
+    return S.setupRefuse(tostring(err))
+  end
+  return true
 end
 
 S.setupReport = function(lid,id,results,lease)
@@ -538,18 +635,19 @@ S.setupReport = function(lid,id,results,lease)
   local task=S.task
   if not task or task.lease ~= lid or task.id ~= id then return end
   task.lease=nil
+  if task.failed then return end
   local P=dofile("so-plan.lua")
   local facts=lease.report
   if not results or not facts or not facts.pose or facts.uncertain then
-    task.failed=true S.message="setup pose unknown; reservations held" return
+    task.failed=true S.message="setup pose unknown; reservations held" S.stopQueue(S.message) return
   end
   local step=task.steps[task.next]
   local result=results[1]
   local actual=P.toWorld(task.frame,facts.pose)
   local expected=P.apply(task.pose,step.op)
   if actual.x ~= expected.x or actual.y ~= expected.y or actual.z ~= expected.z or actual.facing ~= expected.facing
-    or not result.ok and step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" then
-    task.failed=true S.message="setup blocked; reservations held" return
+    or not result or not result.ok and step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" then
+    task.failed=true S.message="setup blocked; reservations held" S.stopQueue(S.message) return
   end
   task.pose=actual
   if step.scan and not task.collectFailed and S.inventory(result) then
@@ -563,34 +661,40 @@ S.setupReport = function(lid,id,results,lease)
     end
   end
   if step.verify then
+    task.inspected = true
     local idx=S.find(step.verify)
     if idx and S.same(S.points[idx],task.point) then
       local ok,err=S.verify(step.verify,result)
       task.message=ok and S.message or tostring(err)
-    else task.message="point changed; test again" end
+      if task.queued then
+        S.queue.current.verified = ok and S.inventory(result) or false
+        if not S.queue.current.verified then S.stopQueue(ok and "no chest" or tostring(err)) end
+      end
+    else task.message="point changed; test again" if task.queued then S.stopQueue(task.message) end end
   end
   task.next=task.next+1
   S.setupSend()
 end
 
-S.beginSetup = function(id, point, facing)
-  if S.task or S.releasing then S.message="setup busy: #"..(S.task or S.releasing).id return end
+S.beginSetup = function(id, point, facing, queued, preview)
+  if S.task or S.releasing then return S.setupRefuse("setup busy: #"..(S.task or S.releasing).id) end
+  if not queued and S.queueBusy() then return S.setupRefuse("queue busy") end
   local config=SO.store.read("so-server.cfg") or {}
-  if config.setupMovement ~= true then S.message="setupMovement off" return end
-  local pose,err=S.freeTurtle(id, facing)
+  if config.setupMovement ~= true then return S.setupRefuse("setupMovement off") end
+  local pose,err=S.freeTurtle(id, facing, queued)
   if not pose then
     S.compass=err=="facing unknown" and {id=id,point=point} or nil
-    S.message=err return
+    return S.setupRefuse(err)
   end
   S.compass=nil
   local P=dofile("so-plan.lua")
   local dim=S.dimOf[pose.dim]
-  if not dim then S.message="unknown dimension" return end
+  if not dim then return S.setupRefuse("unknown dimension") end
   local steps={}
   if point then
-    if point.dim ~= dim or point.fails >= S.strikes then S.message="fix point or dimension first" return end
+    if point.dim ~= dim or point.fails >= S.strikes then return S.setupRefuse("fix point or dimension first") end
     local distance=math.abs(point.x-pose.x)+math.abs(point.y-pose.y)+math.abs(point.z-pose.z)
-    if distance>64 then S.message="test route exceeds 64 blocks" return end
+    if distance>64 then return S.setupRefuse("test route exceeds 64 blocks") end
     local goals={}
     if point.side == "down" then goals[1]={dim=pose.dim,x=point.x,y=point.y+1,z=point.z}
     else
@@ -611,7 +715,7 @@ S.beginSetup = function(id, point, facing)
       end
       if safe then chosen=goal steps=path.steps break end
     end
-    if not chosen then S.message="no free test route" return end
+    if not chosen then return S.setupRefuse("no free test route") end
     local at=SO.store.copy(pose)
     for _,step in ipairs(steps) do at=P.apply(at,step.op) end
     while chosen.facing ~= nil and at.facing ~= chosen.facing do
@@ -643,21 +747,22 @@ S.beginSetup = function(id, point, facing)
   if moves>0 then
     local fuel=SO.mods.lease.status(id).fuel
     if fuel ~= "unlimited" and fuel ~= -1 then
-      if not S.whole(fuel) or fuel<0 then S.message="fuel #"..id.." unknown" return end
-      if fuel<moves then S.message="fuel #"..id..": need "..moves..", have "..fuel return end
+      if not S.whole(fuel) or fuel<0 then return S.setupRefuse("fuel #"..id.." unknown") end
+      if fuel<moves then return S.setupRefuse("fuel #"..id..": need "..moves..", have "..fuel) end
     end
   end
-  if not P.inRange(SO.mods.lease,id,cells) then S.message="test route out of range" return end
-  for _,cell in ipairs(cells) do if S.inLane(cell) then S.message="mining lane" return end end
+  if not P.inRange(SO.mods.lease,id,cells) then return S.setupRefuse("test route out of range") end
+  for _,cell in ipairs(cells) do if S.inLane(cell) then return S.setupRefuse("mining lane") end end
+  if preview then return true end
   local owner="setup:"..id
   local claimed,claimErr=SO.mods.lease.claimProbe(id,owner,pose)
-  if claimed==false then S.message=claimErr return end
+  if claimed==false then return S.setupRefuse(claimErr) end
   local ok,why=SO.mods.cells.reserveMany(owner,cells)
-  if not ok then S.message=why return end
+  if not ok then return S.setupRefuse(why) end
   S.task={id=id,owner=owner,steps=steps,next=1,pose=pose,point=point and SO.store.copy(point),
-    frame=P.frame(pose,SO.mods.lease.status(id).pose)}
+    start=SO.store.copy(pose), queued=queued, frame=P.frame(pose,SO.mods.lease.status(id).pose)}
   S.message=point and "testing chest" or "scanning"
-  S.setupSend()
+  return S.setupSend()
 end
 
 -- TEST with the turtle chosen on the setup page, else the first idle one; beginSetup still refuses a
@@ -675,16 +780,47 @@ S.testPoint = function(id, turtle)
 end
 
 S.finishRelease = function(id,pose)
+  local task = S.task
+  if task and task.queued and not task.failed and (pose.dim ~= task.start.dim or pose.x ~= task.start.x or pose.y ~= task.start.y
+    or pose.z ~= task.start.z or pose.facing ~= task.start.facing) then
+    task.failed = true
+    S.stopQueue("return pose unconfirmed")
+    return S.setupRefuse("return pose unconfirmed; reservations held")
+  end
+  if task and task.queued then
+    local point, why = S.queuePoint(S.queue.current, task.inspected)
+    if not point then
+      S.queue.current.verified = false
+      S.stopQueue(why)
+    end
+  end
   local cells=SO.mods.cells
   local owner="setup:"..id
   local held=cells.owner(pose.x,pose.y,pose.z,pose.dim)
   local ok,why
   if held==owner then ok,why=cells.handoff(owner,"gps:"..id,pose.x,pose.y,pose.z,pose.dim)
   else ok,why=cells.reserve("gps:"..id,pose.x,pose.y,pose.z,pose.dim) end
-  if not ok then S.message=why return end
+  if not ok then
+    if task and task.queued then task.failed=true S.stopQueue(why) end
+    return S.setupRefuse(why)
+  end
   ok,why=cells.releaseOwner(owner)
-  if ok == false then S.message=why return end
+  if ok == false then
+    if task and task.queued then task.failed=true S.stopQueue(why) end
+    return S.setupRefuse(why)
+  end
+  if task and not task.failed then
+    local status = SO.mods.lease.status(id)
+    S.setupProof = {id=id, pose=SO.store.copy(pose), journal=status.journal,
+      journalPose=SO.store.copy(status.pose), poseAt=status.poseAt, at=SO.now()}
+  end
   S.task=nil S.message="setup released"
+  if task and task.queued then
+    local q = S.queue
+    if not task.failed and q.current.verified then q.completed = q.completed + 1 end
+    if q.state == "stopping" then q.state = "stopped"
+    elseif q.state == "running" and #q.pending == 0 then q.state = "done" end
+  end
   return true
 end
 
@@ -703,6 +839,9 @@ S.releaseSetup = function(id)
 end
 
 S.forget = function(id)
+  if S.setupProof and S.setupProof.id == id then S.setupProof = nil end
+  if S.queue and (S.queue.ownerDisplay == id or S.queue.workerId == id) then S.stopQueue("device forgotten") end
+  S.views[id] = nil
   local task = S.task and S.task.id == id and S.task
   local releasing = S.releasing and S.releasing.id == id and S.releasing
   if task then task.failed, task.lease = true, nil end
@@ -724,6 +863,7 @@ S.forget = function(id)
   end
   if releasing then S.releasing = nil end
   if S.compass and S.compass.id == id then S.compass = nil end
+  if S.queue and S.queue.workerId == id and S.queue.state == "stopping" then S.queue.state = "stopped" end
   return true
 end
 
@@ -985,7 +1125,9 @@ S.gather = function(view)
     confirm = view.confirm and SO.now() - (view.confirmAt or 0) <= 5000 and view.confirm or nil,
     -- A turtle waiting for its facing shows the compass on every drop display until it is answered.
     testing = view.testing or S.compass ~= nil and not view.editing,
-    savedSetup = S.enabled(), message = S.message, draft = view.draft or S.blank, roomSink = S.roomSink, turtles = turtles,
+    savedSetup = S.enabled(), queueEnabled = S.queueEnabled(), queue = S.queue,
+    queueTools = view.queueTools, queueSelected = view.queueSelected or {}, queueFeedback = view.queueFeedback,
+    message = S.message, draft = view.draft or S.blank, roomSink = S.roomSink, turtles = turtles,
     from = view.fromPage or 0, compass = S.compass, found = S.candidates, task = S.task and S.task.id,
     failed = S.task and S.task.failed,
     server = ctx.server, shaft = ctx.shaft, area = ctx.area,
@@ -1179,18 +1321,56 @@ end
 S.okText = { ["chest found"] = true, ["scan complete"] = true, ["setup released"] = true, ["scanning"] = true,
   ["testing chest"] = true, ["confirming release"] = true, ["room saved"] = true, ["point added"] = true,
   ["point saved"] = true, ["point suspended"] = true, ["point resumed"] = true, ["found cleared"] = true }
+S.queueSetup = function(C, m)
+  local w, q = C.w, m.queue
+  C.bar(w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
+  C.chip(w - 3, 1, "+", "from-next", "plain")
+  local ya = U.controlRows(C, { {"TEST ALL", "test-all", "primary"},
+    {w < 18 and "CHECK" or "CHECK SELECTED", "test-selected", "primary"},
+    {"STOP QUEUE", "queue-stop", "stop"}, {"TOOLS", "queue-tools", "plain"} }, {"BACK", "list", "plain"})
+  local dim = m.dim
+  if dim == nil then for _, p in ipairs(m.points) do if p.id == m.selected then dim = p.dim end end end
+  local points = {}
+  for _, p in ipairs(m.points) do if p.dim == dim then points[#points+1] = p end end
+  C.put(2, 2, q and (q.completed .. "/" .. q.total .. " " .. (q.state == "running" and "testing" or q.state)) or "-", "0")
+  C.put(2, 3, (q and q.current and q.current.id or "-"):sub(1, w - 2), "8")
+  local capacity = math.max(1, ya - 5)
+  local first = (m.from % math.max(1, math.ceil(#points / capacity))) * capacity + 1
+  for i = first, math.min(#points, first + capacity - 1) do
+    local p, y = points[i], 4 + i - first
+    local label = (m.queueSelected[p.id] and "[x] " or "[ ] ") .. p.id
+    C.put(2, y, label:sub(1, w - 2), p.broken and "e" or p.suspended and "8" or "0")
+    C.hit("queue-select:" .. p.id, 2, y, w - 2, 1)
+  end
+  local message = m.queueFeedback or q and q.reason or m.message
+  if message then C.flag(2, ya - 1, w - 2, message) end
+end
 S.setup = function(C, m)
+  if m.queueEnabled and m.compass then
+    C.bar("SETUP", {}, nil, "", "8")
+    if m.queue then
+      C.put(2, 2, m.queue.completed .. "/" .. m.queue.total .. " " .. m.queue.state, "0")
+      C.put(2, 3, (m.queue.current and m.queue.current.id or "-"):sub(1, C.w - 2), "8")
+    end
+    C.section(2, 5, C.w - 2, "FACING #" .. m.compass.id)
+    U.controlRows(C, {{"N", "facing:0", "primary"}, {"E", "facing:1", "primary"},
+      {"S", "facing:2", "primary"}, {"W", "facing:3", "primary"},
+      {"CANCEL", "facing-cancel", "plain"}}, {"BACK", "list", "plain"})
+    return
+  end
+  if m.queueEnabled and not m.queueTools and not m.compass then S.queueSetup(C, m) return end
   local w, h = C.w, C.h
   local room = w >= 52 and h >= 22
   local ya, stop, sel = room and h - 1 or h, (room and h - 1 or h) - 2, nil
-  C.bar(w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
+  C.bar(m.queueEnabled and "" or w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
+  if m.queueEnabled then C.chip(2, 1, "QUEUE", "queue-tools", "plain") end
   for _, p in ipairs(m.points) do if p.id == m.selected then sel = p end end
-  if m.savedSetup then
+  if m.savedSetup or m.queueEnabled then
     local controls = { { "TEST", "test", sel and "primary" or "muted" },
       { "FIX", "fix", sel and sel.broken and "primary" or "muted" } }
-    if sel then controls[#controls+1] = { sel.suspended and "RESUME" or "SUSPEND",
+    if sel and m.savedSetup then controls[#controls+1] = { sel.suspended and "RESUME" or "SUSPEND",
       (sel.suspended and "resume:" or "suspend:") .. sel.id, "plain" } end
-    if #m.found > 0 then controls[#controls+1] = U.confirmChip(m, "clear-found", "CLEAR FOUND", "clear-found", "stop") end
+    if m.savedSetup and #m.found > 0 then controls[#controls+1] = U.confirmChip(m, "clear-found", "CLEAR FOUND", "clear-found", "stop") end
     ya = U.controlRows(C, controls, { "BACK", "list", "plain" })
     stop = ya - 2
   end
@@ -1263,7 +1443,7 @@ S.setup = function(C, m)
   end
   if m.message and S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
   elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
-  if not m.savedSetup then U.actions(C, ya, { { "TEST", "test", sel and "primary" or "muted" }, { "FIX", "fix", sel and sel.broken and "primary" or "muted" },
+  if not m.savedSetup and not m.queueEnabled then U.actions(C, ya, { { "TEST", "test", sel and "primary" or "muted" }, { "FIX", "fix", sel and sel.broken and "primary" or "muted" },
     { "BACK", "list", "plain" } }, room and 2 or 1) end
 end
 S.editor = function(C, m)
@@ -1340,6 +1520,12 @@ S.render = function(w, h, session)
   local sel = S.find(model.selected or "")
   view.chip = sel and { model.selected, S.points[sel].fails < S.strikes and "edit" or "fix" } or nil
   local frame = S.layout(model, w, h)
+  view.queueButtons = {}
+  for _, button in ipairs(frame.buttons) do
+    if button.id:match("^queue%-") or button.id == "test-all" or button.id == "test-selected" then
+      view.queueButtons[button.id] = true
+    end
+  end
   frame.rev = S.rev
   return frame
 end
@@ -1375,6 +1561,25 @@ S.input = function(ev)
     return
   end
   if type(ev.id) ~= "string" then return end
+  if ev.id:match("^queue%-") or ev.id == "test-all" or ev.id == "test-selected" then
+    if not S.queueEnabled() or not view.testing or view.editing or not view.queueButtons or not view.queueButtons[ev.id] then return end
+    if ev.id == "queue-tools" then view.queueTools = not view.queueTools return end
+    if ev.id == "queue-stop" then view.queueFeedback = nil S.stopQueue("stopped by operator") return end
+    if ev.id == "test-all" or ev.id == "test-selected" then
+      local ok, why = S.startQueue(view, S.key(ev.session, ev.from) or 0, ev.id == "test-selected")
+      view.queueFeedback = not ok and why or nil
+      return
+    end
+    local pointId = ev.id:match("^queue%-select:(.+)$")
+    local idx = pointId and S.find(pointId)
+    if idx and S.shown(view, S.points[idx]) then
+      view.queueSelected = view.queueSelected or {}
+      view.queueSelected[pointId] = not view.queueSelected[pointId] or nil
+      view.selected = pointId
+      view.queueFeedback = nil
+    end
+    return
+  end
   local suspended = ev.id:match("^suspend:(.+)$")
   local resumed = ev.id:match("^resume:(.+)$")
   if suspended or resumed then
@@ -1503,6 +1708,17 @@ end
 S.tick = function()
   -- A draft with no input for five minutes is dropped unsaved, and its display goes back to the list.
   local now = SO.now()
+  if S.queueBusy() then
+    if not SO.pair or not SO.pair.key(S.queue.workerId) then S.stopQueue("worker forgotten") end
+    if S.task and S.task.queued then
+      local point, why = S.queuePoint(S.queue.current, S.task.inspected)
+      if not point then
+        S.task.failed = true
+        S.stopQueue(why)
+      end
+    end
+    S.advanceQueue()
+  end
   for _, view in pairs(S.views) do
     if (view.draft or view.editing) and now - (view.touched or now) >= S.idle then
       view.draft, view.drafted, view.edit, view.editing, view.found = nil, false, nil, false, nil

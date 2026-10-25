@@ -1,0 +1,61 @@
+26x20 Chest verification queue at 26x20, stopped
+ SETUP  -------------- +  
+ 2/3 stopped              
+ ore-west                 
+ [x] 0_117_64_-337_front_ 
+ [ ] 0_120_64_-337_front_ 
+ [ ] 0_123_64_-337_front_ 
+ [ ] 0_110_64_-344_front_ 
+ [ ] 0_110_64_-348_front_ 
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  TEST ALL                
+  CHECK SELECTED          
+  STOP QUEUE   TOOLS      
+                    BACK  
+00000000cccccccccccccc0000
+00000000000000000000000000
+08888888800000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0eeeeeeeeeeeeeeeeeeeeeeee0
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999999999000000000000000
+09999999999999999000000000
+0eeeeeeeeeeee0000000000000
+00000000000000000000000000
+ffffffffffffffffffffff777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777777fffffffffffffff
+f7777777777777777fffffffff
+f777777777777f7777777fffff
+fffffffffffffffffff777777f
