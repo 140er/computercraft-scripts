@@ -774,6 +774,21 @@ local function main(command, handoff, extra, last)
     end
     return
   end
+  if not handoff.manifest and fs.exists(NEW .. "/install.lua") then
+    -- Installers before B4-G stage the pinned bootstrap and pass only the original handoff.
+    local manifest = metadata(handoff.revision)
+    local bytes = {}
+    for _,v in ipairs(manifest) do
+      if v.path == "install.lua" then bytes[v.path] = verified(v,readFile(NEW .. "/install.lua")) end
+    end
+    assert(bytes["install.lua"], "Missing pinned installer")
+    local index = cacheIndex(handoff.revision,role,manifest)
+    local list,generated,entries = installPlan(role,config,manifest,handoff.previous,handoff.revision)
+    admission(list,bytes,generated,entries,index)
+    fs.delete(CACHE)
+    writeFile(CACHE .. "/index",textutils.serialize(index))
+    handoff.manifest,handoff.index,handoff.bytes = manifest,index,bytes
+  end
   handoff.updating = updating
   if not install(role, config, handoff) then return end
   if updating then startUpdated(previous); return end

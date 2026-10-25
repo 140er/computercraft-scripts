@@ -1579,5 +1579,33 @@ return function(test, equal, read)
     assert(tostring(err):find("Not enough free space",1,true))
     unchanged(m,before)
   end)
+  test("SO9 the existing pinned bootstrap handoff upgrades every installed role", function()
+    for _,role in ipairs({"worker","display","server"}) do
+      local m = installed(role)
+      m.files[".so-new/install.lua"] = source
+      local apply = assert(load(source,"@install.lua","t",m.env))("prepare")
+      apply("update",{revision=m.sha,previous=files(role),role=role})
+      for _,path in ipairs(files(role)) do equal(m.files[path],read(path),path) end
+      equal(m.files[".so-revision"],m.sha)
+      equal(m.files["so-keys"],"secret")
+      equal(m.calls,#files(role)-1)
+      equal(m.runs,{{"/" .. roles[role].program}})
+      equal(m.env.fs.exists("/.so-new"),false)
+      equal(m.env.fs.exists("/.so-download"),false)
+    end
+  end)
+  test("SO9 existing bootstrap handoffs refuse short space before role downloads", function()
+    local m = installed("worker")
+    m.files[".so-new/install.lua"] = source
+    m.free = 1000
+    local before = snapshot(m)
+    local apply = assert(load(source,"@install.lua","t",m.env))("prepare")
+    local ok,err = pcall(apply,"update",{revision=m.sha,previous=files("worker"),role="worker"})
+    equal(ok,false)
+    assert(tostring(err):find("Not enough free space",1,true))
+    equal(m.calls,0)
+    equal(m.files,before)
+    equal(#m.runs,0)
+  end)
 
 end
