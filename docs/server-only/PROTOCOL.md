@@ -488,7 +488,7 @@ The reply type is `history.page`. `body.entries` contains `{at=number,text=strin
 entries ordered by UTC time descending, then sequence descending. Entries do
 not expose sequence fields. `body.next` is an `{at,seq}` cursor, or absent on
 the last page. Pass it unchanged as `before` to keep equal-time entries reachable.
-The internal `state.history.page` sequence API is unchanged.
+The internal `state.history.page` sequence API retains its own filters and cursors.
 
 ## Module APIs
 
@@ -631,6 +631,70 @@ through the existing job recovery path.
 
 Each item keeps at most 60 samples, one per minute. Its hourly change compares current stock with the oldest retained sample, about an hour ago once the history fills, scaled to an hour. Before an hour of history exists, it compares with the earliest available sample. An item absent for every retained sample is forgotten.
 
+### Managed room outputs
+
+#### Durable room claims and request ids
+
+`room.cfg.managedOutput` defaults to false. With no output-state generation and
+the flag off, the room keeps legacy behavior. It refuses managed requests with
+`room support missing`. Any `room.output`, `.tmp` or `.bak` generation retains
+the interlock and recovery state even after the flag is disabled. Disabling it
+refuses new claims and orders.
+
+The plain-rednet `roomsorter` channel accepts `output.claim`, `output.status`
+and `output.release`. Control requests carry
+`{cmd,rid,outputToken,output,requestRid?}`. Release also requires `barrier`.
+`output` contains integer `x`, `y`, `z` and canonical `dim`. Dimensions are
+`minecraft:overworld`, `minecraft:the_nether` and `minecraft:the_end`.
+The first claim pins these supplied coordinates to the room's existing output
+cell and saves the sending server id. Later requests must match that server,
+token and output. The room refuses automatic output relocation and new room scans.
+
+Use a fresh opaque string token of 1..128 bytes per claim. Transport ids are
+positive integers below 9007199254740991. Claims, tagged orders and releases
+must exceed the consumed high-water mark. The room saves each increase before
+acknowledgement or queue admission. Release keeps the high-water mark, server
+binding and output pin. Status polling is read-only and consumes no id.
+
+One claim admits one tagged `get` or `order`. Delivery requests carry
+`{cmd="get",text=exactItemId,n,rid,outputToken}`. Counts are integers in 1..64.
+Managed `get` requires a full exact item id and reads stock again at execution.
+It never fuzzy-matches, substitutes or crafts. Stock loss can yield a partial
+result. Tagged `order` retains crafting and links derived work to the request.
+Unclaimed network and terminal output requests are refused.
+
+#### Settlement receipts
+
+Replies echo transport `rid` and carry
+`{v=1,outputToken,requestRid?,state,barrier,error?}`. A `busy` receipt or legacy
+`Getting...` reply does not prove delivery. Before its first claim, the room drains
+older requests and crafts and stores carried cargo. It reports `busy` or
+`quarantined` until that boundary completes. An empty chest proves no settlement.
+
+A `settled` receipt names the admitted `requestRid` and a durable barrier.
+It proves no queue entries, derived crafts or carried cargo can emit later for
+that request. Release requires the matching settled `barrier`. Include
+`requestRid` to check a particular request. A stale token or request reference
+cannot authorize new output work. Callers must also reconcile their own worker
+cargo and leases before unlocking or retrying. The current server shop adapter
+still sends legacy requests; this room support does not enable managed use there.
+
+#### Local reconciliation
+
+Versioned `room.output`, `.tmp` and `.bak` generations save ownership, consumed
+request ids and unresolved work. Each generation is bounded to 65536 bytes.
+The room rereads and verifies temporary data before installing it. Failed saves
+refuse admission. Corrupt or future generations block output use. A reboot with
+saved state restores quarantine and never replays requests or physical transfers.
+
+Automatic refuelling cannot consume unresolved managed cargo. Managed delivery
+stores sorting cargo before fetching request stock. Run `output reconcile` on
+the room turtle. The network cannot invoke it. At a worker boundary, the room
+cancels queues and crafts, returns all cargo to storage and returns home.
+Only then does it save a new barrier and expose `settled`. Full storage,
+unresolved cargo or failed saves keep quarantine. Operator confirmation and
+an empty chest cannot replace this proof.
+
 ### state
 
 SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
@@ -663,6 +727,16 @@ advances revisions for registry changes in memory. `emit(key, value)` is this sa
 `data.id == 12`. Events without that ID are omitted. The filter combines with
 `kind`, `alerts`, `reverse`, `from` and `before`. `next` is present only when
 more matching events remain. Omit `id` to read all devices.
+
+`state.history.page` also accepts optional string `text`. It searches the kind,
+string data and the data fields `text`, `reason`, `name` and `label` as a plain,
+case-insensitive substring. String and numeric field values count. Only the first
+32 bytes of the query count. It combines with `id`, `kind`, `alerts`, `reverse`,
+`from` and `before`; `next` requires more matching entries. The wire
+`history.page` adapter does not pass `text`.
+
+`state.history.kinds()` returns sorted distinct kinds from the retained log,
+at most 64.
 
 `state.job(data)` is `emit("job", data)`, except when the disk is 80% full or more. Then it returns false and `"disk"` and does not write the job. `emit("job", data)` follows the same rule.
 
@@ -784,6 +858,13 @@ and saves rebuilt totals. A valid surviving generation preserves saved totals.
 Other store errors still stop the module from loading.
 
 ### lease
+
+`lease.status(id)` and `lease.peek(id)` include copied optional
+`last={status,ok,at}`. A valid report records `status="reported"`, whether all
+steps succeeded, and its game time. Expiry records `status="expired"`, `ok=false`
+and the observation's game time. Rejected reports leave it unchanged. The result
+stays in memory until another result or restart.
+
 
 Lease IDs include the durable clock to distinguish batches across server boots.
 `lease.batch` carries `ttl`, the remaining game milliseconds at send time.
@@ -1127,7 +1208,11 @@ memory-only; saved reservations still survive a server restart.
 
 `cells.counts()` returns `{ reserved = { [who] = n }, dug = n }`. Tick registers a `cells` state view returning these counts when `state.view` is callable.
 
-The map reads dug marks and reservations through four read-only calls. They
+`cells.holder(dim, x1, z1, x2, z2, y1?, y2?)` returns a copied `{who,x,y,z}`
+for the lowest held cell in the inclusive rectangle and optional height interval.
+Ties use x, then z. It searches all reservations without the display-list cap.
+
+The map reads dug marks and reservations through these read-only calls. They
 never load a section into the cache, refresh its use time or write a file.
 `cells.dugVersion()` returns the section index version and a serial that
 changes with every dug mark, forget or retirement.
@@ -1142,7 +1227,8 @@ eviction. An evicted section is read from its newest valid generation on disk
 without caching it, or returns false when `memoryOnly` is set.
 `cells.reserved(dim, max)` returns up to `max` (default 4096) reservations in that
 dimension as `{ x, y, z, who }`, and a version. The list and version stay the
-same until the reservations change. Callers must not edit the list.
+same until reservations or the requested limit change. Each dimension has its
+own cache. Callers must not edit the list.
 
 Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk work calls `SO.breathe`, never `sleep`.
 
@@ -1459,6 +1545,16 @@ exponential backoff capped at 30 seconds.
 
 ### map
 
+Held-cell callouts name the owner role, such as `held #4 mine`. They show silence
+for lost holders or contact older than a game minute, if contact time is known.
+Turtle callouts show the last batch result and age. Geometrically range-blocked
+Overworld turtles show measured distance and effective limit, such as `range 27/24`.
+Selected cells and shafts query ownership beyond the reservation display cap.
+Level arrows clamp to -64..319 in the Overworld, 1..126 in the Nether and 1..255
+in the End. FIT waits for visible dug planes before applying wire-budget zoom,
+so a cold frame cannot leave the map zoomed out because of column load order.
+
+
 `so-mod-map.lua` is installed only on the server. It registers
 `display.screen("map", render, input)` during tick. It adds no wire type.
 The saved display role may be `map`; older role and far settings remain valid.
@@ -1670,7 +1766,10 @@ The `lumber` display accepts these text commands:
 - `saplings <x> <y> <z> <front|down>` sets the sapling chest's own coordinates and access side.
 - `add <id>` uses a fresh GPS fix and proven facing, probing one cell when needed. It retains existing workers.
 - `add <id> <x> <y> <z> <n|e|s|w>` adds or reanchors that worker without replacing the others. A recovery park report supplies the journal pose for `P.frame`.
-- `remove <id>` removes that worker after its open lease and stationary park report finish. Retry when the screen requests it. A turtle still holding chest access must return first.
+- With `workerPark=true`, `remove <id>` queues a park and removes the row only
+  after a stationary report and reservation cleanup. Lost or uncertain workers
+  retain their row. A worker holding chest access must clear it first. Failed
+  cleanup retries on tick. With the flag off, legacy removal asks for a retry.
 - `park <id>` parks only that worker after its current batch. Its claims and recovery state remain saved while other workers continue. `start` resumes parked workers.
 - `start` begins work. `stop` parks after the current lease reports.
 
@@ -1817,16 +1916,29 @@ table of row numbers, kind, coordinates and side, the broken points as flags, an
 on room monitors a plan of the chests around home with the server (from
 `so-server.cfg`), the shaft and the farm edge. A row tap or a chest tap on the plan
 (`select:<id>`) selects the point. The default is the first broken point, or the
-first point if none are broken. FIX (`fix`), REMOVE (`remove`) and ADD (`new`) sit
-on the last row and act on the selected point once per tap. ADD opens the draft
-editor; until the draft has been edited it starts at the selected point. The
-editor has `kind` and `side` chips, `dim-`/`dim+`, `x-`/`x+`, `y-`/`y+`, `z-`/`z+`
-steppers, ADD (`add`) and BACK (`list`); on room monitors a plan marks the draft.
-Tapping ADD for a point that already exists says `id exists`; typed `add` replies as
-before. A second REMOVE before the next frame does nothing. The plan shows the points
-in the selected point's dimension. Long lists page with `prev`
-and `next` in the header. Page, selection and the editor belong to the display
-session; the draft and its feedback are shared. There is no link to another role.
+first point if none are broken. FIX or EDIT (`fix`), REMOVE (`remove`) and ADD (`new`) sit
+on the last row. The first chip reads FIX for a broken point and EDIT otherwise.
+REMOVE arms CONFIRM on the first tap and removes on a second within five seconds.
+The arm belongs to that display and point. Other input disarms it.
+
+ADD opens the draft editor from the selected point unless that display has edited
+its draft. The editor has `kind` and `side` chips, `dim-`/`dim+`, `x-`/`x+`,
+`y-`/`y+`, `z-`/`z+` steppers, ADD (`add`) and BACK (`list`). Room monitors show
+the draft on the plan. EDIT opens `EDIT POINT n` with SAVE instead of ADD.
+`drops.edit(id, point)` keeps the id and saves once, with rollback on failure.
+It refuses a duplicate place, side and kind. Strikes and verification survive
+only while dimension, coordinates and side stay unchanged. The `drops` state
+event can carry `op="edit"`. SAVE stays in the editor with `point saved`.
+
+Tapping ADD for an existing point says `id exists`; typed `add` keeps its existing
+reply. ADD checks place, side and kind even after a point has moved through EDIT.
+If its generated id belongs to a moved point, it picks a free numbered suffix.
+Long lists page with `prev` and `next` in the header. Page, selection, editor,
+draft and edited flag belong to the numeric display id. A reconnect restores
+that display's draft. Five minutes without input discards it unsaved and returns
+the display to the list. Successful ADD clears its edited flag; the next NEW
+starts from the selection and copies its room mark. Feedback remains shared.
+There is no link to another role.
 The kit-free generic editor pages the point list with `prev` and `next`. Its draft and
 buttons fit 26x20 pockets and 29x12 monitors above the bottom input row.
 Existing `input.body.text` accepts `x y z` or `dim x y z` to set the draft,
@@ -1957,6 +2069,8 @@ Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It do
 `P.chestError(kind, reason, point)` formats a named chest cause with coordinates.
 For ids longer than eight characters, cause and coordinates precede the full id.
 `P.chestCheck(points, kind, near)` reads same-dimension points and returns `{ok,text}`.
+A configured usable chest without visit verification reads `not scanned`.
+A verified chest reads `verified by visit`. Neither label blocks use.
 `P.missing(checks)` returns every unmet text in order. These helpers write no state.
 
 `P.ahead(pose, dir)` returns the x, y, z of the cell `forward`, `back`, `up`, or `down`. `P.apply(pose, op)` returns a new pose after a move or turn. Other operations leave the pose unchanged. Both accept world or journal poses and preserve the facing field convention. `P.replay(startPose, steps, results)` applies only operations with a corresponding successful result.
@@ -2185,14 +2299,38 @@ cannot submit credentials. Repair preserves journals, saves pose uncertainty
 and requires explicit re-anchor before movement. It cannot replace trust during
 an active batch. Token installs still refuse existing key generations.
 
+### Display REPAIR
+
+Set `repairServer=true` in `so-display.cfg` to enable REPAIR. It defaults off
+and is read when REPAIR opens. A keyed display that is not live opens it with
+`r` or a top-row click on its own terminal or pocket screen. CHANGE SERVER asks
+for confirmation, offers a discovered candidate and permits id editing. Discovery
+only suggests an id. The operator confirms it and enters the six-digit code.
+Only local `key`, `char`, `paste` and `mouse_click` events advance the flow.
+`monitor_touch` opens or closes a read-only saved-id view and cannot change trust.
+
+The display calls `join(code, candidate, {replace=oldId})`. During the attempt,
+it sends nothing to the old server and ignores incoming repair hints and frames.
+Wrong codes, exchange timeouts and failed saves keep the old key and leave
+REPAIR open for another attempt. Cancel, or two minutes without input, resumes
+the old server on its existing timer. Once the synchronous
+code exchange starts, the screen shows `Pairing...`; CANCEL is unavailable until
+it finishes. Success saves only the newly proven server. Repair hints never
+change keys or config.
+
 ## Visibility
 
 `MORE` and the panel have `HEALTH` and `ATTENTION` buttons. These pages draw
 tabs for each other (`health`, `attention` drawn as NEEDS with its count, `events`,
 `alerts`, `errors`) and page with the `prev` and `next` chips. Paging and event
-filters belong to each display session. `EVENTS` cycles known kinds with the
-`kind` chip, or accepts an exact kind as text. `ALL` clears the filter. The
-pages draw no BACK; a page visited from another role gets the `visit-back` chip,
+filters belong to each display session. The EVENTS kind chip opens ALL and every
+retained kind from `state.history.kinds()`. Choosing one opens its newest page.
+Typed text searches EVENTS; tap the `find` row, or type blank or `*`, to clear it.
+From page 2, EVENTS and ALERTS show the page number and LATEST, which returns
+to page 1 while keeping filters. On page 1, HOLD freezes that display's sequence
+cursor; LIVE clears it. Paging away and back keeps HOLD. Each row opens event
+facts and wrapped text; BACK restores the same list page. A page visited from
+another role gets the `visit-back` chip,
 and `generic` still returns. History pages query retained state events
 newest first. Clearing an alert leaves its event in history until normal log
 retention removes it. The browser does not copy the event log into another file.
