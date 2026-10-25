@@ -64,10 +64,98 @@ return function(test, equal)
     a.s.env.rednet.send(2, proto.encode(msg), "so")
     a.n.advance(16)
     F.check(a)
-    equal(#F.sent(a.t, "step.report"), 1)
+    local reports = F.sent(a.t, "step.report")
+    equal(#reports, 2)
+    equal(reports[2].body.results[1].ok, false)
+    equal(reports[2].body.results[1].err, "expired")
     equal(a.t.pos.z, -1)
     equal(#F.sent(a.t, "beacon"), 0)
     equal(lease.status(2).lost, false)
+  end)
+
+  for _, op in ipairs({"inspectDown", "forward"}) do
+    test("acknowledged " .. op .. " lease recovers after fresh server contact stops", function()
+      local a = F.setup(nil, modules)
+      local lease, proto = a.s.env.SO.mods.lease, a.s.env.SO.proto
+      if op == "inspectDown" then
+        assert(lease.send(2, {{op="forward"}}, {ms=15000}))
+        a.n.advance(1)
+      end
+      local id = assert(lease.send(2, {{op=op}}, {ms=15000}))
+      a.n.advance(13)
+      F.check(a)
+      equal(lease.status(2).open, nil)
+      equal(lease.status(2).last.status, "reported")
+      local acknowledged = false
+      for _, ack in ipairs(F.sent(a.s, "ack")) do
+        if ack.body.command == "step.report" and ack.body.lease == id then acknowledged = true end
+      end
+      assert(acknowledged, "completed lease was not acknowledged")
+      local contact = proto.build(a.s.env.SO.pair.key(2), "worker.status", {job="", reason=""})
+      a.s.env.rednet.send(2, proto.encode(contact), "so")
+      a.n.flush()
+      a.n.kill(a.s)
+      a.n.advance(14)
+      assert(a.t.alive(), tostring(a.t.error))
+      equal(#F.sent(a.t, "beacon"), 0, "recovery ignored fresh authenticated contact")
+      equal(a.t.pos.z, -1)
+      a.n.advance(2)
+      equal(#F.sent(a.t, "beacon"), 1, "ack disabled silence recovery")
+      a.n.advance(65)
+      assert(a.t.alive(), tostring(a.t.error))
+      if op == "forward" then
+        equal(a.t.pos.z, 0)
+        equal(#F.journal(a.t).moves, 0)
+      else
+        equal(a.t.pos.z, -1)
+        equal(#F.journal(a.t).moves, 1)
+        local beacons = F.sent(a.t, "beacon")
+        equal(#beacons, 3)
+        equal(beacons[2].at - beacons[1].at, 30000)
+        equal(beacons[3].at - beacons[2].at, 30000)
+      end
+    end)
+    test("healthy idle " .. op .. " lease with a two-second ttl never becomes LOST", function()
+      local a = F.setup(nil, modules)
+      local lease = a.s.env.SO.mods.lease
+      assert(lease.send(2, {{op=op}}, {ms=2000}))
+      a.n.advance(60)
+      F.check(a)
+      equal(#F.sent(a.t, "beacon"), 0)
+      equal(lease.status(2).lost, false)
+      equal(a.t.pos.z, op == "forward" and -1 or 0)
+    end)
+  end
+
+  test("a server that reuses an acknowledged lease id receives a refusal and closes it", function()
+    local a = F.setup(nil, modules)
+    local lease, so = a.s.env.SO.mods.lease, a.s.env.SO
+    local began = so.now()
+    local id = assert(lease.send(2, {{op="forward"}}, {ms=15000}))
+    a.n.advance(1)
+    a.n.kill(a.s)
+    a.s = a.n.boot(a.s)
+    a.n.flush()
+    so = a.s.env.SO
+    so.now = function() return began end
+    lease = so.mods.lease
+    local reports = 0
+    lease.onReport("reused", function(_, _, results, record)
+      equal(record.status, "reported")
+      equal(#results, 2)
+      for _, result in ipairs(results) do
+        equal(result.ok, false)
+        equal(result.err, "expired")
+      end
+      reports = reports + 1
+    end)
+    equal(lease.send(2, {{op="forward"}, {op="forward"}}, {ms=15000, owner="reused"}), id)
+    a.n.advance(1)
+    F.check(a)
+    equal(reports, 1)
+    equal(lease.status(2).open, nil)
+    equal(lease.status(2).last.ok, false)
+    equal(a.t.pos.z, -1)
   end)
 
   for _, op in ipairs({"inspectDown", "forward"}) do

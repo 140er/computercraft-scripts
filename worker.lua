@@ -371,12 +371,12 @@ W.beacon = function()
   }))
 end
 
-W.report = function(results)
+W.report = function(results, lease)
   W.checkDimension()
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, autoToolSwap = W.autoToolSwap or nil },
+    lease = lease or W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, autoToolSwap = W.autoToolSwap or nil },
     tools = W.tools(),
     dim = W.dimension(),
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
@@ -396,7 +396,7 @@ W.report = function(results)
     selected[longest] = nil
   end
   msg.mac = W.proto.sign(key, msg)
-  W.reportRid = msg.rid
+  if not lease then W.reportRid = msg.rid end
   W.transmit(W.server, msg)
 end
 
@@ -468,7 +468,7 @@ W.idle = function(confirmingUnassignment)
   if W.queued or W.executingBatch or j.pending or j.uncertain or W.configHold
     or W.mode == "fast" or W.mode == "back" or W.mode == "slow" and not j.park and #j.moves > 0
     or W.job and W.job ~= "" or not confirmingUnassignment and (not W.unassigned or W.now()-W.unassigned >= 45000)
-    or W.lease and W.expires and W.now() < W.expires then return false, "worker busy" end
+    or W.lease and W.expires and W.closedLease ~= W.lease and W.now() < W.expires then return false, "worker busy" end
   return true
 end
 
@@ -586,7 +586,7 @@ W.accept = function(sender, payload)
   W.seen = W.now()
   if msg.t == "ack" and msg.rid == W.reportRid and msg.body.command == "step.report"
     and msg.body.lease == W.lease and W.mode == "idle" and not W.executingBatch then
-    W.expires, W.reportRid, W.closedLease = nil, nil, W.lease
+    W.reportRid, W.closedLease = nil, W.lease
   elseif msg.t == "worker.status" then
     if type(msg.body.job) == "string" and type(msg.body.reason) == "string" then
       W.job, W.reason = msg.body.job:sub(1, 16), msg.body.reason:sub(1, 48)
@@ -883,7 +883,12 @@ W.startBatch = function(msg)
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
   local n = #body.steps
   if n < 1 or n > 16 then return end
-  if body.lease == W.closedLease then return end
+  if body.lease == W.closedLease then
+    local results = {}
+    for i=1,n do results[i]={ok=false,err="expired",counts=W.counts()} end
+    W.report(results, body.lease)
+    return
+  end
   if W.journal.uncertain or W.configHold then
     W.lease = body.lease
     local results = {}
@@ -905,6 +910,8 @@ W.startBatch = function(msg)
   local deadline = msg.deadline
   if W.lease == body.lease and W.legacyExpires == msg.legacyExpires and W.expires then
     deadline = math.min(deadline, W.expires)
+  else
+    W.ttl = math.max(1, body.ttl or deadline-W.now())
   end
   W.lease, W.expires, W.legacyExpires = body.lease, deadline, msg.legacyExpires
   W.reportRid = nil
@@ -972,6 +979,7 @@ W.startBatch = function(msg)
 end
 
 W.enterFast = function()
+  if W.expires and W.closedLease == W.lease and W.now()-W.seen < W.ttl then return end
   W.unassigned = nil
   if W.journal.park or W.journal.uncertain or W.dimension() and W.dimension() ~= "minecraft:overworld" then
     W.enterSlow()
@@ -1079,6 +1087,9 @@ W.arm = function()
     if gap < pause then return pause end
     return gap
   end
+  if W.expires and W.closedLease == W.lease then
+    return math.max(pause, math.min(5, W.ttl/2000, (W.seen+W.ttl-now)/1000))
+  end
   if W.expires and W.expires > now then
     local gap = (W.expires - now) / 1000
     if gap < pause then return pause end
@@ -1091,7 +1102,8 @@ end
 
 W.onWake = function()
   local now = W.now()
-  if not W.lastHello or now - W.lastHello >= 30000 then W.hello() end
+  local gap = math.min(30000, W.expires and W.closedLease == W.lease and W.ttl/2 or 30000)
+  if not W.lastHello or now - W.lastHello >= gap then W.hello() end
   if W.mode == "idle" then
     if W.expires and now >= W.expires then W.enterFast() end
     return

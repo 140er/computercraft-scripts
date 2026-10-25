@@ -349,6 +349,13 @@ return function(test, equal)
     local n,s,w,lease = settingsSetup()
     local oldHello
     for _, sent in ipairs(w.sent) do if sent.payload.t=="hello" then oldHello=sent.payload end end
+    local send=s.env.rednet.send
+    s.env.rednet.send=function(id,wire,protocol)
+      local msg=s.env.SO.proto.decode(wire)
+      if msg and msg.t=="worker.status" and msg.body.job=="" and msg.body.idleRid
+        and msg.body.idleRid~=oldHello.rid then return true end
+      return send(id,wire,protocol)
+    end
     serverSend(n,s,"worker.status",{job="mine",reason="working"})
     local lid=assert(lease.send(2,{{op="inspectDown",park=true}},{ms=3000}))
     n.flush(); n.advance(.2)
@@ -362,6 +369,7 @@ return function(test, equal)
     local forged=s.env.SO.proto.build(string.rep("b",64),"worker.status",{job="",reason="",idleRid=oldHello.rid})
     s.env.rednet.send(2,forged,"so"); n.flush()
     click(n,w,3,8); equal(w.files["so-worker.cfg"],before)
+    s.env.rednet.send=send
     n.advance(31)
     click(n,w,3,8)
     equal(cfg(w).autoToolSwap,false,"fresh status did not release expired stationary park "..lid)
