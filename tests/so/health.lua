@@ -7,6 +7,7 @@ local ERROR = "tick\nfailed: so-mod-mine.lua:120 attempt to index a nil value wh
   "server waits for the checkpoint. Final detail: no blocks were changed."
 
 local FIXTURES = {
+  "tests/ui/fixtures/health/facts-runtime-29x12.txt",
   "tests/ui/fixtures/health/facts-modules-26x20.txt",
   "tests/ui/fixtures/health/facts-modules-29x12.txt",
   "tests/ui/fixtures/health/facts-26x20.txt",
@@ -55,7 +56,7 @@ local function history()
   return h
 end
 
-local function health(state)
+local function health(state,configure)
   local t = {now=3600000,clock=0,entries={},screens={},enroll=nil}
   local env = setmetatable({}, {__index=_G})
   env.os = {clock=function() return t.clock end}
@@ -66,6 +67,7 @@ local function health(state)
   env.SO.mods.display = {screen=function(role,render,input) t.screens[role]={render=render,input=input} end}
   env.SO.mods.state = state
   t.env = env
+  if configure then configure(t,env) end
   t.mod = assert(loadfile("so-mod-health.lua","t",env))()
   t.tick = function(now) t.now=now or t.now;t.clock=t.clock+5;t.mod.tick(t.now) end
   t.render = function(role,w,h,session) return t.screens[role].render(w,h,session) end
@@ -149,13 +151,292 @@ local function diagnosticFacts(t)
     ["so-mod-mine.lua"]={status="loaded",lastGood=3595000},
     ["so-mod-shop.lua"]={status="failed",error="loader failed"},
     ["so-mod-ar.lua"]={status="absent"}},revision=string.rep("a",40),
-    config={retireLegacyPair=true},gpsGap=10}
+    config={retireLegacyPair=true},gpsGap=10,
+    slowest={name="mine",tickMs=142,at=3480000},
+    refused={totals={shape=512,time=2,mac=3,replay=4,blocked=5},evicted=384,
+      senders={[612]={shape=1,time=0,mac=0,replay=0,blocked=0}}}}
   t.env.SO.mods.state = {diagnostics=function() return {bytes=6100000} end,
     view={get=function() return {data={free=6100000}} end}}
   t.tick()
 end
 
+local function sounding(config, initial)
+  return health(nil,function(t,env)
+    t.notes,t.diagnostics,t.machines,t.leases,t.points,t.disk = {},{},{},{},{},{}
+    t.utc = 1767222000000
+    env.os.epoch = function() return t.utc end
+    env.SO.health = {config=config or {alarm=true}}
+    env.SO.error = function(text) t.diagnostics[#t.diagnostics+1]=text end
+    env.SO.mods.state = {get=function(key) if key=="machines" then return t.machines end end,
+      view={get=function() return {data=t.disk} end}}
+    env.SO.mods.lease = {status=function(id) return t.leases[id] or {} end}
+    env.SO.mods.drops = {list=function() return t.points end}
+    env.peripheral.getNames = function() return {"speaker_z","modem","speaker_a"} end
+    env.peripheral.getType = function(name) return name~="modem" and "speaker" or "modem" end
+    env.peripheral.wrap = function(name)
+      return {playNote=function(...)
+        t.notes[#t.notes+1]={name=name,args={...}}
+        if t.play then return t.play() end
+        return true
+      end}
+    end
+    if initial then initial(t,env) end
+  end)
+end
+
 return function(test,equal)
+  test("sound facts are unready before gather and snapshots cannot change health",function()
+    local env=setmetatable({SO={mods={},store={}}},{__index=_G})
+    local mod=assert(loadfile("so-mod-health.lua","t",env))()
+    equal(mod.soundFacts(),{ready=false,quiet=false,keys={}})
+    local t=sounding()
+    t.points={{id="b",broken=true}}
+    t.tick()
+    local facts=t.mod.soundFacts()
+    equal(facts,{ready=true,quiet=false,keys={"drop/b"}})
+    facts.keys[1],facts.ready,facts.quiet="fake",false,true
+    equal(t.mod.soundFacts(),{ready=true,quiet=false,keys={"drop/b"}})
+  end)
+
+  test("alarm sounds each severity one key in lexical order once per tick",function()
+    local t=sounding()
+    t.points={{id="b",broken=true}}
+    t.machines={[3]={role="worker",seen=0},[4]={role="worker",seen=0}}
+    t.leases[4]={uncertain=true}
+    t.disk.ratio=0.8
+    t.env.SO.clock={refused=true}
+    local want={"clock","disk","drop/b","lost/3","pose/4"}
+    for i=1,#want do
+      t.tick(t.now+1)
+      equal(#t.notes,i)
+      equal(t.notes[i],{name="speaker_a",args={"pling",0.5,12}})
+
+    end
+    equal(t.mod.soundFacts().keys,want)
+    t.disk.ratio=0.91
+    t.machines[3].pose={x=1,y=64,z=9}
+    t.tick(t.now+10000)
+    equal(#t.notes,5)
+  end)
+
+  test("severity two fuel tools holds dug pairing and errors stay silent",function()
+    local t=sounding()
+    t.env.SO.store.read=function(path)
+      if path=="so-data/mine/job" then
+        return {schema=1,generation=1,value={turtles={[3]={state="hold",error="held"}}}}
+      end
+    end
+    t.machines={[3]={role="worker",seen=t.now}}
+    t.leases[3]={tools={}}
+    t.env.SO.mods.cells={retirement=function() return {status="pending"} end}
+    t.env.SO.mods.shop={fuelAlerts=function() return {{text="fuel wait"}} end}
+    t.env.SO.pair={pending=function() return 123 end}
+    t.enroll={rows={{id=5}}}
+    t.entries={{at=t.now,text="job alert failed"}}
+    t.tick()
+    equal(t.mod.soundFacts().keys,{})
+    assert(t.mod.count()>=7)
+    t.machines[3].seen=t.now+600000
+    t.tick(t.now+600000)
+    equal(#t.notes,0)
+  end)
+
+  test("alarm defaults off and pocketTone is independent with a silent enabling baseline",function()
+    for _,cfg in ipairs({{}, {pocketTone=true}, {alarm=false,pocketTone=true}}) do
+      local t=sounding(cfg)
+      t.points={{id=1,broken=true}}
+      t.tick();t.tick(t.now+600000)
+      equal(#t.notes,0)
+      cfg.alarm=true
+      t.tick()
+      equal(#t.notes,0)
+      t.tick(t.now+299999);equal(#t.notes,0)
+      t.tick(t.now+1);equal(#t.notes,1)
+      cfg.alarm=false
+      t.tick(t.now+600000);equal(#t.notes,1)
+      cfg.alarm=true
+      t.tick(t.now+600000);equal(#t.notes,1)
+      t.tick(t.now+300000);equal(#t.notes,2)
+    end
+  end)
+
+  test("alarm boot baseline repeats after five game minutes and frozen clocks cannot loop",function()
+    local t=sounding(nil,function(s) s.points={{id=1,broken=true}} end)
+    equal(#t.notes,0)
+    t.tick(t.now+299999);equal(#t.notes,0)
+    t.tick(t.now+1);equal(#t.notes,1)
+    for _=1,5 do t.tick() end
+    equal(#t.notes,1)
+    t.tick(t.now+900000);equal(#t.notes,2)
+    t.tick(t.now+299999);equal(#t.notes,2)
+    t.tick(t.now+1);equal(#t.notes,3)
+  end)
+
+  test("alarm clear removes its reminder and recurrence and lost-to-pose sound again",function()
+    local t=sounding()
+    t.machines={[3]={role="worker",seen=0}}
+    t.tick();equal(#t.notes,1)
+    t.leases[3]={uncertain=true}
+    t.tick(t.now+1);equal(#t.notes,2)
+    equal(t.mod.soundFacts().keys,{"pose/3"})
+    t.leases[3]={seen=t.now}
+    t.tick();equal(t.mod.soundFacts().keys,{})
+    t.leases[3]={uncertain=true}
+    t.tick(t.now+1);equal(#t.notes,3)
+  end)
+
+  test("alarm missing busy detached and throwing speakers skip without queued retries or errors",function()
+    for _,mode in ipairs({"missing","busy","detached","error"}) do
+      local t=sounding()
+      if mode=="missing" then t.env.peripheral.getNames=function() return {} end
+      elseif mode=="detached" then t.env.peripheral.wrap=function() error("detached") end
+      else t.play=function() if mode=="error" then error("speaker failed") end return false end end
+      t.points={{id=1,broken=true}}
+      t.tick()
+      local attempts=#t.notes
+      equal(attempts,(mode=="missing" or mode=="detached") and 0 or 1)
+      t.tick(t.now+299999);equal(#t.notes,attempts)
+      t.env.peripheral.getNames=function() return {"speaker_a"} end
+      t.env.peripheral.wrap=function() return {playNote=function() t.notes[#t.notes+1]=true end} end
+      t.tick(t.now+1);equal(#t.notes,attempts+1)
+      equal(#t.diagnostics,0)
+    end
+  end)
+
+  test("quiet hours include start exclude end and wrap Amsterdam midnight without deferred notes",function()
+    local t=sounding({alarm=true,pocketTone=true,soundQuiet={startMinute=1380,endMinute=60}})
+    t.points={{id=1,broken=true}}
+    t.tick();equal(t.mod.soundFacts().quiet,true);equal(#t.notes,0)
+    t.utc=1767225599000
+    t.tick(t.now+600000);equal(#t.notes,0)
+    t.utc=1767225600000
+    t.tick();equal(t.mod.soundFacts().quiet,false);equal(#t.notes,0)
+    t.tick(t.now+299999);equal(#t.notes,0)
+    t.tick(t.now+1);equal(#t.notes,1)
+    t.utc=1767218399000
+    t.tick();equal(t.mod.soundFacts().quiet,false)
+    t.utc=1767218400000
+    t.tick();equal(t.mod.soundFacts().quiet,true)
+  end)
+
+  test("quiet hours follow both Amsterdam DST transitions and equal endpoints mute all day",function()
+    local t=sounding({soundQuiet={startMinute=120,endMinute=180}})
+    for _,case in ipairs({{1774745999000,false},{1774746000000,false},
+      {1792889999000,true},{1792890000000,true}}) do
+      t.utc=case[1];t.tick();equal(t.mod.soundFacts().quiet,case[2])
+    end
+    t.env.SO.health.config.soundQuiet={startMinute=10,endMinute=10}
+    t.tick();equal(t.mod.soundFacts().quiet,true)
+    t.env.SO.health.config.soundQuiet=false
+    t.tick();equal(t.mod.soundFacts().quiet,false)
+  end)
+
+  test("invalid quiet hours mute both outputs and diagnose once until corrected",function()
+    for _,hours in ipairs({true,"23:00",{}, {startMinute=-1,endMinute=3},
+      {startMinute=0,endMinute=1440},{startMinute=0.5,endMinute=1},{startMinute=0/0,endMinute=1}}) do
+      local t=sounding({alarm=true,pocketTone=true,soundQuiet=hours})
+      t.points={{id=1,broken=true}}
+      t.tick();t.tick(t.now+600000)
+      equal(t.mod.soundFacts().quiet,true);equal(#t.notes,0);equal(#t.diagnostics,1)
+      assert(pages(t,"health",26,20):find("quiet invalid",1,true))
+      t.env.SO.health.config.soundQuiet=false
+      t.tick();equal(t.mod.soundFacts().quiet,false)
+      equal(t.env.SO.health.soundError,nil)
+      t.tick(t.now+300000);equal(#t.notes,1)
+    end
+  end)
+
+  test("health loss snooze leaves the server alarm key active",function()
+    local t=sounding()
+    t.env.SO.mods.display.snoozer=function() return {on=function() return true end} end
+    t.machines={["3"]={role="worker",seen=0}}
+    t.tick()
+    equal(t.mod.count(),0)
+    equal(t.mod.soundFacts().keys,{"lost/3"})
+    equal(#t.notes,1)
+  end)
+
+  test("server exposes default off sound flags and refreshes config without rewriting unrelated keys",function()
+    local net,m=startup({secret="keep",state={coalesceHeartbeats=true}})
+    local before=m.files["so-server.cfg"]
+    equal(m.env.SO.health.config.alarm,false)
+    equal(m.env.SO.health.config.pocketTone,false)
+    equal(m.env.SO.health.config.soundQuiet,false)
+    m.files["so-server.cfg"]=Harness.encode({alarm=true,pocketTone=false,soundQuiet={startMinute=5,endMinute=10},secret="keep"})
+    local changed=m.files["so-server.cfg"]
+    assert(before~=changed)
+    net.advance(1.05)
+    equal(m.env.SO.health.config.alarm,true)
+    equal(m.env.SO.health.config.secret,"keep")
+    equal(m.files["so-server.cfg"],changed)
+  end)
+
+  test("pending terminal revoke lets normal role commands through Enter and cancels confirmation",function()
+    for _,enter in ipairs({28,156}) do
+      local net,m=startup({terminalRevoke=true},function(server)
+        server.files["so-pair.lua"]="return {open=function() end,forgetPending=function() return {} end,pending=function() end,key=function(id) if id==3 then return 'saved-key' end end}"
+        server.files["so-mod-display.lua"]="return {name='display',handlers={},command=function(text) COMMAND=text;return true,'role applied' end}"
+      end)
+      m.env.os.queueEvent("key",19,false);net.flush()
+      local function command(text)
+        m.env.os.queueEvent("paste",text);m.env.os.queueEvent("key",enter,false);net.flush()
+        assert(m.alive(),tostring(m.error))
+      end
+      command("3 revoke")
+      assert(m.env.SO.terminal.notice:find("Type 3 to revoke",1,true))
+      command("3 panel")
+      equal(m.env.COMMAND,"3 panel");equal(m.env.SO.terminal.notice,"role applied")
+      command("3")
+      equal(m.env.COMMAND,"3")
+      assert(m.env.SO.pair.key(3))
+    end
+  end)
+
+  test("refused flood keeps per-reason totals and an evicted count outside 128 sender rows",function()
+    local net,m=startup({},function(server)
+      server.files["so-proto.lua"]="return {since=function() end,prune=function() end,decode=function(payload) return nil,payload end}"
+    end)
+    local function deliver(id,reason)
+      m.env.os.queueEvent("rednet_message",id,reason,"so");net.flush()
+      assert(m.alive(),tostring(m.error))
+    end
+    deliver(2,"time")
+    for id=101,612 do deliver(id,"shape") end
+    local refused,count=m.env.SO.health.refused,0
+    for _ in pairs(refused.senders) do count=count+1 end
+    equal(count,128);equal(refused.evicted,385)
+    equal(refused.totals,{shape=512,time=1,mac=0,replay=0,blocked=0})
+    local now=m.env.SO.now()
+    m.env.SO.now=function() return now+600000 end
+    net.advance(1.05)
+    equal(next(refused.senders),nil)
+    equal(refused.evicted,385)
+    equal(refused.totals.shape,512);equal(refused.totals.time,1)
+    local t=health()
+    t.env.SO.health=m.env.SO.health
+    t.tick()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local text=pages(t,"health",size[1],size[2])
+      assert(text:find("512",1,true) and text:find("385",1,true))
+    end
+  end)
+
+  test("refused traffic stays below one ERRORS line per sender in every ten minute interval",function()
+    local net,m=startup({},function(server)
+      server.files["so-proto.lua"]="return {since=function() end,prune=function() end,decode=function() return nil end}"
+    end)
+    local at=m.env.SO.now()
+    for _,offset in ipairs({0,599999,600000,600001,1200000}) do
+      m.env.SO.now=function() return at+offset end
+      for id=2,260 do
+        for _=1,2 do m.env.os.queueEvent("rednet_message",id,{},"so") end
+      end
+      net.flush()
+      assert(m.alive(),tostring(m.error))
+      equal(m.env.SO.errors.status().count,0)
+    end
+  end)
+
   test("health startup distinguishes loaded failed invalid and absent modules and tracks ticks",function()
     local net,m = startup({},function(server)
       server.files["so-mod-mine.lua"] = "return {name='mine',handlers={},tick=function() if FAIL then error('tick broken') end end}"
@@ -285,6 +566,9 @@ return function(test,equal)
     for _,row in ipairs({{"modules","1 loaded"},{"skip","1 fail 1 absent"},{"rev","aaaaaaaa"},{"cfg","retireLegacyPair"},
       {"pos","missing"},{"GPS gap","10.0 blocks"},{"event bytes","5.8 MB"},{"disk free","5.8 MB"},{"errors","340 B"},
       {"uptime","0s"},{"tick","wall -"},{"tick cost","-"},{"clock reserve","unknown"},
+      {"slow module","mine"},{"peak tick","142ms"},{"peak age","2m"},
+      {"deny shape","512"},{"deny time","2"},{"deny mac","3"},{"deny replay","4"},{"deny blocked","5"},
+      {"refused","526"},{"evicted","384"},{"sender 612","1"},
       {"events","unavailable"},{"snapshot","none"},{"disk","0%"},{"modems","1"},
       {"paired","0 online"},{"leases","0 open"},{"ar","absent"},{"mine","ok 5s ago"},{"shop","failed"},{"error","loader failed"}}) do
       test("health row "..row[1].." fits "..w.."x"..h,function()
@@ -342,6 +626,10 @@ return function(test,equal)
       match("facts",t.render("health",w,h,s),w,h)
       t.input("health",s,"next")
       match("facts-next",t.render("health",w,h,s),w,h)
+      if h==12 then
+        t.input("health",s,"next")
+        match("facts-runtime",t.render("health",w,h,s),w,h)
+      end
       while s.visibility.health.next do t.input("health",s,"next");t.render("health",w,h,s) end
       match("facts-modules",t.render("health",w,h,s),w,h)
     end)

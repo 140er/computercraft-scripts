@@ -1,0 +1,37 @@
+29x12 Health facts
+ HEALTH  NEEDS 1  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ leases ············· 0 open 
+ slow module ·········· mine 
+ peak tick ··········· 142ms 
+ peak age ··············· 2m 
+ deny shape ············ 512 
+ deny time ··············· 2 
+ deny mac ················ 3 
+ deny replay ············· 4 
+ deny blocked ············ 5 
+                 3/4  ◄   ►  
+000000008888888180cccccccccc0
+8888888888888888888888880ccc0
+08888880ccccccccccccc00000000
+0888888888880cccccccccc000000
+08888888880ccccccccccc0000000
+0888888880ccccccccccccccc0000
+088888888880cccccccccccc01110
+08888888880ccccccccccccccc010
+0888888880cccccccccccccccc010
+0888888888880ccccccccccccc010
+08888888888880cccccccccccc010
+00000000000000000888000000000
+77777777fffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777f777f

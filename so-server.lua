@@ -77,9 +77,11 @@ S.run = function()
     end
   end
   SO.health = { started = SO.now(), tickMs = 0, modules = {} }
-  SO.health.refused = { windowMs = 600000, cap = 128, senders = {} }
+  SO.health.refused = { windowMs = 600000, cap = 128, senders = {}, evicted = 0,
+    totals = { shape = 0, time = 0, mac = 0, replay = 0, blocked = 0 } }
   local function refused(sender, reason)
     local facts, at = SO.health.refused, SO.now()
+    facts.totals[reason] = facts.totals[reason] + 1
     local bucket = math.floor(at / facts.windowMs)
     local row = facts.senders[sender]
     if not row then
@@ -88,7 +90,9 @@ S.run = function()
         count = count + 1
         if not oldest or candidate.last < facts.senders[oldest].last then oldest = id end
       end
-      if count >= facts.cap then facts.senders[oldest] = nil end
+      if count >= facts.cap then
+        facts.senders[oldest], facts.evicted = nil, facts.evicted + 1
+      end
     end
     if not row or row.bucket ~= bucket then
       row = { bucket = bucket, shape = 0, time = 0, mac = 0, replay = 0, blocked = 0 }
@@ -349,7 +353,14 @@ S.run = function()
     return ok and type(value) == "table" and value or nil
   end
   local config = readConfig()
-  SO.health.config = config
+  local function exposeConfig(value)
+    local cfg = store.copy(value or {})
+    for _, name in ipairs({"alarm", "pocketTone", "soundQuiet"}) do
+      if cfg[name] == nil then cfg[name] = false end
+    end
+    SO.health.config = cfg
+  end
+  exposeConfig(config)
   if fs.exists("so-server.cfg") and not config then
     SO.health.configError = "so-server.cfg unreadable; defaults active"
     view.hostError = SO.health.configError
@@ -500,6 +511,7 @@ S.run = function()
       if h then pcall(h.close) end
       if not ok then return nil, tostring(err) end
       config, enrollConfigCached = merged, true
+      exposeConfig(config)
       if not enabled then pair.enrollClose() end
       return true
     end,
@@ -672,12 +684,12 @@ S.run = function()
     local pending = revoke
     revoke = nil
     local id = text:match("^%s*(%d+)%s+revoke%s*$")
-    if not pending and not id then return nil end
+    local confirm = pending and text:match("^%s*(%d+)%s*$")
+    if not id and not confirm then return nil end
     local cfg = readConfig()
     if not cfg or cfg.terminalRevoke ~= true then return false, "terminal revoke disabled" end
-    if pending then
-      local confirm = text:match("^%s*(%d+)%s*$")
-      if not confirm or tonumber(confirm) ~= pending.id then return false, "revoke id mismatch" end
+    if confirm then
+      if tonumber(confirm) ~= pending.id then return false, "revoke id mismatch" end
       if SO.now() >= pending.expires or pair.key(pending.id) ~= pending.key then
         return false, "revoke confirmation expired"
       end
@@ -722,6 +734,7 @@ S.run = function()
     local began, now = os.clock(), SO.now()
     local wall = os.epoch("utc")
     local health = SO.health
+    exposeConfig(readConfig())
     for id, row in pairs(health.refused.senders) do
       if row.bucket ~= math.floor(now / health.refused.windowMs) then health.refused.senders[id] = nil end
     end
