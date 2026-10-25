@@ -1334,6 +1334,11 @@ S.work = function(now)
   elseif j.phase == "descend" then
     if S.move({ dim = S.job.dim, x = j.tree.x, y = S.job.ground + 2, z = j.tree.z }) then j.phase = "plant" S.save() end
   elseif j.phase == "plant" or j.phase == "plantPlace" then
+    local target = { dim = S.job.dim, x = j.tree.x, y = S.job.ground + 2, z = j.tree.z }
+    if S.once() and j.phase == "plant" then
+      if S.move(target) then S.op("inspectDown", "plantCheck") end
+      return
+    end
     if j.noSaplings then
       if S.once() then S.alert("replant needs saplings") else S.finishTarget() end
       return
@@ -1341,10 +1346,9 @@ S.work = function(now)
     local desired = L.saplingFor(j.tree.kind)
     local item = S.slot(function(name) return name == desired end)
     if not item then
-      if not S.service("saplings") and not S.once() then S.finishTarget() end
+      if not S.service("saplings", S.once() and "plant" or nil) and not S.once() then S.finishTarget() end
       return
     end
-    local target = { dim = S.job.dim, x = j.tree.x, y = S.job.ground + 2, z = j.tree.z }
     if not S.move(target) then return end
     if j.phase == "plant" then S.op("inspectDown", "plantCheck")
     else S.send({ { op = "select", slot = item.slot }, { op = "placeDown" } }, "plant") end

@@ -437,6 +437,32 @@ return function(test, equal)
     end)
   end
 
+  test('B4-C last sapling with a lost planting report and reboot reconciles before visiting an empty chest',function()
+    local s=onceFixture({inv={{slot=1,name='minecraft:oak_sapling',count=1}}})
+    s.tree(0,0) s.input('mode once') s.input('start')
+    local lost=false
+    for _=1,600 do
+      s.clock=s.clock+1 s.mod.tick(s.clock)
+      if s.queued[2] then
+        if s.row().pending.action=='plant' then
+          s.reply(2,false,true)
+          equal(s.world['0,1,0'].name,'minecraft:oak_sapling')
+          for _,item in ipairs(s.workers[2].inv) do assert(item.name~='minecraft:oak_sapling','plant did not use the last sapling') end
+          s.noSaplings=true s.reload() lost=true break
+        end
+        s.reply(2)
+      end
+    end
+    assert(lost,'no successful planting report to lose')
+    s.step(600)
+    equal(s.job.cycle.phase,'complete') equal(s.job.running,false)
+    equal(next(s.job.cycle.claims),nil) equal(s.job.logs,3)
+    equal(s.world['0,1,0'].name,'minecraft:oak_sapling')
+    for _,q in ipairs(s.sent) do for _,step in ipairs(q.steps) do
+      assert(step.op~='suck' and step.op~='suckDown','recovery requested supplies before reconciling the planted sapling')
+    end end
+  end)
+
   test('B4-C a rejected journal fence cannot acknowledge an ONCE park or release its reservations',function()
     local s=onceFixture()
     s.input('mode once') s.input('start')
