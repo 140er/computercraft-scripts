@@ -255,7 +255,7 @@ class CameraTests(unittest.TestCase):
             def frame(self, name):
                 self.polls += 1
                 text = "storage room not found" if self.polls <= stock_after else "diamond 64"
-                return {"role": "shop", "rows": [{"text": text}], "buttons": [{"id": "x"}]}
+                return {"role": "shop", "rows": [{"text": text}], "buttons": [{"id": "item:minecraft:diamond"}, {"id": "order:1:minecraft:diamond"}]}
             def wait(self, predicate, seconds=30):
                 for _ in range(5):
                     if predicate(): return True
@@ -304,7 +304,7 @@ class CameraTests(unittest.TestCase):
             def mining(self, start=True): pass
             lumber = mining
             def cli(self, *a, **k): return {}
-            def frame(self, name): return {"role": "generic", "buttons": [{"id": "x"}]}
+            def frame(self, name): return {"role": "generic", "buttons": [{"id": "item:minecraft:diamond"}, {"id": "order:1:minecraft:diamond"}]}
             def wait(self, predicate, seconds=30): return predicate()
             def screenshot(self, name): pass
             def navigate(self, name, role): return {"role": role, "rows": [], "buttons": []}
