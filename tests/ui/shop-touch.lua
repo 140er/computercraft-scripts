@@ -198,5 +198,24 @@ T.run = function(test,equal)
     s.mod.listen.roomsorter_stock(91,{totals={['minecraft:iron_ingot']=16}})
     assert(not T.text(s.render(29,12,session)):find("stale",1,true))
   end)
+  -- Gate B C3: the wall types a search, then taps the item from the frame that echoes it.
+  test("wall shop typed search opens the item with order hits",function()
+    local s=T.setup();local wall={id=2,keyboard=false}
+    s.mod.listen.roomsorter_stock(90,{totals={["minecraft:coal"]=64,["minecraft:diamond"]=32}})
+    local function find(f,id) for _,b in ipairs(f.buttons) do if b.id==id then return b end end end
+    local listed=find(s.render(57,24,wall),"item:minecraft:diamond")
+    s.input({text="diamond",session=wall})
+    local typed=s.render(57,24,wall)
+    assert(T.text(typed):find("> DIAMOND",1,true),"find frame echoes the search")
+    local item=find(typed,"item:minecraft:diamond")
+    assert(item and item.y~=listed.y,"the search moves the item row")
+    for _,b in ipairs(typed.buttons) do
+      assert(not (listed.x>=b.x and listed.x<b.x+b.w and listed.y>=b.y and listed.y<b.y+b.h),"stale tap hits "..b.id)
+    end
+    s.input({id=item.id,x=item.x,y=item.y,session=wall})
+    local page=s.render(57,24,wall)
+    T.capture(page,57,24)
+    for _,n in ipairs({"1","16","64","stack","all"}) do assert(find(page,"order:"..n..":minecraft:diamond"),n) end
+  end)
 end
 return T
