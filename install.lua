@@ -419,7 +419,9 @@ local function main(command, handoff)
   if updating then startUpdated(previous); return end
   print("Installed " .. role .. ". Use install update to update.")
   if enroll then
-    writeFile("/so-enroll", textutils.serialize({ token = enroll }))
+    local ok, saved = pcall(function() return textutils.unserialize(readFile("/so-enroll")) end)
+    local sk = ok and type(saved) == "table" and saved.token == enroll and saved.sk or nil
+    writeFile("/so-enroll", textutils.serialize({ token = enroll, sk = sk }))
     print("Enrolling with server " .. enroll:match("^%d+") .. ". Approve it on the panel.")
   elseif role ~= "server" then print("On the server press P, then type the 6-digit code here") end
   shell.run("/" .. ROLES[role].program)

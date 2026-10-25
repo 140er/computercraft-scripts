@@ -116,6 +116,309 @@ local function sweep(t, machines, needle)
 end
 
 return function(test, equal)
+  test("enroll rerun before approval leaves one row and keeps the secret", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+    local fp = t.so.enroll.view(OWNER).rows[1].fp
+    w.spawn([[local p = dofile("so-pair.lua")
+      p.open(dofile("so-proto.lua"), dofile("so-store.lua"))
+      local saved = textutils.unserialize(fs.open("so-enroll", "r").readAll())
+      assert(p.enrollSave(saved.token))]])
+    t.net.flush()
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, saved.sk)
+    w = t.net.boot(w)
+    t.net.advance(4)
+    local view = t.so.enroll.view(OWNER)
+    equal(#view.rows, 1)
+    equal(view.rows[1].fp, fp)
+    assert(t.so.enroll.decide(10, view.rows[1].n, true))
+    t.net.advance(7)
+    equal(savedKey(w, 1), t.so.pair.key(10))
+  end)
+
+  test("enroll extend at 9:00 accepts at 15:00 without changing the token or cap", function()
+    local t = boot(true)
+    local token = t.open()
+    t.net.advance(540)
+    equal(t.so.enroll.extend(3), nil)
+    assert(t.so.enroll.extend(OWNER))
+    t.net.advance(360)
+    equal(t.so.enroll.view(OWNER).token, token)
+    equal(t.so.enroll.view(OWNER).cap, 20)
+    local body = t.request(token, 10, string.rep("a", 32))
+    equal(select(2, t.so.pair.enrollAnswer(10, body)).state, "pending")
+    assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
+  end)
+
+  test("enroll extended window keeps the waiting turtle's secret past 12:00 and approves at 15:00", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+    local first = t.so.enroll.view(OWNER).rows[1]
+    t.net.advance(536)
+    assert(t.so.enroll.extend(OWNER))
+    t.net.advance(180)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, saved.sk)
+    equal(#t.so.enroll.view(OWNER).rows, 1)
+    equal(t.so.enroll.view(OWNER).rows[1].n, first.n)
+    t.net.advance(180)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, saved.sk)
+    equal(t.so.enroll.view(OWNER).rows[1].n, first.n)
+    assert(t.so.enroll.decide(10, first.n, true))
+    t.net.advance(7)
+    equal(savedKey(w, 1), t.so.pair.key(10))
+    equal(w.files["so-enroll"], nil)
+  end)
+
+  test("enroll sixteen forged off replies cannot pause or set hints in a noisy round", function()
+    for _, locked in ipairs({ false, true }) do
+      for _, text in ipairs({ "off", "closed" }) do
+        local t = boot(true)
+        local token = t.open()
+        local w = t.net.machine({ id = 10, modem = true, turtle = true, capacity = 1000000 })
+        w.install(WORKER)
+        libs(w)
+        w.files["so-enroll"] = H.encode({ token = token })
+        local send, flood, rounds = w.env.rednet.send, not locked, 0
+        w.env.rednet.send = function(id, payload, protocol)
+          if flood and type(payload) == "table" and payload.t == "enroll" then
+            rounds = rounds + 1
+            local wire = t.proto.encode(t.proto.build(t.so.pair.envelopeKey(), "err",
+              { code = "enroll", text = text }, payload.rid))
+            for _ = 1, 16 do
+              w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1, wire, "so")
+            end
+          end
+          send(id, payload, protocol)
+        end
+        w.boot("worker.lua")
+        t.net.advance(4)
+        local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+        equal(saved.paused, nil)
+        flood = true
+        t.net.advance(15)
+        assert(rounds >= 4, "flood did not cover several rounds")
+        equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, saved.sk)
+        equal(w.env.textutils.unserialize(w.files["so-enroll"]).paused, nil)
+        local screenText = table.concat(w.screen, "\n")
+        assert(not screenText:find("enroll off", 1, true), "noisy off changed the screen")
+        assert(not screenText:find("window closed", 1, true), "noisy closed changed the screen")
+        flood = false
+        local row = t.so.enroll.view(OWNER).rows[1]
+        assert(t.so.enroll.decide(10, row.n, true))
+        t.net.advance(7)
+        equal(savedKey(w, 1), t.so.pair.key(10))
+        equal(w.files["so-enroll"], nil)
+      end
+    end
+  end)
+
+  test("enroll one quiet forged off after a tagged share does not pause, but real off does", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+    local send, injected = w.env.rednet.send, 0
+    w.env.rednet.send = function(id, payload, protocol)
+      if type(payload) == "table" and payload.t == "enroll" and injected == 0 then
+        injected = injected + 1
+        local wire = t.proto.encode(t.proto.build(t.so.pair.envelopeKey(), "err",
+          { code = "enroll", text = "off" }, payload.rid))
+        w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1, wire, "so")
+        return
+      end
+      send(id, payload, protocol)
+    end
+    t.net.advance(10)
+    equal(injected, 1)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).paused, nil)
+    t.s.files["so-server.cfg"] = H.encode({ enroll = false })
+    t.net.advance(10)
+    local paused = w.env.textutils.unserialize(w.files["so-enroll"])
+    equal(paused.paused, "off")
+    equal(paused.sk, saved.sk)
+  end)
+
+  test("enroll message bursts read server config at most once per tick", function()
+    local t = boot(nil)
+    local w = t.net.machine({ id = 10, modem = true })
+    local reads, readConfig = 0, t.so.store.read
+    t.so.store.read = function(path)
+      if path == "so-server.cfg" then reads = reads + 1 end
+      return readConfig(path)
+    end
+    local function burst()
+      for _ = 1, 20 do
+        local msg = t.proto.build(t.so.pair.envelopeKey(), "enroll", {})
+        msg.from = 10
+        msg.mac = t.proto.sign(t.so.pair.envelopeKey(), msg)
+        w.env.rednet.send(1, t.proto.encode(msg), "so")
+      end
+      t.net.flush()
+    end
+    burst()
+    equal(reads, 1)
+    burst()
+    equal(reads, 1)
+    t.net.advance(1.05)
+    burst()
+    equal(reads, 2)
+  end)
+
+  test("enroll paired requests are tagged and logged with the six-digit route", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 3, token)
+    t.net.advance(7)
+    assert(table.concat(t.s.log, "\n"):find("enroll paired 3", 1, true))
+    assert(table.concat(w.screen, "\n"):find("6-digit code", 1, true))
+    equal(w.files["so-enroll"], nil)
+  end)
+
+  test("enroll off survives reboot and pauses attempts until explicit resume", function()
+    local t = boot(true)
+    local token = t.open()
+    t.s.files["so-server.cfg"] = H.encode({ enroll = false })
+    local w = turtle(t, 10, token)
+    t.net.advance(7)
+    local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+    equal(saved.paused, "off")
+    assert(saved.sk)
+    t.net.kill(w)
+    w = t.net.boot(w)
+    t.net.advance(30)
+    for _, packet in ipairs(w.sent) do assert(packet.payload.t ~= "enroll", "paused reboot sent enroll") end
+    t.s.files["so-server.cfg"] = H.encode({ enroll = true })
+    token = t.open()
+    w.env.os.queueEvent("paste", token)
+    w.env.os.queueEvent("key", 257)
+    t.net.flush()
+    t.net.advance(7)
+    local row = t.so.enroll.view(OWNER).rows[1]
+    assert(row, "explicit resume did not enroll")
+    assert(t.so.enroll.decide(10, row.n, true))
+    t.net.advance(7)
+    equal(savedKey(w, 1), t.so.pair.key(10))
+  end)
+
+  test("enroll approved results stay collectible while off", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    local pending = turtle(t, 11, token)
+    t.net.advance(4)
+    assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
+    t.s.files["so-server.cfg"] = H.encode({ enroll = false })
+    t.net.advance(10)
+    equal(savedKey(w, 1), t.so.pair.key(10))
+    equal(w.files["so-enroll"], nil)
+    equal(pending.env.textutils.unserialize(pending.files["so-enroll"]).paused, "off")
+    equal(t.so.enroll.view(OWNER), nil)
+  end)
+
+  test("enroll a forged untagged closed does not delete a saved attempt", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    local send = w.env.rednet.send
+    local forged = false
+    w.env.rednet.send = function(id, payload, protocol)
+      if payload.t ~= "enroll" then return send(id, payload, protocol) end
+      forged = true
+      local body = { code = "enroll", text = "closed" }
+      w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1,
+        t.proto.encode(t.proto.build(t.so.pair.envelopeKey(), "err", body, payload.rid)), "so")
+    end
+    t.net.advance(7)
+    assert(forged)
+    assert(w.files["so-enroll"], "forged closed deleted saved attempt")
+    w.env.rednet.send = send
+    assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
+    t.net.advance(7)
+    equal(savedKey(w, 1), t.so.pair.key(10))
+  end)
+
+  test("enroll atomic replacement saves only the proven peer and retains old keys on save failure", function()
+    for _, fail in ipairs({ false, true }) do
+      local t = boot(true)
+      local token = t.open()
+      local w = t.net.machine({ id = 10, modem = true, turtle = true, capacity = 1000000 })
+      w.install(WORKER)
+      libs(w)
+      local old = string.rep("a", 64)
+      w.files["so-keys"] = H.encode({ schema = 1, generation = 1,
+        value = { keys = { ["0"] = old, ["9"] = old } } })
+      w.files["so-enroll"] = H.encode({ token = token })
+      w.env.FAIL = fail
+      w.spawn([[
+        local p, proto, store = dofile("so-pair.lua"), dofile("so-proto.lua"), dofile("so-store.lua")
+        p.open(proto, store)
+        local move = fs.move
+        fs.move = function(from, to)
+          if FAIL and from == "so-keys.tmp" and to == "so-keys" then error("rename failed") end
+          return move(from, to)
+        end
+        SERVER, WHY = p.enroll("turtle", nil, { replace = 0 })
+        PEER, KEYS, NEW = p.peer(), p.list(), p.key(1)
+        fs.move = move
+        local reboot = dofile("so-pair.lua")
+        reboot.open(proto, store)
+        REBOOT_PEER, REBOOT_KEYS = reboot.peer(), reboot.list()
+      ]])
+      t.net.advance(4)
+      equal(savedKey(w, 0), old)
+      equal(savedKey(w, 1), nil)
+      assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
+      t.net.advance(7)
+      assert(not w.error, tostring(w.error))
+      if fail then
+        equal(w.env.SERVER, nil)
+        assert(w.env.WHY)
+        equal(w.env.PEER, 0)
+        equal(#w.env.KEYS, 2)
+        equal(w.env.NEW, nil)
+        equal(w.env.REBOOT_PEER, 0)
+        equal(#w.env.REBOOT_KEYS, 2)
+        assert(w.files["so-enroll"], "save failure discarded attempt")
+      else
+        equal(w.env.SERVER, 1)
+        equal(w.env.PEER, 1)
+        equal(#w.env.KEYS, 1)
+        equal(w.env.REBOOT_PEER, 1)
+        equal(#w.env.REBOOT_KEYS, 1)
+        equal(savedKey(w, 1), t.so.pair.key(10))
+        equal(w.files["so-enroll"], nil)
+      end
+    end
+  end)
+
+  test("enroll a valid tagged approval wins over an untagged off in the same round", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
+    local send = w.env.rednet.send
+    w.env.rednet.send = function(id, payload, protocol)
+      if payload.t == "enroll" then
+        local body = { code = "enroll", text = "off" }
+        w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1,
+          t.proto.encode(t.proto.build(t.so.pair.envelopeKey(), "err", body, payload.rid)), "so")
+      end
+      send(id, payload, protocol)
+    end
+    t.net.advance(7)
+    equal(savedKey(w, 1), t.so.pair.key(10))
+    equal(w.files["so-enroll"], nil)
+  end)
+
   test("enroll tokens use the 32-symbol alphabet, the server id and 80 random bits", function()
     local t = boot(true)
     local token = t.open()
@@ -398,9 +701,10 @@ return function(test, equal)
     assert(not rogue.error, tostring(rogue.error))
     equal(savedKey(w, 1), nil)
     assert(w.files["so-enroll"], "a forged reply ended the attempt")
+    local secret = w.env.textutils.unserialize(w.files["so-enroll"]).sk
     net.advance(620)
     equal(savedKey(w, 1), nil)
-    equal(w.files["so-enroll"], nil)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, secret)
   end)
 
   test("enroll: a second token holder answering stops the attempt", function()
@@ -444,7 +748,7 @@ return function(test, equal)
     equal(savedKey(w, 1), nil)
   end)
 
-  test("enroll: an expired window and a denial delete the turtle's token file", function()
+  test("enroll: denial deletes the attempt and untagged closed remains a hint", function()
     local t = boot(true)
     local token = t.open()
     local a, b = turtle(t, 10, token), turtle(t, 11, token)
@@ -455,31 +759,41 @@ return function(test, equal)
     equal(b.files["so-enroll"], nil)
     assert(table.concat(b.screen, "\n"):find("denied", 1, true))
     t.net.advance(600)
-    equal(a.files["so-enroll"], nil)
+    assert(a.files["so-enroll"], "public closed deleted the attempt")
+    local secret = a.env.textutils.unserialize(a.files["so-enroll"]).sk
+    t.net.advance(700)
+    equal(a.env.textutils.unserialize(a.files["so-enroll"]).sk, secret)
     equal(savedKey(a, 1), nil)
-    assert(table.concat(a.screen, "\n"):find("closed", 1, true))
   end)
 
-  test("enroll flag off: no page, no handler, no reply", function()
+  test("enroll off replies off and the handler answers with the flag off and on", function()
     local t = boot(nil)
     equal(t.so.enroll, nil)
-    local s = screen(t, 26, 20)
-    s.openPair(OWNER)
-    equal(s.button(OWNER, "enroll"), nil)
-    -- Without the enroll window PAIRED takes the whole chip row.
-    assert(s.button(OWNER, "paired").w >= 24)
-    t.so.mods.display.handlers.input({ from = OWNER, body = { id = "enroll", x = 14, y = 16 } })
-    equal(s.button(OWNER, "enroll-close"), nil)
     local w = turtle(t, 10, "1-K7QP-3MXA-9WTD-HR2E")
-    t.net.advance(10)
-    local answered = false
-    for _, packet in ipairs(t.s.sent) do if packet.id == 10 then answered = true end end
-    equal(answered, false)
-    assert(table.concat(t.s.log, "\n"):find("bad mac from 10", 1, true))
-    t.net.advance(660)
-    equal(w.files["so-enroll"], nil)
+    t.net.advance(7)
+    local function last()
+      for i = #t.s.sent, 1, -1 do
+        local packet = t.s.sent[i]
+        if packet.id == 10 and packet.payload.t == "err" then return packet.payload.body.text end
+      end
+    end
+    equal(last(), "off")
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).paused, "off")
+    assert(not table.concat(t.s.log, "\n"):find("bad mac from 10", 1, true))
+    t.s.files["so-server.cfg"] = H.encode({ enroll = true })
+    t.net.advance(1.05)
+    local msg = t.proto.build(t.so.pair.envelopeKey(), "enroll", { kind = "turtle" })
+    msg.from = 10
+    msg.mac = t.proto.sign(t.so.pair.envelopeKey(), msg)
+    w.env.rednet.send(1, t.proto.encode(msg), "so")
+    t.net.flush()
+    equal(last(), "closed")
+    t.s.files["so-server.cfg"] = H.encode({ enroll = false })
+    t.net.advance(1.05)
+    w.env.rednet.send(1, t.proto.encode(msg), "so")
+    t.net.flush()
+    equal(last(), "off", "cached reply bypassed the per-request flag check")
     equal(savedKey(w, 1), nil)
-    assert(w.alive(), tostring(w.error))
   end)
 
   test("enroll panel uses drawn buttons and fits 26x20 and 29x12", function()
@@ -577,7 +891,11 @@ return function(test, equal)
     e.turtle = {}
     e.fs = { exists = function() return false end, delete = function() end, makeDir = function() end,
       getDir = function(p) return p:match("^(.*)/[^/]*$") or "" end,
-      open = function(path)
+      open = function(path, mode)
+        if mode == "r" then
+          if not written[path] then return nil end
+          return { readAll = function() return written[path] end, close = function() end }
+        end
         written[path] = ""
         return { write = function(s) written[path] = written[path] .. s end, close = function() end }
       end }
@@ -596,6 +914,11 @@ return function(test, equal)
     main(nil, { revision = string.rep("a", 40), previous = {}, role = "worker", enroll = "12-k7qp-3mxa-9wtd-hr2e" })
     local handed = e.textutils.unserialize(written["/so-enroll"])
     equal(handed.token, "12-K7QP-3MXA-9WTD-HR2E")
+    written["/so-enroll"] = e.textutils.serialize({ token = handed.token, sk = string.rep("ab", 32), paused = "off" })
+    main(nil, { revision = string.rep("a", 40), previous = {}, role = "worker", enroll = handed.token })
+    handed = e.textutils.unserialize(written["/so-enroll"])
+    equal(handed.sk, string.rep("ab", 32), "installer rerun discarded secret")
+    equal(handed.paused, nil, "explicit installer rerun did not resume")
     log = table.concat(m.log, "\n")
     assert(not log:find("K7QP", 1, true), log)
     assert(log:find("server 12", 1, true), log)

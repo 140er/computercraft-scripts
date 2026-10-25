@@ -287,11 +287,13 @@ S.run = function()
 
   -- Batch enrollment stays off unless so-server.cfg sets enroll = true.
   local config = type(store.read) == "function" and store.read("so-server.cfg")
+  local enrollConfigCached = true
   if type(config) == "table" and config.enroll == true then
     SO.enroll = {
       open = pair.enrollOpen,
       view = pair.enrollView,
       close = pair.enrollClose,
+      extend = pair.enrollExtend,
       decide = function(id, n, approve)
         local ok, err = pair.enrollDecide(id, n, approve)
         if not ok then return nil, err end
@@ -300,17 +302,22 @@ S.run = function()
         return true
       end,
     }
-    builtin.enroll = function(msg, reply)
-      -- Network input stays out of the SO.errors ring, so no error() here.
-      local ok, t, body, event = pcall(pair.enrollAnswer, msg.from, msg.body)
-      if not ok then
-        print("so-server: enroll failed for " .. tostring(msg.from))
-        t, body, event = "err", { code = "enroll", text = "failed" }, nil
-      end
-      if event then print("so-server: enroll " .. event .. " " .. tostring(msg.from)) end
-      if event == "rejected" then view.rejected = pair.rejected() end
-      reply(t, body, pair.envelopeKey())
+  end
+  builtin.enroll = function(msg, reply)
+    -- Network input stays out of the SO.errors ring, so no error() here.
+    if not enrollConfigCached then
+      config = type(store.read) == "function" and store.read("so-server.cfg")
+      enrollConfigCached = true
     end
+    local enabled = type(config) == "table" and config.enroll == true
+    local ok, t, body, event = pcall(pair.enrollAnswer, msg.from, msg.body, enabled)
+    if not ok then
+      print("so-server: enroll failed for " .. tostring(msg.from))
+      t, body, event = "err", { code = "enroll", text = "failed" }, nil
+    end
+    if event then print("so-server: enroll " .. event .. " " .. tostring(msg.from)) end
+    if event == "rejected" then view.rejected = pair.rejected() end
+    reply(t, body, pair.envelopeKey())
   end
 
   local function replyTo(msg, t, body, key)
@@ -372,7 +379,7 @@ S.run = function()
       return
     end
     local key
-    if msg.t == "pair2" or (msg.t == "enroll" and builtin.enroll) then
+    if msg.t == "pair2" or msg.t == "enroll" then
       key = pair.envelopeKey()
     elseif msg.t == "pair" then
       local code = pair.pending()
@@ -406,7 +413,8 @@ S.run = function()
     end
     local again, fresh = priorReply(msg)
     if again then
-      rednet.send(msg.from, again, "so")
+      if msg.t == "enroll" then deliver(msg, key)
+      else rednet.send(msg.from, again, "so") end
       return
     end
     if not fresh then
@@ -464,6 +472,7 @@ S.run = function()
   end
   local timer, ticked
   local function tick()
+    enrollConfigCached = false
     if view.mode == "code" and not view.codeError and not pair.pending() then showPrompt() end
     local began, now = os.clock(), SO.now()
     local wall = os.epoch("utc")

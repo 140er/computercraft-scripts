@@ -321,6 +321,7 @@ end
 M.open = function(proto, store, now)
   S.now = now or function() return math.floor(os.clock() * 1000 + 0.5) end
   S.proto = proto
+  S.read = store.read
   loadCrypto()
   S.box = store.store("so-keys", function(v)
     if type(v) ~= "table" or type(v.keys) ~= "table"
@@ -433,18 +434,27 @@ M.peer = function()
   return first
 end
 
-M.remember = function(id, key)
+M.remember = function(id, key, options)
   local name = tostring(id)
   if S.forgetting[name] then return false, "forget cleanup pending" end
-  local old = S.keys[name]
-  S.keys[name] = key
   local copy = {}
-  for k, v in pairs(S.keys) do copy[k] = v end
+  if not (options and options.replace ~= nil) then
+    for k, v in pairs(S.keys) do copy[k] = v end
+  end
+  copy[name] = key
+  local _, before
+  if S.read then _, before = S.read("so-keys.tmp") end
   local ok, err = S.box.save({ keys = copy, forgetting = S.forgetting })
   if not ok then
-    if old == nil then S.keys[name] = nil else S.keys[name] = old end
+    -- A failed final rename leaves the candidate as a recoverable tmp.
+    -- Discard that failed generation so reboot selects the old keys.
+    if S.read then
+      local _, after = S.read("so-keys.tmp")
+      if after and after ~= before then pcall(fs.delete, "so-keys.tmp") end
+    end
     return false, err
   end
+  S.keys = copy
   return true
 end
 
@@ -592,8 +602,8 @@ local E = {
     "so-enroll-3 server approved\0", "so-enroll-4 server denied\0", "so-enroll-5 server notice\0" },
   -- Answers the server tags with label 5, without K: notices to a valid tag1.
   notice = { wait = true, busy = true, full = true, paired = true },
-  -- Untagged answers that end an attempt when nothing tagged arrived.
-  final = { closed = true, token = true, share = true, body = true },
+  -- Public errors are hints. Only off pauses without discarding the secret.
+  final = { off = true, closed = true, token = true, share = true, body = true },
   done = {},
   seq = 0,
 }
@@ -672,6 +682,15 @@ M.enrollOpen = function(owner)
   return true
 end
 
+-- Extending keeps the token, pending rows and approval cap.
+M.enrollExtend = function(owner)
+  local w = E.window()
+  if not w then return nil, "closed" end
+  if w.owner ~= owner then return nil, "owner" end
+  w.exp = S.now() + E.life
+  return true
+end
+
 -- Window facts for the panel. Only the owner gets the token.
 M.enrollView = function(owner)
   local w = E.window()
@@ -724,7 +743,7 @@ end
 -- Server side of enroll: body { pub, kind, tag }. Returns the reply type,
 -- the reply body and "pending" or "rejected" for the terminal line.
 -- A repeated request from a known device costs nothing and changes nothing.
-M.enrollAnswer = function(from, body)
+M.enrollAnswer = function(from, body, enabled)
   local name = tostring(from)
   body = type(body) == "table" and body or {}
   local pub, tag = raw32(body.pub), E.unhex(body.tag)
@@ -732,6 +751,10 @@ M.enrollAnswer = function(from, body)
   local done, row = E.done[name], w and w.rows[name]
   if done and pub and done.kind == body.kind and C.same(done.pub, pub) and C.same(done.tag, tag) then
     return done.t, done.body
+  end
+  if enabled == false then
+    M.enrollClose()
+    return "err", E.err("off")
   end
   if not w then return "err", E.err("closed") end
   if row and pub and row.kind == body.kind and C.same(row.pub, pub) and C.same(row.tag, tag) then
@@ -756,7 +779,10 @@ M.enrollAnswer = function(from, body)
     out.pub, out.tag = S.proto.hex(w.pk), S.proto.hex(E.tag(w.tk, 5, server, name, pub, kind, w.pk, text))
     return "err", out
   end
-  if S.keys[name] then return notice("paired") end
+  if S.keys[name] then
+    local t, out = notice("paired")
+    return t, out, "paired"
+  end
   -- Two requests for one id: nobody can tell which is the device, so
   -- neither joins in this window.
   if row or w.contested[name] then
@@ -808,7 +834,10 @@ end
 M.enrollSave = function(text)
   local id, x = E.parse(text)
   if not id then return false end
-  return E.write({ token = E.format(id, x) })
+  local token = E.format(id, x)
+  local saved = E.read()
+  -- Re-entering the same token resumes the existing identity.
+  return E.write({ token = token, sk = saved and saved.token == token and saved.sk or nil })
 end
 
 -- Sends one request and keeps every reply to it for E.poll seconds. Reply
@@ -874,7 +903,7 @@ end
 -- and a reason. Nothing is saved until tag3 checks out. The first server
 -- share with a valid tag is kept; a valid tag under another share means a
 -- second token holder is answering, and the attempt stops.
-M.enroll = function(kind, show)
+M.enroll = function(kind, show, options)
   if not S.proto then return nil, "not open" end
   local saved = E.read()
   local server, x = E.parse(saved and saved.token)
@@ -882,21 +911,24 @@ M.enroll = function(kind, show)
     fs.delete(E.file)
     return nil, "token"
   end
+  if saved.paused == "off" then return nil, "off" end
   local ready, err = loadCrypto()
   if not ready then return nil, err end
   local sk = raw32(saved.sk)
   if not sk then
     sk = S.rnd.random(32)
-    if not E.write({ token = saved.token, sk = S.proto.hex(sk) }) then return nil, "disk" end
+    saved.sk = S.proto.hex(sk)
+    if not E.write(saved) then return nil, "disk" end
   end
   local pub = S.x.publicKey(sk)
   local ctx = { sk = sk, pub = pub, tk = E.key(x), s = tostring(server), d = tostring(os.getComputerID()),
     kind = kind, k = {}, size = 0 }
   local body = { pub = S.proto.hex(pub), kind = kind,
     tag = S.proto.hex(E.tag(ctx.tk, 1, ctx.s, ctx.d, pub, kind)) }
-  local fp, lock, stop = E.fp(pub), nil, S.now() + E.life + E.linger
+  local fp, lock, stop, hint = E.fp(pub), nil, S.now() + E.life + E.linger, nil
+  local offRounds = 0
   while S.now() < stop do
-    if show then show(lock and "pending" or "wait", fp) end
+    if show then show(hint or (lock and "pending" or "wait"), fp) end
     local outcome, plain, key
     ctx.new = 0
     local replies, noisy = E.ask(server, body)
@@ -906,6 +938,9 @@ M.enroll = function(kind, show)
       if xs then
         if lock and lock ~= xs then outcome = "conflict" end
         lock = lock or xs
+        if lock == xs and (what == "pending" or what == "wait") then
+          stop = S.now() + E.life + E.linger
+        end
         if outcome == "conflict" then
           outcome = "conflict"
         elseif what == "ok" then
@@ -916,24 +951,32 @@ M.enroll = function(kind, show)
           outcome = outcome or "pending"
         end
       elseif reply.t == "err" and E.final[reply.body.text] then
-        plain = reply.body.text
+        if plain ~= "off" then plain = reply.body.text end
       end
     end
     -- The conflict check needs every reply of the round. Without them an
     -- ok might come from a token holder hiding the real server, so wait.
     if outcome == "ok" and noisy then outcome = "pending" end
     if outcome == "ok" then
-      local ok, err = M.remember(server, key)
+      local ok, err = M.remember(server, key, options)
       if not ok then return nil, err end
       fs.delete(E.file)
       return server
     end
-    if (outcome and outcome ~= "pending") or (not outcome and plain) then
+    if outcome and outcome ~= "pending" then
       fs.delete(E.file)
-      return nil, outcome or plain
+      return nil, outcome
+    end
+    hint = not noisy and not outcome and plain or nil
+    if hint == "off" then offRounds = offRounds + 1 else offRounds = 0 end
+    -- A capped round may have hidden a tagged reply. Once locked, require
+    -- two quiet off rounds before persisting this public hint.
+    if hint == "off" and (lock == nil or offRounds >= 2) then
+      saved.paused = plain
+      if not E.write(saved) then return nil, "disk" end
+      return nil, plain
     end
   end
-  fs.delete(E.file)
   return nil, "timeout"
 end
 
@@ -998,7 +1041,7 @@ local function cpace(code, server, previous)
   return M.machineKey(isk)
 end
 
-M.join = function(code, serverId)
+M.join = function(code, serverId, options)
   if not S.proto then return nil, "not open" end
   if type(code) ~= "string" or not code:match("^%d%d%d%d%d%d$") then return nil, "code" end
   local server = serverId
@@ -1009,7 +1052,7 @@ M.join = function(code, serverId)
   local machine, err = cpace(code, server, S.keys[tostring(server)])
   if not machine then return nil, err end
   -- remember keeps the old key when the save fails.
-  local ok, saveErr = M.remember(server, machine)
+  local ok, saveErr = M.remember(server, machine, options)
   if not ok then return nil, saveErr end
   return true
 end
