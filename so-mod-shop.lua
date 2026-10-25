@@ -50,7 +50,7 @@ S.request = function(kind, name, count, view, reservedRid)
     end
   end
   local rid, why = reservedRid, nil
-  if not rid then rid, why = S.allocate() end
+  if not rid then rid, why = S.allocate(kind~="stock") end
   if not rid then return nil, why end
   if entry then
     entry.requestRid, entry.state, entry.sentAt = rid, "ordering", SO.now()
@@ -250,6 +250,8 @@ S.outputValid = function(v)
       or row.claimed~=nil and type(row.claimed)~="boolean"
       or row.releaseIntent~=nil and type(row.releaseIntent)~="boolean"
       or row.roomReleased~=nil and type(row.roomReleased)~="boolean"
+      or row.abandoned~=nil and type(row.abandoned)~="boolean"
+      or row.claimDenied~=nil and type(row.claimDenied)~="boolean"
       or row.createdAt~=nil and not S.integer(row.createdAt,0,2^53-2)
       or not ({claiming=true,claimed=true,ordering=true,quarantined=true,settled=true,releasing=true,released=true})[row.state]
       or row.requestRid ~= nil and not S.integer(row.requestRid,1,v.highWater)
@@ -306,7 +308,7 @@ S.outputInit = function()
   S.output.highWater=math.max(S.output.highWater,S.fuel.serial or 0,
     saved and saved.active and saved.active.orderRid or 0,saved and saved.last and saved.last.orderRid or 0)
   for _,row in pairs(S.output.outputs) do
-    if row.state~="released" then row.state,row.reconciled="quarantined",false end
+    if row.state~="released" then row.state,row.reconciled="quarantined",row.abandoned==true and not row.requestRid end
   end
   return S.outputSave()
 end
@@ -316,9 +318,33 @@ S.outputSave = function()
   S.outputSaveError=nil
   return true
 end
-S.allocate = function()
+S.deliveryEnabled = function()
+  local cfg=SO.store and SO.store.read and SO.store.read("so-server.cfg")
+  return type(cfg)=="table" and cfg.storageDeliveries==true
+end
+S.outputNeeded = function()
+  if S.deliveryEnabled() then return true end
+  if S.output then return S.outputFault or next(S.output.outputs)~=nil end
+  if not SO.store or not SO.store.read then return false end
+  for _,path in ipairs({"so-data/shop-output","so-data/shop-output.tmp","so-data/shop-output.bak"}) do
+    if fs and fs.exists and fs.exists(path) then
+      local saved,bytes=SO.store.read(path)
+      if type(saved)~="table" or saved.schema~=1 or not S.integer(saved.generation,1,2^53-2)
+        or not S.outputValid(saved.value) or type(bytes)~="string" or #bytes>65536 then return true end
+      S.rid=math.max(S.rid,saved.value.highWater)
+      if next(saved.value.outputs)~=nil then return true end
+    end
+  end
+  return false
+end
+S.allocate = function(persist)
+  if persist==false or not S.outputNeeded() then
+    local n=math.max(S.rid,S.fuel.serial or 0,S.output and S.output.highWater or 0)+1
+    if not S.integer(n,1,2^53-2) then return nil,"request ids exhausted" end
+    S.rid=n return n
+  end
   if not S.outputInit() then return nil,"output save failed" end
-  local n=math.max(S.output.highWater,math.floor(SO.now()),S.fuel.serial or 0)+1
+  local n=math.max(S.rid,S.output.highWater,math.floor(SO.now()),S.fuel.serial or 0)+1
   if not S.integer(n,1,2^53-2) then return nil,"request ids exhausted" end
   S.output.highWater=n
   if not S.outputSave() then return nil,"output save failed" end
@@ -382,14 +408,28 @@ S.outputReconciled = function(ownerId)
   end
   return true
 end
+S.outputAbandon = function(ownerId)
+  if not S.outputNeeded() then return true end
+  if not S.outputInit() then return false end
+  for _,row in pairs(S.output.outputs) do
+    if row.ownerId==ownerId and row.state~="released" then
+      if row.requestRid then return false end
+      row.abandoned,row.reconciled=true,true
+      if row.claimDenied then row.state="released" end
+      return S.outputSave()
+    end
+  end
+  return true
+end
 S.ordinaryOutput = function(point,kind)
+  if not S.outputNeeded() then return nil end
   if not S.outputInit() then return nil,"output save failed" end
   local cfg=SO.store.read("so-server.cfg") or {}
   local pinned=point or S.fuel.output
   local chosen=cfg.storageDeliveryOutput
   local drops=SO.mods.drops
   for _,p in ipairs(drops and drops.list and drops.list() or {}) do
-    if p.id==chosen then pinned=p break end
+    if not point and p.id==chosen then pinned=p break end
   end
   local row=pinned and S.output.outputs[S.fuelKey(pinned)]
   -- A room has one physical output. A retired enrollment still requires claims.
@@ -399,6 +439,7 @@ S.ordinaryOutput = function(point,kind)
       row=row or other
     end
   end
+  if point and row and S.fuelKey(row.point)~=S.fuelKey(point) then return nil,"output quarantined" end
   if not row then
     if pinned and chosen and cfg.storageDeliveries==true then
       local claimed,why=S.outputClaim((kind or "ordinary")..":"..S.fuelKey(pinned),pinned,kind or "ordinary")
@@ -459,7 +500,13 @@ S.outputReply = function(sender,message,pending)
   end
   if message.requestRid~=row.requestRid then return end
   S.pending[message.rid]=nil
+  if pending.cmd=="output.claim" and message.state~="claimed" then
+    row.claimDenied=true
+    if row.abandoned then row.state="released" S.outputSave() return end
+  end
   if pending.cmd=="output.release" and message.state=="released" then row.state="released"
+  elseif row.abandoned and not row.requestRid and message.state=="refused"
+    and (message.error=="room support missing" or message.error=="output claim required") then row.state="released"
   elseif message.state=="claimed" and not row.requestRid then row.state,row.claimed="claimed",true
   elseif message.state=="settled" and S.integer(message.barrier,0,2^53-2) then
     row.state,row.barrier="settled",message.barrier
@@ -468,16 +515,24 @@ S.outputReply = function(sender,message,pending)
   S.outputSave()
 end
 S.outputTick = function(now)
+  if not S.outputNeeded() then return end
   if not S.outputInit() then return end
   for _,row in pairs(S.output.outputs) do
     if row.state=="claiming" and now-(row.createdAt or 0)>=15000 then
       row.state,row.error="quarantined","room support missing or claim unconfirmed"
       if not S.outputSave() then return end
     end
-    if row.requestRid and row.sentAt and now-row.sentAt>=120000 and not row.retired then
-      S.pending[row.requestRid]=nil
+    local pending=row.requestRid and S.pending[row.requestRid]
+    local timeout=row.kind=="ordinary" and pending and pending.acknowledged and 600000 or 120000
+    if row.requestRid and row.sentAt and now-row.sentAt>=timeout and not row.retired then
+      if row.kind~="ordinary" then S.pending[row.requestRid]=nil end
       row.retired,row.error=true,"order timed out"
       if row.state~="settled" and row.state~="released" then row.state="quarantined" end
+      if not S.outputSave() then return end
+    end
+    if row.kind=="ordinary" and not row.reconciled
+      and (row.retired or not row.requestRid and now-(row.createdAt or 0)>=120000) then
+      row.reconciled=true
       if not S.outputSave() then return end
     end
     if row.state~="released" and (not row.pollAt or now-row.pollAt>=10000) then
@@ -986,7 +1041,7 @@ S.reply = function(sender, message)
     S.outputReply(sender,message,pending) return
   end
   local waiting = S.fuel.waiting
-  if waiting and SO.now()-waiting.at>=120000 then
+  if waiting and S.deliveryEnabled() and SO.now()-waiting.at>=120000 then
     S.fuelAlert("fuel order timed out",waiting.point,true)
     if message.rid==waiting.rid and sender==waiting.sender then return end
     waiting=nil
@@ -1775,7 +1830,7 @@ end
 S.tick = function(now)
   S.outputTick(now)
   S.watchAlerts(false)
-  if S.fuel.waiting and now - S.fuel.waiting.at >= 120000 then
+  if (S.fuel.auto or S.deliveryEnabled()) and S.fuel.waiting and now - S.fuel.waiting.at >= 120000 then
     S.fuelAlert("fuel order timed out", S.fuel.waiting.point, true)
   end
   local display = SO.mods.display
@@ -1827,6 +1882,7 @@ return {
   outputClaim = S.outputClaim,
   outputStatus = S.outputStatus,
   outputReconciled = S.outputReconciled,
+  outputAbandon = S.outputAbandon,
   deliveryOrder = S.deliveryOrder,
   deliveryReady = S.deliveryReady,
   deliveryOrderStatus = S.deliveryOrderStatus,

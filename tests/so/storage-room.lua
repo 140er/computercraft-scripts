@@ -50,6 +50,7 @@ local function fixture()
     return request
   end
   s.claimFuel = function()
+    m.files["so-server.cfg"]=H.encode({storageDeliveries=true})
     s.stock() s.enable()
     local row=assert(s.shop.outputClaim("fuel:0/0/1/0",output,"fuel"))
     s.control("output.claim","claimed")
@@ -558,23 +559,24 @@ return function(test,equal)
     equal(#s.orders(),0) equal(s.shop.fuelConfig().waiting,nil)
     equal(s.shop.outputStatus("fuel:0/0/1/0").state,"quarantined")
   end)
-  test("all room sends share the durable allocator without changing a waiting fuel serial",function()
-    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+  test("stock polls use memory ids while enabled orders save the allocator without changing fuel serial",function()
+    local s=fixture() s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true}) s.stock() s.enable() s.shop.fuelEmpty(output)
     local rid=s.orders()[1].rid
     s.net.time=10000 s.shop.tick(s.net.time)
     assert(s.sends[#s.sends].body.rid>rid)
     equal(s.shop.fuelConfig().serial,rid) equal(s.shop.fuelConfig().waiting.rid,rid)
-    local last=s.sends[#s.sends].body.rid
+    equal(s.m.env.SO.store.read("so-data/shop-output").value.highWater,rid)
     s.restart() s.stock() assert(s.shop.order("coal",1))
-    assert(s.orders()[#s.orders()].rid>last)
+    assert(s.orders()[#s.orders()].rid>rid)
     equal(s.shop.fuelConfig().waiting.rid,s.shop.fuelConfig().serial)
   end)
-  test("corrupt or future output generations refuse every order and stock send",function()
+  test("corrupt or future enrolled output generations refuse orders while stock polling continues",function()
     for _,bytes in ipairs({"corrupt",H.encode({schema=1,generation=999,value={v=2,highWater=0,outputs={}}})}) do
-      local s=fixture() s.stock() s.shop.order("coal",1)
+      local s=fixture() s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true}) s.stock() s.shop.order("coal",1)
       s.m.files["so-data/shop-output.tmp"]=bytes
-      local count=#s.sends s.restart() s.stock()
-      equal(s.shop.order("coal",1),nil) equal(#s.sends,count)
+      local count=#s.sends s.restart() s.stock() s.shop.tick(s.net.time)
+      equal(s.shop.order("coal",1),nil) assert(#s.sends>count)
+      equal(s.sends[#s.sends].body.cmd,"stock")
     end
   end)
   test("quarantine on one physical output leaves an unenrolled room output independent",function()
@@ -588,8 +590,8 @@ return function(test,equal)
     assert(s.shop.outputStatus("fuel:0/0/1/0"))
   end)
 
-  test("fuel replies at the two minute boundary retire the rid before the next tick",function()
-    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+  test("enabled fuel replies at the two minute boundary retire the rid before the next tick",function()
+    local s=fixture() s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true}) s.stock() s.enable() s.shop.fuelEmpty(output)
     local rid=s.orders()[1].rid
     s.net.time=120000
     s.shop.listen.roomsorter(9,{"Delivered 64 coal",rid=rid})
@@ -608,6 +610,52 @@ return function(test,equal)
     assert(s.shop.outputStatus("fuel:0/0/1/0"))
     s.restart() assert(s.shop.fuelConfig(true)) s.net.time=600000 s.stock() s.shop.fuelEmpty(output)
     equal(#s.orders(),1)
+  end)
+
+  test("default-off shop polling orders and fuel ignore delivery save failures and corrupt delivery state",function()
+    for _,fault in ipairs({"output save","delivery state"}) do
+      local s=fixture()
+      s.m.files["so-server.cfg"]=H.encode({storageDeliveries=false,builderMaterialOrders=false})
+      if fault=="output save" then s.failPath="so-data/shop-output"
+      else s.m.files["so-data/build/delivery"]="corrupt delivery" end
+      s.stock() s.net.time=10000 s.shop.tick(s.net.time)
+      equal(s.sends[#s.sends].body.cmd,"stock")
+      assert(s.shop.order("coal",1)) s.enable() s.shop.fuelEmpty(output)
+      equal(#s.orders(),2) equal(s.shop.fuelConfig().waiting.rid,s.shop.fuelConfig().serial)
+      for path in pairs(s.m.files) do assert(not path:match("so%-data/shop%-"),path) end
+    end
+  end)
+  test("default-off UB-5 preserves disabled-auto waits and accepts late replies before the next tick",function()
+    for _,tickFirst in ipairs({false,true}) do
+      local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+      local rid=s.shop.fuelConfig().waiting.rid
+      assert(s.shop.fuelConfig(false)) s.net.time=120000
+      if tickFirst then s.shop.tick(s.net.time) equal(s.shop.fuelConfig().waiting.rid,rid) end
+      s.shop.listen.roomsorter(9,{"Delivered 64 coal",rid=rid})
+      equal(s.shop.fuelConfig().waiting,nil) equal(s.shop.fuelConfig().alert,nil)
+    end
+  end)
+  test("an empty allocator after disabling deliveries cannot block or persist legacy shop requests",function()
+    local s=fixture() s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true})
+    s.stock() assert(s.shop.order("coal",1))
+    local bytes=s.m.files["so-data/shop-output"]
+    s.m.files["so-server.cfg"]=H.encode({storageDeliveries=false,builderMaterialOrders=false})
+    s.m.files["so-data/build/delivery"]="corrupt delivery"
+    s.failPath="so-data/shop-output" s.restart() s.stock()
+    assert(s.shop.order("coal",1)) s.enable() s.shop.fuelEmpty(output)
+    equal(#s.orders(),3) equal(s.m.files["so-data/shop-output"],bytes)
+    equal(s.shop.fuelConfig().waiting.rid,s.shop.fuelConfig().serial)
+  end)
+  test("fuel claim pins its configured chest rather than the delivery output",function()
+    local s=fixture()
+    local other={id="delivery",dim=0,x=10,y=1,z=0,side="down",kind="fuel"}
+    assert(s.drops.add(other))
+    s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true,storageDeliveryOutput="delivery"})
+    s.stock() s.enable() s.shop.fuelEmpty(output)
+    local request=s.control("output.claim","claimed")
+    equal(request.output.x,output.x) equal(request.output.y,output.y) equal(request.output.z,output.z)
+    s.shop.fuelEmpty(output) equal(#s.orders(),1)
+    equal(s.shop.fuelConfig().waiting.point,output)
   end)
 
 end

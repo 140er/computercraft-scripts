@@ -61,11 +61,7 @@ local function setup()
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end}, {__index=os})
   env.SO = {now=function() return s.now end,mods={},
     pair={key=function(id) return id ~= 9 and string.rep('01',32) or nil end,pending=function() return s.pending end},
-    store={copy=dofile("so-store.lua").copy,read=function() return nil end,store=function(path)
-      s.storeValues=s.storeValues or {}
-      if path=="so-display" then return {value=s.saved,save=function(v) s.saved=v return true end} end
-      return {value=s.storeValues[path],save=function(v) s.storeValues[path]=env.SO.store.copy(v) return true end}
-    end}}
+    store={store=function() return {value=s.saved,save=function(v) s.saved=v return true end} end}}
   env.SO.pairCode = function(id)
     s.calls[#s.calls+1] = {'pair',id}
     s.pending = '482915'

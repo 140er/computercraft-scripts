@@ -56,10 +56,9 @@ return function(test, equal)
     local net = H.new()
     net.time = 0
     local m = net.machine({id=1})
-    m.install({"so-store.lua","so-mod-shop.lua"})
+    m.install({"so-mod-shop.lua"})
     local render, input
-    m.env.SO={ now = function() return m.env.os.epoch("utc") end,store=m.env.dofile("so-store.lua"),
-      mods={display={screen=function(_, r, i) render,input=r,i end}}}
+    m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={display={screen=function(_, r, i) render,input=r,i end}}}
     local shop=m.env.dofile("so-mod-shop.lua")
     shop.tick(0)
     shop.listen.roomsorter_stock(90, {totals={stone=40,dirt=10}})
@@ -82,10 +81,9 @@ return function(test, equal)
     local net=H.new()
     net.time=0
     local m=net.machine({id=1})
-    m.install({"so-store.lua","so-mod-shop.lua"})
+    m.install({"so-mod-shop.lua"})
     local render
-    m.env.SO={ now = function() return m.env.os.epoch("utc") end,store=m.env.dofile("so-store.lua"),
-      mods={display={screen=function(_, r) render=r end}}}
+    m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={display={screen=function(_, r) render=r end}}}
     local shop=m.env.dofile("so-mod-shop.lua")
     shop.tick(0)
     shop.listen.dns(90,{sType="lookup response",sProtocol="roomsorter"})

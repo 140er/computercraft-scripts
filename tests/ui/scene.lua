@@ -139,11 +139,8 @@ S.new = function(opts)
   env.fs = { getCapacity = function() return disk[1] end, getFreeSpace = function() return disk[2] end }
   env.SO = { now = function() return s.now end, mods = {}, terminal = { log = log, started = started, id = s.id, mode = 'normal', offset = 0 },
     pair = { key = function() return string.rep('01', 32) end, pending = function() return s.pending end },
-    store = { read = function() return nil end, store = function(path)
-      s.storeValues=s.storeValues or {}
-      if path=="so-display" then return {value=s.saved,save=function(v) s.saved=v return true end} end
-      return {value=s.storeValues[path],save=function(v) s.storeValues[path]=env.SO.store.copy(v) return true end}
-    end, copy = dofile("so-store.lua").copy } }
+    store = { store = function() return { value = s.saved, save = function(v) s.saved = v return true end } end,
+      copy = function(v) local c = {} for k, x in pairs(v) do c[k] = x end return c end } }
   env.SO.pairCode = function(id)
     s.calls[#s.calls + 1] = { 'pair', id }
     s.pending = s.sys.code

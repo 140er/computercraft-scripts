@@ -204,7 +204,9 @@ local function paired(withBuilder)
       local reply={v=1,rid=body.rid,outputToken=body.outputToken,requestRid=room.requestRid,state=room.state,barrier=room.barrier}
       if body.cmd=="stock" then
         reply.totals={["minecraft:stone"]=128} reply.stacks={["minecraft:stone"]=64}
-      elseif body.cmd=="output.claim" then room.token=body.outputToken room.state="claimed" reply.state="claimed"
+      elseif body.cmd=="output.claim" then
+        if room.refuseClaim then reply.state,reply.error="refused","room support missing"
+        else room.token=body.outputToken room.state="claimed" reply.state="claimed" end
       elseif body.cmd=="get" then
         assert(room.token==body.outputToken)
         room.gets=room.gets+1 room.requestRid=body.rid room.state="settled" room.barrier=room.barrier+1
@@ -292,7 +294,8 @@ return function(test,equal)
   test("delivery requires receipts before probing a legacy room",function()
     local f=fixture() f.legacyRoom=true f.id=assert(f.request())
     for _=1,5 do f.step() end
-    equal(f.status().stage,"held") equal(#f.calls,0) equal(#f.commands("get"),0)
+    equal(f.status().stage,"refused") equal(f.status().terminal,true) equal(f.build.assigned(2),false)
+    equal(#f.calls,0) equal(#f.commands("get"),0)
     assert(f.status().error:find("room support missing",1,true))
   end)
   test("delivery refuses uncertain busy assigned loaded and underfueled workers",function()
@@ -448,10 +451,11 @@ return function(test,equal)
       equal(f.request(),nil) equal(#f.sends,before)
     end
   end)
-  test("delivery initial claim waits for earlier ordinary room work to settle",function()
+  test("delivery refuses an unadmitted claim while earlier room work is busy",function()
     local f=fixture() f.room.state="busy" f.id=assert(f.request())
     for _=1,10 do f.step() end
-    equal(f.status().stage,"held") equal(#f.calls,0) equal(#f.commands("get"),0)
+    equal(f.status().stage,"refused") equal(f.status().terminal,true) equal(f.build.assigned(2),false)
+    equal(#f.calls,0) equal(#f.commands("get"),0)
   end)
   test("delivery stock loss after sampling stays partial and never crafts or substitutes",function()
     local f=fixture() f.available=3 f.id=assert(f.request()) f.untilPhase("pickup")
@@ -478,10 +482,11 @@ return function(test,equal)
     equal(f.destStock,64) equal(#f.commands("get"),1)
   end)
 
-  test("delivery legacy replies without receipts hold before any probe",function()
+  test("delivery legacy replies without receipts refuse before any probe",function()
     local f=fixture() f.noReceipts=true f.id=assert(f.request())
     f.net.time=f.net.time+16000 f.step()
-    equal(f.status().stage,"held") equal(#f.calls,0) equal(#f.commands("get"),0)
+    equal(f.status().stage,"refused") equal(f.status().terminal,true) equal(f.build.assigned(2),false)
+    equal(#f.calls,0) equal(#f.commands("get"),0)
     assert(f.status().error:find("room support missing",1,true))
   end)
   test("delivery lost release receipt uses a terminal room status without another order",function()
@@ -509,16 +514,19 @@ return function(test,equal)
   test("delivery settlement without a matching claim cannot start the trip",function()
     local f=fixture() f.ignoreClaim=true f.id=assert(f.request())
     for _=1,10 do f.step() end
-    equal(f.status().stage,"held") equal(#f.calls,0) equal(#f.commands("get"),0)
+    equal(f.status().stage,"refused") equal(f.status().terminal,true) equal(f.build.assigned(2),false)
+    equal(#f.calls,0) equal(#f.commands("get"),0)
   end)
 
   test("delivery recovery cannot probe an output without a saved claim proof",function()
     local f=fixture() f.ignoreClaim=true f.id=assert(f.request())
     for _=1,5 do f.step() end
-    assert(f.build.deliveryRetry(f.id)) f.step()
+    equal(f.status().stage,"refused") equal(f.status().terminal,true)
     local ok,why=f.build.deliveryRetry(f.id)
-    equal(ok,false) equal(why,"room claim proof required")
-    for _,q in ipairs(f.calls) do equal(q.steps[1].op,"gps") end
+    equal(ok,false) equal(why,"delivery not held") equal(#f.calls,0)
+    equal(f.build.assigned(2),false)
+    f.ignoreClaim=false f.hello(2) f.hello(3)
+    assert(f.request())
   end)
   test("delivery cannot move or transfer outside its durable trip reservations",function()
     local f=fixture() f.id=assert(f.request()) f.untilPhase("pickup")
@@ -545,6 +553,92 @@ return function(test,equal)
     equal(f.status().error,"delivery chest full or transfer failed")
     equal(#f.inv,1) equal(#f.commands("get"),0) equal(#f.commands("output.release"),0)
     assert(f.shop.outputStatus(f.id))
+  end)
+
+  test("ordinary SHOP releases after timeout and room settlement so later orders and deliveries proceed",function()
+    local f=fixture()
+    for attempt=1,3 do
+      f.stock()
+      equal(f.shop.order("stone",1),nil) f.flush()
+      assert(f.shop.order("stone",1)) f.flush()
+      if attempt==2 then f.restart() end
+      f.net.time=f.net.time+600001 f.shop.tick(f.net.time) f.flush()
+      equal(#f.commands("output.release"),attempt-1)
+      f.room.state="settled" f.room.barrier=f.room.barrier+1
+      f.net.time=f.net.time+10000 f.shop.tick(f.net.time) f.flush()
+      f.net.time=f.net.time+10000 f.shop.tick(f.net.time) f.flush()
+      equal(#f.commands("output.release"),attempt)
+      f.stock()
+    end
+    equal(#f.commands("order"),3)
+    f.hello(2) f.hello(3) f.id=assert(f.request()) f.untilPhase("pickup")
+    equal(#f.commands("get"),1)
+  end)
+  test("claim admission failure refuses without retaining a worker or blocking another request",function()
+    for _,why in ipairs({"storage room missing","output ledger full","output quarantined"}) do
+      local f=fixture() local claim=f.shop.outputClaim
+      f.shop.outputClaim=function() return nil,why end
+      local id,err=f.request() equal(id,nil) equal(err,why)
+      equal(f.build.assigned(2),false) equal(#f.calls,0) equal(#f.commands("get"),0)
+      local last=f.m.env.SO.store.read("so-data/build/delivery").value.last
+      equal(last.stage,"refused") equal(last.error,why)
+      f.shop.outputClaim=claim f.id=assert(f.request()) f.untilPhase("pickup")
+    end
+  end)
+  test("legacy claim refusal survives restart and permits a later supported delivery",function()
+    for _,disabled in ipairs({false,true}) do
+      local f=fixture() f.legacyRoom=true f.id=assert(f.request())
+      if disabled then f.cfg.storageDeliveries=false f.m.files["so-server.cfg"]=H.encode(f.cfg) end
+      for _=1,5 do f.step() end
+      equal(f.status().stage,"refused") equal(f.status().error,"room support missing")
+      equal(f.shop.outputStatus(f.id),nil) equal(f.build.assigned(2),false)
+      f.restart() equal(f.build.assigned(2),false)
+      f.legacyRoom=false f.cfg.storageDeliveries=true f.m.files["so-server.cfg"]=H.encode(f.cfg)
+      f.restart() f.id=assert(f.request()) f.untilPhase("pickup")
+    end
+  end)
+  test("restart before claim admission refuses the delivery without reserving its worker",function()
+    local f=fixture() f.noReceipts=true f.id=assert(f.request()) f.restart()
+    equal(f.status().stage,"refused") equal(f.build.assigned(2),false)
+    equal(#f.calls,0) equal(#f.commands("get"),0)
+    assert(f.shop.outputStatus(f.id))
+  end)
+  test("an older interrupted claim with worker reservations remains held after restart",function()
+    local f=fixture() f.id=assert(f.request())
+    f.held["0,2,0"]="build:2" f.restart()
+    equal(f.status().stage,"held") equal(f.build.assigned(2),true)
+    equal(#f.calls,0) equal(#f.commands("get"),0)
+  end)
+  test("a failed refusal save dispatches nothing and can finish refusal after restart",function()
+    local f=fixture() f.legacyRoom=true f.id=assert(f.request())
+    f.failPath="so-data/build/delivery"
+    for _=1,5 do f.step() end
+    equal(#f.calls,0) equal(#f.commands("get"),0)
+    f.failPath=nil f.restart()
+    equal(f.status().stage,"refused") equal(f.build.assigned(2),false)
+  end)
+  test("builder request refusal returns to chest checks and accepts a manual refill without reordering",function()
+    local f=paired(true)
+    f.server.env.SO.mods.shop.deliveryReady=function() return false,"stock below 64" end
+    f.configure()
+    for _=1,1200 do f.advance(0.1) if f.job().service and f.job().service.deliveryDone then break end end
+    equal(f.job().service.stage,"check") equal(f.job().service.deliveryAttempted,true)
+    assert(f.job().retryAt) equal(f.room.gets,0)
+    f.advance(25) equal(f.room.gets,0)
+    f.destination.inv[1]={name="minecraft:stone",count=64}
+    for _=1,800 do f.advance(0.1) if f.job().complete then break end end
+    assert(f.job().complete,H.encode(f.job())) equal(f.room.gets,0)
+    equal(f.net.world["6,3,2"],"minecraft:stone")
+  end)
+  test("builder terminal refused delivery returns to normal checks and accepts a manual refill",function()
+    local f=paired(true) f.room.refuseClaim=true f.configure()
+    for _=1,1200 do f.advance(0.1) if f.job().service and f.job().service.deliveryDone then break end end
+    local job=f.job() equal(job.service.stage,"check") equal(job.service.deliveryAttempted,true)
+    equal(f.server.env.SO.mods.build.deliveryStatus(job.service.deliveryId).stage,"refused")
+    f.advance(25) equal(f.room.gets,0)
+    f.destination.inv[1]={name="minecraft:stone",count=64}
+    for _=1,800 do f.advance(0.1) if f.job().complete then break end end
+    assert(f.job().complete,H.encode(f.job())) equal(f.room.gets,0)
   end)
 
 end
