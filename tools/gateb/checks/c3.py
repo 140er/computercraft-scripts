@@ -76,6 +76,11 @@ def coordinates_of(ctx, name, frame, miners):
         if "turtle-back" not in ids(details):
             raise Blocked(f"Visible turtle-back button absent on {name} turtle {ident}")
         ctx.click(name, "turtle-back")
+        def tab_frame():
+            current = ctx.frame(name)
+            return current if any(i.startswith("tab:") or i == "setup" for i in ids(current)) else None
+        if not ctx.wait(tab_frame, 10):
+            raise Blocked(f"No tab frame on {name} {frame.get('role', '')} within 10s after turtle-back")
     return found
 
 

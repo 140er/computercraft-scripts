@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from checks import c2, c3, c4, c13
-from checks.context import sanitize
+from checks.context import Context, sanitize
 from checks.model import Blocked
 
 DOTS = "·" * 11
@@ -89,6 +89,34 @@ class Pocket:
         self.records[name] = value
         return value
 
+    wait = Context.wait
+    interval = 0
+
+
+class DelayedBackPocket(Pocket):
+    def __init__(self, tab_arrives=True):
+        super().__init__()
+        self.tab_arrives = tab_arrives
+        self.stale = None
+        self.stale_reads = 0
+
+    def frame(self, name):
+        if self.stale is not None:
+            self.stale_reads += 1
+            stale = self.stale
+            if self.tab_arrives:
+                self.stale = None
+            return stale
+        return super().frame(name)
+
+    def click(self, name, ident):
+        before = self.frame(name)
+        after = super().click(name, ident)
+        if ident == "turtle-back":
+            self.stale = before
+            return before
+        return after
+
 
 class MiningPageTests(unittest.TestCase):
     def test_active_tab_reads_bg_strings_and_runs(self):
@@ -131,6 +159,26 @@ class MiningPageTests(unittest.TestCase):
         self.assertEqual(found, [True, True])
         self.assertEqual(ctx.clicks, ["turtle:4", "turtle-back", "turtle:5", "turtle-back"])
         self.assertIn("C3-pocket-mining-turtle-4.json", ctx.records)
+
+    def test_turtle_back_waits_through_stale_details_before_setup(self):
+        for name in ("pocket", "wall"):
+            with self.subTest(name=name):
+                ctx = DelayedBackPocket()
+                found = c3.coordinates_of(ctx, name, ctx.frame(name), ("miner1", "miner2"))
+                self.assertEqual(found, [True, True])
+                self.assertEqual(ctx.stale_reads, 2)
+                self.assertTrue(c3.page(ctx, name, "mining", "setup")[1])
+
+    def test_turtle_back_without_tab_frame_blocks_after_timeout(self):
+        for name in ("pocket", "wall"):
+            with self.subTest(name=name):
+                ctx = DelayedBackPocket(tab_arrives=False)
+                with patch("checks.context.time.monotonic", side_effect=[0, 0, 10]), \
+                     patch("checks.context.time.sleep"), \
+                     self.assertRaisesRegex(Blocked, f"No tab frame on {name} mining within 10s after turtle-back"):
+                    c3.coordinates_of(ctx, name, ctx.frame(name), ("miner1",))
+                self.assertEqual(ctx.stale_reads, 2)
+                self.assertNotIn("tab:setup", ctx.clicks)
 
     def test_wide_list_coordinates_need_no_details(self):
         ctx = Pocket(coordinates_in_list=True)
