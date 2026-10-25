@@ -60,6 +60,7 @@ local function failedDig(id, row, cell, reason)
   end
 end
 local function claimBranch()
+  if not job.running then return nil end
   if job.unfinished and #job.unfinished > 0 then return table.remove(job.unfinished, 1), true end
   local branch = job.progress.nextBranch or 0
   if job.continuous and branch >= (job.branches or 8) then return nil end
@@ -673,6 +674,7 @@ plan = function(id,row)
     return
   end
   local finishing = job.complete and row.route and row.counted == row.branch
+    and not row.returning and not row.trip and not row.resumeTrip
   if row.stopRoute or not job.running and not finishing and row.route then clearRoute(row) save() end
   if type(mod("lease").ensureTool) == "function" then
     local equipped, reason = call("lease", "ensureTool", id, "pickaxe")
@@ -697,6 +699,22 @@ plan = function(id,row)
   if row.yield and yieldLane(id,row) then return end
   if not reservePose(id,row) then row.state = "waiting" park(id,row,false) return end
   if not P.inRange(mod("lease"),id,{row.pose}) then row.state,row.error="range","outside proven radio range" park(id,row,false) return end
+  if not job.running and finishing then
+    local last = row.route[#row.route]
+    local previousState, previousError = row.state, row.error
+    if not last or skipped(last) then row.state,row.error="hold","completed branch end unavailable"
+    elseif M.same(row.pose,last) then row.state="done"
+    else
+      row.goal=last
+      row.state="mining"
+      local action=M.next(job,row,lookup,row.inv,row.fuel)
+      if action.kind=="hold" then row.error=action.error row.state="hold" park(id,row,false)
+      elseif not send(id,row,action) then park(id,row,false) end
+      return
+    end
+    if row.state~=previousState or row.error~=previousError then save() end
+    park(id,row,false) return
+  end
   if not job.running and not finishing or row.state == "done" then row.state = row.state == "done" and "done" or "stopped" park(id,row,false) return end
   if row.dropRetry and row.dropRetry.after and SO.now() < row.dropRetry.after then
     park(id,row,false) return
@@ -873,7 +891,7 @@ plan = function(id,row)
         if #S.trailOrder>64 then S.trailDone[table.remove(S.trailOrder,1)]=nil end
         emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done})
       end
-      if #(job.unfinished or {}) > 0 or job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then
+      if job.running and (#(job.unfinished or {}) > 0 or job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8)) then
         local branch=claimBranch()
         row.returning = {branch=branch,junction=returnJunction(row)}
         row.state = "mining"
@@ -1572,11 +1590,13 @@ local function command(event)
     local claimed, claimErr = call("lease", "claimProbe", id, owner(id), pose)
     if claimed == false then S.error = claimErr return end
     S.error=nil
-    local previous = job.turtles[tostring(id)]
+    local previous, complete = job.turtles[tostring(id)], job.complete
     job.turtles[tostring(id)]={anchor=pose,pose=pose,state="recovering",recover=true,inv={}}
+    if not job.continuous or #(job.unfinished or {})>0 or (job.progress.nextBranch or 0)<(job.branches or 8) then job.complete=nil end
     if not reservePose(id,job.turtles[tostring(id)]) or not save() then
       S.error = S.error or job.turtles[tostring(id)].error
       job.turtles[tostring(id)] = previous
+      job.complete = complete
       return
     end
     local cleared, clearErr = call("lease", "clearProbe", id)

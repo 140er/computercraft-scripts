@@ -56,7 +56,10 @@ local function miner(config)
     onReport=function(_,fn) report=fn end,send=function(id,steps,opts)
       f.calls[#f.calls+1]={id=id,steps=copy(steps),opts=opts} return #f.calls end}
   mods.display={screen=function(_,r,i) render,input=r,i end}
-  f.mod=assert(loadfile("so-mod-mine.lua","t",env))() f.mod.tick()
+  f.restart=function()
+    f.mod=assert(loadfile("so-mod-mine.lua","t",env))() f.mod.tick()
+  end
+  f.restart()
   f.mods=mods
   f.input=function(value,session) input(type(value)=="table" and value or {text=value,session=session}) end
   f.render=function(w,h,session) return render(w,h,session) end
@@ -68,6 +71,13 @@ local function miner(config)
     return row
   end
   f.report=function(id,results,facts) report("report",id,results,{report=facts}) end
+  f.recover=function(id)
+    local row=j.turtles[tostring(id)]
+    local p=row.pose
+    local q=f.calls[#f.calls]
+    report(q.id or #f.calls,id,{{ok=false,err="No block to inspect"}},
+      {report={pose={x=p.x,y=p.y,z=p.z,f=p.facing},fuel=4000,inv={}}})
+  end
   return f
 end
 
@@ -229,5 +239,65 @@ return function(test, equal)
     for _=1,3 do f.tick() end
     f.input("start") f.restart() if f.queued() then f.report() end f.tick()
     equal(raised,1) equal(f.job().running,false)
+  end)
+
+  for _,displaced in ipairs({false,true}) do
+    test("review P1 mining budget growth and restart without START only returns to the completed end "..tostring(displaced),function()
+      local f=miner() local row=f.row(2)
+      f.job.continuous,f.job.branches,f.job.running=true,1,true
+      f.job.progress.nextBranch=1
+      f.mod.tick() equal(f.job.complete,true) equal(f.job.running,false)
+      f.input("branches 2") equal(f.job.branches,2)
+      local endpoint=copy(row.pose)
+      if displaced then row.pose.x=row.pose.x-1 end
+      local atRestart=copy(row.pose)
+      f.restart() f.recover(2)
+      local first=#f.calls+1
+      f.mod.tick()
+      equal(f.job.running,false) equal(f.job.progress.nextBranch,1)
+      equal(row.branch,0) equal(row.returning,nil)
+      if displaced then
+        equal(row.goal,endpoint)
+        row.pose=copy(endpoint)
+        row.parkUntil=nil
+        f.mod.tick()
+      end
+      for _=1,3 do f.mod.tick() end
+      equal(row.state,"done") equal(row.returning,nil) equal(f.job.progress.nextBranch,1)
+      equal(f.job.progress.done,1) equal(row.pose,endpoint)
+      for i=first,#f.calls do
+        local pose=copy(atRestart)
+        for _,step in ipairs(f.calls[i].steps) do
+          assert(step.op~="dig" and step.op~="digUp" and step.op~="digDown")
+          pose=dofile("so-plan.lua").apply(pose,step.op)
+          assert(pose.x<=endpoint.x and pose.x>=atRestart.x)
+          equal(pose.y,endpoint.y) equal(pose.z,endpoint.z)
+        end
+      end
+    end)
+  end
+  test("review P2 adding a worker after single-mode completion clears COMPLETE and announces the next completion",function()
+    local f=miner() f.row(2)
+    f.job.running=true f.job.progress.nextBranch=1
+    f.mod.tick() equal(f.job.complete,true)
+    f.input("add 3 12 -2 -5 e") equal(f.job.complete,nil)
+    local added=f.job.turtles["3"] assert(added and added.recover)
+    f.recover(3) f.input("start") equal(f.mod.facts().state,"running")
+    assert(not text(f.render(26,20)):find("COMPLETE",1,true))
+    local last=copy(added.pose) last.x=last.x+1
+    added.route={copy(added.pose),last} added.branch=1 added.index=2
+    f.job.progress.nextBranch=2
+    f.mod.tick() equal(f.job.running,true)
+    added.pose=last f.mod.tick()
+    equal(f.job.running,false) equal(f.job.complete,true) equal(f.job.progress.done,2)
+    local notices=0
+    for _,event in ipairs(f.events) do if event.kind=="mine.alert" and event.data and event.data.text=="mining complete" then notices=notices+1 end end
+    equal(notices,2)
+  end)
+  test("review P2 a failed assignment save retains the completion marker",function()
+    local f=miner() f.row(2)
+    f.job.running=true f.job.progress.nextBranch=1 f.mod.tick()
+    f.saveOK=false f.input("add 3 12 -2 -5 e")
+    equal(f.job.complete,true) equal(f.job.turtles["3"],nil)
   end)
 end

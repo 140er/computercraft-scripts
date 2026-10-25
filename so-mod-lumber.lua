@@ -952,17 +952,20 @@ S.workService = function()
     end
     service.point.id = saved.id
   end
-  if service.kind == "saplings" and service.stage ~= "return" then
+  if service.kind == "fuel" and service.stage ~= "travel" and service.stage ~= "return" then
+    local rejected = S.rememberFuelPickup()
+    if not S.acceptFuel() and rejected then service.stage = "check" S.fuelWait("non-fuel items") return end
+  end
+  local fuelAttempt = service.kind == "fuel" and (service.stage == "travel" or service.stage == "check"
+    or service.stage == "suck" or service.stage == "take")
+  if service.kind == "saplings" and service.stage ~= "return" or fuelAttempt then
     local usable, reason = S.usable(service.point)
     if not usable then
+      if fuelAttempt then S.fuelWait(reason) return end
       j.blocked = "hold"
       S.chestAlert("saplings",reason,service.point)
       return
     end
-  end
-  if service.kind == "fuel" and service.stage ~= "travel" and service.stage ~= "return" then
-    local rejected = S.rememberFuelPickup()
-    if not S.acceptFuel() and rejected then service.stage = "check" S.fuelWait("non-fuel items") return end
   end
   if service.stage == "travel" then
     if not service.access or S.occupied(service.access) then
