@@ -157,7 +157,7 @@ return function(test, equal)
     local model = s.D.gather();local chips = {}
     for i=1,8 do chips[i] = model.tiles[i].chips or {{model.tiles[i].value,model.tiles[i].bg}} end
     equal(chips,{{{'3 ok','d'},{'1 lost','e'}},{{'2 open','b'}},{{'1','e'}},{{'214','b'}},{{'96','d'}},{{'13%','d'}},
-      {{'4','d'},{'1 stale','1'}},{{'5','d'},{'1 broken','1'}}})
+      {{'4','d'},{'#5 stale','1'}},{{'5','d'},{'1 broken','1'}}})
     s.env.SO.mods.state.get=function() return {} end
     equal(s.D.gather().tiles[1].chips,{{'0','c'}})
   end)

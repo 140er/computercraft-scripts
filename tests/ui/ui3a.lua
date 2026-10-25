@@ -136,14 +136,13 @@ return function(test,equal)
       end
       assert(button,"missing drawn consent button")
       s.display.monitorTouch("left",button.x,button.y)
-      equal(#decisions,0)
-      s.display.tick(1)
       equal(decisions,{{"request-1",choice}})
+      s.display.tick(1)
       s.display.tick(2);equal(#decisions,1)
       assert(s.monitor.picture().text[1]:find("Decision saved",1,true))
     end
   end)
-  test("UI3a local monitor rejects a queued stale consent button",function()
+  test("UI3a local monitor rejects a consent button the notice replaced before the tap",function()
     local s=setup();local decisions=0
     local notice={id="request-1",status="pending",text="Choose allow or keep"}
     s.env.SO.mods.cells={retirement=function() return notice end,
@@ -155,8 +154,8 @@ return function(test,equal)
     local button
     for _,b in ipairs(assert(d.monitor).frame.buttons) do if b.id=="dug.allow/request-1" then button=b end end
     assert(button,"missing drawn consent button")
-    s.display.monitorTouch("left",button.x,button.y)
     notice={id="request-2",status="pending",text="Choose allow or keep"}
+    s.display.monitorTouch("left",button.x,button.y);equal(decisions,0)
     s.display.tick(1);equal(decisions,0)
   end)
   test("UI3a monitor discovers at most every five seconds and changes role only by command",function()

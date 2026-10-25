@@ -7,7 +7,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  budget = 15000,
+  budget = 15400,
   order = { "status", "pocket", "mining", "lumber", "shop", "generic", "ar", "panel", "map",
     "health", "attention", "alerts", "events", "errors", "disk", "build" },
   known = {},
@@ -126,7 +126,7 @@ D.command = function(text)
   if id then return D.identify(tonumber(id)) end
   local role
   id, role = line:match("^%s*(%d+)%s+(%S+)%s*$")
-  if not id then return false, "use <id> <role>, <id> far on|off or <id> identify" end
+  if not id then return false, "use <id> <role> or <id> -" end
   return D.assign(tonumber(id), role)
 end
 
