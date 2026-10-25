@@ -1,0 +1,31 @@
+15x10 Chest setup tools at 15x10
+  QUEUE --- +  
+ point 3 123,  
+               
+ TURTLES ----  
+ • #1 release  
+               
+  TEST   FIX   
+  SUSPEND      
+  CLEAR FOUND  
+         BACK  
+00000000ccc0000
+0888880eeeeee00
+000000000000000
+088888880cccc00
+01000eeeeeeeee0
+000000000000000
+099999909999900
+000000000000000
+0eeeeeeeeeeeee0
+000000000000000
+f7777777fff777f
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffff777777777f
+fffffffffffffff
+f777777f77777ff
+f777777777fffff
+f7777777777777f
+ffffffff777777f

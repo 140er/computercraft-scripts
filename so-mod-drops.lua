@@ -550,9 +550,9 @@ S.advanceQueue = function()
   if not ok then S.stopQueue(err) end
 end
 S.startQueue = function(view, owner, selected)
-  if not S.queueEnabled() then S.message = "dropsTestQueue off" return end
-  if (SO.store.read("so-server.cfg") or {}).setupMovement ~= true then S.message = "setupMovement off" return end
-  if S.queueBusy() or S.task or S.releasing or S.compass then S.message = "setup busy" return end
+  if not S.queueEnabled() then return S.setupRefuse("dropsTestQueue off") end
+  if (SO.store.read("so-server.cfg") or {}).setupMovement ~= true then return S.setupRefuse("setupMovement off") end
+  if S.queueBusy() or S.task or S.releasing or S.compass then return S.setupRefuse("setup busy") end
   local pending, dim, seen = {}, view.dim, {}
   if dim == nil then
     local idx = S.find(S.selectedPoint(view) or "")
@@ -563,7 +563,7 @@ S.startQueue = function(view, owner, selected)
       local idx = S.find(id)
       local p = idx and S.points[idx]
       if not p or p.dim ~= dim or not S.usable(id) or p.room and not S.roomSink then
-        S.message = "selection unavailable" return
+        return S.setupRefuse("selection unavailable")
       end
     end
   end
@@ -574,7 +574,7 @@ S.startQueue = function(view, owner, selected)
       pending[#pending+1] = {id=p.id, geometry=S.copy(p)}
     end
   end
-  if #pending == 0 then S.message = "no points to test" return end
+  if #pending == 0 then return S.setupRefuse("no points to test") end
   local worker = view.turtle
   if not worker then
     local lease = SO.mods.lease
@@ -590,9 +590,10 @@ S.startQueue = function(view, owner, selected)
       end
     end
   end
-  if not worker then S.message = "no idle turtle" return end
+  if not worker then return S.setupRefuse("no idle turtle") end
   S.queue = {ownerDisplay=owner, workerId=worker, pending=pending, completed=0, total=#pending, state="running"}
   S.advanceQueue()
+  return true
 end
 S.setupRefuse = function(reason)
   S.message = reason
@@ -1125,7 +1126,7 @@ S.gather = function(view)
     -- A turtle waiting for its facing shows the compass on every drop display until it is answered.
     testing = view.testing or S.compass ~= nil and not view.editing,
     savedSetup = S.enabled(), queueEnabled = S.queueEnabled(), queue = S.queue,
-    queueTools = view.queueTools, queueSelected = view.queueSelected or {},
+    queueTools = view.queueTools, queueSelected = view.queueSelected or {}, queueFeedback = view.queueFeedback,
     message = S.message, draft = view.draft or S.blank, roomSink = S.roomSink, turtles = turtles,
     from = view.fromPage or 0, compass = S.compass, found = S.candidates, task = S.task and S.task.id,
     failed = S.task and S.task.failed,
@@ -1341,7 +1342,7 @@ S.queueSetup = function(C, m)
     C.put(2, y, label:sub(1, w - 2), p.broken and "e" or p.suspended and "8" or "0")
     C.hit("queue-select:" .. p.id, 2, y, w - 2, 1)
   end
-  local message = q and q.reason or m.message
+  local message = m.queueFeedback or q and q.reason or m.message
   if message then C.flag(2, ya - 1, w - 2, message) end
 end
 S.setup = function(C, m)
@@ -1361,12 +1362,12 @@ S.setup = function(C, m)
   local w, h = C.w, C.h
   local room = w >= 52 and h >= 22
   local ya, stop, sel = room and h - 1 or h, (room and h - 1 or h) - 2, nil
-  C.bar(w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
+  C.bar(m.queueEnabled and "" or w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
+  if m.queueEnabled then C.chip(2, 1, "QUEUE", "queue-tools", "plain") end
   for _, p in ipairs(m.points) do if p.id == m.selected then sel = p end end
   if m.savedSetup or m.queueEnabled then
     local controls = { { "TEST", "test", sel and "primary" or "muted" },
       { "FIX", "fix", sel and sel.broken and "primary" or "muted" } }
-    if m.queueEnabled then controls[#controls+1] = {"QUEUE", "queue-tools", "plain"} end
     if sel and m.savedSetup then controls[#controls+1] = { sel.suspended and "RESUME" or "SUSPEND",
       (sel.suspended and "resume:" or "suspend:") .. sel.id, "plain" } end
     if m.savedSetup and #m.found > 0 then controls[#controls+1] = U.confirmChip(m, "clear-found", "CLEAR FOUND", "clear-found", "stop") end
@@ -1563,9 +1564,11 @@ S.input = function(ev)
   if ev.id:match("^queue%-") or ev.id == "test-all" or ev.id == "test-selected" then
     if not S.queueEnabled() or not view.testing or view.editing or not view.queueButtons or not view.queueButtons[ev.id] then return end
     if ev.id == "queue-tools" then view.queueTools = not view.queueTools return end
-    if ev.id == "queue-stop" then S.stopQueue("stopped by operator") return end
+    if ev.id == "queue-stop" then view.queueFeedback = nil S.stopQueue("stopped by operator") return end
     if ev.id == "test-all" or ev.id == "test-selected" then
-      S.startQueue(view, S.key(ev.session, ev.from) or 0, ev.id == "test-selected") return
+      local ok, why = S.startQueue(view, S.key(ev.session, ev.from) or 0, ev.id == "test-selected")
+      view.queueFeedback = not ok and why or nil
+      return
     end
     local pointId = ev.id:match("^queue%-select:(.+)$")
     local idx = pointId and S.find(pointId)
@@ -1573,6 +1576,7 @@ S.input = function(ev)
       view.queueSelected = view.queueSelected or {}
       view.queueSelected[pointId] = not view.queueSelected[pointId] or nil
       view.selected = pointId
+      view.queueFeedback = nil
     end
     return
   end

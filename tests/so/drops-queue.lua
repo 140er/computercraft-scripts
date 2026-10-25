@@ -229,6 +229,52 @@ return function(test,equal)
     t.drain() equal(t.S.queue.state,"stopped") equal(t.visits,{"a"})
     equal(t.cells.owner(0,64,0,"minecraft:overworld"),"gps:12")
   end)
+  test("B9-U review: a new admission error overrides the old stop reason only on its display",function()
+    local t=boot({dropsTestQueue=true,setupMovement=true,dropsSavedSetup=true})
+    t.add("a",2) t.add("b",3) t.open() t.open(8)
+    t.tap("queue-select:a") t.tap("test-selected") t.tap("queue-stop") t.drain()
+    equal(t.S.queue.reason,"stopped by operator")
+    assert(t.S.suspend("a",true))
+    t.tap("test-selected")
+    local function text(id)
+      local rows={} for _,row in ipairs(t.frame(id).rows) do rows[#rows+1]=row.text end
+      return table.concat(rows,"\n")
+    end
+    assert(text(7):find("selection unavailable",1,true),text(7))
+    assert(not text(7):find("stopped by operator",1,true),text(7))
+    assert(text(8):find("stopped by operator",1,true),text(8))
+    equal(t.S.queue.reason,"stopped by operator")
+  end)
+  test("B9-U review: 15x10 saved setup keeps SCAN, RELEASE and candidate ADD reachable",function()
+    local t=boot({dropsTestQueue=true,setupMovement=true,dropsSavedSetup=true})
+    t.add("a",2)
+    for x=9,10 do assert(t.S.observe({dim=0,x=x,y=63,z=0,side="down",block="minecraft:chest",at=1000})) end
+    t.open()
+    local function reach(id)
+      for _=1,12 do
+        local frame=t.frame(7,15,10)
+        local found
+        for _,b in ipairs(frame.buttons) do
+          assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=15 and b.y+(b.h or 1)-1<=10,b.id)
+          if b.label then assert(frame.rows[b.y].text:find(b.label,1,true),b.id.." overwritten") end
+          if b.id==id then found=b end
+        end
+        if found then return found end
+        t.input({id="from-next",from=7})
+      end
+      error("unreachable action "..id)
+    end
+    reach("queue-tools") t.input({id="queue-tools",from=7})
+    reach("scan:12") t.input({id="scan:12",from=7})
+    assert(t.active)
+    reach("release")
+    reach("queue-tools") reach("list")
+    t.drain()
+    reach("candidate:1") t.input({id="candidate:1",from=7})
+    equal(t.S.views[7].draft.x,9)
+    reach("add") t.input({id="add",from=7})
+    equal(#t.mod.list(),2)
+  end)
   test("P-U4-2 changed or removed pending points stop before their visit",function()
     for _,removed in ipairs({false,true}) do
       local t=boot() t.add("a",2) t.add("b",3) t.open() t.tap("test-all")
@@ -269,7 +315,7 @@ return function(test,equal)
     local setup=private(dofile("tests/ui/s3.lua"),"drops")
     for _,case in ipairs({{"M",57,24,"running",0},{"P",26,20,"running",0},{"XS",15,10,"running",0},
       {"stopping-XS",15,10,"stopping",1},{"stopped-P",26,20,"stopped",0},{"done-M",57,24,"done",0},
-      {"facing-P",26,20,"facing",0},{"facing-XS",15,10,"facing",0}}) do
+      {"facing-P",26,20,"facing",0},{"facing-XS",15,10,"facing",0},{"feedback-P",26,20,"feedback",0}}) do
       local t=setup()
       t.S.queueEnabled=function() return true end
       t.S.queue={completed=2,total=3,state=case[4],current={id="ore-west"}}
@@ -277,6 +323,10 @@ return function(test,equal)
       t.tap({id=7},"testing")
       local view=t.S.views[7]
       view.fromPage=case[5] view.queueSelected={[t.S.points[1].id]=true}
+      if case[4]=="feedback" then
+        t.S.queue.state,t.S.queue.reason="stopped","stopped by operator"
+        view.queueFeedback="selection unavailable"
+      end
       local frame=t.render(case[2],case[3],{id=7})
       for _,b in ipairs(frame.buttons) do
         assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=case[2] and b.y+(b.h or 1)-1<=case[3],b.id)
@@ -285,6 +335,20 @@ return function(test,equal)
       local diff=R.diff(R.load("tests/ui/fixtures/dropsqueue-"..case[1]..".txt"),capture(frame,case[2],case[3]))
       assert(#diff==0,table.concat(diff,"\n"))
       assert(#H.encode(frame)<16384)
+    end
+  end)
+  test("B9-U review tools fixtures match the twin at 15x10",function()
+    local setup=private(dofile("tests/ui/s3.lua"),"drops")
+    for _,case in ipairs({{"tools-XS",nil,0},{"release-XS",12,0},{"found-XS",nil,1}}) do
+      local t=setup()
+      t.S.queueEnabled=function() return true end
+      t.S.enabled=function() return true end
+      if case[2] then t.S.task={id=case[2]} end
+      t.tap({id=7},"testing")
+      t.S.views[7].queueTools,t.S.views[7].fromPage=true,case[3]
+      local frame=t.render(15,10,{id=7})
+      local diff=R.diff(R.load("tests/ui/fixtures/dropsqueue-"..case[1]..".txt"),capture(frame,15,10))
+      assert(#diff==0,table.concat(diff,"\n"))
     end
   end)
   test("B9-U narrow setup pages every stable ID and keeps BACK reachable",function()

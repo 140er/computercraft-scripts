@@ -1148,7 +1148,7 @@ def drops_queue(cv, m):
         label = ("[x] " if m.get("queueSelected", {}).get(p["id"]) else "[ ] ") + p["id"]
         cv.put(2, y, label[:w - 2], "e" if p["broken"] else "8" if p.get("suspended") else "0")
         cv.hit("queue-select:" + p["id"], 2, y, w - 2, 1)
-    message = (q.get("reason") if q else None) or m["message"]
+    message = m.get("queueFeedback") or (q.get("reason") if q else None) or m["message"]
     if message:
         flag(cv, 2, ya - 1, w - 2, message)
 
@@ -1174,13 +1174,13 @@ def drops_setup(cv, m):
     room = w >= 52 and h >= 22
     ya = last_row(h, room)
     stop = ya - 2
-    bar(cv, "CHEST SETUP" if w >= 30 else "SETUP", [], None, "", "8")
+    bar(cv, "" if m.get("queueEnabled") else "CHEST SETUP" if w >= 30 else "SETUP", [], None, "", "8")
+    if m.get("queueEnabled"):
+        chip(cv, 2, 1, "QUEUE", "queue-tools", "plain")
     sel = next((p for p in m["points"] if p["id"] == m["selected"]), None)
     if m.get("savedSetup") or m.get("queueEnabled"):
         controls = [("TEST", "test", "primary" if sel else "muted"),
                     ("FIX", "fix", "primary" if sel and sel["broken"] else "muted")]
-        if m.get("queueEnabled"):
-            controls.append(("QUEUE", "queue-tools", "plain"))
         if sel and m.get("savedSetup"):
             controls.append(("RESUME" if sel.get("suspended") else "SUSPEND",
                              ("resume:" if sel.get("suspended") else "suspend:") + sel["id"], "plain"))
@@ -1370,6 +1370,9 @@ def dropsqueue(w, h, state="running", page=0):
         m["queue"] = dict(completed=2, total=3, state=state, current=dict(id="ore-west"))
         if state == "facing":
             m["queue"]["state"], m["compass"] = "stopped", dict(id=12)
+        if state == "feedback":
+            m["queue"]["state"], m["queue"]["reason"] = "stopped", "stopped by operator"
+            m["queueFeedback"] = "selection unavailable"
         return drops(m, w, h, "Chest verification queue at %dx%d, %s" % (w, h, state))
     return make
 
@@ -1384,4 +1387,20 @@ FIXTURES += [
     ("dropsqueue-done-M", dropsqueue(57, 24, "done")),
     ("dropsqueue-facing-P", dropsqueue(26, 20, "facing")),
     ("dropsqueue-facing-XS", dropsqueue(15, 10, "facing")),
+    ("dropsqueue-feedback-P", dropsqueue(26, 20, "feedback")),
+]
+
+
+def dropsqueuetools(task=None, page=0):
+    def make():
+        m = drops_model(testing=True, saved=True)
+        m.update(queueEnabled=True, queueTools=True, task=task, start=page)
+        return drops(m, 15, 10, "Chest setup tools at 15x10")
+    return make
+
+
+FIXTURES += [
+    ("dropsqueue-tools-XS", dropsqueuetools()),
+    ("dropsqueue-release-XS", dropsqueuetools(task=12)),
+    ("dropsqueue-found-XS", dropsqueuetools(page=1)),
 ]
