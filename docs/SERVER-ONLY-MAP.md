@@ -1741,8 +1741,10 @@ See [release and retention](server-only/PROTOCOL.md#fenced-release-and-mark-rete
 ## Job options and ore finds
 
 Mining saves empty `keep` and `staging`, default-off `recallEnabled` and optional
-`recall={phase,workers}`. KEEP excludes exact IDs from cleanup and surplus unload
-without bypassing inventory headroom or sealing-stock checks. Recall drains work,
+`recall={phase,workers}`. KEEP prevents cleanup from discarding selected items.
+Selected surplus is unloaded, while the first eligible sealing stack, fuel,
+tools and utility items are retained. KEEP does not bypass inventory headroom
+or sealing-stock checks. Recall drains work,
 uses acknowledged non-digging routes to distinct staging poses and preserves
 unfinished cursors. STOP pauses it; START after staging retraces checked work
 routes. Restart recovers journals before travel. See [KEEP and recall](server-only/PROTOCOL.md#mining-keep-and-recall)

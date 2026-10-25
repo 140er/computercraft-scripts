@@ -1073,8 +1073,10 @@ not bypass the disk guard. See [the protocol](docs/server-only/PROTOCOL.md#fence
 
 On MINING, `keep <exact namespaced IDs>` replaces the saved list; commas or
 spaces separate up to 64 IDs. `keep none` clears it. Wait for batches and recovery
-to settle before changing it. Selected items stay out of cleanup and surplus
-unloading. KEEP still requires free inventory slots and sealing stock to dig.
+to settle before changing it. KEEP prevents cleanup from discarding selected
+items. Selected surplus is unloaded, while the first eligible sealing stack,
+fuel, tools and utility items are retained. KEEP still requires free inventory
+slots and sealing stock to dig.
 
 Recall defaults off. While stopped, use `recall on` and
 `staging <id> <x> <y> <z> <n|e|s|w>` for each assigned turtle. Destinations must
