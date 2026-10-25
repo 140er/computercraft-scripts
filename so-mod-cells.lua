@@ -3,7 +3,7 @@ local S = {
   clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
   root = "so-data/cells/",
   bytes = {}, used = {}, versions = {}, total = 0, migrations = 0, threshold = 1000000, target = 650000,
-  columns = {}, indexed = {}, stamps = {}, columnsVersion = 0, marks = 0, reservedVersion = 0,
+  columns = {}, indexed = {}, stamps = {}, columnsVersion = 0, marks = 0, reservedVersion = 0, reservedCache = {},
 }
 
 S.pause = function()
@@ -363,9 +363,10 @@ S.dugBits = function(dim, sx, sy, sz, memoryOnly)
 end
 
 S.reserved = function(dim, max)
-  local key, cache = S.dimension(dim), S.reservedCache
+  local key = S.dimension(dim)
+  local cache = S.reservedCache[key]
   max = max or 4096
-  if cache and cache.source == S.reservations and cache.dim == key and cache.max == max then return cache.list, cache.version end
+  if cache and cache.source == S.reservations and cache.max == max then return cache.list, cache.version end
   local list = {}
   for cell, who in pairs(S.reservations) do
     if #list >= max then break end
@@ -378,8 +379,27 @@ S.reserved = function(dim, max)
     S.pause()
   end
   S.reservedVersion = S.reservedVersion + 1
-  S.reservedCache = { source = S.reservations, dim = key, max = max, list = list, version = S.reservedVersion }
+  S.reservedCache[key] = { source = S.reservations, max = max, list = list, version = S.reservedVersion }
   return list, S.reservedVersion
+end
+
+-- Find the lowest held cell in a projected map cell, without the display-list cap.
+S.holder = function(dim, x1, z1, x2, z2, y1, y2)
+  local key, best = S.dimension(dim), nil
+  for cell, who in pairs(S.reservations) do
+    local d, sx, sy, sz, index = cell:match("^so%-data/cells/(.-)/(%-?%d+)_(%-?%d+)_(%-?%d+):(%d+)$")
+    if d == key then
+      index = tonumber(index)
+      local x, y, z = tonumber(sx)*16 + index%16, tonumber(sy)*16 + math.floor(index/16)%16,
+        tonumber(sz)*16 + math.floor(index/256)
+      if x >= x1 and x <= x2 and z >= z1 and z <= z2 and (not y1 or y >= y1 and y <= y2)
+        and (not best or y < best.y or y == best.y and (x < best.x or x == best.x and z < best.z)) then
+        best = {who=who, x=x, y=y, z=z}
+      end
+    end
+    S.pause()
+  end
+  return best
 end
 
 S.list = function(who, max)
@@ -712,7 +732,7 @@ S.loading = false
 return {
   name = "cells", handlers = { ["cells.forget"] = S.onForget }, tick = S.tick,
   prepareHandoff = S.prepareHandoff, handoff = S.handoff, reserve = S.reserve, reserveMany = S.reserveMany, release = S.release,
-  releaseOwner = S.releaseOwner, forgetOwner = S.forgetOwner, owner = S.owner,
+  releaseOwner = S.releaseOwner, forgetOwner = S.forgetOwner, owner = S.owner, holder = S.holder,
   isFree = function(x, y, z, dim) return S.owner(x, y, z, dim) == nil end,
   retirement = S.retirement, decideRetirement = S.decideRetirement, rememberWorker = S.rememberWorker,
   markDug = S.markDug, isDug = S.isDug, forget = S.forget, counts = S.counts, list = S.list,

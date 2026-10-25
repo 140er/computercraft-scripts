@@ -352,7 +352,7 @@ end
 S.snapshot = function(row)
   if not row then return nil end
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
-    tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
+    last = SO.store.copy(row.last), tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
     fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
@@ -427,6 +427,7 @@ S.report = function(msg)
   if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
   lease.status = "reported"
+  row.last = {status="reported", ok=allOk, at=row.seen}
   if allOk and lease.pose and not row.uncertain then
     local pose = S.copyPose(lease.pose)
     pose.id = msg.from
@@ -527,6 +528,7 @@ S.tick = function(now)
     if lease and now > lease.expires + 10000 then
       row.open = nil
       lease.status = "expired"
+      row.last = {status="expired", ok=false, at=now}
       if lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
     elseif lease and lease.retryAt and now >= lease.retryAt and now < lease.expires then
       lease.retryAt = now + 1000

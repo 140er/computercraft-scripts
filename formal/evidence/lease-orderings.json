@@ -1,7 +1,7 @@
 {
   "sync_commit": "a5f8de520e1ce15dafe2f352e6c54766eb7b088a",
   "covered_file": "so-mod-lease.lua",
-  "source_sha256": "b5514c400c13a86790c836264f7e33e630ab7facf751653eb3b80061bb3b6cd3",
+  "source_sha256": "aef58b58959686765c9ce98f77a929d257103cf3c17e8b7e9c372cbcfd063288",
   "tool": "Lua 5.2.4  Copyright (C) 1994-2015 Lua.org, PUC-Rio",
   "bounds": {
     "event_permutations": 40320,
@@ -30,35 +30,35 @@
       "exit_code": 1,
       "before": "if row.open then return nil, \"busy\" end",
       "after": "-- scratch: allow replacement of an open lease",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY dispatch trace=send_a,send_b foreign=wrong-id batch=1 grace=11001 actual=2-0-2 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:49: in function 'equal'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:68: in function 'run'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
+      "counterexample": "/usr/bin/lua5.2: PROPERTY dispatch trace=send_a,send_b foreign=wrong-id batch=1 grace=11001 actual=2-0-2 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:49: in function 'equal'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:68: in function 'run'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
     },
     {
       "property": "report_integrity",
       "exit_code": 1,
       "before": "or body.lease ~= lease.id then",
       "after": "then -- scratch: accept a foreign lease id",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY report_integrity trace=send_a,foreign foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:49: in function 'equal'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:102: in function 'run'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
+      "counterexample": "/usr/bin/lua5.2: PROPERTY report_integrity trace=send_a,foreign foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:49: in function 'equal'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:102: in function 'run'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
     },
     {
       "property": "reservation_retention",
       "exit_code": 1,
       "before": "lease.status = \"expired\"",
       "after": "lease.status = \"expired\"\n      SO.mods.cells.releaseOwner(\"mine:\" .. lease.turtleId)",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY reservation_retention trace=send_a,expire foreign=wrong-id batch=1 grace=11001 actual= expected=mine:2=true\nstack traceback:\n\t[C]: in function 'error'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:49: in function 'equal'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:106: in function 'run'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
+      "counterexample": "/usr/bin/lua5.2: PROPERTY reservation_retention trace=send_a,expire foreign=wrong-id batch=1 grace=11001 actual= expected=mine:2=true\nstack traceback:\n\t[C]: in function 'error'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:49: in function 'equal'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:106: in function 'run'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
     },
     {
       "property": "uncertainty",
       "exit_code": 1,
       "before": "if row.uncertain or row.anchor then return nil, \"pose uncertain\" end",
       "after": "-- scratch: dispatch with an uncertain pose",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY uncertainty trace=uncertain,send_a foreign=wrong-id batch=1 grace=11001 actual=2-0-1 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:49: in function 'equal'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:68: in function 'run'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
+      "counterexample": "/usr/bin/lua5.2: PROPERTY uncertainty trace=uncertain,send_a foreign=wrong-id batch=1 grace=11001 actual=2-0-1 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:49: in function 'equal'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:68: in function 'run'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
     },
     {
       "property": "callback_once",
       "exit_code": 1,
       "before": "S.notify(lease, results)",
       "after": "S.notify(lease, results)\n  S.notify(lease, results)",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY callback_once trace=send_a,report_a foreign=wrong-id batch=1 grace=11001 actual=2-0-1:report,2-0-1:report expected=2-0-1:report\nstack traceback:\n\t[C]: in function 'error'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:49: in function 'equal'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:107: in function 'run'\n\t/home/jeffrey/work/fix-round/f2d/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
+      "counterexample": "/usr/bin/lua5.2: PROPERTY callback_once trace=send_a,report_a foreign=wrong-id batch=1 grace=11001 actual=2-0-1:report,2-0-1:report expected=2-0-1:report\nstack traceback:\n\t[C]: in function 'error'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:49: in function 'equal'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:107: in function 'run'\n\t.../fix-round/f4c-formal-scratch/formal/lease_orderings.lua:120: in main chunk\n\t[C]: in ?\n"
     }
   ],
   "baseline": {
@@ -66,5 +66,5 @@
     "output": "FINDING restart-id-reuse at fixed clock send_a=2-0-1 restart send_b=2-0-1 old_report_a closes send_b\nPASS traces=483841 comparisons=17418260\n"
   },
   "scratch_removed": true,
-  "elapsed_seconds": 37.017
+  "elapsed_seconds": 38.953
 }

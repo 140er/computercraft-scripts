@@ -8,6 +8,7 @@ local M = { planes = {}, keys = {}, columns = {}, layouts = {}, aux = {}, serial
   dirs = {[0]={0,-1},{1,0},{0,1},{-1,0}},
   facings = {[0]=0,1,2,3,north=0,east=1,south=2,west=3},
   dimensions = {[0]="minecraft:overworld",[-1]="minecraft:the_nether",[1]="minecraft:the_end"},
+  heights = {["minecraft:overworld"]={-64,319}, ["minecraft:the_nether"]={1,126}, ["minecraft:the_end"]={1,255}},
   phases = {scan="scanning",base="felling",climb="felling",descend="felling",plant="planting",plantPlace="planting"},
   -- Cells per text cell: any step on a free axis, divisors and multiples of the gap on the branch axis.
   free = {1,2,3,4,6,8,12,16,24,32,48,64}, snap = {1,2,4,8,16,32,64},
@@ -68,7 +69,7 @@ M.gather = function(now, pick)
   local mine = M.call("mine", "mapView") or {}
   local lumber = M.call("lumber", "mapView") or {}
   local dim = pick or M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
-  local s = {dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}, broken=0}
+  local s = {now=now, dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}, broken=0}
   -- The next branch a running job will start, amber until a turtle takes it.
   local pv = type(mine.preview) == "table" and mine.preview
   if pv and type(pv[1]) == "table" and type(pv[2]) == "table" and M.dim(mine.dim) == dim
@@ -107,7 +108,10 @@ M.gather = function(now, pick)
       elseif M.call("lease", "inRange", tonumber(id) or id, p) == false then word = "range" end
       s.turtles[#s.turtles+1] = {id=tostring(id), pose=p, facing=M.facings[p.facing or p.f], word=word, tone=U.tone(word),
         fuel=machine.fuel, ore=row.ores, ago=math.max(0, now - (machine.seen or now)),
-        lease=status.lost and "expired" or status.open and "open" or "-"}
+        lease=status.lost and "expired" or status.open and "open" or "-", last=status.last,
+        range=word == "range" and dim == "minecraft:overworld" and s.server and tonumber(p.y) and tonumber(s.server.y) and
+          math.ceil(math.sqrt((p.x-s.server.x)^2 + (p.y-s.server.y)^2 + (p.z-s.server.z)^2)) .. "/" ..
+          math.floor((status.range or 16) + 8) or nil}
     end
   end
   table.sort(s.turtles, function(a, b)
@@ -142,7 +146,8 @@ M.gather = function(now, pick)
   end
   for _, t in ipairs(s.turtles) do
     markers[#markers+1] = table.concat({t.id, t.pose.x, t.pose.y, t.pose.z, tostring(t.facing), t.word,
-      tostring(t.fuel), tostring(t.ore), U.age(t.ago, true), t.lease}, ",")
+      tostring(t.fuel), tostring(t.ore), U.age(t.ago, true), t.lease, tostring(t.range), t.last and
+        table.concat({t.last.status, tostring(t.last.ok), U.age(math.max(0, now-t.last.at), true)}, ",") or ""}, ",")
   end
   for _, p in ipairs(s.drops) do markers[#markers+1] = table.concat({p.id, p.kind, p.x, p.y, p.z, tostring(p.broken)}, ",") end
   if s.server then markers[#markers+1] = s.server.x .. "," .. s.server.y .. "," .. s.server.z end
@@ -679,21 +684,53 @@ M.numbers = function(C, v, s, ox, oy, occ, taken, placed)
   end
 end
 
--- The thing a pick names, as {colour, x, z, rows}; a row is {"text", {{dx, text, fg}, ...}},
--- {"leader", label, value, fg} or {"chip", label, id}.
+M.holder = function(v, s, x1, z1, x2, z2, y1, y2)
+  local key = table.concat({s.terrain, x1, z1, x2, z2, tostring(y1), tostring(y2)}, ":")
+  if v.heldKey ~= key then
+    local held
+    if x1 == x2 and z1 == z2 and y1 and y1 == y2 then
+      local who = M.call("cells", "owner", x1, y1, z1, s.dim)
+      if who then held = {who=who, x=x1, y=y1, z=z1} end
+    else held = M.call("cells", "holder", s.dim, x1, z1, x2, z2, y1, y2) end
+    v.held, v.heldKey = held, key
+  end
+  return v.held
+end
+M.holderText = function(who)
+  local role, id = tostring(who):match("^(.-):(%d+)$")
+  return id and "#" .. id .. " " .. role or tostring(who)
+end
+M.silence = function(s, who)
+  local id = tonumber(tostring(who):match("(%d+)$"))
+  if not id then return end
+  local status = M.call("lease", "peek", id) or {}
+  local machines = M.call("state", "get", "machines") or {}
+  local machine = machines[tostring(id)] or machines[id] or {}
+  local seen = math.max(status.seen or 0, machine.seen or 0)
+  if seen > 0 and (status.lost or s.now - seen >= 60000) then
+    return "silent " .. math.floor(math.max(0, s.now-seen)/60000) .. " min"
+  end
+end
+-- A picked item returns {colour, x, z, rows} for its callout.
 M.callout = function(v, s, pick)
   if pick.k == "turtle" then
     for _, t in ipairs(s.turtles) do
       if t.id == tostring(pick.id) then
         local p, when = t.pose, U.age(t.ago, true)
         local fuel, lease = t.fuel and tostring(t.fuel) or "-", t.lease
-        return {t.tone, p.x, p.z, {
+        local rows = {
           {"text", {{0, "#" .. t.id, "0"}, {#t.id + 2, t.word, U.st.fg(t.tone)}, {-#when, when, "8"}}},
           {"text", {{0, p.x .. "," .. p.y .. "," .. p.z, "8"}}},
           {"leader", "fuel", fuel, type(t.fuel) == "number" and t.fuel < 500 and "1" or "0"},
           {"leader", "ore", tostring(t.ore or "-"), "0"},
           {"leader", "lease", lease, lease == "expired" and "e" or lease == "open" and "0" or "8"},
-          {"chip", "DETAILS", "turtle:" .. t.id}}}
+          {"chip", "DETAILS", "turtle:" .. t.id}}
+        if t.range then table.insert(rows, #rows, {"text", {{0, "range " .. t.range, "0"}}}) end
+        if t.last then
+          local result = t.last.status == "expired" and "expired" or t.last.ok and "ok" or "failed"
+          table.insert(rows, #rows, {"text", {{0, "last " .. result .. " " .. U.age(math.max(0, s.now-t.last.at)), "8"}}})
+        end
+        return {t.tone, p.x, p.z, rows}
       end
     end
   elseif pick.k == "drop" then
@@ -711,15 +748,13 @@ M.callout = function(v, s, pick)
   elseif pick.k == "shaft" then
     local g = s.g
     if g then
-      -- The holder of the lowest held shaft cell.
-      local holder, low = "-", nil
-      for _, c in ipairs(s.reserved) do
-        if c.x == g.x and c.z == g.z and (not low or c.y < low) then
-          holder, low = "#" .. (tostring(c.who):match("(%d+)$") or tostring(c.who)), c.y
-        end
-      end
-      return {"9", g.x, g.z, {{"text", {{0, "shaft", "0"}}}, {"text", {{0, g.x .. "," .. g.z, "8"}}},
-        {"leader", "lane", holder, holder ~= "-" and "b" or "8"}}}
+      local held = M.holder(v, s, g.x, g.z, g.x, g.z, math.min(g.top,g.bottom), math.max(g.top,g.bottom))
+      local holder = held and M.holderText(held.who) or "-"
+      local rows = {{"text", {{0, "shaft", "0"}}}, {"text", {{0, g.x .. "," .. g.z, "8"}}},
+        {"leader", "lane", holder, held and "b" or "8"}}
+      local silent = held and M.silence(s, held.who)
+      if silent then rows[#rows+1] = {"text", {{0, silent, "8"}}} end
+      return {"9", g.x, g.z, rows}
     end
   elseif pick.k == "cell" and tonumber(pick.x) and tonumber(pick.z) then
     local cx, cy = M.cellOf(v, pick.x, pick.z)
@@ -732,28 +767,26 @@ M.callout = function(v, s, pick)
         for _, bit in ipairs({1, 2, 4}) do if M.has(b, bit) and not M.has(bits, bit) then bits = bits + bit end end
       end
     end
-    local word = M.has(bits, 4) and "held" or M.has(bits, 2) and "dug" or M.has(bits, 1) and "planned" or ""
-    if word == "held" then
-      for _, c in ipairs(s.reserved) do
-        local bx, by = M.cellOf(v, c.x, c.z)
-        if (v.level == "all" or c.y == v.level) and bx == cx and by == cy then
-          who = "#" .. (tostring(c.who):match("(%d+)$") or tostring(c.who)) break
-        end
-      end
-    end
+    local x, z = v.left + cx*v.sx, v.top + cy*v.sz
+    local y = v.level ~= "all" and v.level or nil
+    local held = M.holder(v, s, x, z, x+v.sx-1, z+v.sz-1, y, y)
+    local word = held and "held" or M.has(bits, 2) and "dug" or M.has(bits, 1) and "planned" or ""
+    if held then who = M.holderText(held.who) end
     local rows = {{"text", {{0, v.level == "all" and pick.x .. "," .. pick.z or pick.x .. "," .. v.level .. "," .. pick.z, "0"}}}}
     if word ~= "" then
       local parts = {{0, word, word == "held" and "b" or "0"}}
       if who then parts[2] = {#word + 1, who, "0"} end
       rows[2] = {"text", parts}
     end
+    local silent = held and M.silence(s, held.who)
+    if silent then rows[#rows+1] = {"text", {{0, silent, "8"}}} end
     return {"3", pick.x, pick.z, rows}
   end
 end
 -- A hairline box beside the picked marker, joined to it. Returns the box in map cells and its chip
 -- {x, y, w} on the canvas, if any.
-M.box = function(C, v, s, ox, oy, pick, taken)
-  local got = M.callout(v, s, pick)
+M.box = function(C, v, s, ox, oy, pick, taken, got)
+  got = got or M.callout(v, s, pick)
   if not got then return end
   local tx, ty = M.cellOf(v, got[2], got[3])
   if not tx then return end
@@ -929,17 +962,24 @@ M.render = function(w, h, session, tries)
   v.mw, v.mh, v.L, v.h = L.mw, L.mh, L, h
   local key = M.prepare(v, s)
   local p = v.pick or {}
-  local fkey = table.concat({key, w, h, s.markers, tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
+  local got = v.pick and M.callout(v, s, v.pick)
+  local detail = {}
+  for _, row in ipairs(got and got[4] or {}) do
+    if row[1] == "text" then
+      for _, part in ipairs(row[2]) do detail[#detail+1] = part[2] end
+    else detail[#detail+1] = row[2] .. ":" .. row[3] end
+  end
+  local fkey = table.concat({key, w, h, s.markers, table.concat(detail, ";"), tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
   if v.frame and v.fkey == fkey then return v.frame end
   local C = U.canvas(w, h)
   v.taken = M.draw(C, v, s, L.mx, L.my, v.pick)
-  v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken)
+  v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken, got)
   M.controls(C, L, w, h, v, s)
   if L.roster then M.roster(C, L, w, s) end
   M.pickArea(C, L, v.box and v.box[5])
   local frame = M.pack(C)
-  -- Frames stay under the 16 KB message limit: a crowded view draws one zoom step out.
-  if (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
+  -- Wait for complete planes before choosing a zoom for the 16 KB message limit.
+  if v.ready and (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
     if v.fit then v.extra = math.min((v.extra or 0) + 1, #M.free) else M.zoom(v, 1) end
     return M.render(w, h, session, (tries or 0) + 1)
   end
@@ -1050,7 +1090,9 @@ M.input = function(event)
     v.cx = v.cx + d[1] * math.max(1, math.floor((v.mw or 3) * (v.sx or 1) / 3))
     v.cz = v.cz + d[2] * math.max(1, math.floor((v.mh or 3) * (v.sz or 1) / 3))
   elseif id == "map-up" or id == "map-down" then
-    v.level = (v.level == "all" and (g and g.bottom or surface) or v.level) + (id == "map-up" and 1 or -1)
+    local rule = M.heights[s.dim] or M.heights["minecraft:overworld"]
+    v.level = math.max(rule[1], math.min(rule[2],
+      (v.level == "all" and (g and g.bottom or surface) or v.level) + (id == "map-up" and 1 or -1)))
   elseif id == "map-level" then
     local mine = g and g.bottom
     if v.level == "all" then v.level = mine or surface
