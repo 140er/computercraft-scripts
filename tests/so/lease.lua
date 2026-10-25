@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "aef58b58959686765c9ce98f77a929d257103cf3c17e8b7e9c372cbcfd063288"
+local evidenceSourceHash = "61a1f22d22ea60e2af1ee64816f46bc83e2a239f10124e8f6576fd38123738c6"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
@@ -374,4 +374,143 @@ return function(test, equal, read)
     equal(s.lease.inRange(2, { dim = 5, x = 99999, y = 0, z = 0 }), true)
     equal(s.lease.inRange(2, { dim = 5, x = 99999, y = 0, z = 0 }), true)
   end)
+  local function settingsServer()
+    local s=setup(origin)
+    s.server.files["so-server.cfg"]=H.encode({workerSettings=true})
+    s.send("hello",{role="turtle",capabilities={workerSettings=true},settingsControl=true,
+      settings={seq=1,dim="minecraft:overworld",autoToolSwap=false,remoteN=4}})
+    return s
+  end
+  local function replySettings(s,t,body,rid,from)
+    local worker=from or s.worker
+    local p=worker.env.P or s.worker.env.P
+    local msg=p.build(key,t,body,rid)
+    if from then msg.from=from.id msg.mac=p.sign(key,msg) end
+    worker.env.rednet.send(1,msg,"so")
+    s.net.flush()
+  end
+  test("lease settings defaults off and old workers receive no command", function()
+    local s=setup(origin)
+    local before=#s.server.sent
+    equal(s.lease.settings(2,{autoToolSwap=false}),nil)
+    equal(#s.server.sent,before)
+    s.server.files["so-server.cfg"]=H.encode({workerSettings=true})
+    local rid,err=s.lease.settings(2,{autoToolSwap=false})
+    equal(rid,nil); equal(err,"update required")
+    equal(#s.server.sent,before)
+  end)
+  test("lease settings replies match authenticated sender rid command and counter without reply loops", function()
+    local s=settingsServer()
+    local rid=assert(s.lease.settings(2,{autoToolSwap=true}))
+    local pending=s.lease.status(2).settingsPending
+    equal(pending,{rid=rid,n=5})
+    local confirmed={seq=2,dim="minecraft:overworld",autoToolSwap=true,remoteN=5}
+    local before=#s.server.sent
+    for _,body in ipairs({{command="worker.update",n=5,settings=confirmed},
+      {command="worker.settings",n=4,settings=confirmed}}) do
+      s.lease.handlers.ack({from=2,t="ack",rid=rid,body=body})
+      equal(s.lease.status(2).settingsPending,pending)
+    end
+    replySettings(s,"ack",{command="worker.settings",n=5,settings=confirmed},rid.."-wrong")
+    equal(s.lease.status(2).settingsPending,pending)
+    local other=s.net.machine({id=3,modem=true})
+    replySettings(s,"ack",{command="worker.settings",n=5,settings=confirmed},rid,other)
+    equal(s.lease.status(2).settingsPending,pending)
+    equal(#s.server.sent,before,"unmatched replies caused a reply loop")
+    replySettings(s,"ack",{command="worker.settings",n=5,settings=confirmed},rid)
+    equal(s.lease.status(2).settings,confirmed)
+    equal(s.lease.status(2).settingsPending,nil)
+    replySettings(s,"ack",{command="worker.settings",n=5,settings={seq=99,autoToolSwap=false}},rid)
+    equal(s.lease.status(2).settings,confirmed)
+  end)
+  test("lease delayed ack and hello cannot replace newer confirmed settings or reuse an old intent", function()
+    local s=settingsServer()
+    local rid=assert(s.lease.settings(2,{autoToolSwap=true}))
+    local newer={seq=3,dim="minecraft:the_nether",autoToolSwap=false,remoteN=5}
+    s.send("hello",{role="turtle",capabilities={workerSettings=true},settingsControl=true,settings=newer})
+    replySettings(s,"ack",{command="worker.settings",n=5,
+      settings={seq=2,dim="minecraft:overworld",autoToolSwap=true,remoteN=5}},rid)
+    s.send("hello",{role="turtle",capabilities={workerSettings=true},settingsControl=true,
+      settings={seq=1,autoToolSwap=true,remoteN=4}})
+    equal(s.lease.status(2).settings,newer)
+    rid=assert(s.lease.settings(2,{autoToolSwap=true}))
+    equal(s.lease.status(2).settingsPending.n,6)
+    replySettings(s,"err",{command="worker.settings",code="settings",n=6,text="worker busy"},rid)
+    equal(s.lease.status(2).settings,newer)
+    equal(s.lease.status(2).settingsError,"worker busy")
+    rid=assert(s.lease.settings(2,{autoToolSwap=true}))
+    equal(s.lease.status(2).settingsPending.n,7)
+    s.net.advance(16)
+    equal(s.lease.status(2).settings,newer)
+    equal(s.lease.status(2).settingsPending,nil)
+    equal(s.lease.status(2).settingsError,"settings timed out")
+  end)
+  test("lease unassigned status requires assignments and open lease to clear", function()
+    local s=settingsServer()
+    local assigned=true
+    s.server.env.SO.mods.build={assigned=function() return assigned end}
+    s.net.advance(2)
+    local function idleCount()
+      local count=0
+      for _,sent in ipairs(s.server.sent) do
+        if sent.payload.t=="worker.status" and sent.payload.body.job=="" then count=count+1 end
+      end
+      return count
+    end
+    equal(idleCount(),0)
+    equal(s.lease.settings(2,{autoToolSwap=true}),nil)
+    assigned=false
+    local lid=assert(s.lease.send(2,{{op="inspectDown"}},{ms=2000}))
+    s.net.advance(1)
+    equal(idleCount(),0)
+    s.send("step.report",{lease=lid,results={{ok=true}}})
+    s.net.advance(1)
+    assert(idleCount()>0)
+  end)
+  test("lease tick isolates assigned and idle status send failures", function()
+    for _,assigned in ipairs({false,true}) do
+      local s=settingsServer()
+      s.server.env.SO.mods.build={assigned=function() return assigned end}
+      local attempted=false
+      s.server.env.rednet.send=function(_,payload)
+        local msg=s.server.env.SO.proto.decode(payload)
+        if msg and msg.t=="worker.status" then attempted=true; error("status transport failed") end
+      end
+      local ok,err=pcall(s.lease.tick)
+      assert(attempted,"lease tick did not attempt the status")
+      assert(ok,tostring(err))
+    end
+  end)
+  test("lease new pairing refreshes settings baseline and counter without pushing cached values", function()
+    local s=settingsServer()
+    assert(s.lease.settings(2,{autoToolSwap=true}))
+    s.net.flush()
+    local nextKey=string.rep("b",64)
+    assert(s.server.env.SO.pair.remember(2,nextKey))
+    s.worker.env.KEY=nextKey
+    s.send("hello",{role="turtle",capabilities={workerSettings=true},settingsControl=true,
+      settings={seq=0,autoToolSwap=false}})
+    equal(s.lease.status(2).settings,{seq=0,autoToolSwap=false})
+    equal(s.lease.status(2).settingsPending,nil)
+    local count=0
+    for _,sent in ipairs(s.server.sent) do if sent.payload.t=="worker.settings" then count=count+1 end end
+    equal(count,1,"reconnect pushed cached settings")
+    assert(s.lease.settings(2,{autoToolSwap=true}))
+    equal(s.lease.status(2).settingsPending.n,1)
+  end)
+
+  test("lease legacy hellos keep dimension and tool facts when settings control is off", function()
+    local s=setup(origin)
+    s.server.install({"so-plan.lua"})
+    s.server.files["so-server.cfg"]=H.encode({remoteDimensions=true})
+    s.send("hello",{role="turtle",capabilities={workerSettings=true,dimensionSafety=true},
+      settings={seq=0,autoToolSwap=false}})
+    s.send("hello",{role="turtle",dim="minecraft:the_nether",
+      capabilities={workerSettings=true,dimensionSafety=true,autoToolSwap=true},
+      settings={seq=0,dim="minecraft:the_nether",autoToolSwap=true}})
+    equal(s.lease.status(2).autoToolSwap,true)
+    assert(s.lease.remoteReady(2,"minecraft:the_nether"))
+    equal(s.lease.settings(2,{autoToolSwap=false}),nil)
+  end)
+
 end

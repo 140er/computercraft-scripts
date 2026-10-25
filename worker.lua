@@ -72,6 +72,7 @@ W.save = function()
   W.journal.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
   if W.journal.dim == "minecraft:overworld" then W.journal.dim=nil end
   local ok, err = W.box.save(W.journal)
+  if ok then W.savedUncertain = W.journal.uncertain == true end
   if not ok then print("worker: journal " .. tostring(err)) end
   return ok
 end
@@ -225,13 +226,37 @@ W.counts = function()
   return counts
 end
 
+W.holdConfig = function()
+  W.configHold, W.unassigned = true, nil
+  local journal = W.journal or W.box.value or {id=tostring(os.getComputerID()).."-0",seq=0,
+    pose={x=0,y=0,z=0,f=0},moves={},dug={}}
+  if journal.uncertain and W.savedUncertain then return true end
+  journal.uncertain, journal.recovery = true, {outcome="config recovery"}
+  if W.journal then return W.save() end
+  local ok = W.box.save(journal)
+  if ok then W.box.value, W.savedUncertain = journal, true end
+  return ok
+end
+
+W.readConfig = function()
+  local held = false
+  local config, state = W.store.readConfig("so-worker.cfg", function()
+    held = true
+    return W.holdConfig()
+  end)
+  if config then W.config, W.autoToolSwap = config, config.autoToolSwap == true end
+  if state.hold and not held then W.holdConfig() end
+  return config, state
+end
+
 W.dimension = function()
-  local config = W.store.read("so-worker.cfg")
-  return type(config) == "table" and config.dim or nil
+  local config = W.readConfig()
+  return config and config.dim or W.config and W.config.dim or nil
 end
 
 W.checkDimension = function()
   local j, dim = W.journal, W.dimension() or "minecraft:overworld"
+  if W.configHold then return end
   if (j.dim or "minecraft:overworld") == dim or j.dimensionChanged then return end
   if j.seq == 0 and #j.moves == 0 and #j.dug == 0 and not j.pending then
     j.dim=dim ~= "minecraft:overworld" and dim or nil return
@@ -242,6 +267,8 @@ W.checkDimension = function()
 end
 
 W.gpsFix = function()
+  W.readConfig()
+  if W.configHold then return nil end
   if W.locating or type(gps) ~= "table" or type(gps.locate) ~= "function" then return nil end
   W.locating = true
   local lookup = coroutine.create(gps.locate)
@@ -259,7 +286,8 @@ W.gpsFix = function()
     return nil
   end
   local fix = { x = x, y = y, z = z }
-  local config = W.store.read("so-worker.cfg")
+  local config = W.readConfig()
+  if W.configHold then return nil end
   if type(config) == "table" and type(config.dim) == "string"
     and config.dim:match("^[%w_]+:[%w_./%-]+$") then fix.dim = config.dim end
   return fix
@@ -310,7 +338,9 @@ W.hello = function()
   local where = W.gpsFix()
   local body = {
     role = "turtle",
-    capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, autoToolSwap = W.autoToolSwap or nil },
+    capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, workerSettings = true, autoToolSwap = W.autoToolSwap or nil },
+    settings = W.settings(),
+    settingsControl = W.config and W.config.settingsControl == true,
     tools = W.tools(),
     dim = W.dimension(),
     fuel = W.fuelBody(),
@@ -321,7 +351,9 @@ W.hello = function()
   local label = os.getComputerLabel()
   if type(label) == "string" and #label > 0 then body.label = label end
   if where then body.gps = where end
-  W.transmit(W.server, W.proto.build(key, "hello", body))
+  local msg = W.proto.build(key, "hello", body)
+  W.idleRid = msg.rid
+  W.transmit(W.server, msg)
   W.lastHello = W.now()
 end
 
@@ -399,6 +431,101 @@ W.paint = function()
     term.setCursorPos(1, 5)
     term.write("pose uncertain: re-add turtle " .. os.getComputerID())
   end
+  if W.config and W.config.settingsControl == true and not W.repair then
+    term.setCursorPos(1, 7)
+    term.write("[WORLD] [NETHER] [END]")
+    term.setCursorPos(1, 8)
+    term.write("[SWAP " .. (W.autoToolSwap and "ON" or "OFF") .. "]")
+    term.setCursorPos(1, 9)
+    term.write((W.settingsNotice or (W.config.dim or "dimension unknown")):sub(1, width))
+  end
+end
+
+W.remoteN = function(config)
+  local key = W.pair.key(W.server)
+  local remote = config and config.settingsRemote
+  if key and remote and remote.server == W.server
+    and config.settingsPair == W.proto.hex(W.proto.sha256(key)) then return remote.n end
+  return 0
+end
+
+W.settings = function()
+  local config = W.readConfig() or W.config or {}
+  local n = W.remoteN(config)
+  return {seq=config.settingsSeq or 0, dim=config.dim, autoToolSwap=W.autoToolSwap == true,
+    remoteN=n > 0 and n or nil}
+end
+
+W.idle = function(confirmingUnassignment)
+  W.readConfig()
+  local j = W.journal
+  if not W.seen or W.now() - W.seen >= 60000 or W.repair then return false, "server offline" end
+  if W.queued or W.executingBatch or j.pending or j.uncertain or W.configHold
+    or W.mode == "fast" or W.mode == "back" or W.mode == "slow" and not j.park and #j.moves > 0
+    or W.job and W.job ~= "" or not confirmingUnassignment and (not W.unassigned or W.now()-W.unassigned >= 45000)
+    or W.lease and W.expires and W.now() < W.expires then return false, "worker busy" end
+  return true
+end
+
+W.editSettings = function(body, remote)
+  if type(body) ~= "table" then return false, "invalid settings" end
+  for field in pairs(body) do
+    if field ~= "dim" and field ~= "autoToolSwap" and not (remote and field == "n") then
+      return false, "invalid settings"
+    end
+  end
+  if body.dim == nil and body.autoToolSwap == nil then return false, "empty settings" end
+  if body.dim ~= nil and body.dim ~= "minecraft:overworld" and body.dim ~= "minecraft:the_nether"
+    and body.dim ~= "minecraft:the_end" or body.autoToolSwap ~= nil and type(body.autoToolSwap) ~= "boolean" then
+    return false, "invalid settings"
+  end
+  local config = W.readConfig()
+  if not config or config.settingsControl ~= true then return false, "settings disabled" end
+  if remote then
+    if type(body.n) ~= "number" or body.n <= 0 or body.n % 1 ~= 0 or body.n >= 2^53 then return false, "invalid counter" end
+    local n = W.remoteN(config)
+    if body.n < n then return false, "stale settings" end
+    if body.n == n then return true end
+  end
+  local idle, why = W.idle()
+  if not idle then return false, why end
+  local nextConfig = W.store.copy(config)
+  nextConfig.settingsSeq = (config.settingsSeq or 0) + 1
+  if body.dim then nextConfig.dim = body.dim end
+  if body.autoToolSwap ~= nil then nextConfig.autoToolSwap = body.autoToolSwap end
+  if remote then
+    nextConfig.settingsRemote = {server=W.server, n=body.n}
+    nextConfig.settingsPair = W.proto.hex(W.proto.sha256(W.pair.key(W.server)))
+  end
+  if not W.idle() then return false, "worker busy" end
+  local j = W.journal
+  if body.dim and body.dim ~= config.dim and (j.seq > 0 or #j.moves > 0 or #j.dug > 0) then
+    W.unassigned = nil
+    j.uncertain, j.dimensionChanged = true, true
+    j.recovery = {outcome="dimension changed"}
+    if not W.save() then return false, "journal save failed" end
+  end
+  local saved, err = W.store.saveConfig("so-worker.cfg", nextConfig)
+  if not saved then W.readConfig() return false, tostring(err) end
+  W.config, W.autoToolSwap = nextConfig, nextConfig.autoToolSwap == true
+  W.checkDimension()
+  W.hello()
+  return true
+end
+
+W.settingsInput = function(x, y)
+  if W.repair or not W.config or not W.config.settingsControl then return end
+  local body
+  if y == 7 then
+    if x >= 1 and x <= 7 then body={dim="minecraft:overworld"}
+    elseif x >= 9 and x <= 16 then body={dim="minecraft:the_nether"}
+    elseif x >= 18 and x <= 22 then body={dim="minecraft:the_end"} end
+  elseif y == 8 and x >= 1 and x <= (W.autoToolSwap and 9 or 10) then body={autoToolSwap=not W.autoToolSwap} end
+  if body then
+    local ok, err = W.editSettings(body)
+    W.settingsNotice = ok and nil or err
+    W.paint()
+  end
 end
 
 W.reanchor = function(body)
@@ -414,13 +541,26 @@ W.reanchor = function(body)
     if type(n) ~= "number" or n ~= n or n % 1 ~= 0 or math.abs(n) >= 30000000 then return end
   end
   if p.f < 0 or p.f > 3 then return end
+  local config = W.readConfig()
+  if W.configHold and (not config or not config.dim) then return end
   local old, pose = W.journal, W.pose
   W.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
   W.journal = { seq = old.seq, dim = W.dimension() ~= "minecraft:overworld" and W.dimension() or nil, moves = {}, dug = {}, park = true,
     recovery = { outcome = "anchored", journal = old.id } }
   W.bump()
   if not W.save() then W.journal, W.pose = old, pose return end
-  W.dug, W.queued, W.expires, W.lease = {}, nil, nil, nil
+  if W.configHold then
+    config.configRecovery = false
+    local ok = W.store.saveConfig("so-worker.cfg", config)
+    if not ok then
+      W.journal, W.pose = old, pose
+      W.journal.uncertain = true
+      W.save()
+      return
+    end
+    W.configHold = nil
+  end
+  W.dug, W.queued, W.expires, W.lease, W.unassigned = {}, nil, nil, nil, nil
   W.mode, W.stepName = "idle", "idle"
   W.hello()
 end
@@ -442,7 +582,16 @@ W.accept = function(sender, payload)
   if msg.t == "worker.status" then
     if type(msg.body.job) == "string" and type(msg.body.reason) == "string" then
       W.job, W.reason = msg.body.job:sub(1, 16), msg.body.reason:sub(1, 48)
+      if W.job ~= "" then W.unassigned = nil
+      elseif msg.body.idleRid == W.idleRid and msg.body.idleRid ~= nil and W.idle(true) then
+        W.unassigned = W.now()
+      end
     end
+  elseif msg.t == "worker.settings" then
+    local ok, err = W.editSettings(msg.body, true)
+    local body = {command="worker.settings", n=msg.body.n}
+    if ok then body.settings=W.settings() else body.code, body.text="settings", err end
+    W.transmit(W.server, W.proto.build(key, ok and "ack" or "err", body, msg.rid))
   elseif msg.t == "worker.anchor" then W.reanchor(msg.body)
   elseif msg.t == "lease.batch" then
     local body = msg.body
@@ -456,6 +605,7 @@ W.accept = function(sender, payload)
       msg.deadline = math.min(msg.deadline, W.queued.deadline)
     end
     W.queued = msg
+    W.unassigned, W.idleRid = nil, nil
   end
 end
 
@@ -466,9 +616,9 @@ W.enrollError = function(why)
 end
 
 W.repairPair = function()
-  if W.inBatch then return nil, "wait for batch to finish" end
+  if W.executingBatch then return nil, "wait for batch to finish" end
   local text, previous = W.codeText or "", W.server
-  local config = W.store.read("so-worker.cfg")
+  local config = W.readConfig()
   local enabled = type(config) == "table" and config.repairServer == true
   local candidate = W.pair.enrollToken(text)
   if candidate and not enabled then return nil, "token repair disabled" end
@@ -521,6 +671,8 @@ W.breathe = function(seconds)
       W.paint()
     elseif ev == "timer" and a == id then
       return
+    elseif ev == "mouse_click" or ev == "monitor_touch" then
+      W.settingsInput(b, c)
     end
   end
 end
@@ -542,6 +694,7 @@ end
 
 W.safeMove = function(step)
   local dim, guard = W.dimension(), step.safety
+  if W.configHold then return "remote safety: config recovery" end
   if not guard and (dim == nil or dim == "minecraft:overworld") then return end
   if type(guard) ~= "table" or guard.dim ~= dim then return "remote safety: dimension mismatch" end
   local bounds = ({["minecraft:the_nether"]={1,126}, ["minecraft:the_end"]={1,255}})[dim]
@@ -603,6 +756,8 @@ end
 
 W.exec = function(step)
   local result = { ok = false, counts = W.counts() }
+  W.readConfig()
+  if W.configHold then result.err="config recovery" return result end
   if type(step) ~= "table" or type(step.op) ~= "string" then
     result.err = "bad op"
     return result
@@ -705,7 +860,7 @@ W.startBatch = function(msg)
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
   local n = #body.steps
   if n < 1 or n > 16 then return end
-  if W.journal.uncertain then
+  if W.journal.uncertain or W.configHold then
     W.lease = body.lease
     local results = {}
     for i = 1, n do results[i] = { ok = false, err = "pose uncertain", counts = W.counts() } end
@@ -729,7 +884,7 @@ W.startBatch = function(msg)
   end
   W.lease, W.expires, W.legacyExpires = body.lease, deadline, msg.legacyExpires
   local results, safetyStop = {}, false
-  W.inBatch = true
+  W.executingBatch = true
   for i = 1, n do
     if W.now() >= W.expires then
       W.refuse(results, i, n)
@@ -773,7 +928,7 @@ W.startBatch = function(msg)
       break
     end
   end
-  W.inBatch = nil
+  W.executingBatch = nil
   W.report(results)
   if safetyStop then W.queued=nil W.enterSlow() return end
   if W.queued then
@@ -792,6 +947,7 @@ W.startBatch = function(msg)
 end
 
 W.enterFast = function()
+  W.unassigned = nil
   if W.journal.park or W.journal.uncertain or W.dimension() and W.dimension() ~= "minecraft:overworld" then
     W.enterSlow()
     W.beacon()
@@ -817,6 +973,8 @@ end
 
 -- Temporary digging turns stay uncertain until the original facing is saved.
 W.recoveryMove = function(op, reverse)
+  W.readConfig()
+  if W.configHold then return nil end
   if not W.markPending(op, reverse) then return nil end
   local ok = turtle[op]()
   if ok then
@@ -860,6 +1018,8 @@ W.reverse = function(entry)
 end
 
 W.backOne = function()
+  W.readConfig()
+  if W.configHold then W.enterSlow() return end
   if W.journal.uncertain then W.enterSlow() return end
   if W.dimension() and W.dimension() ~= "minecraft:overworld" then W.enterSlow() return end
   local moves = W.journal.moves
@@ -1020,10 +1180,10 @@ W.boot = function()
   rednet.open(peripheral.getName(modem))
   local store = dofile("so-store.lua")
   W.store = store
-  local config = store.read("so-worker.cfg")
-  W.autoToolSwap = type(config) == "table" and config.autoToolSwap == true or false
-  W.pair.open(W.proto, store, W.now)
   W.box = store.store("so-journal", W.valid, 16000)
+  W.savedUncertain = W.box.value and W.box.value.uncertain == true
+  W.readConfig()
+  W.pair.open(W.proto, store, W.now)
   W.load()
   W.checkDimension()
   W.resolvePending()

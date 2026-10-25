@@ -263,4 +263,132 @@ return function(test)
     assert(#errors==3 and errors[1].text=="first" and errors[2].text=="second")
     assert(errors[3].text:find("so-server: stopped:",1,true), "stop record was not saved")
   end)
+  test("plain config recovery orders sequences and ties primary temporary backup while preserving keys", function()
+    local m=machine()
+    for _, primary in ipairs({false,true}) do
+      m.files.cfg=primary and H.encode({settingsSeq=2,dim="minecraft:the_nether",keep="primary"}) or nil
+      m.files["cfg.tmp"]=H.encode({settingsSeq=2,dim="minecraft:the_nether",keep="tmp"})
+      m.files["cfg.bak"]=H.encode({settingsSeq=2,dim="minecraft:the_nether",keep="bak"})
+      run(m, [[store=dofile("so-store.lua"); value,state=store.readConfig("cfg")]])
+      assert(m.env.value.keep==(primary and "primary" or "tmp"))
+      assert(m.env.state.hold==not primary)
+    end
+    m.files.cfg=H.encode({settingsSeq=2,keep="old"})
+    m.files["cfg.tmp"]=H.encode({settingsSeq=3,keep="new",settingsControl=true})
+    m.files["cfg.bak"]=H.encode({settingsSeq=1})
+    run(m, [[local v,s=store.readConfig("cfg"); assert(v.keep=="new" and v.settingsControl and not s.hold)
+      assert(store.saveConfig("cfg",{settingsSeq=4,keep=v.keep,autoToolSwap=false}))
+      v=store.readConfig("cfg"); assert(v.keep=="new" and v.autoToolSwap==false)]])
+  end)
+  test("plain config never treats corrupt or failed recovery as an absent config", function()
+    local m=machine()
+    run(m, [[store=dofile("so-store.lua"); local v,s=store.readConfig("cfg"); assert(not v and s.absent and not s.hold)]])
+    m.files.cfg="broken"
+    run(m, [[local v,s=store.readConfig("cfg"); assert(not v and s.hold and not s.absent)
+      assert(not store.saveConfig("cfg",{}))]])
+    m.files["cfg.tmp"]=H.encode({settingsSeq=1})
+    local move=m.env.fs.move
+    m.env.fs.move=function() error("promotion failed") end
+    run(m, [[local v,s=store.readConfig("cfg"); assert(not v and s.hold)]])
+    m.env.fs.move=move
+    run(m, [[local v,s=store.readConfig("cfg"); assert(v.configRecovery and s.hold and not v.dim)]])
+  end)
+  test("failed config saves discard valid temporary edits before the next read", function()
+    for _,target in ipairs({"close","backup delete","backup move","promote"}) do
+      local m=machine()
+      local old={dim="minecraft:the_nether",autoToolSwap=true,settingsSeq=1,keep="old"}
+      m.files.cfg=H.encode(old)
+      m.files["cfg.bak"]=H.encode({settingsSeq=0})
+      local open,delete,move=m.env.fs.open,m.env.fs.delete,m.env.fs.move
+      local failed=false
+      local function fail()
+        assert(not failed)
+        failed=true
+        error("injected save failure")
+      end
+      m.env.fs.open=function(path,mode)
+        local h=open(path,mode)
+        if target=="close" and path=="cfg.tmp" and mode=="w" then
+          local close=h.close
+          h.close=function() close(); if not failed then fail() end end
+        end
+        return h
+      end
+      m.env.fs.delete=function(path)
+        if target=="backup delete" and path=="cfg.bak" and not failed then fail() end
+        return delete(path)
+      end
+      m.env.fs.move=function(from,to)
+        if not failed and (target=="backup move" and from=="cfg" or target=="promote" and from=="cfg.tmp") then fail() end
+        return move(from,to)
+      end
+      run(m, [[store=dofile("so-store.lua")
+        assert(not store.saveConfig("cfg",{dim="minecraft:the_end",autoToolSwap=false,settingsSeq=2,keep="new"}))]])
+      assert(failed,target.." did not reach its failure")
+      assert(not m.files["cfg.tmp"],target.." retained the failed edit")
+      run(m, [[local v=store.readConfig("cfg")
+        assert(v.dim=="minecraft:the_nether" and v.autoToolSwap and v.settingsSeq==1 and v.keep=="old")]])
+    end
+  end)
+  test("plain config interruptions at every write close delete and move recover before any dimension read", function()
+    local snapshots={}
+    local probe=machine()
+    probe.files.cfg=H.encode({dim="minecraft:the_nether",settingsSeq=1,keep={n=7}})
+    probe.files["cfg.bak"]=H.encode({dim="minecraft:the_nether",settingsSeq=0,keep={n=7}})
+    local function capture() snapshots[#snapshots+1]={cfg=probe.files.cfg,tmp=probe.files["cfg.tmp"],bak=probe.files["cfg.bak"]} end
+    for _,op in ipairs({"open","delete","move"}) do
+      local original=probe.env.fs[op]
+      probe.env.fs[op]=function(...)
+        local mutation=op~="open" or select(2,...)=="w"
+        if mutation then capture() end
+        local result=original(...)
+        if mutation then capture() end
+        if op=="open" and select(2,...)=="w" then
+          for _,method in ipairs({"write","close"}) do
+            local call=result[method]
+            result[method]=function(...)
+              capture()
+              local value=call(...)
+              capture()
+              return value
+            end
+          end
+        end
+        return result
+      end
+    end
+    run(probe, [[store=dofile("so-store.lua"); assert(store.saveConfig("cfg",{dim="minecraft:the_end",settingsSeq=2,keep={n=7}}))]])
+    assert(#snapshots==12, "save mutation coverage changed")
+    for _,snapshot in ipairs(snapshots) do
+      local m=machine()
+      m.files.cfg,m.files["cfg.tmp"],m.files["cfg.bak"]=snapshot.cfg,snapshot.tmp,snapshot.bak
+      run(m, [[local store=dofile("so-store.lua"); local v,s=store.readConfig("cfg")
+        assert(v and (v.dim=="minecraft:the_nether" or v.dim=="minecraft:the_end"))
+        assert(v.keep.n==7)
+        if not fs.exists("cfg") then assert(s.hold) end
+        if s.hold then assert(v.configRecovery) end
+        local again,state=store.readConfig("cfg")
+        assert(again.dim==v.dim and state.hold==s.hold)]])
+      if not snapshot.cfg then assert(m.env.textutils.unserialize(m.files.cfg).configRecovery) end
+    end
+  end)
+
+  test("config recovery persists its marker and journal hold before promotion and refuses a failed hold save", function()
+    local m=machine()
+    m.files["cfg.tmp"]=H.encode({dim="minecraft:the_nether",settingsSeq=2})
+    run(m, [[store=dofile("so-store.lua")
+      local v,s=store.readConfig("cfg",function()
+        assert(not fs.exists("cfg"))
+        assert(store.read("cfg.tmp").configRecovery)
+        return false
+      end)
+      assert(not v and s.hold and not fs.exists("cfg"))
+      v,s=store.readConfig("cfg",function()
+        assert(not fs.exists("cfg"))
+        journalHeld=true
+        return true
+      end)
+      assert(journalHeld and v.configRecovery and s.hold and fs.exists("cfg"))]])
+  end)
+
 end
