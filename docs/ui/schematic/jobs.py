@@ -1239,7 +1239,7 @@ def drops_setup(cv, m):
         items = items or [("TURTLES", None, None)]
         items += [("KEPT", k["id"], k) for k in m.get("kept", [])]
         items += [("FOUND", i + 1, p) for i, p in enumerate(m["found"])]
-    k, section_ = m["start"] % max(1, len(items)), None
+    k, section_, shown = m["start"] % max(1, len(items)), None, 0
     while k < len(items) and y <= stop:
         name, n, p = items[k]
         if name != section_:
@@ -1248,17 +1248,20 @@ def drops_setup(cv, m):
             section_ = name
             section(cv, 2, y, w - 2, "FOUND %d" % len(m["found"]) if name == "FOUND" and m.get("savedSetup") else name)
             y += 1
-        if not m.get("savedSetup") and y == stop and k < len(items) - 1:
-            cv.put(4, y, "+%d more" % (len(items) - k), "8")
-            break
         if name == "KEPT":
             # A kept route: its cells, WAIT GPS while the fenced release runs, HELD when it failed.
             word = " WAIT GPS" if p.get("status") == "pending" else " HELD" if p.get("status") == "held" else ""
             cv.put(2, y, "•", "e" if p.get("status") == "held" else "8")
-            cv.put(4, y, ("#%d %d%s" % (n, p["count"], word))[:max(0, w - 13)], "0")
+            # The id always shows; narrow screens move RELEASE right, then drop the count.
+            ident = "#%d" % n
+            cx = max(w - 9, min(4 + len(ident), w - 8))
+            text = "%s %d%s" % (ident, p["count"], word)
+            if len(text) > cx - 4:
+                text = ident
+            cv.put(4, y, text[:max(0, cx - 4)], "0")
             if p.get("status") != "pending":
                 key = "kept:%d" % n
-                chip(cv, w - 9, y, "CONFIRM" if m["confirm"] == key else "release", key, "stop")
+                chip(cv, cx, y, "CONFIRM" if m["confirm"] == key else "release", key, "stop")
         elif p:
             cv.put(2, y, "•", "0")
             cv.put(4, y, ("%s %s" % (where(p), p["side"]))[:max(0, w - 10)], "0")
@@ -1277,7 +1280,10 @@ def drops_setup(cv, m):
                 chip(cv, w - 6, y, "scan", "scan:%d" % n, "primary")
         else:
             cv.put(4, y, "-", "8")
-        y, k = y + 1, k + 1
+        y, k, shown = y + 1, k + 1, shown + 1
+    # Rows that do not fit page on with + in the bar; saved setup always draws it.
+    if not m.get("savedSetup") and shown < len(items):
+        chip(cv, w - 3, 1, "+", "from-next", "plain")
     msg = m["message"]
     if msg:
         if msg in OK_TEXT:
@@ -1290,34 +1296,22 @@ def drops_setup(cv, m):
                          ("BACK", "list", "plain")], 2 if room else 1)
 
 
-def drops_areas(cv, m):
-    """Protected and keep boxes: the box draft (dimension and two corners, one field stepped at a
-    time), the saved boxes with a two-tap remove, and PROTECT, KEEP and CLEAR MARKS for the draft.
-    Each part shows only while its flag is on."""
-    w, a = cv.w, m["areas"]
-    b = a["box"]
-    bar(cv, "AREAS", [], None, "", "8")
-    cv.put(2, 2, ("%s %d,%d,%d" % (DIM_SHORT[b["dim"]], b["x1"], b["y1"], b["z1"]))[:w - 2], "0")
-    cv.put(6, 3, ("%d,%d,%d" % (b["x2"], b["y2"], b["z2"]))[:max(0, w - 6)], "0")
-    field = BOX_FIELDS[a.get("field", 1) - 1]
-    chip(cv, 2, 4, field, "area-field", "plain", 5)
-    value = DIM_SHORT[b["dim"]] if field == "dim" else str(b[field])
-    cv.put(8, 4, value[:max(0, w - 15)], "0")
-    chip(cv, w - 6, 4, "-", "area-")
-    chip(cv, w - 3, 4, "+", "area+")
-    controls = []
-    if a.get("protect") is not None:
-        controls.append(("PROTECT", "area-protect", "primary"))
-    if a.get("keep") is not None:
-        controls.append(("KEEP", "area-keep", "primary"))
-        controls.append(("CONFIRM" if m["confirm"] == "clear-marks" else "CLEAR MARKS", "clear-marks", "stop"))
-    ya = control_rows(cv, controls, ("BACK", "areas-back", "plain"))
-    items = [("PROTECTED", box, "unprotect:") for box in a.get("protect") or []]
-    items += [("KEEP", box, "unkeep:") for box in a.get("keep") or []]
-    y, stop, section_ = 6, ya - 2, None
+def control_count(w, items, back):
+    """The control rows control_rows would use for items and back, without drawing them."""
+    rows, x, n = 1, 2, 0
+    for item in items:
+        if x + len(item[0]) + 2 > w and n > 0:
+            rows, x, n = rows + 1, 2, 0
+        x, n = x + len(item[0]) + 3, n + 1
+    if n > 0 and x > w - len(back[0]) - 2:
+        rows += 1
+    return rows
+
+
+def box_rows(cv, m, items, y, stop):
+    """Saved boxes from row y to stop, each with a two-tap remove. Returns how many it drew."""
+    w, a, section_, shown = cv.w, m["areas"], None, 0
     k = a.get("from", 0) % len(items) if items else 0
-    if len(items) > stop - 6:
-        chip(cv, w - 3, 1, "+", "area-next", "plain")
     while k < len(items) and y <= stop:
         name, box, prefix = items[k]
         if name != section_:
@@ -1333,7 +1327,46 @@ def drops_areas(cv, m):
         cv.put(2, y, text[:max(0, w - 12)], "0")
         key = prefix + box["id"]
         chip(cv, w - 9, y, "CONFIRM" if m["confirm"] == key else "remove", key, "stop")
-        y, k = y + 1, k + 1
+        y, k, shown = y + 1, k + 1, shown + 1
+    return shown
+
+
+def drops_areas(cv, m):
+    """Protected and keep boxes: the box draft (dimension and two corners, one field stepped at a
+    time), the saved boxes with a two-tap remove, and PROTECT, KEEP and CLEAR MARKS for the draft.
+    Each part shows only while its flag is on. A screen with no row for a saved box under the
+    draft lists them on their own page behind BOXES."""
+    w, a = cv.w, m["areas"]
+    b = a["box"]
+    items = [("PROTECTED", box, "unprotect:") for box in a.get("protect") or []]
+    items += [("KEEP", box, "unkeep:") for box in a.get("keep") or []]
+    bar(cv, "AREAS", [], None, "", "8")
+    if a.get("list") and items:
+        ya = control_rows(cv, [], ("BACK", "area-edit", "plain"))
+        shown = box_rows(cv, m, items, 2, ya - 2)
+    else:
+        cv.put(2, 2, ("%s %d,%d,%d" % (DIM_SHORT[b["dim"]], b["x1"], b["y1"], b["z1"]))[:w - 2], "0")
+        cv.put(6, 3, ("%d,%d,%d" % (b["x2"], b["y2"], b["z2"]))[:max(0, w - 6)], "0")
+        field = BOX_FIELDS[a.get("field", 1) - 1]
+        chip(cv, 2, 4, field, "area-field", "plain", 5)
+        value = DIM_SHORT[b["dim"]] if field == "dim" else str(b[field])
+        cv.put(8, 4, value[:max(0, w - 15)], "0")
+        chip(cv, w - 6, 4, "-", "area-")
+        chip(cv, w - 3, 4, "+", "area+")
+        controls, back = [], ("BACK", "areas-back", "plain")
+        if a.get("protect") is not None:
+            controls.append(("PROTECT", "area-protect", "primary"))
+        if a.get("keep") is not None:
+            controls.append(("KEEP", "area-keep", "primary"))
+            controls.append(("CONFIRM" if m["confirm"] == "clear-marks" else "CLEAR MARKS", "clear-marks", "stop"))
+        # A saved box needs its section row and its own row, from row 6.
+        inline = cv.h - control_count(w, controls, back) - 1 >= 7
+        if items and not inline:
+            controls.append(("BOXES", "area-list", "plain"))
+        ya = control_rows(cv, controls, back)
+        shown = box_rows(cv, m, items, 6, ya - 2) if inline else len(items)
+    if shown < len(items):
+        chip(cv, w - 3, 1, "+", "area-next", "plain")
     msg = m["message"]
     if msg:
         if msg in OK_TEXT:
@@ -1548,29 +1581,30 @@ FIXTURES += [
 ]
 
 
-def dropskept(w, h, title, confirm=False):
+def dropskept(w, h, title, confirm=False, page=0):
     """A setup route kept after a restart: #9 waiting for its fenced GPS fix, #14 held after a failed
     one, #21 with RELEASE (armed when confirm)."""
     def make():
         m = drops_model(testing=True, kept=[dict(id=9, count=6, status="pending"), dict(id=14, count=3, status="held"),
                                             dict(id=21, count=11, status=None)])
-        m["confirm"] = "kept:21" if confirm else None
+        m["confirm"], m["start"] = "kept:21" if confirm else None, page
         return drops(m, w, h, title)
     return make
 
 
-def area_model(confirm=None, message=None):
+def area_model(confirm=None, message=None, listing=False):
     box = dict(dim="minecraft:overworld", x1=110, y1=64, z1=-340, x2=126, y2=80, z2=-330)
     protect = [dict(id="p1", dim="minecraft:overworld", x1=100, y1=60, z1=-350, x2=130, y2=90, z2=-320),
                dict(id="p2", dim="minecraft:the_nether", x1=-20, y1=40, z1=10, x2=-10, y2=50, z2=20)]
     keep = [dict(id="k1", dim="minecraft:overworld", x1=140, y1=-60, z1=-380, x2=170, y2=-40, z2=-360)]
-    m = drops_model(testing=True, areas={"box": box, "field": 2, "from": 0, "protect": protect, "keep": keep})
+    m = drops_model(testing=True, areas={"box": box, "field": 2, "from": 0, "protect": protect, "keep": keep,
+                                         "list": listing})
     m["confirm"], m["message"] = confirm, message
     return m
 
 
-def dropsareas(w, h, title, confirm=None, message=None):
-    return lambda: drops(area_model(confirm, message), w, h, title)
+def dropsareas(w, h, title, confirm=None, message=None, listing=False):
+    return lambda: drops(area_model(confirm, message, listing), w, h, title)
 
 
 # B3-U owns the kept-route and AREAS fixtures; tests/so/drop-editor.lua checks them against so-mod-drops.lua.
@@ -1582,4 +1616,6 @@ FIXTURES += [
     ("dropsareas-P", dropsareas(26, 20, "Protected and keep boxes, CLEAR MARKS armed at 26x20", "clear-marks",
                                 "2 sections")),
     ("dropsareas-XS", dropsareas(15, 10, "Protected and keep boxes at 15x10")),
+    ("dropskept-page-XS", dropskept(15, 10, "Kept route #21 paged to at 15x10", page=3)),
+    ("dropsareas-list-XS", dropsareas(15, 10, "Saved boxes behind BOXES at 15x10", listing=True)),
 ]

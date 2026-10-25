@@ -318,12 +318,8 @@ A.render = function(id, state, w, h, options)
         end
         return value
       end
-      local held={}
-      for _,k in ipairs({{9,6},{14,3},{21,11}}) do
-        for i=1,k[2] do held[#held+1]={x=i,y=64,z=k[1],who='setup:'..k[1]} end
-      end
       env.SO.mods.cells={
-        reserved=function(dim) return dim=='minecraft:overworld' and held or {} end,
+        counts=function() return {reserved={['setup:9']=6,['setup:14']=3,['setup:21']=11,['mine:3']=40}} end,
         releaseStatus=function(who) return ({['setup:9']={status='pending'},['setup:14']={status='held'}})[who] end,
         releaseRequest=function() return {status='confirm',token='t'} end,
         clearMarks=function() return {status='confirm',token='t',sections=2} end,
@@ -339,7 +335,9 @@ A.render = function(id, state, w, h, options)
         t.S.views[7].box={dim='minecraft:overworld',x1=110,y1=64,z1=-340,x2=126,y2=80,z2=-330}
         t.tap(session,'area-field')
         if state=='confirm' then t.tap(session,'clear-marks') end
-      elseif state=='confirm' then t.tap(session,'kept:21') end
+        if state=='list' then t.tap(session,'area-list') end
+      elseif state=='confirm' then t.tap(session,'kept:21')
+      elseif state=='page' then for _=1,3 do t.tap(session,'from-next') end end
       return t
     end)
     return t.render(w,h,session),t.input,session

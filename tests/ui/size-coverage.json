@@ -2677,7 +2677,7 @@
       "pythonEntry": "drops-kept",
       "widths": [18, 24, 30, 36, 52],
       "heights": [12, 14, 19, 22],
-      "states": ["scene", "confirm"],
+      "states": ["scene", "confirm", "page"],
       "fixtures": [
         {"name": "drops-kept/scene/15x10", "width": 15, "height": 10, "state": "scene"},
         {"name": "drops-kept/scene/26x20", "width": 26, "height": 20, "state": "scene"},
@@ -2700,7 +2700,18 @@
         {"name": "drops-kept/confirm/100x38", "width": 100, "height": 38, "state": "confirm"},
         {"name": "drops-kept/confirm/164x81", "width": 164, "height": 81, "state": "confirm"},
         {"name": "drops-kept/confirm/37x17", "width": 37, "height": 17, "state": "confirm"},
-        {"name": "drops-kept/confirm/53x23", "width": 53, "height": 23, "state": "confirm"}
+        {"name": "drops-kept/confirm/53x23", "width": 53, "height": 23, "state": "confirm"},
+        {"name": "drops-kept/page/15x10", "width": 15, "height": 10, "state": "page"},
+        {"name": "drops-kept/page/26x20", "width": 26, "height": 20, "state": "page"},
+        {"name": "drops-kept/page/29x12", "width": 29, "height": 12, "state": "page"},
+        {"name": "drops-kept/page/39x19", "width": 39, "height": 19, "state": "page"},
+        {"name": "drops-kept/page/51x19", "width": 51, "height": 19, "state": "page"},
+        {"name": "drops-kept/page/57x24", "width": 57, "height": 24, "state": "page"},
+        {"name": "drops-kept/page/80x30", "width": 80, "height": 30, "state": "page"},
+        {"name": "drops-kept/page/100x38", "width": 100, "height": 38, "state": "page"},
+        {"name": "drops-kept/page/164x81", "width": 164, "height": 81, "state": "page"},
+        {"name": "drops-kept/page/37x17", "width": 37, "height": 17, "state": "page"},
+        {"name": "drops-kept/page/53x23", "width": 53, "height": 23, "state": "page"}
       ]
     },
     {
@@ -2710,7 +2721,7 @@
       "pythonEntry": "drops-areas",
       "widths": [18, 24, 30, 36, 52],
       "heights": [12, 14, 19, 22],
-      "states": ["scene", "confirm", "protect", "keep"],
+      "states": ["scene", "confirm", "protect", "keep", "list"],
       "fixtures": [
         {"name": "drops-areas/scene/15x10", "width": 15, "height": 10, "state": "scene"},
         {"name": "drops-areas/scene/26x20", "width": 26, "height": 20, "state": "scene"},
@@ -2755,7 +2766,18 @@
         {"name": "drops-areas/keep/100x38", "width": 100, "height": 38, "state": "keep"},
         {"name": "drops-areas/keep/164x81", "width": 164, "height": 81, "state": "keep"},
         {"name": "drops-areas/keep/37x17", "width": 37, "height": 17, "state": "keep"},
-        {"name": "drops-areas/keep/53x23", "width": 53, "height": 23, "state": "keep"}
+        {"name": "drops-areas/keep/53x23", "width": 53, "height": 23, "state": "keep"},
+        {"name": "drops-areas/list/15x10", "width": 15, "height": 10, "state": "list"},
+        {"name": "drops-areas/list/26x20", "width": 26, "height": 20, "state": "list"},
+        {"name": "drops-areas/list/29x12", "width": 29, "height": 12, "state": "list"},
+        {"name": "drops-areas/list/39x19", "width": 39, "height": 19, "state": "list"},
+        {"name": "drops-areas/list/51x19", "width": 51, "height": 19, "state": "list"},
+        {"name": "drops-areas/list/57x24", "width": 57, "height": 24, "state": "list"},
+        {"name": "drops-areas/list/80x30", "width": 80, "height": 30, "state": "list"},
+        {"name": "drops-areas/list/100x38", "width": 100, "height": 38, "state": "list"},
+        {"name": "drops-areas/list/164x81", "width": 164, "height": 81, "state": "list"},
+        {"name": "drops-areas/list/37x17", "width": 37, "height": 17, "state": "list"},
+        {"name": "drops-areas/list/53x23", "width": 53, "height": 23, "state": "list"}
       ]
     }
   ]

@@ -1,16 +1,15 @@
 15x10 Protected and keep boxes at 15x10
- AREAS  --- +  
+ AREAS  -----  
  OVW 110,64,-3 
      126,80,-3 
   x1     -  +  
                
-               
   PROTECT      
   KEEP         
   CLEAR MARKS  
+  BOXES        
          BACK  
-00000000ccc0000
-000000000000000
+00000000ccccc00
 000000000000000
 000000000000000
 000000000000000
@@ -19,13 +18,14 @@
 099999900000000
 0eeeeeeeeeeeee0
 000000000000000
-fffffffffff777f
+000000000000000
+fffffffffffffff
 fffffffffffffff
 fffffffffffffff
 f77777ff777777f
 fffffffffffffff
-fffffffffffffff
 f777777777fffff
 f777777ffffffff
 f7777777777777f
+f7777777fffffff
 ffffffff777777f

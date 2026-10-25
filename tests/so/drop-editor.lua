@@ -667,12 +667,8 @@ return function(test, equal)
         if path == "so-server.cfg" then for k, v in pairs(flags) do value[k] = v end end
         return value
       end
-      local held = {}
-      for _, k in ipairs({{9, 6}, {14, 3}, {21, 11}}) do
-        for i = 1, k[2] do held[#held+1] = {x=i, y=64, z=k[1], who="setup:" .. k[1]} end
-      end
       env.SO.mods.cells = {
-        reserved = function(dim) return dim == "minecraft:overworld" and held or {} end,
+        counts = function() return {reserved={["setup:9"]=6, ["setup:14"]=3, ["setup:21"]=11, ["mine:3"]=40}} end,
         releaseStatus = function(who) return ({["setup:9"]={status="pending"}, ["setup:14"]={status="held"}})[who] end,
         releaseRequest = function() return {status="confirm", token="t"} end,
         clearMarks = function() return {status="confirm", token="t", sections=2} end,
@@ -688,7 +684,9 @@ return function(test, equal)
       {"dropskept-XS", 15, 10, false, "tests/ui/fixtures/dropskept-XS.txt"},
       {"dropsareas-M", 57, 24, false, "tests/ui/fixtures/dropsareas-M.txt"},
       {"dropsareas-P", 26, 20, true, "tests/ui/fixtures/dropsareas-P.txt"},
-      {"dropsareas-XS", 15, 10, false, "tests/ui/fixtures/dropsareas-XS.txt"}}
+      {"dropsareas-XS", 15, 10, false, "tests/ui/fixtures/dropsareas-XS.txt"},
+      {"dropskept-page-XS", 15, 10, "page", "tests/ui/fixtures/dropskept-page-XS.txt"},
+      {"dropsareas-list-XS", 15, 10, "list", "tests/ui/fixtures/dropsareas-list-XS.txt"}}
     for _, c in ipairs(cases) do
       local areas = c[1]:match("areas") ~= nil
       local t, a = rig(areas and {protectedAreas=true, worldEdits=true} or {worldEdits=true}), {id=7}
@@ -697,8 +695,9 @@ return function(test, equal)
         t.tap(a, "areas")
         t.S.views[7].box = {dim="minecraft:overworld", x1=110, y1=64, z1=-340, x2=126, y2=80, z2=-330}
         t.tap(a, "area-field")
-        if c[4] then t.tap(a, "clear-marks") end
-      elseif c[4] then t.tap(a, "kept:21") end
+        if c[4] == true then t.tap(a, "clear-marks") elseif c[4] then t.tap(a, "area-list") end
+      elseif c[4] == true then t.tap(a, "kept:21")
+      elseif c[4] then for _ = 1, 3 do t.tap(a, "from-next") end end
       local frame = t.render(c[2], c[3], a)
       equal(R.diff(c[5], capture(frame, c[2], c[3])), {})
       assert(#H.encode(frame) < 16000, "oversized frame")
@@ -727,6 +726,67 @@ return function(test, equal)
       f2:close()
     end
     assert(os.execute("rm -r '" .. dir .. "'"))
+  end)
+
+
+  test("B3-U at 15x10 every kept route is reachable past turtles and found chests, with RELEASE", function()
+    local t, a = cellsRig({worldEdits=true}), {id=7}
+    local S
+    for i = 1, 30 do local k, v = debug.getupvalue(t.mod.tick, i) if k == "S" then S = v end end
+    S.candidates = {{dim=0, x=1, y=64, z=1, side="front"}, {dim=0, x=2, y=64, z=1, side="front"}}
+    assert(t.cells.reserveMany("setup:9", {{"minecraft:overworld",4,5,6}}))
+    assert(t.cells.reserveMany("setup:31", {{"minecraft:overworld",8,5,6}}))
+    t.tap(a, "testing")
+    local seen = {}
+    for _ = 1, 8 do
+      local ids, drawn = t.ids(a, 15, 10), false
+      assert(ids["from-next"], "no pager")
+      for id in pairs(ids) do
+        if id:match("^kept:") then seen[id] = ids[id].label drawn = true end
+        drawn = drawn or id:match("^candidate:") or id:match("^turtle:")
+      end
+      assert(drawn, "a page without its current item")
+      t.tap(a, "from-next")
+    end
+    equal(seen, {["kept:9"]="release", ["kept:31"]="release"})
+    while not t.ids(a, 15, 10)["kept:9"] do t.tap(a, "from-next") end
+    t.tap(a, "kept:9")
+    t.tap(a, "kept:9")
+    equal(#t.sent, 1)
+    equal(t.cells.owner(4,5,6), "setup:9")
+  end)
+
+  test("B3-U at 15x10 saved boxes open behind BOXES and keep their two-tap remove", function()
+    local t, a = cellsRig({protectedAreas=true, worldEdits=true}), {id=7}
+    t.tap(a, "testing")
+    t.tap(a, "areas")
+    t.tap(a, "area-protect")
+    t.tap(a, "area-keep")
+    local wide = t.ids(a, 26, 20)
+    assert(wide["unprotect:p1"] and wide["unkeep:k1"] and not wide["area-list"])
+    local ids = t.ids(a, 15, 10)
+    equal(ids["unprotect:p1"], nil)
+    assert(ids["area-list"] and ids["area-protect"] and ids["area-keep"] and ids["clear-marks"])
+    t.tap(a, "area-list")
+    ids = t.ids(a, 15, 10)
+    assert(ids["unprotect:p1"] and ids["unkeep:k1"] and ids["area-edit"])
+    t.tap(a, "unprotect:p1")
+    equal(t.ids(a, 15, 10)["unprotect:p1"].label, "CONFIRM")
+    t.tap(a, "unprotect:p1")
+    equal(#t.cells.protected().boxes, 0)
+    t.tap(a, "area-edit")
+    assert(t.ids(a, 15, 10)["area-field"])
+  end)
+
+  test("B3-U KEPT counts a setup route beyond the 4096-cell reservation list", function()
+    local t, a = cellsRig({worldEdits=true}), {id=7}
+    local cells = {}
+    for i = 1, 4100 do cells[i] = {"minecraft:overworld", i % 64, 70 + math.floor(i / 4096), math.floor(i / 64) % 64} end
+    assert(t.cells.reserveMany("mine:5", {{"minecraft:overworld", 900, 5, 900}}))
+    assert(t.cells.reserveMany("setup:9", cells))
+    t.tap(a, "testing")
+    assert(t.text(a):find("#9 4100", 1, true), t.text(a))
+    equal(t.ids(a)["kept:9"].label, "release")
   end)
 
 end

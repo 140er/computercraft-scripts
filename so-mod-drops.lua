@@ -1193,19 +1193,16 @@ S.gather = function(view)
     areas = view.areas and view.testing and (ctx.protectedAreas or ctx.worldEdits) and S.areaModel(view, ctx) or nil }
 end
 -- Setup routes kept without a task, as after a restart: { id, count, status } from the cells
--- module's cached reservation lists. RELEASE goes through cells.releaseRequest.
+-- module's uncapped owner totals. RELEASE goes through cells.releaseRequest.
 S.kept = function()
-  local cells, counts, out = SO.mods.cells, {}, {}
-  if type(cells) ~= "table" or type(cells.reserved) ~= "function" then return out end
-  for dim in pairs(S.dimOf) do
-    for _, cell in ipairs(cells.reserved(dim) or {}) do
-      local id = type(cell.who) == "string" and tonumber(cell.who:match("^setup:(%d+)$"))
-      if id and not (S.task and S.task.id == id) and not (S.releasing and S.releasing.id == id) then counts[id] = (counts[id] or 0) + 1 end
+  local cells, out = SO.mods.cells, {}
+  if type(cells) ~= "table" or type(cells.counts) ~= "function" then return out end
+  for who, count in pairs(cells.counts().reserved or {}) do
+    local id = type(who) == "string" and tonumber(who:match("^setup:(%d+)$"))
+    if id and not (S.task and S.task.id == id) and not (S.releasing and S.releasing.id == id) then
+      local status = cells.releaseStatus and cells.releaseStatus("setup:" .. id)
+      out[#out + 1] = { id = id, count = count, status = status and status.status }
     end
-  end
-  for id, count in pairs(counts) do
-    local status = cells.releaseStatus and cells.releaseStatus("setup:" .. id)
-    out[#out + 1] = { id = id, count = count, status = status and status.status }
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -1232,7 +1229,7 @@ S.areaModel = function(view, ctx)
     protect = state and state.boxes or {}
     keep = ctx.worldEdits and cells.keep and cells.keep() or {}
   end
-  return { box = SO.store.copy(S.boxOf(view)), field = view.boxField or 1, from = view.areaFrom or 0,
+  return { box = SO.store.copy(S.boxOf(view)), field = view.boxField or 1, from = view.areaFrom or 0, list = view.areaList,
     protect = ctx.protectedAreas and protect or nil, keep = ctx.worldEdits and keep or nil }
 end
 S.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
@@ -1516,7 +1513,7 @@ S.setup = function(C, m)
     if #items == 0 then items[1] = { "TURTLES" } end
     for _, kept in ipairs(m.kept) do items[#items + 1] = { "KEPT", kept.id, nil, kept } end
     for i, p in ipairs(m.found) do items[#items + 1] = { "FOUND", i, p } end
-    local k = m.from % #items + 1
+    local k, shown = m.from % #items + 1, 0
     while k <= #items and y <= stop do
       local it = items[k]
       if it[1] ~= section then
@@ -1525,20 +1522,20 @@ S.setup = function(C, m)
         C.section(2, y, w - 2, section == "FOUND" and m.savedSetup and "FOUND " .. #m.found or section)
         y = y + 1
       end
-      if not m.savedSetup and y == stop and k < #items then
-        C.put(4, y, "+" .. (#items - k + 1) .. " more", "8")
-        C.hit("from-next", 2, y, w - 2, 1)
-        break
-      end
       if it[4] then
         -- A kept route: its cells, WAIT GPS while the fenced release runs, HELD when it failed.
         local kept = it[4]
         local word = kept.status == "pending" and " WAIT GPS" or kept.status == "held" and " HELD" or ""
         C.put(2, y, U.g.bullet, kept.status == "held" and "e" or "8")
-        C.put(4, y, ("#" .. kept.id .. " " .. kept.count .. word):sub(1, math.max(0, w - 13)), "0")
+        -- The id always shows; narrow screens move RELEASE right, then drop the count.
+        local id = "#" .. kept.id
+        local cx = math.max(w - 9, math.min(4 + #id, w - 8))
+        local text = id .. " " .. kept.count .. word
+        if #text > cx - 4 then text = id end
+        C.put(4, y, text:sub(1, math.max(0, cx - 4)), "0")
         if kept.status ~= "pending" then
           local c = U.confirmChip(m, "kept:" .. kept.id, "release", "kept:" .. kept.id, "stop")
-          C.chip(w - 9, y, c[1], c[2], c[3])
+          C.chip(cx, y, c[1], c[2], c[3])
         end
       elseif it[3] then
         C.put(2, y, U.g.bullet, "0")
@@ -1552,8 +1549,10 @@ S.setup = function(C, m)
         C.hit("turtle:" .. it[2], 1, y, w - 10, 1)
         if busy then C.chip(w - 9, y, "release", "release", "stop") else C.chip(w - 6, y, "scan", "scan:" .. it[2], "primary") end
       else C.put(4, y, "-", "8") end
-      y, k = y + 1, k + 1
+      y, k, shown = y + 1, k + 1, shown + 1
     end
+    -- Rows that do not fit page on with + in the bar; saved setup always draws it.
+    if not m.savedSetup and shown < #items then C.chip(w - 3, 1, "+", "from-next", "plain") end
   end
   if m.message and S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
   elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
@@ -1563,31 +1562,20 @@ end
 -- Protected and keep boxes: a box draft (dimension and two corners, one field stepped at a time),
 -- the saved boxes with a two-tap remove, and PROTECT, KEEP and CLEAR MARKS for the draft. Each
 -- part shows only while its flag is on; the cells module checks every change again.
-S.areaPage = function(C, m)
-  local w, a = C.w, m.areas
-  local b = a.box
-  C.bar("AREAS", {}, nil, "", "8")
-  C.put(2, 2, (S.dimShort[b.dim] .. " " .. b.x1 .. "," .. b.y1 .. "," .. b.z1):sub(1, w - 2), "0")
-  C.put(6, 3, (b.x2 .. "," .. b.y2 .. "," .. b.z2):sub(1, math.max(0, w - 6)), "0")
-  local field = S.boxFields[a.field]
-  C.chip(2, 4, field, "area-field", "plain", 5)
-  local value = field == "dim" and S.dimShort[b.dim] or tostring(b[field])
-  C.put(8, 4, value:sub(1, math.max(0, w - 15)), "0")
-  C.chip(w - 6, 4, "-", "area-")
-  C.chip(w - 3, 4, "+", "area+")
-  local controls = {}
-  if a.protect then controls[#controls + 1] = { "PROTECT", "area-protect", "primary" } end
-  if a.keep then
-    controls[#controls + 1] = { "KEEP", "area-keep", "primary" }
-    controls[#controls + 1] = U.confirmChip(m, "clear-marks", "CLEAR MARKS", "clear-marks", "stop")
+-- The control rows U.controlRows would use for items and back, without drawing them.
+S.controlCount = function(w, items, back)
+  local rows, x, n = 1, 2, 0
+  for _, item in ipairs(items) do
+    if x + #item[1] + 2 > w and n > 0 then rows, x, n = rows + 1, 2, 0 end
+    x, n = x + #item[1] + 3, n + 1
   end
-  local ya = U.controlRows(C, controls, { "BACK", "areas-back", "plain" })
-  local items = {}
-  for _, box in ipairs(a.protect or {}) do items[#items + 1] = { "PROTECTED", box, "unprotect:" } end
-  for _, box in ipairs(a.keep or {}) do items[#items + 1] = { "KEEP", box, "unkeep:" } end
-  local y, stop, section = 6, ya - 2, nil
+  if n > 0 and x > w - #back[1] - 2 then rows = rows + 1 end
+  return rows
+end
+-- Saved boxes from row y to stop, each with a two-tap remove. Returns how many it drew.
+S.boxRows = function(C, m, items, y, stop)
+  local w, a, section, shown = C.w, m.areas, nil, 0
   local k = #items > 0 and a.from % #items + 1 or 1
-  if #items > stop - 6 then C.chip(w - 3, 1, "+", "area-next", "plain") end
   while k <= #items and y <= stop do
     local it = items[k]
     if it[1] ~= section then
@@ -1603,8 +1591,47 @@ S.areaPage = function(C, m)
     C.put(2, y, text:sub(1, math.max(0, w - 12)), "0")
     local c = U.confirmChip(m, it[3] .. box.id, "remove", it[3] .. box.id, "stop")
     C.chip(w - 9, y, c[1], c[2], c[3])
-    y, k = y + 1, k + 1
+    y, k, shown = y + 1, k + 1, shown + 1
   end
+  return shown
+end
+-- Protected and keep boxes: a box draft (dimension and two corners, one field stepped at a time),
+-- the saved boxes with a two-tap remove, and PROTECT, KEEP and CLEAR MARKS for the draft. Each
+-- part shows only while its flag is on; the cells module checks every change again. A screen
+-- with no row for a saved box under the draft lists them on their own page behind BOXES.
+S.areaPage = function(C, m)
+  local w, a = C.w, m.areas
+  local b = a.box
+  local items = {}
+  for _, box in ipairs(a.protect or {}) do items[#items + 1] = { "PROTECTED", box, "unprotect:" } end
+  for _, box in ipairs(a.keep or {}) do items[#items + 1] = { "KEEP", box, "unkeep:" } end
+  C.bar("AREAS", {}, nil, "", "8")
+  local ya, shown
+  if a.list and #items > 0 then
+    ya = U.controlRows(C, {}, { "BACK", "area-edit", "plain" })
+    shown = S.boxRows(C, m, items, 2, ya - 2)
+  else
+    C.put(2, 2, (S.dimShort[b.dim] .. " " .. b.x1 .. "," .. b.y1 .. "," .. b.z1):sub(1, w - 2), "0")
+    C.put(6, 3, (b.x2 .. "," .. b.y2 .. "," .. b.z2):sub(1, math.max(0, w - 6)), "0")
+    local field = S.boxFields[a.field]
+    C.chip(2, 4, field, "area-field", "plain", 5)
+    local value = field == "dim" and S.dimShort[b.dim] or tostring(b[field])
+    C.put(8, 4, value:sub(1, math.max(0, w - 15)), "0")
+    C.chip(w - 6, 4, "-", "area-")
+    C.chip(w - 3, 4, "+", "area+")
+    local controls, back = {}, { "BACK", "areas-back", "plain" }
+    if a.protect then controls[#controls + 1] = { "PROTECT", "area-protect", "primary" } end
+    if a.keep then
+      controls[#controls + 1] = { "KEEP", "area-keep", "primary" }
+      controls[#controls + 1] = U.confirmChip(m, "clear-marks", "CLEAR MARKS", "clear-marks", "stop")
+    end
+    -- A saved box needs its section row and its own row, from row 6.
+    local inline = C.h - S.controlCount(w, controls, back) - 1 >= 7
+    if #items > 0 and not inline then controls[#controls + 1] = { "BOXES", "area-list", "plain" } end
+    ya = U.controlRows(C, controls, back)
+    shown = inline and S.boxRows(C, m, items, 6, ya - 2) or #items
+  end
+  if shown < #items then C.chip(w - 3, 1, "+", "area-next", "plain") end
   if m.message and S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
   elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
 end
@@ -1880,7 +1907,8 @@ S.areaInput = function(view, id)
   if cfg.protectedAreas ~= true and cfg.worldEdits ~= true then view.areas = nil return end
   if id == "areas" then view.areas, view.testing, view.editing = true, true, false S.boxOf(view) return end
   if not view.areas then return end
-  if id == "areas-back" then view.areas = nil return end
+  if id == "areas-back" then view.areas, view.areaList = nil, nil return end
+  if id == "area-list" or id == "area-edit" then view.areaList = id == "area-list" or nil return end
   if id == "area-next" then view.areaFrom = (view.areaFrom or 0) + 1 return end
   if id == "area-field" then view.boxField = (view.boxField or 1) % #S.boxFields + 1 return end
   local b, field = S.boxOf(view), S.boxFields[view.boxField or 1]
