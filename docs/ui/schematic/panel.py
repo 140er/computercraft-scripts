@@ -97,10 +97,10 @@ def pager(cv, y, page, pages, prev, nxt):
     chip(cv, x + len(n) + 1, y, "►", nxt, kind)
 
 
-def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=True):
+def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=True, again=None, stock=None):
     """The search, its best match with the stock, 1, 16 and 64 (one ORDER n for a typed trailing count),
     then the last order (sent: line, colour) and the shop's reply. Without a storage room (found False)
-    the chips are muted."""
+    the chips are muted. again is the last order's (count, id), which a tap on its line sends again."""
     section(cv, x, y, cw, "SHOP", "" if loaded else "not loaded")
     if loaded:
         typed = search[-(cw - 3):] if cw > 3 else ""
@@ -111,8 +111,9 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=T
     search, qty = PK.split(search)
     live = loaded and found
     # S.best: an exact id keeps its count, even zero; another search takes the first match in stock.
-    exact = [i for i in PK.matches(search, 99) if i["name"] == search]
-    best = exact or ([i for i in PK.matches(search, 1) if i["count"] > 0] if search else [])
+    exact = [i for i in PK.matches(search, 99, stock) if i["name"] == search]
+    best = exact or ([i for i in PK.matches(search, 1, stock) if i["count"] > 0] if search else [])
+    best = [PK.tag(i, PK.shared(stock)) for i in best]
     if loaded and not live:
         cv.put(x, y + 2, "storage room not found"[:cw], "e")
     elif loaded and best:
@@ -133,6 +134,8 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=T
             PK.dead(cv, cx, y + 3, str(n), third)
     if loaded and sent:
         cv.put(x, y + 4, sent[0][:cw], sent[1])
+        if live and again:
+            cv.hit("order:%d:%s" % again, x, y + 4, cw, 1)
     if loaded and reply:
         cv.put(x, y + 5, reply[:cw], "8")
 
@@ -142,22 +145,29 @@ def fleet(m):
     return "%d ok · %d lost" % (len(m["turtles"]) - lost, lost), lost
 
 
-def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True, found=True):
+def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True, found=True,
+         fuel=None, stock=None, sent=None, again=None):
     """Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule;
-    the lowest row of blocks gives up its spare row, then its facts, when rows run out."""
+    the lowest row of blocks gives up its spare row, then its facts, when rows run out. fuel is the fuel
+    auto row (PK.fuel_value) under the turtles; "N lost" opens ALERTS."""
     cv = Canvas(w, h, title)
     header(cv, w, h, m["time"], needs)
     f = PK.facts(m) if f is None else f
     reasons = reasons or {}
     blocks = ["mining", "lumber"] + (["shop"] if keyboard else [])
-    top = 3
+    top, lw = 3, min(w - 2, 36)
     if show_fleet and m["turtles"] and h >= 12:
         text, lost = fleet(m)
-        lw = min(w - 2, 36)
         leader(cv, 2, 3, lw, "turtles", text)
         if lost:
             cv.put(2 + lw - len("%d lost" % lost), 3, "%d lost" % lost, "e")
-        top = 5
+            cv.hit("alerts", 2 + lw - len("%d lost" % lost), 3, len("%d lost" % lost), 1)
+        top = 4
+    if fuel and h >= 12:
+        leader(cv, 2, top, lw, "fuel auto", fuel[0], fuel[1])
+        top += 1
+    if top > 3:
+        top += 1
     n = len(blocks)
     cw = (w - 2 - (n - 1) * 3) // n
     while n > 1 and cw < 16:
@@ -192,7 +202,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
                 for j in range(y, y + rh):
                     cv.put(x - 2, j, "|", "c")
             if role == "shop":
-                shop_block(cv, x, y, cw, search, found=found)
+                shop_block(cv, x, y, cw, search, found=found, stock=stock, sent=sent, again=again)
             else:
                 PK.job(cv, x, y, cw, role, f.get(role), mode(row, role), reasons.get(role))
         y += rh + 1
@@ -333,9 +343,9 @@ def enroll(w, h, title, tabs=None, failed=False):
     return cv
 
 
-def alert_texts():
-    """The panel's ALERTS list for the scene: the state alert."""
-    return [PK.SYS["alert"]["text"]]
+def alert_texts(m):
+    """The panel's ALERTS list for the scene: one row per lost turtle, then the state alert."""
+    return [f["text"] for f in m["flags"] if f["text"].endswith(" lost")] + [PK.SYS["alert"]["text"]]
 
 
 def code():
@@ -344,6 +354,11 @@ def code():
 
 # A long item name on the 26-column pocket: the count and status keep their room.
 LONG = [("minecraft:polished_deepslate_stairs", 120), ("minecraft:oak_stairs", 40)]
+# shop.fuelConfig() after a fuel order timed out, and with one order sent 45 seconds ago.
+TIMED_OUT = dict(auto=True, alert=dict(reason="fuel order timed out"))
+WAITING = dict(auto=True, waiting=dict(at=0))
+# Two stocked ids that share the label COPPER INGOT.
+COPPER = [("minecraft:copper_ingot", 200), ("create:copper_ingot", 30)]
 
 FIXTURES = [
     ("panel-M", lambda: main(ST.model(), 57, 24, "Panel, room monitor 57x24", needs=SC["needs"])),
@@ -359,8 +374,17 @@ FIXTURES = [
                                    keyboard=True, search=PK.SYS["search"], found=False)),
     ("pocket-shoplong-P", lambda: PK.shop(ST.model(), search="stairs", stock=LONG,
                                           sent=(PK.order_line(1, "POLISHED DEEPSLATE STAIRS", "delivered", 24), "d"),
-                                          reply="Delivered 1 Polished Deepslate Stairs")),
-    ("panelalerts-M", lambda: alerts(alert_texts(), 57, 24, "Panel ALERTS without the health module")),
+                                          reply="Delivered 1 Polished Deepslate Stairs",
+                                          again=(1, "minecraft:polished_deepslate_stairs"))),
+    ("panelfuel-M", lambda: main(ST.model(), 57, 24, "Panel 57x24, a fuel order timed out",
+                                 fuel=PK.fuel_value(TIMED_OUT, 0, 25))),
+    ("pocket-jobsfuel-P", lambda: PK.jobs(ST.model(), title="Pocket JOBS, a fuel order waiting 45s",
+                                          fuel=PK.fuel_value(WAITING, 45000, 13))),
+    ("paneldupe-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20, two copper ingots",
+                                 keyboard=True, search="create:copper", stock=COPPER,
+                                 sent=(PK.order_line(16, "CREATE:COPPER INGOT", "sent", 24), "d"),
+                                 again=(16, "create:copper_ingot"))),
+    ("panelalerts-M", lambda: alerts(alert_texts(ST.model()), 57, 24, "Panel ALERTS without the health module")),
     ("panelpair-P", lambda: pair(ST.model(), 26, 20, "Panel PAIR 26x20, no code")),
     ("panelcode-P", lambda: pair(ST.model(), 26, 20, "Panel PAIR 26x20 with a code", **code())),
     ("panelpair-S", lambda: pair(ST.model(), 29, 12, "Panel PAIR 29x12, no code")),

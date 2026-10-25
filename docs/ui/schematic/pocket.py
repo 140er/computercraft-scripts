@@ -204,12 +204,35 @@ def job(cv, x, y, cw, role, f, mode="full", reason=None):
     job_chips(cv, x, last, cw, role, loaded and state not in ("stopped", "not loaded"), loaded)
 
 
-def jobs(m, w=26, h=20, f=None, title="Pocket JOBS"):
+def fuel_value(policy, now, room):
+    """P.fuel: the fuel policy as a value and colour, or None while fuel auto was never set up. policy is
+    shop.fuelConfig()'s auto, output, waiting (with at) and alert (with reason); now is the server time."""
+    if not policy or not any(policy.get(k) for k in ("auto", "output", "waiting", "alert")):
+        return None
+    waiting = policy.get("waiting")
+    alert = (policy.get("alert") or {}).get("reason", "") if policy.get("auto") and policy.get("alert") else None
+    if waiting:
+        age = now - waiting["at"]
+        if age >= 120000:
+            return "timed out", "e"
+        s = max(0, age) // 1000
+        return "waiting " + ("%ds" % s if s < 60 else "%dm" % (s // 60)), "1"
+    if alert == "fuel order timed out":
+        return "timed out", "e"
+    if alert:
+        return (alert if len(alert) <= room else "alert"), "e"
+    return ("on", "0") if policy.get("auto") else ("off", "8")
+
+
+def jobs(m, w=26, h=20, f=None, title="Pocket JOBS", fuel=None):
+    """fuel is the fuel auto row's value and colour (fuel_value), drawn on the last row."""
     cv = Canvas(w, h, title)
     tabs(cv, "jobs", len(m["flags"]) > 0)
     f = f or facts(m)
     job(cv, 2, 3, w - 2, "mining", f.get("mining"))
     job(cv, 2, 12, w - 2, "lumber", f.get("lumber"))
+    if fuel:
+        leader(cv, 2, h, w - 2, "fuel auto", fuel[0], fuel[1])
     return cv
 
 
@@ -226,6 +249,24 @@ def matches(search, limit, stock=None):
              for n, c in (SYS["stock"] if stock is None else stock) if q in n.lower()]
     items.sort(key=lambda i: (-i["count"], i["name"]))
     return items[:limit]
+
+
+def shared(stock=None):
+    """P.shared: labels that more than one stocked id shares, each with how many of its ids are minecraft's."""
+    seen = {}
+    for i in matches("", 4096, stock):
+        seen.setdefault(i["label"], []).append(i["name"])
+    return {label: sum(1 for n in names if n.startswith("minecraft:")) for label, names in seen.items() if len(names) > 1}
+
+
+def tag(item, labels):
+    """P.tag: the namespace before a shared label ("CREATE:COPPER INGOT"); the one minecraft id under a
+    shared label stays as it is."""
+    if item is None or item["label"] not in labels or ":" not in item["name"]:
+        return item
+    if item["name"].startswith("minecraft:") and labels[item["label"]] == 1:
+        return item
+    return dict(item, label=item["name"].split(":", 1)[0].upper() + ":" + item["label"])
 
 
 def lows(search, stock=None):
@@ -265,9 +306,10 @@ def pager(cv, y, note, back, forward):
 
 
 def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock=None, found=True, stale=False,
-         show="all", page=1, title="Pocket SHOP quick order"):
+         show="all", page=1, title="Pocket SHOP quick order", again=None):
     """sent is the last order's line and colour; reply is the shop's reply under it. show is the all, low
-    or empty chip; page is the result page when the matches need a pager on row h-2."""
+    or empty chip; page is the result page when the matches need a pager on row h-2. again is the last
+    order's (count, id), which a tap on its line sends again. A label two ids share gets its namespace."""
     cv = Canvas(w, h, title)
     tabs(cv, "shop", len(m["flags"]) > 0)
     raw = SYS["search"] if search is None else search
@@ -293,6 +335,8 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         items = matches(search, 256, stock)
     else:
         items = [i for i in lows(search, stock) if i["state"] == show]
+    labels = shared(stock)
+    items = [tag(i, labels) for i in items]
     if found and not items:
         cv.put(2, y, "no stock" if not search and show == "all" else "none " + show if show != "all" else "no match", "8")
 
@@ -335,6 +379,8 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         cv.put(2, h - 1, sent[0][:w - 2], sent[1])
     if reply:
         cv.put(2, h, reply[:w - 2], "8")
+    if sent and again and found:
+        cv.hit("order:%d:%s" % again, 2, h - 1, w - 2, 1)
     return cv
 
 
@@ -345,7 +391,7 @@ FORTY = [("mod:item_%02d" % i, 810 - i * 20) for i in range(1, 41)]
 def shop_sent():
     n, name = SYS["order"]
     label = next(i["label"] for i in matches(name, 99) if i["name"] == name)
-    return shop(ST.model(), sent=(order_line(n, label, "sent", 24), "d"))
+    return shop(ST.model(), sent=(order_line(n, label, "sent", 24), "d"), again=(n, name))
 
 
 # ---------------------------------------------------------------- pair

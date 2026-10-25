@@ -20,13 +20,13 @@ P.refresh = function()
   P.fleet = nil
   local state = SO.mods.state
   local machines = state and type(state.get) == "function" and state.get("machines") or {}
-  local count, lost = 0, 0
+  local count, lost, lostIds = 0, 0, {}
   for id, row in pairs(machines or {}) do
     if row.role == nil or row.role == "worker" or row.role == "turtle" then
       count = count + 1
       local lease = SO.mods.lease
       local status = lease and lease.status and lease.status(tonumber(id)) or {}
-      if status.lost then lost = lost + 1 end
+      if status.lost then lost, lostIds[#lostIds+1] = lost + 1, tonumber(id) or id end
     end
   end
   if count > 0 then P.fleet, P.lost = (count-lost) .. " ok \183 " .. lost .. " lost", lost end
@@ -52,6 +52,12 @@ P.refresh = function()
     end
     table.sort(P.alerts,function(a,b) return a.key < b.key end)
   end
+  -- One row per lost turtle, lowest id first, above the standing alerts.
+  table.sort(lostIds,function(a,b)
+    if type(a) == "number" and type(b) == "number" then return a < b end
+    return tostring(a) < tostring(b)
+  end)
+  for i,id in ipairs(lostIds) do table.insert(P.alerts,i,{key="lost:"..id,text="#"..id.." lost"}) end
 end
 
 -- Reads a job's state from the right side of its own frame's header; 120 columns fit a long hold reason.
@@ -148,12 +154,34 @@ P.item = function(shop, search)
   return {name=name,count=count,label=name:upper()}
 end
 
+-- Labels that more than one stocked id shares, each with how many of its ids are minecraft's.
+P.shared = function(shop)
+  local seen,shared = {},{}
+  for _,item in ipairs(type(shop.matches) == "function" and shop.matches("",4096) or {}) do
+    local mc = item.name:match("^minecraft:") and 1 or 0
+    if seen[item.label] then shared[item.label] = (shared[item.label] or seen[item.label])+mc end
+    seen[item.label] = (seen[item.label] or 0)+mc
+  end
+  return shared
+end
+
+-- The item with its namespace before a shared label ("CREATE:COPPER INGOT"); the one minecraft id
+-- under a shared label and every other item stay as they are.
+P.tag = function(item, shared)
+  local ns = item and shared[item.label] and item.name:match("^([^:]+):")
+  if not ns or ns == "minecraft" and shared[item.label] == 1 then return item end
+  local copy = {}
+  for k,v in pairs(item) do copy[k] = v end
+  copy.label = ns:upper()..":"..item.label
+  return copy
+end
+
 -- One quick order through shop.order. The record keeps what was sent; shop writes its status and reply into view.
 P.order = function(shop, search, amount, label)
   local view = {}
   local name,n = shop.order(search,amount,view)
   if not name then return {why=n} end
-  return {n=n or amount,label=label,view=view}
+  return {n=n or amount,label=label,view=view,name=name}
 end
 
 -- A typed search may end in a quantity ("sand 37"): the search, then the count or nil.
@@ -191,7 +219,7 @@ P.shopBlock = function(c, session, x, y, cw)
     c.hit("search",x,y+1,cw,1)
   end
   local search,qty = P.split(panel.search)
-  local item = loaded and P.item(SO.mods.shop,search)
+  local item = loaded and P.tag(P.item(SO.mods.shop,search),P.shared(SO.mods.shop))
   -- Without a storage room the chips are muted.
   local live = loaded and P.room(SO.mods.shop).found
   if loaded and not live then c.put(x,y+2,("storage room not found"):sub(1,cw),"e")
@@ -211,24 +239,59 @@ P.shopBlock = function(c, session, x, y, cw)
   if loaded and panel.sent then
     local text,fg,detail = P.orderLine(panel.sent,cw)
     c.put(x,y+4,text:sub(1,cw),fg)
+    -- The last order sends again with the same count, through shop.order and its one-stack cap.
+    if live and panel.sent.name then c.hit("order:"..panel.sent.n..":"..panel.sent.name,x,y+4,cw,1) end
     if detail then c.put(x,y+5,detail:sub(1,cw),"8") end
   end
 end
+
+-- A waiting order's age: seconds, then minutes.
+P.ago = function(ms)
+  local s = math.floor(math.max(0,ms)/1000)
+  return s < 60 and s.."s" or math.floor(s/60).."m"
+end
+
+-- The shared fuel policy from shop.fuelConfig() as a value and its colour (read-only; MINING setup
+-- changes it), or nil while fuel auto has never been set up. A value wider than room reads "alert".
+P.fuel = function(shop, room)
+  local policy = shop and type(shop.fuelConfig) == "function" and shop.fuelConfig()
+  if type(policy) ~= "table" or not (policy.auto or policy.output or policy.waiting or policy.alert) then return nil end
+  local waiting,alert = policy.waiting,policy.auto and type(policy.alert) == "table" and tostring(policy.alert.reason or "")
+  if type(waiting) == "table" and type(waiting.at) == "number" then
+    local age = P.now()-waiting.at
+    if age >= 120000 then return "timed out","e" end
+    return "waiting "..P.ago(age),"1"
+  end
+  if alert == "fuel order timed out" then return "timed out","e" end
+  if alert and alert ~= "" then return #alert <= room and alert or "alert","e" end
+  if policy.auto then return "on","0" end
+  return "off","8"
+end
+P.fuelRow = function(c, y, lw, value, fg) c.leader(2,y,lw,"fuel auto",value,fg) end
 
 -- Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule.
 -- When rows run out the lowest row of blocks gives up its spare row, then its facts.
 P.main = function(c, session, w, h)
   local blocks,top = {"mining","lumber",session.keyboard and "shop" or nil},3
+  local lw = math.min(w-2,36)
+  local fuel,fuelFg = P.fuel(P.states.shop ~= "not loaded" and SO.mods.shop,lw-11)
+  if h < 12 then fuel = nil end
   if (P.pairedNote or P.fleet) and h >= 12 then
     if P.pairedNote then
       c.put(2,3,U.g.bullet,"d");c.put(4,3,P.wrap(P.pairedNote,w-4)[1] or "","0")
     else
-      local lw = math.min(w-2,36)
       c.leader(2,3,lw,"turtles",P.fleet)
-      if P.lost > 0 then c.put(2+lw-#(P.lost.." lost"),3,P.lost.." lost","e") end
+      -- "N lost" opens ALERTS, where each lost turtle has its own row.
+      if P.lost > 0 then
+        local text = P.lost.." lost"
+        c.put(2+lw-#text,3,text,"e")
+        c.hit("alerts",2+lw-#text,3,#text,1)
+      end
     end
-    top = 5
+    top = 4
   end
+  if fuel then P.fuelRow(c,top,lw,fuel,fuelFg);top = top+1 end
+  if top > 3 then top = top+1 end
   local n = #blocks
   local cw = math.floor((w-2-(n-1)*3)/n)
   while n > 1 and cw < 16 do n = n-1;cw = math.floor((w-2-(n-1)*3)/n) end
@@ -480,13 +543,15 @@ P.input = function(event)
       local target = P.screens[role]
       if target and type(target.input) == "function" then target.input({id=cmd,role=role}) end
     else
-      -- 1, 16, 64 or the typed quantity; shop.order refuses a count over one stack.
-      local amount = tonumber((id or ""):match("^order:(%d+)$"))
+      -- 1, 16, 64 or the typed quantity for the shown item, or the last order's count and item again;
+      -- shop.order refuses a count over one stack.
+      local amount,name = (id or ""):match("^order:(%d+):(.+)$")
+      amount = tonumber(amount or (id or ""):match("^order:(%d+)$"))
       local shop = SO.mods.shop
       if amount and P.screens.shop and session.keyboard and shop and type(shop.order) == "function" then
-        local search = P.split(panel.search)
-        local item = P.item(shop,search)
-        panel.sent = P.order(shop,search,amount,item and item.label or "")
+        local search = name or P.split(panel.search)
+        local item = P.tag(P.item(shop,search),P.shared(shop))
+        panel.sent = P.order(shop,item and item.name or search,amount,item and item.label or "")
       end
     end
     P.refresh()
@@ -710,6 +775,8 @@ P.shopPage = function(c, state, keyboard, w, h)
   if not room.found then c.flag(2,y,w-2,"storage room not found") end
   if room.stale and room.found then c.put(2,y,"stock stale","1");y = y+1 end
   local items = room.found and P.shopItems(shop,search,filter) or {}
+  local shared = P.shared(shop)
+  for i,item in ipairs(items) do items[i] = P.tag(item,shared) end
   if #items == 0 and room.found then
     c.put(2,y,search == "" and filter == "all" and "no stock" or filter ~= "all" and "none "..filter or "no match","8")
   end
@@ -753,6 +820,8 @@ P.shopPage = function(c, state, keyboard, w, h)
     local text,fg,detail = P.orderLine(state.sent,w-2)
     c.put(2,h-1,text:sub(1,w-2),fg)
     if detail then c.put(2,h,detail:sub(1,w-2),"8") end
+    -- The last order sends again with the same count, through shop.order and its one-stack cap.
+    if room.found and state.sent.name then c.hit("order:"..state.sent.n..":"..state.sent.name,2,h-1,w-2,1) end
   end
 end
 
@@ -816,6 +885,8 @@ P.pocket = function(w, h, session)
       local loaded = screen and type(screen.render) == "function" and type(screen.input) == "function"
       P.job(c,2,i == 1 and 3 or 12,w-2,role,loaded and P.jobData(role,m) or nil)
     end
+    local fuel,fg = P.fuel(P.screens.shop and SO.mods.shop,w-13)
+    if fuel then P.fuelRow(c,h,w-2,fuel,fg) end
   elseif page == "shop" then P.shopPage(c,state,session.keyboard,w,h)
   elseif page == "pair" then P.pairPage(c,session,state,w,h) end
   local frame = c.frame()
@@ -876,7 +947,7 @@ P.pocketInput = function(event)
       -- The chip names its item; it must still match the search. shop.order refuses a count over one stack.
       for _,match in ipairs(shop.matches(P.split(state.search),256)) do
         if match.name == item then
-          state.sent = P.order(shop,item,amount,match.label)
+          state.sent = P.order(shop,item,amount,P.tag(match,P.shared(shop)).label)
           break
         end
       end

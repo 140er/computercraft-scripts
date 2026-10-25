@@ -1,0 +1,61 @@
+26x20 Pocket SHOP, two ids share COPPER INGOT
+ FLEET• JOBS  SHOP  PAIR  
+                          
+ > copper_             ×  
+   all     low    empty   
+ COPPER INGOT ······· 200 
+ CREATE:COPPER INGOT · 30 
+    1      16      64     
+    STACK        ALL      
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+888888e8888880000008888880
+00000000000000000000000000
+08000000090000000000008880
+0fffffff000000000000000000
+00000000000000ccccccc00000
+000000000000000000000c0000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+fffffffffffff777777fffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f9999999f7777777f7777777ff
+ffffffffffffffffffffffffff
+77777777777777777777777777
+f7777777f7777777f7777777ff
+f77777777777f77777777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
