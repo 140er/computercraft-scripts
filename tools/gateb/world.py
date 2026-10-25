@@ -154,13 +154,27 @@ class Runtime:
             return False
         if type(pid) is not int or pid <= 0:
             return True
+        if 'pid_start_time' in state:
+            try:
+                return state['pid_start_time'] == keeper.process_start_time(pid)
+            except (OSError, ValueError, IndexError):
+                return False
+        run = self.run(name)
+        proc = Path(f'/proc/{pid}')
         try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
+            if (proc / 'cwd').resolve(strict=True) == run:
+                return True
+        except OSError:
             pass
-        return True
+        try:
+            arguments = (proc / 'cmdline').read_bytes().split(b'\0')
+            for argument in arguments:
+                path = Path(os.fsdecode(argument).removeprefix('@'))
+                if path.is_absolute() and path.resolve().is_relative_to(run):
+                    return True
+        except OSError:
+            pass
+        return False
 
     def stale_port(self, name, active):
         # An operation can own a run before it has written run.json or a PID.
@@ -424,7 +438,11 @@ class Runtime:
         if len(args)!=1: raise RuntimeError('Expected one NeoForge unix_args.txt')
         argv+=['@'+str(args[0]),'nogui']
         info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024,'server':True})
-        state.update(pid=info['pid'],ready=False);atomic(run/'run.json',state)
+        state.update(pid=info['pid'],ready=False)
+        state.pop('pid_start_time', None)
+        if 'pid_start_time' in info:
+            state['pid_start_time'] = info['pid_start_time']
+        atomic(run/'run.json',state)
         deadline=time.monotonic()+timeout
         while time.monotonic()<deadline:
             if name not in self.status(): raise RuntimeError('Server exited; inspect '+str(log))

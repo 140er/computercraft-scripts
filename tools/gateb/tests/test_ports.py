@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import socket
 import sys
+import subprocess
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from world import Runtime, atomic, locked
+import keeper
 import run as driver
 from checks.model import Blocked
 
@@ -30,12 +32,14 @@ class PortTests(unittest.TestCase):
         self.runtime.config.update(port_start=self.port, port_end=self.port + 100)
         self.registry = self.runtime.home / 'ports.json'
 
-    def world(self, name, pid=None):
+    def world(self, name, pid=None, pid_start_time=None):
         path = self.runtime.run(name)
         path.mkdir(parents=True, exist_ok=True)
         state = {'version': 1, 'name': name, 'port': self.port}
         if pid is not None:
             state['pid'] = pid
+        if pid_start_time is not None:
+            state['pid_start_time'] = pid_start_time
         atomic(path / 'run.json', state)
         (path / 'server.properties').write_text(f'server-port={self.port}\n')
         return path
@@ -57,7 +61,7 @@ class PortTests(unittest.TestCase):
         self.assertEqual(json.loads(self.registry.read_text()), {})
 
     def test_stop_exception_keeps_a_live_servers_entry(self):
-        self.world('scratch', os.getpid())
+        self.world('scratch', os.getpid(), keeper.process_start_time(os.getpid()))
         atomic(self.registry, {'scratch': self.port})
         with patch.object(self.runtime, 'client_stop', side_effect=RuntimeError('cleanup failed')):
             with self.assertRaisesRegex(RuntimeError, 'cleanup failed'):
@@ -71,10 +75,10 @@ class PortTests(unittest.TestCase):
         self.assertEqual(json.loads(self.registry.read_text()), {'new': port})
 
     def test_full_registry_reclaims_dead_owner_with_retained_directory(self):
-        self.world('crashed', 12345)
+        self.world('crashed', 12345, 100)
         self.runtime.config['port_end'] = self.port + 1
         atomic(self.registry, {'crashed': self.port})
-        with patch('world.os.kill', side_effect=ProcessLookupError):
+        with patch('keeper.process_start_time', side_effect=FileNotFoundError):
             self.assertEqual(self.runtime.allocate_port('new'), self.port)
         self.assertEqual(json.loads(self.registry.read_text()), {'new': self.port})
 
@@ -87,7 +91,7 @@ class PortTests(unittest.TestCase):
         self.assertEqual(json.loads(self.registry.read_text()), {'live': self.port})
 
     def test_live_pid_with_unlocked_owner_lock_is_retained(self):
-        self.world('live', os.getpid())
+        self.world('live', os.getpid(), keeper.process_start_time(os.getpid()))
         atomic(self.registry, {'live': self.port})
         self.runtime.config['port_end'] = self.port + 1
         with self.assertRaisesRegex(RuntimeError, 'No free Gate B ports'):
@@ -102,12 +106,66 @@ class PortTests(unittest.TestCase):
             self.runtime.allocate_port('new')
         self.assertEqual(json.loads(self.registry.read_text()), {'live': self.port})
 
-    def test_pid_permission_error_preserves_entry(self):
-        self.world('live', 12345)
-        atomic(self.registry, {'live': self.port})
-        with patch('world.os.kill', side_effect=PermissionError):
-            self.runtime.allocate_port('new')
-        self.assertEqual(json.loads(self.registry.read_text())['live'], self.port)
+    def test_reused_pid_with_different_start_time_is_reclaimed(self):
+        self.world('crashed', os.getpid(), keeper.process_start_time(os.getpid()) + 1)
+        atomic(self.registry, {'crashed': self.port})
+        self.runtime.config['port_end'] = self.port + 1
+        self.assertEqual(self.runtime.allocate_port('new'), self.port)
+        self.assertEqual(json.loads(self.registry.read_text()), {'new': self.port})
+
+    def test_legacy_unrelated_live_pid_is_reclaimed(self):
+        self.world('crashed', os.getpid())
+        atomic(self.registry, {'crashed': self.port})
+        self.runtime.config['port_end'] = self.port + 1
+        self.assertEqual(self.runtime.allocate_port('new'), self.port)
+        self.assertEqual(json.loads(self.registry.read_text()), {'new': self.port})
+
+    def test_cleanup_releases_reservation_with_reused_pid(self):
+        for start_time in (None, keeper.process_start_time(os.getpid()) + 1):
+            with self.subTest(start_time=start_time):
+                self.world('crashed', os.getpid(), start_time)
+                atomic(self.registry, {'crashed': self.port})
+                self.runtime.stop('crashed')
+                self.assertEqual(json.loads(self.registry.read_text()), {})
+
+    def test_legacy_owner_is_verified_by_cwd_or_cmdline(self):
+        path = self.world('legacy')
+        for source in ('cwd', 'cmdline'):
+            with self.subTest(source=source):
+                argv = [sys.executable, '-c', 'import time; time.sleep(60)']
+                if source == 'cmdline':
+                    argv.append('@' + str(path / 'libraries/args.txt'))
+                child = subprocess.Popen(argv, cwd=path if source == 'cwd' else self.runtime.home)
+                try:
+                    self.world('legacy', child.pid)
+                    atomic(self.registry, {'legacy': self.port})
+                    self.runtime.config['port_end'] = self.port + 1
+                    with self.assertRaisesRegex(RuntimeError, 'No free Gate B ports'):
+                        self.runtime.allocate_port('new')
+                    self.assertEqual(json.loads(self.registry.read_text()), {'legacy': self.port})
+                finally:
+                    child.terminate()
+                    child.wait(timeout=5)
+
+    def test_legacy_cmdline_does_not_match_a_neighboring_run(self):
+        path = self.world('legacy')
+        for argument in (self.runtime.run('legacy-other') / 'args.txt', path / '../legacy-other/args.txt'):
+            with self.subTest(argument=str(argument)):
+                child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)',
+                                          str(argument)], cwd=self.runtime.home)
+                try:
+                    self.world('legacy', child.pid)
+                    atomic(self.registry, {'legacy': self.port})
+                    self.runtime.config['port_end'] = self.port + 1
+                    self.assertEqual(self.runtime.allocate_port('new'), self.port)
+                finally:
+                    child.terminate()
+                    child.wait(timeout=5)
+
+    def test_start_time_parser_handles_parentheses_in_process_name(self):
+        fields = ['S'] + ['0'] * 18 + ['987654'] + ['0'] * 10
+        with patch.object(Path, 'read_text', return_value='123 (name with ) spaces) ' + ' '.join(fields)):
+            self.assertEqual(keeper.process_start_time(123), 987654)
 
     def test_clone_exception_releases_allocation_and_removes_scratch(self):
         template = self.runtime.home / 'template'
@@ -180,11 +238,12 @@ class PortTests(unittest.TestCase):
             self.assertIn(f'server-port={port}\n', (path / 'server.properties').read_text())
             active['scratch'] = os.getpid()
             (path / 'console.log').write_text('Done (1.0s)!\n')
-            return {'pid': os.getpid()}
+            return {'pid': os.getpid(), 'pid_start_time': keeper.process_start_time(os.getpid())}
 
         with locked(self.runtime.lock_path('other')), patch.object(self.runtime, 'ensure_keeper'), patch.object(self.runtime, 'command'), patch.object(self.runtime, 'manifest', return_value={'computers': {}, 'forceload': []}), patch('world.keeper.call', side_effect=start):
             result = self.runtime.serve('scratch')
         self.assertTrue(result['warm'])
+        self.assertEqual(self.runtime.state('scratch')['pid_start_time'], keeper.process_start_time(os.getpid()))
         self.assertEqual(json.loads(self.registry.read_text()), {'other': self.port, 'scratch': result['port']})
 
     def test_startup_timeout_stops_owned_process_and_releases_port(self):
@@ -199,14 +258,14 @@ class PortTests(unittest.TestCase):
             active['scratch'] = 12345
             return {'pid': 12345}
 
-        with patch.object(self.runtime, 'ensure_keeper'), patch.object(self.runtime, 'command', side_effect=lambda *args, **kwargs: active.clear()), patch.object(self.runtime, 'manifest', return_value={'computers': {}}), patch('world.keeper.call', side_effect=start), patch('world.os.kill', side_effect=ProcessLookupError):
+        with patch.object(self.runtime, 'ensure_keeper'), patch.object(self.runtime, 'command', side_effect=lambda *args, **kwargs: active.clear()), patch.object(self.runtime, 'manifest', return_value={'computers': {}}), patch('world.keeper.call', side_effect=start):
             with self.assertRaisesRegex(RuntimeError, 'Server startup timed out'):
                 self.runtime.serve('scratch', timeout=0)
         self.assertEqual(active, {})
         self.assertEqual(json.loads(self.registry.read_text()), {})
 
     def test_duplicate_serve_does_not_stop_an_existing_live_server(self):
-        self.world('scratch', os.getpid())
+        self.world('scratch', os.getpid(), keeper.process_start_time(os.getpid()))
         atomic(self.registry, {'scratch': self.port})
         self.status.return_value = {'scratch': os.getpid()}
         with patch.object(self.runtime, 'ensure_keeper'), patch.object(self.runtime, '_stop') as stop:

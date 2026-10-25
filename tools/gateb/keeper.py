@@ -18,6 +18,12 @@ def admit(required_kib, available_kib, load, additional_server):
         raise RuntimeError(f"Pool admission refused: load1={load:.2f} must be below 8; MemAvailable={available_kib/1048576:.2f} GiB must exceed 8 GiB")
 
 
+def process_start_time(pid):
+    # comm may contain spaces and parentheses; fields after its final ')' start at 3.
+    fields = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
+    return int(fields[19])
+
+
 def call(home, request):
     with socket.socket(socket.AF_UNIX) as sock:
         sock.settimeout(20)
@@ -115,6 +121,7 @@ def main(home, suite_lock):
                                 raise
                             children[key] = process;handles[key] = [log,stdin]
                             result = {'pid':process.pid, 'existing':False}
+                        result['pid_start_time'] = process_start_time(result['pid'])
                     elif q['op'] == 'signal':
                         if key in children:
                             os.killpg(children[key].pid, signal.SIGKILL if q.get('force') else signal.SIGTERM)

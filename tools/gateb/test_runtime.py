@@ -279,6 +279,7 @@ class KeeperTests(unittest.TestCase):
                 fifo=home/'console';os.mkfifo(fifo)
                 script='import os,time; print(os.get_blocking(0),flush=True); print(input(),flush=True); time.sleep(60)'
                 info=keeper.call(home,{'op':'start','key':'dummy','argv':[sys.executable,'-c',script],'cwd':temp,'log':str(home/'child.log'),'fifo':str(fifo)})
+                self.assertEqual(info['pid_start_time'], keeper.process_start_time(info['pid']))
                 with fifo.open('w') as handle: handle.write('console alive\n')
                 deadline=time.monotonic()+5
                 while time.monotonic()<deadline:
