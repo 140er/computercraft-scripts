@@ -301,4 +301,153 @@ return function(test, equal)
     end
   end)
 
+  test("B3-B mark-only clear preserves reservations and recovery owners",function()
+    local c,m,net=F.setup(nil,2)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1632,y2=0,z2=0}
+    assert(c.reserve("gps:9",1616,0,0))
+    assert(c.reserve("recovery:8",1632,0,0))
+    c.rememberWorker(8,{dim=box.dim,x=0,y=64,z=0},{{dim=box.dim,x=0,y=64,z=0}})
+    assert(c.tick(net.time))
+    local before=m.env.SO.store.read("so-data/dug-policy").value
+    local invalidated
+    m.env.SO.mods.mine={dugProtection=function() return true end,forgetDug=function(paths) invalidated=paths end}
+    local _,stamp=c.dugBits(box.dim,101,0,0)
+    local offer=assert(c.clearMarks(box,10))
+    equal(marked(c,1),true)
+    local result=assert(c.clearMarks(box,10,offer.token))
+    equal(result.status,"cleared") equal(result.saved,2) equal(result.marks,2)
+    equal(marked(c,1),false) equal(marked(c,2),false)
+    equal(c.owner(1616,0,0),"gps:9") equal(c.owner(1632,0,0),"recovery:8")
+    equal(m.env.SO.store.read("so-data/dug-policy").value,before)
+    assert(invalidated[F.path(1)] and invalidated[F.path(2)])
+    local _,after=c.dugBits(box.dim,101,0,0) assert(after>stamp)
+    local reboot=F.setup(m.files)
+    equal(marked(reboot,1),false) equal(reboot.owner(1616,0,0),"gps:9")
+    equal(reboot.owner(1632,0,0),"recovery:8")
+  end)
+
+  test("B3-B mark-only clear reports partial saves and never resumes after restart",function()
+    local c,m,net=F.setup(nil,3)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1648,y2=0,z2=0}
+    local offer=assert(c.clearMarks(box,10))
+    local open=m.env.fs.open
+    m.env.fs.open=function(path,mode)
+      if path==F.path(2)..".tmp" and mode=="w" then return nil end
+      return open(path,mode)
+    end
+    local result=assert(c.clearMarks(box,10,offer.token))
+    equal(result.status,"partial") equal(result.saved,1) equal(result.total,3) assert(result.error)
+    equal(marked(c,1),false) equal(marked(c,2),true) equal(marked(c,3),true)
+    m.env.fs.open=open
+    assert(c.tick(net.time)) equal(marked(c,2),true)
+    local reboot,_,clock=F.setup(m.files)
+    equal(reboot.clearMarks(box,10,offer.token),nil)
+    assert(reboot.tick(clock.time))
+    equal(marked(reboot,1),false) equal(marked(reboot,2),true) equal(marked(reboot,3),true)
+  end)
+
+  test("B3-B mark clearing requires the same confirmed selection within 64 sections",function()
+    local c,m,net=F.setup(nil,2)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1616,y2=0,z2=0}
+    local offer=assert(c.clearMarks(box,10))
+    equal(c.clearMarks(box,11,offer.token),nil)
+    local changed=m.env.SO.store.copy(box) changed.x2=1632
+    equal(c.clearMarks(changed,10,offer.token),nil)
+    offer=assert(c.clearMarks(box,10)) net.time=net.time+30001
+    equal(c.clearMarks(box,10,offer.token),nil)
+    offer=assert(c.clearMarks(box,10)) assert(c.markDug(1617,0,0))
+    equal(c.clearMarks(box,10,offer.token),nil)
+    box.x2=box.x1+64*16
+    equal(c.clearMarks(box,10),nil)
+    equal(marked(c,1),true) equal(marked(c,2),true)
+  end)
+
+  test("B3-B mark clearing refuses intersecting work and unresolved recovery",function()
+    for _,kind in ipairs({"work","lease","recovery","uncertain","setup"}) do
+      local c,m=F.setup(nil,2)
+      m.files["so-server.cfg"]=H.encode({worldEdits=true})
+      local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1631,y2=0,z2=0}
+      if kind=="setup" then
+        assert(c.reserve("setup:9",1616,0,0))
+        m.env.SO.mods.drops={busy=function(id) return id==9 end}
+      elseif kind=="recovery" then c.rememberWorker(9,{dim=box.dim,x=1616,y=0,z=0},{})
+      else
+        m.env.SO.mods[kind=="work" and "mine" or "lease"]={dugProtection=function(protect)
+          if kind=="uncertain" then return false end
+          protect(box.dim,{x=1616,y=0,z=0},0) return true
+        end}
+      end
+      equal(c.clearMarks(box,10),nil,kind)
+      equal(marked(c,1),true)
+    end
+  end)
+
+  test("B3-B mark clearing changes only selected bits and refreshes the map stamp",function()
+    local c,m=F.setup(nil,1)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    assert(c.markDug(1617,0,0))
+    local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1616,y2=0,z2=0}
+    local offer=assert(c.clearMarks(box,"local"))
+    local result=assert(c.clearMarks(box,"local",offer.token))
+    equal(result.marks,1) equal(marked(c,1),false) equal(c.isDug(1617,0,0),true)
+    local reboot=F.setup(m.files)
+    equal(marked(reboot,1),false) equal(reboot.isDug(1617,0,0),true)
+  end)
+
+  test("B3-B keep boxes protect whole sections at final ALLOW without granting movement",function()
+    local c,m,net=F.setup(nil,500)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true,protectedAreas=true})
+    assert(c.tick(net.time))
+    local request=assert(c.retirement())
+    local box={id="keep",dim="overworld",x1=1631,y1=15,z1=15,x2=1631,y2=15,z2=15}
+    assert(c.keep({box}))
+    equal(c.keep()[1].dim,"minecraft:overworld")
+    assert(c.decideRetirement(request.id,"allow"))
+    equal(marked(c,1),true) equal(marked(c,2),false)
+    local from={dim="minecraft:overworld",x=1615,y=0,z=0,facing=1}
+    equal(c.assessment("other").admit(from,"forward",{dim=from.dim,x=1616,y=0,z=0}),true)
+    assert(c.reserve("holder",1616,0,0))
+    equal(c.assessment("other").admit(from,"forward",{dim=from.dim,x=1616,y=0,z=0}),false)
+    local reboot=F.setup(m.files)
+    equal(reboot.keep()[1].x1,1631)
+    equal(marked(reboot,1),true)
+    local copy=reboot.keep() copy[1].x1=0 equal(reboot.keep()[1].x1,1631)
+  end)
+
+  test("B3-B keep edits validate boxes and publish only after a successful save",function()
+    local c,m=F.setup(nil,1)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    local box={id="keep",dim="overworld",x1=1631,y1=15,z1=15,x2=1616,y2=0,z2=0}
+    assert(c.keep({box})) equal(c.keep()[1].x1,1616)
+    local open=m.env.fs.open
+    m.env.fs.open=function(path,mode)
+      if path=="so-data/dug-policy.tmp" and mode=="w" then return nil end
+      return open(path,mode)
+    end
+    equal(c.keep({}),false) equal(#c.keep(),1)
+    m.env.fs.open=open
+    local many={} for i=1,65 do many[i]=box end
+    equal(c.keep(many),false)
+    box.dim="unknown" equal(c.keep({box}),false)
+  end)
+
+  test("B3-B kept marks never override protected admission or the disk guard",function()
+    local c,m=F.setup({["so-server.cfg"]=H.encode({worldEdits=true,protectedAreas=true})})
+    m.env.SO.mods.lease={protectionReady=function() return true end}
+    local box={id="build",dim="minecraft:overworld",x1=1,y1=0,z1=0,x2=1,y2=0,z2=0}
+    assert(c.protect({box})) assert(c.keep({box}))
+    local from={dim=box.dim,x=0,y=0,z=0,facing=1}
+    local ok,why=c.admit("mine:9",from,"forward",{dim=box.dim,x=1,y=0,z=0})
+    equal(ok,false) equal(why,"protected")
+    local lease=m.env.dofile("so-mod-lease.lua") m.env.SO.mods.lease=lease
+    lease.handlers.hello({from=9,body={capabilities={parkBatch=true,setupFence=true},
+      journal={id="before",pose={x=0,y=0,z=0,f=0}}}})
+    m.env.SO.mods.state={canWork=function() return false end}
+    local lid,reason=lease.send(9,{{op="gps"}})
+    equal(lid,nil) equal(reason,"DISK events pending")
+  end)
+
 end

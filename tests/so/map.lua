@@ -1424,4 +1424,47 @@ return function(test,equal)
     equal(scene.dim,"minecraft:the_nether") equal(scene.build.dim,"minecraft:the_nether")
   end)
 
+  test("B3-B map RELEASE waits for fenced GPS and validates the drawn confirmation",function()
+    local s=setup()
+    local m=s.machine
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    m.env.rednet.send=function() return true end
+    m.env.SO.pair.key=function() return string.rep("a",64) end
+    local lease=m.env.dofile("so-mod-lease.lua") m.env.SO.mods.lease=lease
+    lease.handlers.hello({from=99,body={role="worker",dim="minecraft:overworld",
+      capabilities={setupFence=true,parkBatch=true},journal={id="before",pose={x=0,y=0,z=0,f=0}}}})
+    assert(s.cells.reserve("setup:99",1000,64,1000))
+    s.net.time=s.net.time+300000
+    s.reloadMap()
+    local session={id=10,w=57,h=24,map={fit=false,sx=1,sz=1,cx=1000,cz=1000,level=64,pick={k="cell",x=1000,z=1000}}}
+    local function frame() return s.screen.render(57,24,session) end
+    local b=button(frame(),"map-release",57,24)
+    s.screen.input({id="map-release",session=session,from=10,x=1,y=1})
+    equal(session.map.releaseToken,nil)
+    s.screen.input({id="map-release",session=session,from=10,x=b.x,y=b.y})
+    assert(session.map.releaseToken)
+    equal(lease.peek(99).open,nil)
+    b=button(frame(),"map-release",57,24)
+    s.screen.input({id="map-release",session=session,from=10,x=b.x,y=b.y})
+    equal(s.cells.owner(1000,64,1000),"setup:99")
+    local lid=assert(lease.peek(99).open)
+    local waiting=frame() local text=""
+    for _,r in ipairs(waiting.rows) do text=text..r.text end
+    assert(text:find("WAIT GPS",1,true))
+    lease.handlers["step.report"]({from=99,body={lease=lid,journal="after",pose={x=0,y=0,z=0,f=0},
+      results={{ok=true,data={dim="minecraft:overworld",x=1001,y=64,z=1000}}}}})
+    equal(s.cells.owner(1000,64,1000),nil)
+    equal(s.cells.owner(1001,64,1000),"gps:99")
+  end)
+
+  test("B3-B map RELEASE stays absent with world edits off",function()
+    local s=setup()
+    assert(s.cells.reserve("setup:99",1000,64,1000))
+    local session={id=10,w=57,h=24,map={fit=false,sx=1,sz=1,cx=1000,cz=1000,level=64,pick={k="cell",x=1000,z=1000}}}
+    local f=s.screen.render(57,24,session)
+    for _,b in ipairs(f.buttons) do assert(b.id~="map-release") end
+    s.screen.input({id="map-release",session=session,from=10,x=2,y=2})
+    equal(s.cells.owner(1000,64,1000),"setup:99")
+  end)
+
 end

@@ -266,7 +266,7 @@ S.settings = function(id, changes)
   if row.settingsKey ~= key then return nil, "wait for hello" end
   if not row.settingsControl then return nil, "settings disabled" end
   if row.settingsPending then return nil, "settings pending" end
-  if row.open or row.uncertain or row.anchor or row.lost or S.assigned(id) then return nil, "worker busy" end
+  if row.open or row.uncertain or row.anchor or row.lost or row.releaseLock or S.assigned(id) then return nil, "worker busy" end
   if type(changes) ~= "table" then return nil, "invalid settings" end
   for field in pairs(changes) do
     if field ~= "dim" and field ~= "autoToolSwap" then return nil, "invalid settings" end
@@ -378,7 +378,7 @@ end
 
 S.protectionReady = function()
   for _, row in pairs(S.turtles) do
-    if row.open or row.uncertain or row.anchor or row.boundaryHold then return false end
+    if row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock then return false end
   end
   return true
 end
@@ -482,9 +482,56 @@ S.exitReported = function(lease, row, results)
   end
 end
 
+S.releaseReady = function(id, bootAt)
+  local row = S.turtles[id]
+  if not row or not row.worker or not SO.pair.key(id) then return nil, "unknown worker" end
+  if row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock
+    or row.probe or row.exitRoute or row.settingsPending or row.last and row.last.status == "expired"
+    or S.assigned(id) then return nil, "worker has work or unresolved lease" end
+  if not row.parkBatch or not row.setupFence or not row.pose or type(row.journal) ~= "string"
+    or row.journal == "" then return nil, "release needs fenced worker" end
+  local delay = (SO.store.read("so-server.cfg") or {}).releaseSilence
+  delay = S.number(delay) and math.max(300000,delay) or 300000
+  if SO.now()-math.max(row.seen or 0,row.contactAt or 0,bootAt or SO.now()) < delay then return nil, "wait for five minutes of silence" end
+  return row.contact or 0
+end
+
+S.releaseFence = function(id, contact, done)
+  local row = S.turtles[id]
+  local ready, err = S.releaseReady(id, 0)
+  if ready == nil or ready ~= contact then return nil, err or "worker contacted server" end
+  local lock = {contact=contact,journal=row.journal,pose=SO.store.copy(row.pose),dim=row.dim,done=done}
+  row.releaseLock = lock
+  local lid, reason = S.send(id,{{op="gps",park=true}},
+    {owner="cellsRelease",journal=row.journal,release=lock,recover=true,ms=15000})
+  if not lid then lock.done(nil) return nil, reason end
+  return lid
+end
+
+S.releaseReported = function(row, lease, results, priorContact)
+  local lock = row.releaseLock
+  if not lock then return end
+  local facts, fix = lease.report, results and results[1] and results[1].data
+  local p = facts and facts.pose
+  local valid = results and results[1].ok and not facts.uncertain and p
+    and facts.journal and facts.journal ~= lock.journal and row.journal == facts.journal
+    and p.x == lock.pose.x and p.y == lock.pose.y and p.z == lock.pose.z and p.f == lock.pose.f
+    and priorContact == lock.contact and not S.assigned(lease.turtleId) and S.position(fix) and fix.dim == lock.dim
+    and type(fix.dim) == "string" and S.rules().dimension(fix.dim) == fix.dim
+    and fix.x%1 == 0 and fix.y%1 == 0 and fix.z%1 == 0
+  if valid and lock.done({dim=fix.dim,x=fix.x,y=fix.y,z=fix.z}) then
+    S.fix(row,fix,p,facts.journal)
+    row.releaseLock = nil
+  else
+    lock.done(nil)
+    row.boundaryHold, row.reconciled = true, false
+  end
+end
+
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
+  if row.releaseLock and not (type(opts)=="table" and opts.release == row.releaseLock) then return nil, "release pending reconciliation" end
   if row.uncertain or row.anchor then return nil, "pose uncertain" end
   if row.lost and not (type(opts) == "table" and opts.recover == true) then return nil, "lost" end
   if row.open then return nil, "busy" end
@@ -591,6 +638,7 @@ S.snapshot = function(row)
     last = SO.store.copy(row.last), tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
     settings = SO.store.copy(row.settings), workerSettings = row.workerSettings, settingsControl = row.settingsControl,
     settingsPending = row.settingsPending and {rid=row.settingsPending.rid,n=row.settingsPending.n} or nil,
+    releasing = row.releaseLock ~= nil, contact = row.contact or 0,
     settingsError = row.settingsError, reconciled = row.reconciled, boundaryHold = row.boundaryHold,
     fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt,
@@ -641,6 +689,8 @@ end
 S.report = function(msg, reply)
   local row = S.row(msg.from)
   local body = msg.body
+  local priorContact = row.contact or 0
+  row.contact, row.contactAt = priorContact+1, SO.now()
   local lease = row.open
   if not lease or type(body) ~= "table" or body.lease ~= lease.id then
     if not row.warned then
@@ -695,6 +745,7 @@ S.report = function(msg, reply)
   end
   if lease.owner == "tools" then
     row.toolError = not allOk and ("tool swap failed: "..tostring(body.results[1].err or "failed")) or nil
+  elseif lease.owner == "cellsRelease" then S.releaseReported(row,lease,results,priorContact)
   elseif lease.owner == "protectedExit" then S.exitReported(lease,row,results)
   elseif lease.owner == "gps" then S.probed(row, results, lease) else S.notify(lease, results) end
   if reply then reply("ack", {command="step.report", lease=lease.id}) end
@@ -702,6 +753,7 @@ end
 
 S.beacon = function(msg)
   local row = S.row(msg.from)
+  row.contact, row.contactAt = (row.contact or 0)+1, SO.now()
   row.lost = true
   row.seen = SO.now()
   row.uncertain = msg.body.uncertain == true or nil
@@ -750,6 +802,7 @@ end
 
 S.hello = function(msg)
   local row = S.row(msg.from)
+  row.contact, row.contactAt = (row.contact or 0)+1, SO.now()
   local key = SO.pair.key(msg.from)
   if row.settingsKey ~= key then
     row.settings, row.settingsPending, row.settingsN = nil, nil, nil
@@ -806,7 +859,8 @@ S.tick = function(now)
       lease.status = "expired"
       if lease.boundary then row.boundaryHold, row.reconciled = true, false end
       row.last = {status="expired", ok=false, at=now}
-      if lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
+      if lease.owner == "cellsRelease" then S.releaseReported(row,lease,nil)
+      elseif lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
       elseif lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
     elseif lease and lease.retryAt and now >= lease.retryAt and now < lease.expires then
       lease.retryAt = now + 1000
@@ -871,7 +925,7 @@ end
 
 S.dugProtection = function(protect)
   for _, row in pairs(S.turtles) do
-    if row.uncertain or row.anchor then return false end
+    if row.uncertain or row.anchor or row.boundaryHold or row.releaseLock then return false end
     if row.open then
       if not row.open.pose then return false end
       protect(row.open.pose.dim or "minecraft:overworld", row.open.pose, 48)
@@ -907,6 +961,7 @@ return {
   tick = S.tick,
   send = S.send,
   boundaries = S.boundaries, assess = S.assess, protectionReady = S.protectionReady,
+  releaseReady = S.releaseReady, releaseFence = S.releaseFence,
   exitRequest = S.exitRequest,
   reanchor = S.reanchor,
   clearProbe = S.clearProbe, claimProbe = S.claimProbe,
