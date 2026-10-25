@@ -67,7 +67,14 @@ return function(test, equal)
   end)
   test("W40 recovery sends to a beaconing worker and its report clears lost", function()
     local net, server, worker, lease = setup()
+    local send = server.env.rednet.send
+    server.env.rednet.send = function(id, wire, protocol)
+      local msg = server.env.SO.proto.decode(wire)
+      if msg and msg.t == "ack" and msg.body.command == "step.report" then return true end
+      return send(id, wire, protocol)
+    end
     batch(net, server, worker, lease, { { op = "forward" } }, { ms = 1200 })
+    server.env.rednet.send = send
     net.advance(1)
     equal(lease.status(2).lost, true)
     local beacon = sent(worker, "beacon")[1].body

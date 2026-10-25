@@ -396,6 +396,7 @@ W.report = function(results)
     selected[longest] = nil
   end
   msg.mac = W.proto.sign(key, msg)
+  W.reportRid = msg.rid
   W.transmit(W.server, msg)
 end
 
@@ -583,7 +584,10 @@ W.accept = function(sender, payload)
   if not W.proto.fresh(msg) then return end
   W.repair, W.codeText, W.pairError = nil, nil, nil
   W.seen = W.now()
-  if msg.t == "worker.status" then
+  if msg.t == "ack" and msg.rid == W.reportRid and msg.body.command == "step.report"
+    and msg.body.lease == W.lease and W.mode == "idle" and not W.executingBatch then
+    W.expires, W.reportRid, W.closedLease = nil, nil, W.lease
+  elseif msg.t == "worker.status" then
     if type(msg.body.job) == "string" and type(msg.body.reason) == "string" then
       W.job, W.reason = msg.body.job:sub(1, 16), msg.body.reason:sub(1, 48)
       if W.job ~= "" then W.unassigned = nil
@@ -879,6 +883,7 @@ W.startBatch = function(msg)
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
   local n = #body.steps
   if n < 1 or n > 16 then return end
+  if body.lease == W.closedLease then return end
   if W.journal.uncertain or W.configHold then
     W.lease = body.lease
     local results = {}
@@ -902,6 +907,7 @@ W.startBatch = function(msg)
     deadline = math.min(deadline, W.expires)
   end
   W.lease, W.expires, W.legacyExpires = body.lease, deadline, msg.legacyExpires
+  W.reportRid = nil
   local results, safetyStop = {}, false
   W.executingBatch = true
   for i = 1, n do

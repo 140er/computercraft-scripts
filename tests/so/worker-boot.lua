@@ -588,7 +588,8 @@ return function(test, equal)
     local send=s.env.rednet.send
     s.env.rednet.send=function(id,payload,protocol)
       local msg=s.env.SO.proto.decode(payload)
-      if id==2 and msg and msg.t=="worker.status" and msg.body.job=="" then return true end
+      if id==2 and msg and (msg.t=="worker.status" and msg.body.job==""
+        or msg.t=="ack" and msg.body.command=="step.report") then return true end
       return send(id,payload,protocol)
     end
     assert(lease.send(2,{{op="forward"}},{ms=1000}))

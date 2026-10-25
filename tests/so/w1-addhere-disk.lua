@@ -278,6 +278,12 @@ return function(test,equal)
       local a=setup()
       F.send(a,{{op="forward"},{op="forward"},{op="forward"}});a.n.advance(1)
       gps(a)
+      local serverSend=a.s.env.rednet.send
+      a.s.env.rednet.send=function(id,wire,protocol)
+        local msg=a.s.env.SO.proto.decode(wire)
+        if msg and msg.t=="ack" and msg.body.command=="step.report" then return true end
+        return serverSend(id,wire,protocol)
+      end
       if outcome=="GPS loss" then a.t.env.gps.locate=function() return nil end end
       if outcome=="blocked" then a.t.env.turtle.forward=function() return false,"Movement obstructed" end end
       if outcome=="report loss" then
