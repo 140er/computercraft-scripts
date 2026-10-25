@@ -1460,7 +1460,11 @@ world pose block retirement. Dirty sections are ineligible. These checks repeat
 when `allow` is pressed. `mine.forgetDug(sectionPaths)` invalidates cached block
 facts after retirement. Its argument is a `{ [sectionPath] = true }` set.
 
-Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` without freeing anything. The same sender must send `{ who, confirm = token }` within 30 seconds. A valid confirmation runs `forgetOwner`. Invalid, expired, reused, or mismatched confirmations reply with `err`.
+Wire type `cells.forget` uses the fenced RELEASE flow described below.
+With `worldEdits=true`, `{who}` requests `{confirm=token}`. The same sender
+confirms with `{who,confirm=token}` within 30 game seconds. Its ACK means
+pending GPS, not released. With world edits off, the handler returns `err`
+and arms no confirmation. Invalid confirmations also return `err`.
 
 ### display
 
@@ -2679,10 +2683,16 @@ It adds no message types or turtle operations. Workers advertise
 `park=true` on the first step of a batch persists a stationary expiry policy
 before the worker executes that batch. Builder requires this capability and sets
 the flag on every lease. Older workers receive only recovery inspection leases
-and cannot start builder work. Other jobs keep their existing expiry behaviour.
+and cannot start builder work. Other jobs keep their existing expiry behavior
+unless an enabled option requires stationary expiry.
 `build.budget()` returns `{total,remaining,carried}`. Remaining is an upper
 bound from blueprint and cursor; carried sums matching inventory stacks and is
-nil before the first inventory report. This adds a backend model only.
+nil before the first inventory report. The job tab shows `need` and `carried`.
+Before inventory arrives, `carried` reads `unknown`.
+The setup `material-pick` chip opens a paged list of reported inventory names
+with summed counts. Selecting a row runs `material <name>` and preserves the
+placement cursor. `no report` and an empty inventory are distinct states.
+Below 24 columns, BUILD draws only the job tab and no tab controls.
 START requires usable storage, a paired certain pose, parkBatch and positive or
 unlimited fuel. Wait for the initial stationary recovery report; later fresh
 hello fuel can clear zero-fuel refusal. Numeric -1 becomes unlimited.
@@ -2971,3 +2981,283 @@ between overworld, Nether and End. It filters workers, routes, drops, the
 server marker and dug scans to that dimension. `arDim` in `so-server.cfg`
 selects one AR geometry dimension. Its default is the server dimension or
 overworld. HUD fleet totals remain global. AR does not infer wearer dimension.
+
+
+### Protected paths and acknowledged boundaries
+
+`so-server.cfg.protectedAreas` defaults to false and is read at boot.
+Disabling it retains saved boxes. `so-data/cells/protected` stores
+`{v=1,revision,boxes}` through the generation store. At most 64 boxes are
+allowed. Each has a unique `id`, canonical vanilla `dim`, and inclusive integer
+`x1,y1,z1,x2,y2,z2` bounds. `cells.protect(boxes)` normalizes endpoints and
+dimension aliases, validates, saves, then publishes the revision.
+`cells.protected()` returns a copy and any load error.
+
+Invalid or future protection data blocks movement while protection is enabled.
+Activation and edits wait for leases and reservation owners to reconcile.
+One offline reservation holder blocks activation until it reconciles.
+There is no timeout bypass. Stationary observations remain available.
+
+`cells.admit(who,from,op,to)` checks movement destinations and dig, place and
+drop targets against boxes and other owners' reservations. Ordinary movement
+and these writes from inside a box are refused too.
+`cells.assessment(who,exit?,targets?)` copies protection and reservation facts.
+With targets, it copies only their reservation cells. Its clear-cell lookup
+uses `dugBits(...,true)`. Missing or evicted sections are unknown. Assessment
+never calls `isDug`, loads a section, changes its LRU state, reserves or saves.
+
+`plan.assess(from,steps,checks)` returns
+`{ok,first?,reason?,cell?,holder?,distance?,limit?}` for the first refusal.
+Reasons include `protected`, `held`, `unknown`, `range` and `pose unknown`.
+`lease.assess(id,from,steps,opts)` adds effective range and admission facts.
+`opts.clear=true` requires known-clear movement destinations.
+`plan.boundary(action)` ends the prefix at its first move or turn and returns
+remaining steps in `rest`. `from` lets it rebuild the prefix pose.
+
+Protection, `alternateAxisOrders` or `storageDeliveries` enables the boundary
+contract. `lease.boundaries()` reports it. Admission requires `parkBatch`,
+`setupFence` and a certain journal. Each prefix ends at its first move or turn,
+uses stationary expiry and fences the current journal. Its start comes from
+that journal and a proven world frame, supplied as `opts.frame` by a planner.
+The expected final pose is checked separately.
+
+Mining, lumber, builder and setup reassess after a matching report proves the
+expected position and facing with an advanced journal. A failed move or turn,
+missing report or unexpected pose retains reservations and discards the
+remainder. `lease.status(id).boundaryHold` blocks ordinary dispatch until a
+fenced stationary observation reconciles the pose. Failed dig, place, drop,
+suck and refuel results still reach the caller's failure handler when the
+movement boundary is confirmed. Facing probes without a proven world frame
+require explicit add while safety is enabled.
+
+`lease.exitRequest(id,steps,actor,token?)` offers a copied exit preview.
+Confirm the same actor, path, worker, start pose, journal and box revision
+within 30 game seconds. The worker must be idle, unassigned, certain and inside
+protection, with both fence capabilities. Fuel must be known, nonnegative and
+sufficient, or `unlimited`. The route allows at most 16 moves and 64 move/turn
+operations through known-clear cells. It must end outside every box.
+It cannot enter a box outside its start set or re-enter a departed box.
+This rule applies separately to overlapping boxes.
+
+Confirmation reserves the whole path under `gps:<id>`. Every acknowledged
+prefix reassesses admission. A failed boundary cancels approval and retains
+the path. Success retains the occupied cell. Restart discards approval and
+preserves reservations. `lease.protectionReady()` checks unresolved lease
+work; cells also checks reservation holders before activation or edits.
+
+### Fenced release and mark retention
+
+`so-server.cfg.worldEdits` defaults to false. It gates RELEASE, authenticated
+`cells.forget`, mark clearing and keep-box edits. Turning it off retains saved
+holds and keep boxes. `releaseSilence` can only raise the minimum silence of
+300000 game milliseconds. Boot starts a fresh silence grace.
+
+`cells.releaseRequest(who,actor,token?)` first returns
+`{status="confirm",token,untilAt,who}`. The 30-game-second token binds the actor,
+holder, reservation revision and worker contact revision. Both calls refuse
+unknown holders, assignments, open or unresolved leases and insufficient
+silence. Confirmation locks the worker and sends a stationary fenced `gps`
+lease with `park=true`. It returns `{status="pending",who,lease}`.
+`cells.releaseStatus(who)` copies the pending, released or held result.
+
+Only the matching successful report with an advanced journal, unchanged certain
+journal pose and integer GPS cell in the worker's explicit dimension permits
+release. The occupied cell saves as `gps:<id>` before other cells are released.
+New contact, changed reservations, disabled world edits, timeout or save failure
+keeps the route held. RELEASE? is the second tap on the map. WAIT GPS means
+the fenced report is pending. There is no forced offline release.
+
+Failure clears `lease.peek(id).releasing` and sets `releaseHold`, which refuses
+ordinary leases. For a certain journal, `lease.send(id,{{op="gps"}},
+{recover=true})` can observe a parked, fenced GPS fix with protection enabled
+or disabled. Its advanced journal must prove the unchanged pose and an integer
+fix in the explicit dimension. Saving the occupied reservation clears the hold.
+Recovery retains the original route and never resumes its release.
+Journal uncertainty requires the existing re-anchor path first.
+The held pose and route protect local marks without stopping retirement elsewhere.
+
+`so-data/cells/release-holds` saves conservative route holds before dispatch.
+Startup restores missing reservations from it, discards confirmations and never
+resends release work. Failed cleanup can restore extra holds after restart.
+`so-data/cells/res` keeps its existing format.
+
+`cells.clearMarks(box,actor,token?)` offers a 30-game-second confirmation for a
+normalized inclusive integer box covering at most 64 sections. Confirmation
+binds actor, selection, marks and reservation revision. Any intersecting reserved
+section refuses the clear, including idle holders. Assignments, leases and
+recorded recovery also protect their areas. Each path is rechecked before save.
+Unexplored paths and unchanged bits are skipped. Only changed existing sections
+save, then their cache entries are invalidated. The result reports `status`,
+`saved` sections, `total` selected sections and removed `marks`. Partial results
+include `error`; a failed save names the `uncertain` section. Reservations and
+recovery records stay intact. Mining facts and map stamps refresh after saves.
+Restart discards approval and never resumes clearing. No world blocks change.
+
+The dug policy accepts `keepBoxes`, at most 64 boxes with the protected-box
+shape. Missing means empty. `cells.keep()` copies them; `cells.keep(boxes)`
+validates and saves before publication. Any intersection protects the whole
+section from retirement, including the final ALLOW recheck. Keeping marks
+grants no movement permission and bypasses no reservation, protection or disk guard.
+
+### Mining KEEP and recall
+
+Mining saves `keep={}`, `recallEnabled=false`, `staging={}` and optional
+`recall={phase,workers}` in `so-data/mine/job`. Old saves use these defaults.
+`keep <ids>` replaces up to 64 exact namespaced IDs separated by commas or
+spaces. `keep none` clears the list. Outstanding batches and recovery must
+settle first. Cleanup excludes selected items. Ore unloading keeps the existing
+first eligible sealing stack before selecting surplus. Each slot transfer has
+a positive bounded count. Selected fuel and tools stay with the worker.
+KEEP does not bypass the fewer-than-two-free-slots unload trigger.
+Missing headroom or sealing stock holds digging.
+
+`recall on|off` saves the opt-in. While stopped,
+`staging <id> <x> <y> <z> <n|e|s|w>` sets a distinct destination in the job
+dimension at home height, outside shaft, spine, home and chest access cells.
+Bare `recall` requires the opt-in, a valid destination for every assigned
+worker, `parkBatch` and `setupFence`. It saves before dispatch and stops new
+branch and vein claims. Workers drain accepted batches, then return without
+digging or sealing. Movement uses known-clear cells and protected admission.
+Workers inside protection need a separately approved exit. The complete shared
+lane pass and exit reserve before entry. Every move or turn ends a fenced,
+stationary-expiry prefix and waits for matching pose, facing and journal proof.
+Blocked, lost, offline or fuel-starved workers remain pending.
+Fuel service cannot dig an escape.
+
+Recall saves destinations, phases, remaining and outbound routes and unfinished
+cursors. Restart recovers journals and certain world poses before revalidating
+travel. STOP pauses recall. Turning recall off preserves unfinished work.
+All workers must reach destination and facing before `staged`. START then
+enters `resuming`, retraces checked routes to saved work poses and facings,
+and resumes unfinished mining. Shared-lane work poses resume last.
+Assignments, geometry and staging cannot change during unfinished recall.
+Explicit re-add can reconcile an existing uncertain participant without losing
+its cursor, claims or reservations. The anchor request saves before send and
+resumes after restart. Fuel service returns to its departure pose and facing
+before resume travel is reassessed. Outward retries recheck drop usability;
+a committed service return may finish after suspension. Settle recall before downgrade.
+
+`so-mine-plan.cleanup(inv,all,side?,selected?)` accepts KEEP.
+`unload(inv,selected)` returns the next `{slot,n}` surplus transfer or nil,
+plus whether sealing stock exists. `recallRoute(job,row,target,lookup)` returns
+the clear supply route or nil and a reason. Lookup returns false for known-clear
+cells. `recallStep(from,target)` returns a non-digging prefix through the first
+move or turn, or nil on confirmed arrival and facing.
+
+### Builder return home
+
+Build saves `returnHome=false`, optional `home={dim,x,y,z,facing}` and
+`completion={phase,target}`. The first added worker supplies home; re-addition
+preserves it. While safely stopped, `home <x> <y> <z> n|e|s|w` replaces home
+and `return on|off` selects completion behavior. Return-on and START with return
+enabled require home, a certain world pose and facing, `parkBatch` and `setupFence`.
+
+The last confirmed placement saves phase `returning` and a copy of home as
+`target` before travel. Return leases never dig. Each sets `park=true`, fences
+the current journal and ends at its first move or turn. The next prefix waits
+for the matching report, advanced journal and expected certain pose and facing.
+Failed, missing or unexpected reports retain reservations for stationary
+reconciliation. A rejected protected boundary saves `completion.hold` with its
+cause and text. Reconciliation and restart preserve that hold until START.
+Blocked paths, range, reservations or insufficient fuel hold RETURNING.
+Refuel manually and use START after resolving the hold.
+
+Restart preserves the completion phase and placement cursor, recovers the pose
+and replans. It never replays a saved return remainder. STOP pauses the return.
+Configuration cannot erase it. REMOVE refuses before parking or removal changes
+the job. Only confirmed arrival at home with its facing saves phase `complete`
+and shows COMPLETE. With return disabled, completion stays at the final target.
+
+### Lumber ONCE and species
+
+Lumber saves `cycleMode="repeat"` and `species=false` by default.
+While stopped without unfinished work, `mode once` selects one harvest cycle
+and `mode repeat` restores repeated surveys. `species <exact log IDs>` replaces
+the selection, `species none` selects no trees and `species false` restores
+legacy classification. Supported IDs are `minecraft:oak_log`,
+`minecraft:spruce_log`, `minecraft:birch_log`, `minecraft:jungle_log`,
+`minecraft:acacia_log`, `minecraft:cherry_log` and `minecraft:mangrove_log`.
+
+ONCE START requires each member's `parkBatch`, `setupFence`, certain pose and
+journal. A saved cycle holds `id`, frozen survey `targets`, `cursor`,
+coordinate-keyed `claims` and `done`, worker-keyed `members`, deduplicated
+`candidates`, `phase`, distinct `parks` and confirmed `parked` members.
+`cycleSerial` keeps IDs across mode changes. Confirmed clear parking cells save
+with the job. Candidate keys include dimension and coordinates. Discovery adds
+to this cycle even for recently planted grown trees. Completed coordinates
+cannot be harvested again in the cycle. Replanting settles an accepted target.
+Survey, candidates and claims drain before finishing. Delivery receipts settle
+unloading. Missing saplings, blocked chests or lost members hold completion.
+ONCE never waits for regrowth or starts another survey automatically.
+
+STOP and reboot preserve the cycle, queues, claims, membership, service intents
+and running or paused state. Reboot reconciles journals and inventory and
+revalidates unfinished parking confirmations. An interrupted planting is
+inspected before requesting saplings. An existing sapling settles it even
+with none in inventory. Restocking is followed by another inspection before
+placement. START recovers journals and replans. ONCE and explicit species
+selections discard deferred movement and digs and inspect the route again.
+START after COMPLETE creates a new cycle. Unfinished cycles refuse mode,
+species, area and existing-member replacement/removal changes. Workers added
+while stopped wait for the next cycle. SCAN cannot replace the ONCE survey.
+
+Every ONCE prefix uses stationary expiry and the current journal fence.
+Movement and turns wait for matching successful reports and the expected certain
+pose. Failed or missing reports retain possible cells and reservations until
+reconciliation. Parking never digs. Routes use known-clear cells outside tree
+access, other admitted routes and shared chest corridors. Destinations reserve
+and revalidate before movement. COMPLETE requires each member's confirmed pose,
+facing and stationary park after replant and unloading. No known clear route
+means a hold.
+
+`so-lumber-plan.species` maps supported logs to leaves.
+`selected(name,species)`, `isLog(block,species?)` and `canDig(block,species?)`
+accept exact log selections. Omission or false keeps legacy classification.
+Explicit lists admit only selected supported logs and their mapped leaves.
+Excluded or unclassified wood and leaves obstruct discovery, felling and travel,
+including service trips. Selection never comes from the worker's target.
+Lumber `facts()` adds `cycleMode`, a copied `species` and optional `cycle={id,phase}`.
+
+### Recent ore finds
+
+Mining saves `oreCoordinates=false`. `orecoordinates on|off` changes it.
+When enabled, a confirmed ore dig may add `pos={dim,x,y,z}` to
+`mine.ore {id,name,count}`. The saved dig cell must match world-transformed
+journal evidence, including interrupted-dig recovery. Without proof, the event
+keeps its count-only shape.
+
+Each map session defaults to `oreFinds=false`. Text commands `ore finds on`
+and `ore finds off` change only that session. Up to 50 history entries per active
+tick feed a memory-only ring of 256 finds, deduplicated by event sequence.
+Restart rebuilds it from retained history. Accepted times are
+`(SO.now()-600000,SO.now()]`, using `gameAt` or legacy `at` when absent.
+Malformed positions, unknown dimensions and future times are rejected.
+Yellow asterisks show in their dimension at the exact selected level or ALL,
+below workers, reservations, labels and callouts. Arrival and expiry invalidate
+frames. Finds never expand FIT or select zoom. Under the 15000-byte frame budget,
+older finds drop before labels. Markers issue no movement or reservation changes.
+
+### Lumber emergency log fuel
+
+Lumber saves `burnLogs=false` for new and old jobs. While stopped without pending
+commands, `burnLogs true|false` changes it. Routes, targets, reserves and
+production-credit rules stay unchanged.
+
+At the existing fuel access cell, a valid chest inspection followed by a
+confirmed empty pickup into an empty inventory slot saves empty-chest proof.
+Only the next lease may use it. Reload, START, stop, pause, park, recovery or a
+lane wait discards unused proof. Carried ordinary fuel, wrong items, broken
+chests, timeouts or missing facts cannot authorize burning logs.
+Only overworld log and wood IDs recognized by `so-plan.burnValue` qualify.
+
+A saved refuel intent requests the minimum carried items needed for the existing
+return reserve at the saved access. Requests use a conservative 20000-fuel bound;
+the worker enforces its configured limit. Reports and restart recovery reconcile
+consumed inventory and gained fuel before another burn. Unconfirmed outcomes
+retain the intent for recovery. Failed or unexecuted refuels hold. Another stack
+requires a fresh empty pickup.
+
+After a log-burn return, the worker holds for fuel and keeps the empty-chest
+alert. Automatic retries and START may recheck the chest but cannot repeat burns
+for that empty service. Confirmed ordinary refueling clears the hold and follows
+the existing return path.
