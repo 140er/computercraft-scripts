@@ -410,6 +410,18 @@ local function report(id, turtleId, results, lease)
   local pending = S.pending
   if not j.turtle or j.turtle.forgotten or turtleId ~= j.turtle.id or not pending or pending.id ~= id then return end
   S.pending = nil
+  if pending.returning and not results and lease.boundary and lease.status=="reported" then
+    local facts=lease.report or {}
+    local certain=not facts.uncertain and journalPose(facts.pose) and j.turtle.frame
+    local blocked=certain and P.samePose(pending.pose,P.toWorld(j.turtle.frame,facts.pose))
+    local cause=blocked and (facts.fuel==0 and "fuel" or "path") or "pose_uncertain"
+    local text=cause=="fuel" and "out of fuel" or cause=="path" and "path blocked; clear route"
+      or "boundary unconfirmed; reservations held"
+    j.completion.hold=j.completion.hold or {cause=cause,text=text}
+    S.recover,j.turtle.parkConfirmed=true,nil
+    alert(j.completion.hold.text,j.completion.hold.cause)
+    return
+  end
   if not results or not lease.report or not lease.report.pose then
     S.recover, j.turtle.parkConfirmed = true, nil
     if j.turtle.paused then j.turtle.state="lost" end
@@ -450,7 +462,9 @@ local function report(id, turtleId, results, lease)
     if j.turtle.paused then j.turtle.state="parked" end
   elseif action == "recover" then
     S.recover, j.phase = false, "check"
-    if j.legacyHold then j.blocked,j.alert="hold",j.legacyHold
+    if returning() and j.completion.hold then
+      j.blocked,j.alert=j.completion.hold.cause,j.completion.hold.text
+    elseif j.legacyHold then j.blocked,j.alert="hold",j.legacyHold
     elseif not (returning() and j.blocked and j.blocked~="lost" and j.blocked~="pose_uncertain" and j.blocked~="worker_safety" and j.blocked~="save")
       and not (j.retryAt and (j.blocked=="material" or j.blocked=="fuel")) then j.blocked,j.alert=nil,nil end
     if j.service then j.service.stage = "travel" end
@@ -550,6 +564,7 @@ local function input(ev)
   if text == "status" then return end
   local w = {}
   for word in text:gmatch("%S+") do w[#w+1]=word end
+  if w[1]=="remove" and returning() then feedback("finish return before removing worker") return end
   if S.workerPark and (w[1]=="park" or w[1]=="resume" or w[1]=="remove") and #w==2 then
     local row=j.turtle
     if not row or tonumber(w[2])~=row.id then feedback("unknown turtle") return end
@@ -598,6 +613,7 @@ local function input(ev)
       return
     end
     j.running,j.blocked,j.alert,j.phase,j.legacyHold=true,nil,nil,"check",nil
+    if returning() then j.completion.hold=nil end
     save()
     return
   end

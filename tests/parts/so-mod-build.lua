@@ -1000,4 +1000,50 @@ return function(test,equal)
     f.run() equal(f.job().turtle.pose,f.job().home) equal(f.count(),1)
   end)
 
+  for _,cause in ipairs({"path","fuel"}) do
+    test("B4-B rejected protected return boundary keeps its "..cause.." hold until START",function()
+      local f=dofile("tests/so/build-world-fixture.lua")(nil,nil,{protectedAreas=true})
+      f.configure("floor",1,1,1) f.command("return on") f.command("start")
+      for _=1,1200 do
+        f.advance(0.05)
+        if f.job().completion then break end
+      end
+      equal(f.job().completion.phase,"returning")
+      local attempts=0
+      local up=f.worker.env.turtle.up
+      f.worker.env.turtle.up=function()
+        attempts=attempts+1
+        return false,cause=="fuel" and "Out of fuel" or "Movement obstructed"
+      end
+      if cause=="fuel" then f.worker.fuel=0 end
+      f.advance(8)
+      equal(attempts,1) equal(f.job().blocked,cause)
+      equal(f.job().completion.hold.cause,cause) equal(f.job().completion.phase,"returning")
+      equal(f.job().intent,nil) equal(f.job().complete,false)
+      local p=f.job().turtle.pose
+      equal(f.server.env.SO.mods.cells.owner(p.x,p.y,p.z,p.dim),"build:2")
+      f.restart() f.advance(31)
+      equal(attempts,1) equal(f.job().blocked,cause) equal(f.job().completion.hold.cause,cause)
+      f.worker.env.turtle.up=up f.worker.fuel=10000 f.advance(31)
+      equal(attempts,1) equal(f.job().blocked,cause)
+      f.command("start") equal(f.job().completion.hold,nil)
+      f.finish() equal(f.job().complete,true) equal(f.places,1)
+      equal(f.job().turtle.pose,f.job().home)
+    end)
+  end
+  for _,stopped in ipairs({false,true}) do
+    test("B4-B REMOVE refuses an unfinished return before changing worker park state"..(stopped and " while stopped" or ""),function()
+      local f=returningBuilder({workerPark=true})
+      if stopped then f.input("stop") end
+      local before,calls=f.job(),#f.calls
+      f.input("remove 2")
+      equal(f.job(),before) equal(#f.calls,calls)
+      f.feedback("finish return before removing worker")
+      equal(f.job().turtle.removeRequested,nil) equal(f.job().turtle.paused,nil)
+      if stopped then f.input("start") end
+      f.run() equal(f.job().complete,true) equal(f.count(),1)
+      equal(f.job().turtle.id,2) equal(f.job().turtle.pose,f.job().home)
+    end)
+  end
+
 end
