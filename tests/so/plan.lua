@@ -185,14 +185,22 @@ return function(test,equal,section)
       local held,calls=heldSnapshot(f),#f.calls
       f.tick() equal(f.queued(),nil) equal(#f.calls,calls)
       assert(f.job().blocked) equal(heldSnapshot(f),held)
+      assert(f.job().alert:find("storage route #supply",1,true))
+      assert(f.job().alert:find("-3,0,2",1,true))
       f.tick() equal(heldSnapshot(f).owners,held.owners)
       equal(f.releases or 0,held.releases)
       if reason~="fuel" then equal(f.reserves or 0,held.reserves) equal(#f.calls,calls) end
     end)
   end
+  for _,filtered in ipairs({false,true}) do
   for _,op in ipairs({"move","turn"}) do
-    test("builder failed storage "..op.." keeps its pose and route until stationary recovery",function()
+    test("builder blocked storage "..op.." has one alert and no new leases until START with "..(filtered and "lease-filtered" or "raw").." results",function()
       local f=storageBuilder()
+      local alerts,emit=0,f.mods.state.emit
+      f.mods.state.emit=function(kind,data)
+        if kind=="build.alert" and type(data)=="table" then alerts=alerts+1 end
+        return emit(kind,data)
+      end
       if op=="move" then f.moveError="blocked" else f.turnError="blocked" end
       if op=="turn" then
         for _=1,8 do
@@ -204,13 +212,62 @@ return function(test,equal,section)
       local before=f.job().turtle.pose
       f.tick() local q=assert(f.queued()) equal(#q.steps,1)
       assert(op=="move" and P.moves[q.steps[1].op] or op=="turn" and P.turns[q.steps[1].op])
-      local held=heldSnapshot(f) f.report()
+      if filtered then f.reportChange=function(_,facts,failed)
+        f.deliver(failed.id,nil,facts,{report=facts,boundary=true,status="reported"})
+      end end
+      local held=heldSnapshot(f) f.report() f.reportChange=nil
       equal(f.job().turtle.pose,before) equal(heldSnapshot(f),held)
+      equal(f.job().blocked,"path") equal(alerts,1)
+      local hold=f.job().service.hold
+      equal(hold.cause,"path") equal(hold.text,f.job().alert)
+      assert(hold.text:find("storage route #supply",1,true))
+      assert(hold.text:find("-3,0,2",1,true))
       f.tick() equal(f.queued().steps,{{op="inspectDown",park=true}})
       for cell,who in pairs(held.owners) do equal(f.held[cell],who) end
       equal(f.releases or 0,held.releases)
+      f.report()
+      equal(f.job().service.hold,hold) equal(f.job().blocked,"path") equal(f.job().alert,hold.text)
+      local calls,stable=#f.calls,heldSnapshot(f)
+      for _=1,10 do f.tick() if f.queued() then f.report() end end
+      equal(#f.calls,calls) equal(f.queued(),nil) equal(alerts,1)
+      equal(heldSnapshot(f),stable) equal(f.job().turtle.pose,before)
+      f.moveError,f.turnError=nil,nil
+      f.input("start") equal(f.job().service.hold,nil) equal(f.job().blocked,nil)
+      f.tick() assert(f.queued()) f.report() f.run()
+      equal(f.count(),1) equal(f.job().complete,true)
     end)
   end
+  end
+  for _,disabled in ipairs({false,true}) do
+    test("builder storage HOLD survives restart until START"..(disabled and " after disabling alternateAxisOrders" or ""),function()
+      local f=storageBuilder()
+      f.moveError="blocked" f.tick() f.report() f.tick() f.report()
+      local hold=f.job().service.hold
+      assert(hold) equal(f.job().blocked,"path")
+      if disabled then f.env.SO.store.read("so-server.cfg").alternateAxisOrders=false end
+      f.restart() equal(f.queued().steps,{{op="inspectDown",park=true}}) f.report()
+      equal(f.job().service.hold,hold) equal(f.job().blocked,"path") equal(f.job().alert,hold.text)
+      local calls,held=#f.calls,heldSnapshot(f)
+      for _=1,10 do f.tick() end
+      equal(f.queued(),nil) equal(#f.calls,calls) equal(heldSnapshot(f),held)
+      f.moveError=nil f.input("start")
+      equal(f.job().service.hold,nil) equal(f.job().blocked,nil)
+      f.run() equal(f.job().complete,true)
+    end)
+  end
+  test("builder storage fuel boundary HOLD stops automatic probes until refuelling and START",function()
+    local f=storageBuilder()
+    f.moveError="Out of fuel" f.tick() f.report(false,0) f.tick() f.report()
+    equal(f.job().blocked,"fuel") equal(f.job().service.hold.cause,"fuel")
+    local calls,held=#f.calls,heldSnapshot(f)
+    for _=1,10 do f.tick() end
+    equal(f.queued(),nil) equal(#f.calls,calls) equal(heldSnapshot(f),held)
+    f.input("start") assert(f.job().service.hold)
+    f.moveError,f.fuel=nil,100
+    f.restart() f.report() f.input("start")
+    equal(f.job().service.hold,nil) equal(f.job().blocked,nil)
+    f.run() equal(f.job().complete,true)
+  end)
   for _,fact in ipairs({"journal","pose","setupFence"}) do
     test("builder storage trip holds an unconfirmed "..fact.." without releasing reservations",function()
       local f=storageBuilder()

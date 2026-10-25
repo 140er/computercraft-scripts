@@ -181,6 +181,16 @@ end
 local function storageTrip()
   return config.alternateAxisOrders == true and j.service and j.service.kind=="storage"
 end
+local function storageError(reason)
+  return P.chestError("storage route",reason,j.service.point)
+end
+local function boundaryAlert(pending,text,cause)
+  if pending.storageTrip and j.service then
+    j.service.hold=j.service.hold or {cause=cause,text=storageError(text)}
+    text,cause=j.service.hold.text,j.service.hold.cause
+  end
+  alert(text,cause)
+end
 local function journalPose(p)
   return type(p)=="table" and whole(p.x) and whole(p.y) and whole(p.z)
     and whole(p.f) and p.f>=0 and p.f<=3
@@ -213,12 +223,11 @@ local function send(steps, action, recover)
     local ready,why,cause=returnReady(stat,recover)
     if not ready then alert(why,cause) return false end
   end
-  if storageTrip and not recover and lease.restartReady and not lease.restartReady() then return false end
   local boundary = returning or storageTrip or lease.boundaries and lease.boundaries()
   if boundary then
     steps = P.boundary({from=j.turtle.pose,steps=steps}).steps
     local check = lease.assess(j.turtle.id,j.turtle.pose,steps,{owner="build",clear=storageTrip and not recover})
-    if not check.ok then alert(check.reason,"path") return false end
+    if not check.ok then alert(storageTrip and storageError(check.reason) or check.reason,"path") return false end
   end
   steps[1].park = true
   local start, at = j.turtle.pose, j.turtle.pose
@@ -279,7 +288,7 @@ local function route(target)
     if not ready then alert(why,cause) return false end
     local need=math.abs(target.x-p.x)+math.abs(target.y-p.y)+math.abs(target.z-p.z)
     if j.fuel~="unlimited" and (type(j.fuel)~="number" or j.fuel<need) then
-      alert("out of fuel for storage trip","fuel") return false
+      alert(storageError("out of fuel"),"fuel") return false
     end
     local bounded={dim=p.dim,x=p.x,y=p.y,z=p.z}
     for _,axis in ipairs({"x","y","z"}) do
@@ -297,7 +306,7 @@ local function route(target)
       end
       return check
     end)
-    if not paths[1] then alert(refusal and refusal.reason or "no safe storage route","path") return false end
+    if not paths[1] then alert(storageError(refusal and refusal.reason or "no safe path"),"path") return false end
     if #paths[1].steps>0 then send(paths[1].steps,"move") return false end
   end
   if same(p,target) then
@@ -446,16 +455,18 @@ local function report(id, turtleId, results, lease)
   local pending = S.pending
   if not j.turtle or j.turtle.forgotten or turtleId ~= j.turtle.id or not pending or pending.id ~= id then return end
   S.pending = nil
-  if pending.returning and not results and lease.boundary and lease.status=="reported" then
+  if (pending.returning or pending.storageTrip) and not results and lease.boundary and lease.status=="reported" then
     local facts=lease.report or {}
     local certain=not facts.uncertain and journalPose(facts.pose) and j.turtle.frame
     local blocked=certain and P.samePose(pending.pose,P.toWorld(j.turtle.frame,facts.pose))
     local cause=blocked and (facts.fuel==0 and "fuel" or "path") or "pose_uncertain"
     local text=cause=="fuel" and "out of fuel" or cause=="path" and "path blocked; clear route"
       or "boundary unconfirmed; reservations held"
-    j.completion.hold=j.completion.hold or {cause=cause,text=text}
     S.recover,j.turtle.parkConfirmed=true,nil
-    alert(j.completion.hold.text,j.completion.hold.cause)
+    if pending.returning then
+      j.completion.hold=j.completion.hold or {cause=cause,text=text}
+      alert(j.completion.hold.text,j.completion.hold.cause)
+    else boundaryAlert(pending,text,cause) end
     return
   end
   if not results or not lease.report or not lease.report.pose then
@@ -468,20 +479,20 @@ local function report(id, turtleId, results, lease)
   if (pending.returning or pending.storageTrip) and (facts.uncertain or type(facts.journal)~="string" or facts.journal==pending.journal or not journalPose(facts.pose)
     or #results~=#pending.steps or results[1] and results[1].err=="journal changed") then
     S.recover=true
-    alert((pending.returning and "return" or "storage").." report unconfirmed; reservations held","pose_uncertain")
+    boundaryAlert(pending,(pending.returning and "return" or "storage").." report unconfirmed; reservations held","pose_uncertain")
     return
   end
   if pending.boundary and (facts.uncertain or not j.turtle.frame
     or not P.confirm(pending.pose,pending.steps,results,P.toWorld(j.turtle.frame,facts.pose))) then
     S.recover = true
     local failed
-    if pending.returning then
+    if pending.returning or pending.storageTrip then
       for _,result in ipairs(results) do if not result.ok then failed=result break end end
     end
     if failed then
       local fuel=facts.fuel==0 or tostring(failed.err):lower():find("fuel",1,true)
-      alert(fuel and "out of fuel" or "path blocked; clear route",fuel and "fuel" or "path")
-    else alert("boundary unconfirmed; reservations held", "pose_uncertain") end
+      boundaryAlert(pending,fuel and "out of fuel" or "path blocked; clear route",fuel and "fuel" or "path")
+    else boundaryAlert(pending,"boundary unconfirmed; reservations held", "pose_uncertain") end
     return
   end
   if j.turtle.anchor then
@@ -500,6 +511,8 @@ local function report(id, turtleId, results, lease)
     S.recover, j.phase = false, "check"
     if returning() and j.completion.hold then
       j.blocked,j.alert=j.completion.hold.cause,j.completion.hold.text
+    elseif j.service and j.service.hold then
+      j.blocked,j.alert=j.service.hold.cause,j.service.hold.text
     elseif j.legacyHold then j.blocked,j.alert="hold",j.legacyHold
     elseif not (returning() and j.blocked and j.blocked~="lost" and j.blocked~="pose_uncertain" and j.blocked~="worker_safety" and j.blocked~="save")
       and not (j.retryAt and (j.blocked=="material" or j.blocked=="fuel")) then j.blocked,j.alert=nil,nil end
@@ -656,6 +669,7 @@ local function input(ev)
     end
     j.running,j.blocked,j.alert,j.phase,j.legacyHold=true,nil,nil,"check",nil
     if returning() then j.completion.hold=nil end
+    if j.service then j.service.hold=nil end
     save()
     return
   end
@@ -931,6 +945,7 @@ local function tick()
     return
   end
   if lease.restartReady and not lease.restartReady() then return end
+  if j.service and j.service.hold then return end
   if returning() then
     if not j.running or j.blocked then return end
     local ready,why,cause=returnReady(stat)

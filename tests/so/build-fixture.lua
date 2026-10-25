@@ -160,7 +160,7 @@ local function fixture(config)
     end
     return q
   end
-  f.deliver=function(id,results,facts) callback(id,2,results,{report=facts}) end
+  f.deliver=function(id,results,facts,record) callback(id,2,results,record or {report=facts}) end
   f.expire=function()
     local q=assert(queued,"no queued lease") queued=nil
     f.lost=true
