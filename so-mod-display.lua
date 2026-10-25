@@ -20,6 +20,7 @@ local D = {
   alertVersions = {},
   alertSequence = 0,
   modelRev = 0,
+  thumbSizes = {},
 }
 
 D.now = function() return SO.now() end
@@ -733,7 +734,40 @@ D.facts = function(model, machines, points, today, capacity, free)
     end
   end
   local map = SO.mods.map
-  model.thumb = type(map) == "table" and type(map.thumb) == "function" and map.thumb or nil
+  model.thumb = type(map) == "table" and type(map.thumb) == "function" and D.thumb or nil
+end
+
+-- The map thumbnail, drawn by the map module; each size a status frame draws it at is kept
+-- so the tick can sign the thumbnail at those sizes.
+D.thumb = function(C, x, y, w, h)
+  local key = w .. "x" .. h
+  if not D.thumbSizes[key] then
+    local count = 0
+    for _ in pairs(D.thumbSizes) do count = count + 1 end
+    if count >= 8 then D.thumbSizes = {} end
+    D.thumbSizes[key] = { w, h }
+  end
+  return SO.mods.map.thumb(C, x, y, w, h)
+end
+
+-- The status model's signature: its data, which leaves out the thumbnail function, and the
+-- thumbnail itself at every size drawn so far. Drawing it here also keeps the map gathering
+-- while unchanged status displays are not composed. Nil when it cannot be signed.
+D.modelSignature = function(model)
+  local data = {}
+  for k, v in pairs(model) do if type(v) ~= "function" then data[k] = v end end
+  local ok, text = pcall(SO.proto.ser, data)
+  if not ok then return end
+  local parts, map = { text }, SO.mods.map
+  if model.thumb and type(map) == "table" and type(map.thumb) == "function" then
+    for key, size in pairs(D.thumbSizes) do
+      local C = U.canvas(size[1], size[2])
+      local drawn = pcall(map.thumb, C, 1, 1, size[1], size[2])
+      parts[#parts + 1] = key .. "=" .. (drawn and D.sig(C.frame().rows, {}) or "!")
+    end
+  end
+  table.sort(parts)
+  return table.concat(parts, "|")
 end
 
 D.legacyStatus = function()
@@ -1443,8 +1477,8 @@ D.tick = function(now)
   if U then
     D.model = D.gather()
     -- The status frames' only input; a new revision makes every status display compose again.
-    local ok, text = pcall(SO.proto.ser, D.model)
-    if not ok or text ~= D.modelSig then D.modelRev, D.modelSig = D.modelRev + 1, ok and text or nil end
+    local text = D.modelSignature(D.model)
+    if not text or text ~= D.modelSig then D.modelRev, D.modelSig = D.modelRev + 1, text end
   end
   D.localTick(now)
   D.drawTerminal(now)

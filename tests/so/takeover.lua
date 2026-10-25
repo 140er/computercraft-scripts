@@ -10,7 +10,7 @@ local function boot(values, opts)
   local s = { clock = 0, errors = {}, values = values, m = m }
   m.env.SO = { now = function() return s.clock end,
     mods = { state = { view = function() return { values = s.values } end, get = function(key) return key == "machines" and opts.machines or {} end },
-      drops = opts.drops },
+      drops = opts.drops, map = opts.map },
     store = m.env.dofile("so-store.lua"), pair = { key = function() return "key" end },
     proto = { ser = H.encode, build = function(_, _, body) return body end, encode = opts.encode or function(body) return body end },
     error = function(line) s.errors[#s.errors + 1] = line end }
@@ -279,5 +279,41 @@ return function(test, equal)
     s.at(9500)
     equal(#s.m.sent - before, 3, "every display gets the change at once")
     assert(s.frame(11).rev > rev, "the new frame has a new rev")
+  end)
+
+  -- A map module whose thumbnail draws one letter, so a test can change what it shows.
+  local function fakeMap()
+    local map = { mark = "a" }
+    map.thumb = function(C, x, y) C.put(x, y, map.mark, "0"); return true end
+    return map
+  end
+
+  test("with the map loaded an unchanged status wall is not composed again", function()
+    local function cost(displays)
+      local s = boot({}, { map = fakeMap() })
+      for i = 1, displays do s.open("status", 100, 38, 10 + i) end
+      for t = 1, 6 do s.at(t * 1000) end
+      local calls, ser = 0, s.m.env.SO.proto.ser
+      s.m.env.SO.proto.ser = function(v) calls = calls + 1; return ser(v) end
+      s.at(6500)
+      s.m.env.SO.proto.ser = ser
+      return calls
+    end
+    equal(cost(6), cost(1), "the tick cost does not grow with idle walls")
+  end)
+
+  test("a map thumbnail change sends to every status wall on the next tick", function()
+    local map = fakeMap()
+    local s = boot({}, { map = map })
+    for i = 1, 3 do s.open("status", 100, 38, 10 + i) end
+    for t = 1, 6 do s.at(t * 1000) end
+    assert(s.text(11):find("a", 1, true))
+    local rev = s.frame(11).rev
+    map.mark = "Q"
+    local before = #s.m.sent
+    s.at(6500)
+    equal(#s.m.sent - before, 3, "every wall gets the new thumbnail at once")
+    assert(s.frame(11).rev > rev, "the new frame has a new rev")
+    assert(s.text(11):find("Q", 1, true), "the frame shows the new thumbnail")
   end)
 end
