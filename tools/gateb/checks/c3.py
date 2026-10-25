@@ -38,11 +38,11 @@ def active_tab(frame):
     return None
 
 
-def wait_frame(ctx, name, ready, finding):
+def wait_frame(ctx, name, ready, finding, seconds=10):
     def received():
         frame = ctx.frame(name)
         return frame if ready(frame) else None
-    frame = ctx.wait(received, 10)
+    frame = ctx.wait(received, seconds)
     if not frame:
         raise Blocked(finding)
     return frame
@@ -139,7 +139,11 @@ def run(ctx):
                     photos.append(camera.take(ctx, f"C3-{name}-{role}.png", view, pocket=name == "pocket"))
         ctx.navigate("wall", "shop")
         ctx.type_text("wall", "diamond")
-        ctx.wait(lambda: any(b.get("id") == "item:minecraft:diamond" for b in values(ctx.frame("wall")["buttons"])), 30)
+        # The items tab already lists DIAMOND, lower down. Tapping before the find frame lands
+        # taps an empty row there, so wait for the frame that echoes the search.
+        wait_frame(ctx, "wall", lambda current: "item:minecraft:diamond" in ids(current)
+                   and any("> DIAMOND" in row.get("text", "") for row in rows(current)),
+                   "No find frame on wall shop within 30s after typing diamond", 30)
         before_order = ctx.count_items("storage_output", "diamond")
         ctx.click("wall", "item:minecraft:diamond")
         wait_frame(ctx, "wall", lambda current: any(i.startswith("order:") for i in ids(current)),

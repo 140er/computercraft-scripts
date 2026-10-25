@@ -334,7 +334,7 @@ class CameraTests(unittest.TestCase):
             def frame(self, name):
                 self.polls += 1
                 text = "storage room not found" if self.polls <= stock_after else "diamond 64"
-                return {"role": "shop", "rows": [{"text": text}], "buttons": [{"id": "item:minecraft:diamond"}, {"id": "order:1:minecraft:diamond"}]}
+                return {"role": "shop", "rows": [{"text": " > DIAMOND"}, {"text": text}], "buttons": [{"id": "item:minecraft:diamond"}, {"id": "order:1:minecraft:diamond"}]}
             def wait(self, predicate, seconds=30):
                 for _ in range(5):
                     if predicate(): return True
@@ -370,6 +370,24 @@ class CameraTests(unittest.TestCase):
             self.run_c3(self.c3_context(taken, stock_after=100), taken)
         self.assertNotIn("C3-pocket-shop.png", [t[0] for t in taken if isinstance(t, tuple)])
 
+    def test_c3_taps_the_wall_item_only_once_the_find_frame_arrives(self):
+        taken, clicks = [], []
+        ctx = self.c3_context(taken)
+        items = {"role": "shop", "rows": [{"text": " DIAMOND .... 32"}],
+                 "buttons": [{"id": "item:minecraft:coal", "y": 7}, {"id": "item:minecraft:diamond", "y": 8}]}
+        frame, typed = ctx.frame, []
+        def stale_until_polled(name):
+            if typed and typed[0] > 0:
+                typed[0] -= 1
+                return items
+            return frame(name)
+        def type_text(name, text): typed.append(2)
+        ctx.frame, ctx.type_text = stale_until_polled, type_text
+        ctx.click = lambda name, ident: clicks.append((ident, ctx.frame(name) is items))
+        self.run_c3(ctx, taken)
+        self.assertIn(("item:minecraft:diamond", False), clicks)
+        self.assertNotIn(("item:minecraft:diamond", True), clicks)
+
     def test_stocked_reads_the_shop_notice(self):
         self.assertFalse(c3.stocked({"rows": {"1": {"text": " ! storage room not found"}}}))
         self.assertTrue(c3.stocked({"rows": [{"text": " diamond ........ 64"}]}))
@@ -383,7 +401,7 @@ class CameraTests(unittest.TestCase):
             def mining(self, start=True): pass
             lumber = mining
             def cli(self, *a, **k): return {}
-            def frame(self, name): return {"role": "generic", "buttons": [{"id": "item:minecraft:diamond"}, {"id": "order:1:minecraft:diamond"}]}
+            def frame(self, name): return {"role": "generic", "rows": [{"text": " > DIAMOND"}], "buttons": [{"id": "item:minecraft:diamond"}, {"id": "order:1:minecraft:diamond"}]}
             def wait(self, predicate, seconds=30): return predicate()
             def screenshot(self, name): pass
             def navigate(self, name, role): return {"role": role, "rows": [], "buttons": []}

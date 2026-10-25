@@ -259,7 +259,7 @@ class ShopOrderTests(unittest.TestCase):
                 state["stale_reads"] += 1
                 if order_arrives and state["stale_reads"] > 1:
                     return {"buttons": [{"id": order_id}]}
-            return {"buttons": [{"id": "item:minecraft:diamond"}]}
+            return {"rows": [{"text": " > DIAMOND"}], "buttons": [{"id": "item:minecraft:diamond"}]}
         def click(name, ident):
             if ident == "item:minecraft:diamond":
                 state["tapped"] = True
