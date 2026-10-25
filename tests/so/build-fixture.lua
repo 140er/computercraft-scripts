@@ -89,6 +89,12 @@ local function fixture(config)
     for _,row in ipairs(render(150,30).rows) do rows[#rows+1]=row.text end
     assert(table.concat(rows,"\n"):find(text,1,true),"missing build feedback: "..text)
   end
+  -- The drawn rows of one frame joined by newlines, and the frame.
+  f.text=function(w,h,session)
+    local frame,rows=render(w,h,session),{}
+    for _,row in ipairs(frame.rows) do rows[#rows+1]=row.text end
+    return table.concat(rows,"\n"),frame
+  end
   f.queued=function() return queued end
   f.setPose=function(value) pose=copy(value) end
   f.mod=function() return mod end

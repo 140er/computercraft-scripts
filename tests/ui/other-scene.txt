@@ -12,6 +12,17 @@ build running
 build fuel 840
 build blocked material
 build alert out of material
+# The builder's last inventory report: ten item names, so the material picker pages at 29x12.
+build slot 1 minecraft:stone 64
+build slot 2 minecraft:stone 12
+build slot 3 chisel:stone 5
+build slot 4 minecraft:oak_planks 40
+build slot 5 minecraft:polished_blackstone_bricks 64
+build slot 6 minecraft:glass 33
+build slot 7 minecraft:coal 9
+build slot 8 create:andesite_alloy 32
+build slot 9 minecraft:bricks 20
+build slot 10 minecraft:dirt 3
 
 # Turtle #2 as tests/ui/w2screens.lua sets it up: mining branch 0, low fuel, one slot of ore.
 detail now 100000

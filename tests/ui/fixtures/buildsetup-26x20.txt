@@ -9,7 +9,7 @@
                           
  to       20,66,5         
                           
- material cobblestone     
+ material  cobblestone    
                           
  turtle   #8              
                           
@@ -49,7 +49,7 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
+ffffffffff7777777777777fff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

@@ -1,0 +1,31 @@
+15x10 Build at 15x10: no tabs, the job tab only
+ BUILD  -----  
+ ! out of      
+   material    
+ material      
+ ||···· 37/120 
+ cobblestone   
+ need ····· 83 
+ carried ··· 0 
+ turtle ··· #8 
+ START   STOP  
+00000000ccccc00
+0e0000000000000
+000000000000000
+011111111000000
+033888800000000
+000000000000000
+088880ccccc0000
+088888880ccc000
+08888880ccc0000
+08888880eeeeee0
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777777f777777f

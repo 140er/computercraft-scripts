@@ -1,0 +1,37 @@
+29x12 Build material picker, empty inventory at 29x12
+ BUILD   job   setup  -----  
+ ! out of material           
+ MATERIAL -----------------  
+ empty                       
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+  BACK                       
+0000000088888000000000ccccc00
+0e000000000000000000000000000
+0888888880ccccccccccccccccc00
+08888800000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+ffffffffffffff7777777ffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777777ffffffffffffffffffffff
