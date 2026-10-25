@@ -148,6 +148,11 @@ end
 -- The shop's best match for a search with its label and stock, or nil.
 P.item = function(shop, search)
   if not shop or type(shop.best) ~= "function" or type(shop.matches) ~= "function" then return nil end
+  local pin = search == "" and type(shop.firstPin) == "function" and shop.firstPin()
+  if pin then
+    for _, item in ipairs(shop.matches("",4096)) do if item.name == pin then return item end end
+    return {name=pin,count="-",label=pin:upper()}
+  end
   local name,count = shop.best(search)
   if not name then return nil end
   for _,item in ipairs(shop.matches(name,256)) do if item.name == name then return item end end
@@ -217,10 +222,11 @@ P.watchControl = function(c, state, watches, item, x, y)
   c.chip(x,y,watched and "UNWATCH" or "WATCH",id)
   state.savedTargets[id] = {item=item, revision=watches.revision, watch=not watched}
 end
-P.savedControls = function(c, state, shop, item, x, y, width)
+P.savedControls = function(c, state, shop, item, x, y, width, lists)
   if not item or type(shop.saved) ~= "function" then return end
   local minimums, why = shop.saved("minimums")
   if why == "off" then return end
+  if type(shop.savedNav) == "function" then shop.savedNav(c,state,item.name,x,y+1,width,lists) end
   local watches = shop.saved("watches")
   if not minimums or not watches then c.put(x,y,("save unavailable"):sub(1,width),"e");return end
   local id = "saved:min:"..minimums.revision..":"..item.name
@@ -240,6 +246,8 @@ P.savedFrame = function(c, state, w, h)
   P.back(c,h,"saved:back")
 end
 P.savedRecord = function(state, frame)
+  local shop = SO.mods.shop
+  if shop and type(shop.savedRecord) == "function" then shop.savedRecord(state,frame) end
   state.savedDrawn = {}
   for _, b in ipairs(frame.buttons) do
     if b.id:match("^saved:") then state.savedDrawn[b.id] = b end
@@ -247,6 +255,7 @@ P.savedRecord = function(state, frame)
 end
 P.savedInput = function(event, state)
   local id, shop = event.id, SO.mods.shop
+  if shop and type(shop.savedInput) == "function" and shop.savedInput(event,state) then return true end
   if state.minimumDraft and type(event.text) == "string" then
     local n = tonumber(event.text)
     if n and n % 1 == 0 and n >= 1 and n <= 4096 then state.minimumDraft.value = n end
@@ -254,8 +263,7 @@ P.savedInput = function(event, state)
   end
   if type(id) ~= "string" or not id:match("^saved:") then return false end
   local b = state.savedDrawn and state.savedDrawn[id]
-  if not b or type(event.x) ~= "number" or type(event.y) ~= "number"
-      or event.x < b.x or event.x >= b.x+b.w or event.y < b.y or event.y >= b.y+(b.h or 1) then return true end
+  if not shop or type(shop.savedHit) ~= "function" or not shop.savedHit(event,b,state) then return true end
   state.savedDrawn = nil
   if not shop or type(shop.saved) ~= "function" or select(2,shop.saved("minimums")) == "off" then return true end
   local target = state.savedTargets and state.savedTargets[id]
@@ -302,18 +310,23 @@ P.shopBlock = function(c, session, x, y, cw)
     c.leader(x,y+2,cw,item.label,tostring(item.count),n < P.minimum(SO.mods.shop,item) and "1" or "0")
   elseif loaded and search ~= "" then c.put(x,y+2,"no match","8") end
   local third = math.floor((cw-2)/3)
+  local target = search == "" and item and type(SO.mods.shop.firstPin) == "function" and SO.mods.shop.firstPin() == item.name
+    and (":"..item.name) or ""
   if qty then
     local label = "ORDER "..qty
-    if live then c.chip(x,y+3,label,"order:"..qty,"plain",cw) else P.dead(c,x,y+3,label,cw) end
+    if live then c.chip(x,y+3,label,"order:"..qty..target,"plain",cw) else P.dead(c,x,y+3,label,cw) end
   end
   for i,n in ipairs(qty and {} or {1,16,64}) do
     local cx = x+(i-1)*(third+1)
-    if live then c.chip(cx,y+3,tostring(n),"order:"..n,"plain",third) else P.dead(c,cx,y+3,tostring(n),third) end
+    if live then c.chip(cx,y+3,tostring(n),"order:"..n..target,"plain",third) else P.dead(c,cx,y+3,tostring(n),third) end
   end
   local saved = loaded and type(SO.mods.shop.saved) == "function" and select(2,SO.mods.shop.saved("minimums")) ~= "off"
-  if saved then P.savedControls(c,panel,SO.mods.shop,item,x,y+4,cw) end
-  local offset = saved and 1 or 0
-  if panel.savedResult then c.put(x,y+5,panel.savedResult:sub(1,cw),"e") end
+  if saved then
+    if item then P.savedControls(c,panel,SO.mods.shop,item,x,y+4,cw,true)
+    else SO.mods.shop.savedNav(c,panel,nil,x,y+4,cw) end
+  end
+  local offset = saved and 2 or 0
+  if panel.savedResult then c.put(x,y+6,panel.savedResult:sub(1,cw),"e") end
   if loaded and panel.sent and not panel.savedResult then
     local text,fg,detail = P.orderLine(panel.sent,cw)
     c.put(x,y+4+offset,text:sub(1,cw),fg)
@@ -386,7 +399,7 @@ P.main = function(c, session, w, h)
   local function mode(row, role) return jobs[role] and modes[row.mode] or "compact" end
   local function rows(row)
     local most = 0
-    for _,role in ipairs(row) do most = math.max(most,role == "shop" and (SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) ~= "off" and 7 or 6) or P.jobRows(mode(row,role),reasons[role])) end
+    for _,role in ipairs(row) do most = math.max(most,role == "shop" and (SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) ~= "off" and 8 or 6) or P.jobRows(mode(row,role),reasons[role])) end
     return most
   end
   local function total()
@@ -529,9 +542,10 @@ P.render = function(w, h, session, dot)
   if dot ~= nil then P.tabBar(c,"pair",dot) else P.header(c,w,h,page ~= "paired" and page ~= "enroll" and page ~= "pair" and page ~= "alerts") end
   session.panel.savedTargets = {}
   if SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) == "off" then
-    session.panel.minimumDraft,session.panel.savedResult = nil,nil
+    session.panel.minimumDraft,session.panel.savedResult,session.panel.savedPage,session.panel.listDraft = nil,nil,nil,nil
   end
-  if session.panel.minimumDraft then P.savedFrame(c,session.panel,w,h)
+  if session.panel.savedPage then SO.mods.shop.savedCanvas(c,session.panel,w,h)
+  elseif session.panel.minimumDraft then P.savedFrame(c,session.panel,w,h)
   elseif page == "paired" then P.pairedFrame(c,w,h,session)
   elseif page == "enroll" then P.enrollFrame(c,w,h,session,enroll)
   elseif page == "pair" then P.panelPair(c,session,w,h)
@@ -845,6 +859,10 @@ end
 
 -- The pocket's list for its filter: the search's matches, or its low or empty items from shop.lows.
 P.shopItems = function(shop, search, filter)
+  if search == "" and filter == "all" and type(shop.firstPin) == "function" and shop.firstPin() then
+    local item = P.item(shop,search)
+    if item then return {item} end
+  end
   if filter == "all" or type(shop.lows) ~= "function" then return shop.matches(search,256) end
   local list = {}
   for _,item in ipairs(shop.lows(256,search)) do if item.state == filter then list[#list+1] = item end end
@@ -874,6 +892,10 @@ P.shopPage = function(c, state, keyboard, w, h)
     end
   end
   y = y+1
+  if type(shop.savedNav) == "function" and select(2,shop.saved("lists")) ~= "off" then
+    shop.savedNav(c,state,nil,2,y,w-2)
+    y = y+1
+  end
   local room = P.room(shop)
   if not room.found then c.flag(2,y,w-2,"storage room not found") end
   if room.stale and room.found then c.put(2,y,"stock stale","1");y = y+1 end
@@ -884,11 +906,11 @@ P.shopPage = function(c, state, keyboard, w, h)
     c.put(2,y,search == "" and filter == "all" and "no stock" or filter ~= "all" and "none "..filter or "no match","8")
   end
   local saved = type(shop.saved) == "function" and select(2,shop.saved("minimums")) ~= "off"
-  local grow = function(item) return ((tonumber(item.count) or 0) > 0 and 3 or 0)+(saved and 1 or 0) end
+  local grow = function(item) return ((tonumber(item.count) or 0) > 0 and 3 or 0)+(saved and 2 or 0) end
   local bottom,list = h-2,items
   if #items+grow(P.shown(state,items) or {count=0}) > bottom-y+1 then
     -- Pages hold the rows above the pager less the shown item's chip rows.
-    local per = math.max(1,bottom-y-3-(saved and 1 or 0))
+    local per = math.max(1,bottom-y-3-(saved and 2 or 0))
     local pages = math.ceil(#items/per)
     state.shopPage = math.max(1,math.min(state.shopPage or 1,pages))
     list = {}
@@ -906,7 +928,7 @@ P.shopPage = function(c, state, keyboard, w, h)
     y = y+1
     if item == shown and saved then
       P.savedControls(c,state,shop,item,2,y,w-2)
-      y = y+1
+      y = y+2
     end
     if item == shown and n > 0 then
       local half = math.floor((w-3)/2)
@@ -985,11 +1007,11 @@ P.pocket = function(w, h, session)
   local panel = session.panel
   state.savedTargets = {}
   if SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) == "off" then
-    state.minimumDraft,state.savedResult = nil,nil
+    state.minimumDraft,state.savedResult,state.savedPage,state.listDraft = nil,nil,nil,nil
   end
-  if state.minimumDraft then
+  if state.minimumDraft or state.savedPage then
     P.tabBar(c,"shop",#m.flags > 0)
-    P.savedFrame(c,state,w,h)
+    if state.savedPage then SO.mods.shop.savedCanvas(c,state,w,h) else P.savedFrame(c,state,w,h) end
     local frame = c.frame()
     P.savedRecord(state,frame)
     return frame
@@ -1028,7 +1050,7 @@ P.pocketInput = function(event)
   if not session then return end
   local state, id = P.pocketState(session), event.id
   if P.savedInput(event,state) then return end
-  if type(id) == "string" and id:match("^tab:") then state.minimumDraft,state.savedResult = nil,nil end
+  if type(id) == "string" and id:match("^tab:") then state.minimumDraft,state.savedResult,state.savedPage,state.listDraft = nil,nil,nil,nil end
   if state.page == "panel" then
     if (id or ""):match("^tab:") then state.page = nil else P.input(event);return end
   end
@@ -1070,7 +1092,9 @@ P.pocketInput = function(event)
     elseif (type(amount) == "number" or amount == "stack" or amount == "all")
         and P.screens.shop and shop and type(shop.order) == "function" and type(shop.matches) == "function" then
       -- The chip names its item; it must still match the search. shop.order refuses a count over one stack.
-      for _,match in ipairs(shop.matches(P.split(state.search),256)) do
+      local search = P.split(state.search)
+      if search == "" and type(shop.firstPin) == "function" and shop.firstPin() == item then search = item end
+      for _,match in ipairs(shop.matches(search,4096)) do
         if match.name == item then
           state.sent = P.order(shop,item,amount,P.tag(match,P.shared(shop)).label)
           break

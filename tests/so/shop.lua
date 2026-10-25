@@ -106,7 +106,7 @@ local function savedShop(files, enabled, values)
   s.shop=e.dofile("so-mod-shop.lua") e.SO.mods.shop=s.shop
   s.shop.tick(s.now)
   s.panel=e.dofile("so-mod-panel.lua") e.SO.mods.panel=s.panel s.panel.tick()
-  s.stock=function(totals) s.shop.listen.roomsorter_stock(9,{totals=totals}) end
+  s.stock=function(totals,stacks) s.shop.listen.roomsorter_stock(9,{totals=totals,stacks=stacks}) end
   s.config=function(on) m.files["so-server.cfg"]=H.encode({shopSaved=on}) s.shop.tick(s.now) end
   s.frame=function(session,role,w,h) return s.screens[role or "pocket"].render(w or 26,h or 20,session) end
   s.tap=function(session,id,role)
@@ -114,7 +114,9 @@ local function savedShop(files, enabled, values)
     for _,b in ipairs(frame.buttons) do
       if b.id==id then s.screens[role or "pocket"].input({session=session,id=id,x=b.x,y=b.y}) return end
     end
-    error("control not drawn: "..id)
+    local ids={}
+    for _,b in ipairs(frame.buttons) do ids[#ids+1]=b.id end
+    error("control not drawn: "..id.."; "..table.concat(ids,", "))
   end
   s.saved=function(kind) return assert(e.SO.store.read("so-data/shop-"..kind)).value end
   return s
@@ -690,6 +692,448 @@ return function(test, equal)
     local fixture=R.load("tests/ui/fixtures/pocket-shopsaved-low-P.txt")
     local diff=R.diff(fixture,Scene.capture(s.frame(session),fixture.w,fixture.h))
     assert(#diff==0,table.concat(diff,"\n"))
+  end)
+
+  test("P-U2-6 lists persist shared requested counts and only explicit exact row orders send", function()
+    local s=savedShop(nil,true)
+    local item="minecraft:iron_ingot"
+    local list={id="supplies",name="Supplies",items={{item=item,count=37}}}
+    s.stock({[item]=42},{[item]=64})
+    assert(s.shop.setList(list.id,list,0))
+    local a={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    local b={id=8,keyboard=true,panel={page="main",search="iron"}}
+    local function orders()
+      local out={}
+      for _,sent in ipairs(s.machine.sent) do if sent.payload.cmd=="order" then out[#out+1]=sent.payload end end
+      return out
+    end
+    s.tap(a,"saved2:lists") s.tap(a,"saved2:open:1:supplies")
+    s.tap(b,"saved2:lists","panel") s.tap(b,"saved2:open:1:supplies","panel")
+    equal(#orders(),0)
+    for _,session in ipairs({a,b}) do
+      local lines={}
+      for _,row in ipairs(s.frame(session,session==b and "panel" or "pocket").rows) do lines[#lines+1]=row.text end
+      local text=table.concat(lines,"\n")
+      assert(text:find("requested",1,true) and text:find("37",1,true),text)
+      assert(text:find("available",1,true) and text:find("42",1,true),text)
+    end
+    s.tap(a,"saved2:order:1:supplies:"..item)
+    equal(#orders(),1) equal({orders()[1].text,orders()[1].n},{item,37})
+    s.tap(b,"saved2:order:1:supplies:"..item,"panel") equal(#orders(),2)
+    local before=s.shop.saved("lists")
+    list.items[1].count=12
+    equal(s.shop.saved("lists"),before,"reads and writes do not alias shared entries")
+    s=savedShop(s.machine.files,true)
+    equal(s.shop.saved("lists"),before)
+  end)
+
+  test("P-U2-6 unknown stacks refuse saves and smaller stacks mute ORDER", function()
+    local item="mod:pearl"
+    local s=savedShop(nil,true)
+    local list={id="pearls",name="Pearls",items={{item=item,count=17}}}
+    s.stock({[item]=64})
+    equal({s.shop.setList("pearls",list,0)},{false,"stack unknown"})
+    s.stock({[item]=64},{[item]=16})
+    equal({s.shop.setList("pearls",list,0)},{false,"bad count"})
+    list.items[1].count=16 assert(s.shop.setList("pearls",list,0))
+    equal({s.shop.listOrder("pearls",item,1)},{item,16})
+    s.stock({[item]=64},{[item]=1})
+    equal({s.shop.listOrder("pearls",item,1)},{nil,"bad count"})
+    local session={id=7,keyboard=true,pocket={page="shop",search=""}}
+    s.tap(session,"saved2:lists") s.tap(session,"saved2:open:1:pearls")
+    for _,button in ipairs(s.frame(session).buttons) do assert(not button.id:match("^saved2:order:")) end
+    s=savedShop(s.machine.files,true) s.stock({[item]=64})
+    equal({s.shop.listOrder("pearls",item,1)},{nil,"stack unknown"})
+    s.stock({[item.."_other"]=64},{[item]=16})
+    equal({s.shop.listOrder("pearls",item,1)},{nil,"stock unknown"},"never order a partial match")
+    s.stock({[item]=0},{[item]=16})
+    equal({s.shop.listOrder("pearls",item,1)},{nil,"out of stock"})
+    s.stock({[item]=64},{[item]=16}) s.now=s.now+30000
+    equal({s.shop.listOrder("pearls",item,1)},{nil,"stock stale"})
+    equal({s.shop.listOrder("pearls",item,0)},{nil,"changed"})
+  end)
+
+  test("P-U2-12 pins keep display order and empty panel and pocket searches show the first pin", function()
+    local s=savedShop(nil,true)
+    local a,b="minecraft:iron_ingot","minecraft:gold_ingot"
+    s.stock({[a]=24,[b]=100})
+    assert(s.shop.setPin(a,true,0)) assert(s.shop.setPin(b,true,1))
+    equal(s.shop.saved("pins").entries,{a,b})
+    for _,role in ipairs({"panel","pocket"}) do
+      local session={id=7,keyboard=true,[role]={page=role=="panel" and "main" or "shop",search=""}}
+      local frame=s.frame(session,role)
+      local pin=false
+      for _,button in ipairs(frame.buttons) do if button.id=="saved2:pin:2:"..a then pin=true end end
+      assert(pin,"empty "..role.." search shows first pin")
+      s.tap(session,"saved2:pin:2:"..a,role)
+      equal(s.shop.firstPin(),b)
+      assert(s.shop.setPin(a,true,3))
+      assert(s.shop.setPin(b,false,4))
+      assert(s.shop.setPin(b,true,5))
+      equal(s.shop.firstPin(),a)
+      assert(s.shop.setPin(a,false,6)) assert(s.shop.setPin(a,true,7))
+      assert(s.shop.setPin(b,false,8)) assert(s.shop.setPin(b,true,9))
+      s=savedShop({["so-data/shop-pins"]=savedGeneration("pins",{a,b},2)},true)
+      s.stock({[a]=24,[b]=100})
+    end
+    assert(s.shop.setPin("mod:c",true,2)) assert(s.shop.setPin("mod:d",true,3))
+    equal({s.shop.setPin("mod:e",true,4)},{false,"invalid"})
+    local before=s.shop.saved("pins")
+    s=savedShop(s.machine.files,true)
+    equal(s.shop.saved("pins"),before)
+  end)
+
+  test("D6 lists and pins reject stale edits and failed saves keep both displays and reboot on the old revision", function()
+    local item="minecraft:iron_ingot"
+    for _,kind in ipairs({"lists","pins"}) do
+      local s=savedShop(nil,true)
+      s.stock({[item]=64},{[item]=64})
+      local function edit(n,revision)
+        if kind=="pins" then return s.shop.setPin(item,n==1,revision) end
+        return s.shop.setList("list",{id="list",name="List",items={{item=item,count=n}}},revision)
+      end
+      assert(edit(1,0))
+      local before=s.shop.saved(kind)
+      equal({edit(2,0)},{false,"changed"})
+      s.machine.capacity=0
+      equal({edit(2,1)},{false,"save unavailable"})
+      equal(s.shop.saved(kind),before)
+      s=savedShop(s.machine.files,true) equal(s.shop.saved(kind),before)
+      s.stock({[item]=64},{[item]=64})
+      local path="so-data/shop-"..kind
+      local move=s.machine.env.fs.move
+      local failed=false
+      s.machine.env.fs.move=function(from,to)
+        if not failed and from==path..".tmp" and to==path then failed=true error("reject final rename") end
+        return move(from,to)
+      end
+      equal({edit(2,1)},{false,"save unavailable"}) assert(failed)
+      equal(s.shop.saved(kind),before)
+      s=savedShop(s.machine.files,true) equal(s.shop.saved(kind),before)
+    end
+  end)
+
+  test("P-U2-6 list editor creates, names, adds exact items, changes counts and refuses stale saves", function()
+    local item="minecraft:iron_ingot"
+    local s=savedShop(nil,true) s.stock({[item]=64},{[item]=64})
+    local a={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    s.tap(a,"saved2:add:"..item) s.tap(a,"saved2:new")
+    s.screens.pocket.input({session=a,text="Supplies"})
+    s.tap(a,"saved2:row:1") s.screens.pocket.input({session=a,text="37"})
+    s.tap(a,"saved2:done") s.tap(a,"saved2:save")
+    equal(s.shop.saved("lists").entries,{{id="list-1",name="Supplies",items={{item=item,count=37}}}})
+    local b={id=8,keyboard=true,panel={page="main",search="iron"}}
+    s.tap(b,"saved2:lists","panel") s.tap(b,"saved2:open:1:list-1","panel")
+    s.tap(b,"saved2:edit:1:list-1","panel") s.tap(a,"saved2:edit:1:list-1")
+    s.screens.pocket.input({session=a,text="New supplies"}) s.tap(a,"saved2:save")
+    s.screens.panel.input({session=b,text="Old draft"}) s.tap(b,"saved2:save","panel")
+    equal(b.panel.savedResult,"changed")
+    equal(s.shop.saved("lists").entries[1].name,"New supplies")
+    s.tap(a,"saved2:edit:2:list-1") s.tap(a,"saved2:delete") s.tap(a,"saved2:delete")
+    equal(s.shop.saved("lists").entries,{})
+  end)
+
+  test("D6 lists and pins validate nested keys, dense arrays, duplicates and caps without overwriting", function()
+    local a,b="minecraft:iron_ingot","minecraft:gold_ingot"
+    local list={id="supplies",name="Supplies",items={{item=a,count=1}}}
+    local function clone(v) return assert(load("return "..H.encode(v),"copy","t",{}))() end
+    local badLists={
+      {{id="BAD",name="Name",items={}}},{{id="",name="Name",items={}}},{{id=string.rep("a",33),name="Name",items={}}},
+      {{id="a",name="",items={}}},{{id="a",name="bad\n",items={}}},{{id="a",name=string.rep("a",33),items={}}},
+      {{id="a",name="Name",items={},extra=true}},{{id="a",name="Name",items={{item=a,count=1,extra=true}}}},
+      {{id="a",name="Name",items={{item=a,count=0}}}},{{id="a",name="Name",items={{item=a,count=65}}}},
+      {{id="a",name="Name",items={{item=a,count=1.5}}}},{{id="a",name="Name",items={{item="Bad:id",count=1}}}},
+      {{id="a",name="Name",items={{item=a,count=1},{item=a,count=2}}}},{{id="a",name="Name",items={[2]={item=a,count=1}}}},
+      {list,list},{list,{id="other",name="Supplies",items={}}},{[2]=list},
+    }
+    local many={}
+    for i=1,17 do many[i]={id="list-"..i,name="List "..i,items={}} end
+    badLists[#badLists+1]=many
+    local manyItems=clone(list)
+    for i=1,33 do manyItems.items[i]={item="mod:item_"..i,count=1} end
+    badLists[#badLists+1]={manyItems}
+    for _,entries in ipairs(badLists) do
+      local path="so-data/shop-lists"
+      local bytes=savedGeneration("lists",entries)
+      local s=savedShop({[path]=bytes},true)
+      equal({s.shop.saved("lists")},{nil,"save unavailable"})
+      equal({s.shop.setList("empty",{id="empty",name="Empty",items={}},0)},{false,"save unavailable"})
+      equal(s.machine.files[path],bytes)
+    end
+    for _,entries in ipairs({{a,a},{[2]=a},{a,b,"mod:c","mod:d","mod:e"},{"bad"},{["key"]=a}}) do
+      local bytes=savedGeneration("pins",entries)
+      local s=savedShop({["so-data/shop-pins"]=bytes},true)
+      equal({s.shop.saved("pins")},{nil,"save unavailable"})
+      equal({s.shop.setPin(a,true,0)},{false,"save unavailable"})
+    end
+    local s=savedShop(nil,true)
+    for i=1,16 do assert(s.shop.setList("list-"..i,{id="list-"..i,name="List "..i,items={}},i-1)) end
+    equal({s.shop.setList("extra",{id="extra",name="Extra",items={}},16)},{false,"invalid"})
+  end)
+
+  test("D6 default-off lists and pins emit no controls or files, and stale drawn pin taps return changed", function()
+    local item="minecraft:iron_ingot"
+    local s=savedShop(nil,false) s.stock({[item]=64},{[item]=64})
+    equal({s.shop.setPin(item,true,0)},{false,"off"})
+    equal({s.shop.setList("a",{id="a",name="A",items={}},0)},{false,"off"})
+    local a={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    for _,role in ipairs({"pocket","shop"}) do
+      for _,b in ipairs(s.frame(a,role).buttons) do assert(not b.id:match("^saved2:")) end
+    end
+    for name in pairs(s.machine.files) do assert(not name:match("so%-data/shop%-")) end
+    s.config(true)
+    local button,id
+    id="saved2:pin:0:"..item
+    for _,b in ipairs(s.frame(a).buttons) do if b.id==id then button=b end end
+    assert(button) assert(s.shop.setPin("mod:other",true,0))
+    s.screens.pocket.input({session=a,id=id,x=button.x,y=button.y})
+    equal(a.pocket.savedResult,"changed") equal(s.shop.saved("pins").entries,{"mod:other"})
+    s.tap(a,"saved2:lists") s.tap(a,"saved2:new")
+    s.frame(a) s.config(false)
+    s.screens.pocket.input({session=a,id="saved2:save",x=2,y=20})
+    equal(s.machine.files["so-data/shop-lists"],nil)
+  end)
+
+  test("D6 saved list and pin screens match route A twins", function()
+    local item="minecraft:iron_ingot"
+    local s=savedShop(nil,true)
+    s.stock({[item]=42},{[item]=64})
+    assert(s.shop.setList("supplies",{id="supplies",name="Supplies",items={{item=item,count=37}}},0))
+    local session={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    local function match(path)
+      local fixture=R.load(path)
+      local frame=s.frame(session)
+      local diff=R.diff(fixture,Scene.capture(frame,fixture.w,fixture.h))
+      assert(#diff==0,path.."\n"..table.concat(diff,"\n"))
+    end
+    s.tap(session,"saved2:lists") match("tests/ui/fixtures/pocket-shoplists-P.txt")
+    s.tap(session,"saved2:open:1:supplies") match("tests/ui/fixtures/pocket-shoplist-P.txt")
+    s.tap(session,"saved2:edit:1:supplies") match("tests/ui/fixtures/pocket-shoplist-edit-P.txt")
+    s.tap(session,"saved2:row:1") match("tests/ui/fixtures/pocket-shoplist-row-P.txt")
+    session.pocket={page="shop",search=""}
+    s.stock({[item]=24},{[item]=64}) assert(s.shop.setPin(item,true,0))
+    match("tests/ui/fixtures/pocket-shoppin-P.txt")
+  end)
+
+  test("D6 list paging and native shop controls stay inside the frame budget", function()
+    local s=savedShop(nil,true)
+    local list={id="supplies",name="Supplies",items={}}
+    local totals,stacks={},{}
+    for i=1,32 do
+      local item="mod:item_"..i
+      totals[item],stacks[item]=64,64
+      list.items[i]={item=item,count=64}
+    end
+    s.stock(totals,stacks) assert(s.shop.setList("supplies",list,0))
+    local session={id=7,keyboard=true}
+    s.tap(session,"saved2:lists","shop") s.tap(session,"saved2:open:1:supplies","shop")
+    for _,role in ipairs({"shop","pocket","panel"}) do
+      if role~="shop" then
+        session[role]={page=role=="panel" and "main" or "shop",search="mod:item_1",savedPage="supplies"}
+      end
+      for _,size in ipairs({{15,12},{26,20},{29,12},{57,24},{164,81}}) do
+        local frame=s.frame(session,role,size[1],size[2])
+        assert(#H.encode(frame)<16384,role.." "..size[1].."x"..size[2].." saved frame over budget "..#H.encode(frame))
+        local shown={}
+        for _,b in ipairs(frame.buttons) do
+          if b.id:match("^saved2:") then
+            assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=size[1] and b.y+(b.h or 1)-1<=size[2],b.id)
+            assert(not shown[b.id],"duplicate control "..b.id)
+            shown[b.id]=true
+          end
+        end
+      end
+    end
+    session={id=8,keyboard=true}
+    s.tap(session,"item:mod:item_1","shop")
+    s.tap(session,"saved2:pin:0:mod:item_1","shop")
+    equal(s.shop.saved("pins").entries,{"mod:item_1"})
+  end)
+
+  test("D6 list ORDER consumes a drawn control once and rechecks the shared revision", function()
+    local item="minecraft:iron_ingot"
+    local s=savedShop(nil,true) s.stock({[item]=64},{[item]=64})
+    local list={id="supplies",name="Supplies",items={{item=item,count=64}}}
+    assert(s.shop.setList("supplies",list,0))
+    local session={id=7,keyboard=true,pocket={page="shop",savedPage="supplies",search=""}}
+    local id="saved2:order:1:supplies:"..item
+    local button
+    for _,b in ipairs(s.frame(session).buttons) do if b.id==id then button=b end end
+    assert(button)
+    local event={session=session,id=id,x=button.x,y=button.y}
+    local sent=#s.machine.sent
+    s.screens.pocket.input(event)
+    equal(#s.machine.sent,sent+1)
+    s.screens.pocket.input(event)
+    equal(#s.machine.sent,sent+1,"replaying a consumed row cannot send again")
+    s.frame(session)
+    list.items[1].count=1 assert(s.shop.setList("supplies",list,1))
+    s.screens.pocket.input(event)
+    equal(#s.machine.sent,sent+1) equal(session.pocket.savedResult,"changed")
+    for _,count in ipairs({math.huge,-math.huge,0/0}) do
+      list.items[1].count=count
+      equal({s.shop.setList("supplies",list,2)},{false,"invalid"})
+    end
+  end)
+
+  test("P-U2-12 quick panel orders bind the rendered pin ID and never substitute missing stock", function()
+    local a,b="mod:iron","mod:iron_rod"
+    local s=savedShop(nil,true) s.stock({[a]=64,[b]=64})
+    assert(s.shop.setPin(a,true,0)) assert(s.shop.setPin(b,true,1))
+    local session={id=7,keyboard=true,panel={page="main",search=""}}
+    local button
+    for _,row in ipairs(s.frame(session,"panel").buttons) do if row.id=="order:1:"..a then button=row end end
+    assert(button)
+    assert(s.shop.setPin(a,false,2))
+    local sent=#s.machine.sent
+    s.screens.panel.input({session=session,id=button.id,x=button.x,y=button.y})
+    equal(#s.machine.sent,sent+1)
+    equal(s.machine.sent[#s.machine.sent].payload.text,a)
+    assert(s.shop.setPin(b,false,3)) assert(s.shop.setPin(a,true,4))
+    s.stock({[b]=64})
+    s.tap(session,"order:1:"..a,"panel")
+    equal(#s.machine.sent,sent+1,"missing exact pin cannot resolve to a partial ID")
+  end)
+
+  test("D6 review banner keeps delivered LISTS PIN SAVE and ORDER taps usable", function()
+    local s=savedShop(nil,true)
+    local item="minecraft:iron_ingot"
+    s.stock({[item]=42},{[item]=64})
+    s.machine.install({"so-mod-display.lua"})
+    local e=s.machine.env
+    e.SO.proto={ser=H.encode,build=function(_,_,body) return body end,encode=function(body) return body end}
+    e.SO.pair={key=function() return "key" end}
+    e.SO.mods.cells={retirement=function() return {id="test",status="pending",text="Review old dug cells"} end}
+    local d=e.dofile("so-mod-display.lua")
+    e.SO.mods.display=d
+    for name,screen in pairs(s.screens) do d.screen(name,screen.render,screen.input) end
+    for _,role in ipairs({"shop","pocket","panel"}) do
+      local id=role=="shop" and 7 or role=="pocket" and 8 or 9
+      d.handlers.hello({from=id,body={w=26,h=20,fullH=20,keyboard=true}})
+      assert(d.assign(id,role))
+      local function frame()
+        local got
+        d.handlers["view.get"]({from=id},function(_,body) got=body end)
+        return assert(got)
+      end
+      local function tap(control)
+        for _,b in ipairs(frame().buttons) do
+          if b.id==control then d.handlers.input({from=id,body={id=control,x=b.x,y=b.y}}) return end
+        end
+        error("banner control missing "..role.." "..control)
+      end
+      if role=="pocket" then tap("tab:shop") end
+      d.handlers.input({from=id,body={text="iron",x=1,y=1}})
+      if role=="shop" then tap("item:"..item) end
+      local pins=s.shop.saved("pins")
+      tap("saved2:pin:"..pins.revision..":"..item)
+      equal(s.shop.saved("pins").revision,pins.revision+1,"shifted pin tap")
+      if role~="shop" then
+        tap("saved:min:"..s.shop.saved("minimums").revision..":"..item)
+        d.handlers.input({from=id,body={text="32",x=1,y=1}})
+        tap("saved:save") equal(s.shop.minimum(item),32,"shifted minimum SAVE")
+      end
+      tap("saved2:lists") tap("saved2:new")
+      d.handlers.input({from=id,body={text="List "..id,x=1,y=1}})
+      tap("saved2:save")
+      local lists=s.shop.saved("lists")
+      equal(#lists.entries,id-6,"shifted SAVE")
+      local list=lists.entries[#lists.entries]
+      list.items={{item=item,count=1}}
+      assert(s.shop.setList(list.id,list,lists.revision))
+      local sent=#s.machine.sent
+      tap("saved2:order:"..(lists.revision+1)..":"..list.id..":"..item)
+      equal(#s.machine.sent,sent+1,"shifted ORDER")
+      equal(s.machine.sent[#s.machine.sent].payload.cmd,"order")
+    end
+  end)
+
+  test("D6 review a list named index cannot replace the lists index", function()
+    local s=savedShop(nil,true)
+    assert(s.shop.setList("index",{id="index",name="Valid index ID",items={}},0))
+    local session={id=7,keyboard=true,pocket={page="shop",search=""}}
+    s.tap(session,"saved2:lists")
+    s.tap(session,"saved2:open:1:index")
+    s.tap(session,"saved2:back")
+    s.tap(session,"saved2:open:1:index")
+  end)
+
+  test("D6 review native tabs leave lists and discard an unsaved draft", function()
+    local s=savedShop(nil,true)
+    local session={id=7,keyboard=true}
+    for _,tab in ipairs({"low","find","items"}) do
+      s.tap(session,"saved2:lists","shop") s.tap(session,"saved2:new","shop")
+      s.tap(session,"tab:"..tab,"shop")
+      local found=false
+      for _,b in ipairs(s.frame(session,"shop").buttons) do
+        assert(b.id~="saved2:save","tab left an editor open")
+        found=found or b.id=="saved2:lists"
+      end
+      assert(found,"tab left LISTS open")
+      equal(s.shop.saved("lists").revision,0)
+    end
+  end)
+
+  test("D6 review stale and missing stock show a dash rather than false", function()
+    local item="minecraft:iron_ingot"
+    local s=savedShop({["so-data/shop-lists"]=savedGeneration("lists",{{id="a",name="A",items={{item=item,count=1}}}})},true)
+    local session={id=7,keyboard=true,pocket={page="shop",search="",savedPage="a"}}
+    for _,mode in ipairs({"missing","stale"}) do
+      if mode=="stale" then s.stock({[item]=64},{[item]=64}) s.now=s.now+30000 end
+      local text=table.concat(Scene.capture(s.frame(session),26,20).picture().text,"\n")
+      assert(not text:find("false",1,true),text)
+      assert(text:match("available[^\n]*%-"),text)
+    end
+  end)
+
+  test("D6 review sixteen lists reserve the index pager row", function()
+    local s=savedShop(nil,true)
+    for i=1,16 do assert(s.shop.setList("list-"..i,{id="list-"..i,name="List "..i,items={}},i-1)) end
+    local session={id=7,keyboard=true,pocket={page="shop",search=""}}
+    s.tap(session,"saved2:lists")
+    local found={}
+    for page=1,2 do
+      for _,b in ipairs(s.frame(session).buttons) do
+        local id=b.id:match("^saved2:open:16:(.+)$")
+        if id then assert(b.y<18,"list overlaps pager") found[id]=true end
+      end
+      if page==1 then s.tap(session,"saved2:next") end
+    end
+    local n=0 for _ in pairs(found) do n=n+1 end
+    equal(n,16)
+  end)
+
+  test("D6 review native enabled shop layout matches its route A twins", function()
+    local s=savedShop(nil,true)
+    s.machine.env.os.epoch=function() return 0 end
+    local item="minecraft:iron_ingot"
+    s.stock({[item]=42},{[item]=64})
+    assert(s.shop.setPin(item,true,0))
+    assert(s.shop.setList("supplies",{id="supplies",name="Supplies",items={{item=item,count=37}}},0))
+    local function match(path,session)
+      local fixture=R.load(path)
+      local frame=s.frame(session,"shop",fixture.w,fixture.h)
+      local diff=R.diff(fixture,Scene.capture(frame,fixture.w,fixture.h))
+      assert(#diff==0,path.."\n"..table.concat(diff,"\n"))
+    end
+    local session={id=7,keyboard=true}
+    match("tests/ui/fixtures/shop-saved-browse-M.txt",session)
+    s.tap(session,"item:"..item,"shop")
+    match("tests/ui/fixtures/shop-saved-item-M.txt",session)
+    match("tests/ui/fixtures/shop-saved-item-P.txt",session)
+    s.tap(session,"saved2:lists","shop")
+    match("tests/ui/fixtures/shop-saved-lists-P.txt",session)
+    s.tap(session,"saved2:open:1:supplies","shop")
+    match("tests/ui/fixtures/shop-saved-list-P.txt",session)
+    s.tap(session,"saved2:edit:1:supplies","shop")
+    match("tests/ui/fixtures/shop-saved-draft-P.txt",session)
+    s=savedShop(nil,true)
+    s.machine.env.os.epoch=function() return 0 end
+    s.stock({[item]=42},{[item]=64}) assert(s.shop.setPin(item,true,0))
+    for n=1,16 do assert(s.shop.setList("list-"..n,{id="list-"..n,name="List "..n,items={}},n-1)) end
+    session={id=8,keyboard=true}
+    s.tap(session,"saved2:lists","shop")
+    match("tests/ui/fixtures/shop-saved-lists-full-P.txt",session)
   end)
 
 end

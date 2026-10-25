@@ -1,0 +1,61 @@
+26x20 Pocket SHOP quick order
+ FLEET  JOBS  SHOP  PAIR  
+                          
+ > _                      
+   all     low    empty   
+  LISTS                   
+ IRON INGOT ·········· 24 
+  MIN 16   WATCH          
+  UNPIN   ADD             
+    1      16      64     
+    STACK        ALL      
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+88888888888880000008888880
+00000000000000000000000000
+08090000000000000000000000
+0fffffff000000000000000000
+00000000000000000000000000
+000000000000cccccccccc0000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+fffffffffffff777777fffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f9999999f7777777f7777777ff
+f7777777ffffffffffffffffff
+77777777777777777777777777
+f77777777f7777777fffffffff
+f7777777f77777ffffffffffff
+f7777777f7777777f7777777ff
+f77777777777f77777777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

@@ -1,0 +1,61 @@
+26x20 Native shop shared saved data
+ items   low   find  ---  
+                          
+  LISTS                   
+ IRON INGOT               
+                          
+ stock ··············· 42 
+ stacks ············ 0+42 
+ last hour ············ 0 
+ ores ············· ingot 
+                          
+ ORDER -----------------  
+    1      16      64     
+    stack        all      
+                          
+  UNPIN   ADD             
+                          
+                          
+                          
+                          
+  back                    
+000000008888808888880ccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0888880ccccccccccccccc0000
+08888880cccccccccccc000000
+08888888880cccccccccccc080
+088880ccccccccccccc0000000
+00000000000000000000000000
+0888880ccccccccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+7777777fffffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777ffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777f7777777f7777777ff
+f77777777777f77777777777ff
+ffffffffffffffffffffffffff
+f7777777f77777ffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777fffffffffffffffffff
