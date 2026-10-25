@@ -12,6 +12,7 @@ local job = box.value or { homeSet = false, dim = "minecraft:overworld", home = 
 job.ores = job.ores or {}
 job.keep, job.staging = job.keep or {}, job.staging or {}
 job.recallEnabled = job.recallEnabled == true
+job.oreCoordinates = job.oreCoordinates == true
 S.recall = {}
 S.recall.worker = function(id) return job.recall and job.recall.workers[tostring(id)] end
 S.recall.blocked = function(id,reason)
@@ -38,6 +39,18 @@ local function save()
   return ok
 end
 local function emit(kind, data) call("state", "emit", kind, data) end
+local function oreFind(id, name, cell, evidence)
+  local data = {id=id, name=name, count=1}
+  if job.oreCoordinates then
+    for _, dug in ipairs(evidence) do
+      if M.same(cell, dug) then
+        data.pos = {dim=job.dim, x=cell.x, y=cell.y, z=cell.z}
+        break
+      end
+    end
+  end
+  emit("mine.ore", data)
+end
 local function owner(id) return "mine:" .. id end
 local workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
 S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
@@ -428,7 +441,7 @@ local function report(_, id, results, lease)
       row.dug = (row.dug or 0) + 1
       if interrupted.ore then
         row.ores, row.veinCount = (row.ores or 0) + 1, (row.veinCount or 0) + 1
-        emit("mine.ore", { id = id, name = interrupted.ore, count = 1 })
+        oreFind(id, interrupted.ore, interrupted.cell, {world})
         row.scanAfter = true
         if row.veinCount >= 64 then row.veins = { world } end
       end
@@ -506,7 +519,7 @@ local function report(_, id, results, lease)
         if results[1].ok then
           mark(action.cell) row.dug = (row.dug or 0) + 1
           if job.digFailures then job.digFailures[M.key(action.cell)] = nil end
-          if action.ore then row.ores = (row.ores or 0)+1 row.veinCount = (row.veinCount or 0)+1 emit("mine.ore", { id = id, name = action.ore, count = 1 }) row.scanAfter = true
+          if action.ore then row.ores = (row.ores or 0)+1 row.veinCount = (row.veinCount or 0)+1 oreFind(id, action.ore, action.cell, history) row.scanAfter = true
             if row.veinCount >= 64 then row.veins = { action.cell } end
           end
         else
@@ -1911,6 +1924,10 @@ local function command(event)
     table.sort(names)
     local old=job.keep job.keep=names
     if not save() then job.keep=old return end
+    S.error=nil return
+  elseif cmd=="orecoordinates" and #a==2 and (a[2]=="on" or a[2]=="off") then
+    local old=job.oreCoordinates job.oreCoordinates=a[2]=="on"
+    if not save() then job.oreCoordinates=old return end
     S.error=nil return
   elseif cmd=="recall" and #a==2 and (a[2]=="on" or a[2]=="off") then
     local old=job.recallEnabled job.recallEnabled=a[2]=="on"

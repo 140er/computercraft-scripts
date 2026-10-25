@@ -223,7 +223,7 @@ local function trailSetup(two)
   s.pageCalls = {}
   local page = state.history.page
   state.history.page = function(q)
-    s.pageCalls[#s.pageCalls+1] = q
+    if q.kind == "pose" then s.pageCalls[#s.pageCalls+1] = q end
     return page(q)
   end
   s.pose = function(id, x, y, z, dim)
@@ -241,7 +241,254 @@ local function mapState(s)
   error("map state missing")
 end
 
+local function findSetup()
+  local s = setup()
+  s.mine, s.lumber, s.machines, s.scene.drops = {}, {}, {}, {}
+  s.now, s.events, s.queries = 1000000, {}, {}
+  s.machine.files["so-server.cfg"] = H.encode({remoteDimensions=true})
+  s.machine.env.SO.now = function() return s.now end
+  s.machine.env.SO.mods.state.history = {page=function(q)
+    s.queries[#s.queries+1] = q
+    local entries = {}
+    for _, ev in ipairs(s.events) do
+      if ev.kind == q.kind and ev.seq > q.from then
+        entries[#entries+1] = ev
+        if #entries == q.count then break end
+      end
+    end
+    return {entries=entries}
+  end}
+  s.find = function(x, y, z, age, dim)
+    local ev = {seq=#s.events+1, kind="mine.ore", gameAt=s.now-(age or 0), at=9999999999,
+      data={id=2,name="minecraft:diamond_ore",count=1,pos={dim=dim or "minecraft:overworld",x=x,y=y,z=z}}}
+    s.events[#s.events+1] = ev
+    return ev
+  end
+  s.step = function() s.map.tick(s.now) end
+  s.reloadMap()
+  return s
+end
+local function findView(scale)
+  return {map={fit=false,sx=scale or 1,sz=scale or 1,cx=0,cz=0,level=64,oreFinds=true}}
+end
+
 return function(test,equal)
+  test("ore finds use the exclusive ten-minute game window and invalidate cached frames on expiry", function()
+    local s, session = findSetup(), findView()
+    s.find(-5,64,-3,599999)
+    s.find(-4,64,-3,600000)
+    s.find(-3,64,-3,-1)
+    local legacy = s.find(-2,64,-3,0)
+    legacy.gameAt, legacy.at = nil, s.now
+    local frame = s.settle(26,20,session)
+    equal(#s.queries,0,"render never consumes history")
+    s.step()
+    local function glyph(x) return cell(picture(s.screen.render(26,20,session),26,20),session.map,x,-3)[1] end
+    equal(glyph(-5),"*") equal(glyph(-4)," ") equal(glyph(-3)," ") equal(glyph(-2),"*")
+    assert(s.screen.render(26,20,session) ~= frame,"new finds invalidate the frame")
+    frame = s.screen.render(26,20,session)
+    s.step() equal(s.screen.render(26,20,session),frame,"sequence deduplication keeps the cache")
+    s.now = s.now + 1
+    equal(glyph(-5)," ","expiry also works on the first render after an idle period")
+    equal(glyph(-2),"*")
+    s.now = s.now + 599999
+    equal(glyph(-2)," ")
+  end)
+
+  test("ore find visibility defaults off and each display toggles independently", function()
+    local s, a, b = findSetup(), findView(), findView()
+    a.map.oreFinds, b.map.oreFinds = nil, nil
+    s.find(-5,64,-3)
+    s.settle(26,20,a) s.step()
+    local function glyph(session)
+      return cell(picture(s.screen.render(26,20,session),26,20),session.map,-5,-3)[1]
+    end
+    equal(glyph(a)," ") equal(a.map.oreFinds,false)
+    s.screen.input({session=a,text="ore finds on"})
+    equal(glyph(a),"*") equal(glyph(b)," ")
+    s.screen.input({session=b,id="map-ore"}) equal(glyph(b),"*")
+    s.screen.input({session=a,text="ore finds off"}) equal(glyph(a)," ") equal(glyph(b),"*")
+    s.screen.input({session=b,id="map-ore"}) equal(glyph(b)," ")
+  end)
+
+  test("ore finds reject malformed evidence and filter dimensions and exact levels", function()
+    local s, session = findSetup(), findView()
+    s.find(-5,64,-3)
+    s.find(-4,64,-3,0,"minecraft:the_nether")
+    s.find(-3,63,-3) s.find(-2,65,-3)
+    for _, bad in ipairs({{x=0.5,y=64,z=-3}, {x=math.huge,y=64,z=-3}, {x=0/0,y=64,z=-3},
+        {x="0",y=64,z=-3}, {x=0,y=64}, {dim="mod:unknown",x=0,y=64,z=-3},
+        {dim="minecraft:overworld",x=0,y=400,z=-3}}) do
+      s.find(0,64,-3).data.pos = bad
+    end
+    s.find(0,64,-3).data.count = 0
+    s.find(0,64,-3).gameAt = "bad"
+    s.find(0,64,-3).gameAt = false
+    s.find(0,64,-3).data.pos = nil
+    s.settle(26,20,session) s.step()
+    local function glyph(x) return cell(picture(s.screen.render(26,20,session),26,20),session.map,x,-3)[1] end
+    equal(glyph(-5),"*") equal(glyph(-4)," ") equal(glyph(-3)," ") equal(glyph(-2)," ") equal(glyph(0)," ")
+    session.map.level = "all"
+    equal(glyph(-3),"*") equal(glyph(-2),"*")
+    session.map.dim = "minecraft:the_nether"
+    equal(glyph(-4),"*") equal(glyph(-5)," ") equal(glyph(-3)," ")
+    local count = 0 for _ in pairs(mapState(s).finds.items) do count=count+1 end
+    equal(count,4,"invalid records never enter the ring")
+  end)
+
+  test("ore history consumes at most 50 entries per tick and rebuilds a bounded 256-find ring", function()
+    local s, session = findSetup(), findView()
+    for i=1,700 do s.find(i,64,-3) end
+    s.settle(26,20,session)
+    local files = s.machine.env.SO.store.copy(s.machine.files)
+    local function count()
+      local n=0 for _ in pairs(mapState(s).finds.items) do n=n+1 end return n
+    end
+    for tick=1,14 do
+      local before = #s.queries
+      s.step()
+      equal(#s.queries,before+1)
+      equal(s.queries[#s.queries],{kind="mine.ore",from=(tick-1)*50,count=50})
+      equal(count(),math.min(tick*50,256))
+    end
+    local seqs = {}
+    for _, p in pairs(mapState(s).finds.items) do seqs[p.seq]=true assert(p.seq>444) end
+    equal(s.machine.files,files,"finds never write storage")
+    s.reloadMap() s.screen.render(26,20,session)
+    equal(count(),0)
+    for _=1,14 do s.step() end
+    local rebuilt = {} for _,p in pairs(mapState(s).finds.items) do rebuilt[p.seq]=true end
+    equal(rebuilt,seqs,"restart rebuilds retained events without duplicates")
+    local version = mapState(s).finds.version
+    s.step() equal(mapState(s).finds.version,version)
+  end)
+
+  test("ore finds replay the real retained state log after a module restart", function()
+    local s, state = trailSetup()
+    local session=findView()
+    assert(state.emit("mine.ore",{id=8,name="minecraft:diamond_ore",count=1,
+      pos={dim="minecraft:overworld",x=-5,y=64,z=-3}}))
+    s.settle(26,20,session) s.step()
+    local function glyph()
+      return cell(picture(s.screen.render(26,20,session),26,20),session.map,-5,-3)[1]
+    end
+    equal(glyph(),"*")
+    s.machine.env.SO.mods.state = s.machine.env.dofile("so-mod-state.lua")
+    s.reloadMap() s.screen.render(26,20,session) s.step()
+    equal(glyph(),"*")
+    equal(mapState(s).finds.cursor,state.history.page({kind="mine.ore",count=50}).entries[1].seq)
+  end)
+
+  test("ore markers leave labels, branch numbers, workers, reservations and callouts intact", function()
+    local s = setup()
+    local now = s.machine.env.SO.now()
+    s.machine.env.SO.now = function() return now end
+    local events = {}
+    s.machine.env.SO.mods.state.history = {page=function(q)
+      if q.kind ~= "mine.ore" then return {entries={}} end
+      local entries={}
+      for _,ev in ipairs(events) do if ev.seq>q.from then entries[#entries+1]=ev if #entries==q.count then break end end end
+      return {entries=entries}
+    end}
+    local session={map={fit=false,sx=1,sz=1,cx=158,cz=-367,level=-58,oreFinds=true,pick={k="turtle",id="6"}}}
+    local base = picture(s.settle(57,24,session),57,24)
+    local v = session.map
+    assert(v.box,"picked worker has a callout")
+    for cy=0,v.mh-1 do for cx=0,v.mw-1 do
+      local x,z=v.left+cx,v.top+cy
+      events[#events+1]={seq=#events+1,kind="mine.ore",gameAt=now,
+        data={name="minecraft:diamond_ore",count=1,pos={dim="minecraft:overworld",x=x,y=-58,z=z}}}
+    end end
+    local checked=0
+    for _=1,math.ceil(#events/50) do
+      s.step()
+      local out=picture(s.screen.render(57,24,session),57,24)
+      for y=v.L.my,v.L.my+v.mh-1 do for x=1,57 do
+        local c=base.cells[y][x]
+        local terrain=v.base[(y-v.L.my)*v.mw+x-v.L.mx]
+        local ground=terrain and c[1]==terrain[3] and c[2]==terrain[4] and c[2]~="b"
+        local box=v.box
+        local inside=box and x>=v.L.mx+box[1] and x<v.L.mx+box[1]+box[3]
+          and y>=v.L.my+box[2] and y<v.L.my+box[2]+box[4]
+        if inside or c[1]~=" " and not ground then
+          equal(out.cells[y][x][1],c[1],"find covered label, marker, number, callout or reservation")
+          equal(out.cells[y][x][3],c[3],"protected background")
+          if c[1]~=" " then equal(out.cells[y][x][2],c[2],"protected foreground") end
+          checked=checked+1
+        end
+      end end
+    end
+    assert(checked>0)
+  end)
+
+  test("ore finds stay beneath isolated reservations outside mine geometry", function()
+    local s, session=findSetup(),findView()
+    assert(s.cells.reserveMany("mine:2",{{dim="minecraft:overworld",x=-5,y=64,z=-3}}))
+    s.find(-5,64,-3)
+    local base=cell(picture(s.settle(26,20,session),26,20),session.map,-5,-3)
+    s.step()
+    equal(cell(picture(s.screen.render(26,20,session),26,20),session.map,-5,-3),base)
+    equal(#mapState(s).findCells(session.map,mapState(s).scene),0)
+  end)
+
+  test("display text input toggles ore finds only for its own map session", function()
+    local s=findSetup()
+    s.find(-5,64,-3)
+    local function frame(id)
+      local out
+      s.display.handlers["view.get"]({from=id,body={}},function(_,body) out=body end)
+      return out
+    end
+    for _,id in ipairs({22,23}) do
+      s.display.handlers.hello({from=id,body={w=26,h=20,fullH=20}})
+      assert(s.display.assign(id,"map"))
+      frame(id)
+    end
+    s.step()
+    local function shown(id)
+      for _,r in ipairs(frame(id).rows) do if r.text:find("*",1,true) then return true end end
+      return false
+    end
+    equal(shown(22),false) equal(shown(23),false)
+    s.display.handlers.input({from=22,body={text="ore finds on",x=1,y=1}})
+    equal(shown(22),true) equal(shown(23),false)
+    s.display.handlers.input({from=22,body={text="ore finds off",x=1,y=1}})
+    equal(shown(22),false)
+  end)
+
+  test("many ore finds fit the 15000-byte frame budget without changing manual or FIT zoom", function()
+    local s = findSetup()
+    for i=1,256 do s.find(((i*17)%158-79)*64+1,64,((i-1)%60-30)*64+1) end
+    local manual, fitted = findView(64), {map={oreFinds=true}}
+    local base = s.settle(164,81,manual)
+    s.settle(164,81,fitted)
+    local fitZoom={fitted.map.sx,fitted.map.sz,fitted.map.extra or 0}
+    for _=1,6 do s.step() end
+    local proto=s.machine.env.SO.proto
+    s.machine.env.SO.proto=nil
+    local raw=s.screen.render(164,81,findView(64))
+    s.machine.env.SO.proto=proto
+    assert(#proto.ser(raw)>15000,"untrimmed ore markers must overflow")
+    local session=findView(64)
+    local frame=s.screen.render(164,81,session)
+    assert(#proto.ser(frame)<=15000)
+    assert(proto.encode(proto.build(string.rep("a",64),"view.frame",frame)))
+    equal({session.map.sx,session.map.sz,session.map.extra or 0},{64,64,0})
+    local out, before=picture(frame,164,81),picture(base,164,81)
+    local shown,dropped=0,false
+    for _,c in ipairs(mapState(s).findCells(session.map,mapState(s).scene)) do
+      local x,y=session.map.L.mx+c.cx,session.map.L.my+c.cy
+      if before.cells[y][x][1]==" " then
+        if out.cells[y][x][1]=="*" then assert(not dropped) shown=shown+1 else dropped=true end
+      end
+    end
+    assert(shown>0 and dropped,"drop older ore markers before any labels")
+    local fitFrame=s.screen.render(164,81,fitted)
+    equal({fitted.map.sx,fitted.map.sz,fitted.map.extra or 0},fitZoom)
+    assert(#proto.ser(fitFrame)<=15000)
+    print("map ore overflow: base "..#proto.ser(base)..", untrimmed "..#proto.ser(raw)..", trimmed "..#proto.ser(frame).." bytes; "..shown.." visible finds")
+  end)
+
   for _, role in ipairs({"mine","lumber"}) do
     test("map evicts parked and removed "..role.." trails while the registry keeps the worker", function()
       local s, state = trailSetup()
@@ -317,6 +564,7 @@ return function(test,equal)
     for id = 1, 96 do s.mine.turtles[tostring(id)] = {state="mining",pose={x=0,y=64,z=0}} end
     s.machine.env.SO.now = function() return 100000 end
     s.machine.env.SO.mods.state.history.page = function(q)
+      if q.kind ~= "pose" then return {entries={}} end
       s.pageCalls[#s.pageCalls+1] = q
       local entries = {}
       for i = 1, 20 do entries[i] = {seq=q.id*20+i,data={id=q.id,x=i,y=64,z=-3}} end
