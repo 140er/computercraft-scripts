@@ -108,22 +108,6 @@ return function(test,equal)
     equal(got.bg[3]:sub(5,5),'e')
     equal(got.fg[1]:sub(1,1),'e')
   end)
-  test('UI1 contrast respects ink including inverted glyph cells',function()
-    -- Route A screens follow the coloured-glyph rule in tests/ui/s0.lua and s4.lua; U.alert is the old tiled takeover.
-    for _,size in ipairs({'M','L','P','XS','T'}) do
-      local fixture=R.load('tests/ui/fixtures/status-'..size..'.txt')
-      local frames={U.alert(model(),fixture.w,fixture.h)}
-      for _,frame in ipairs(frames) do
-        local out=capture(frame,fixture.w,fixture.h)
-        for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
-          local fg,bg=cell[2],cell[3]
-          if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
-          assert((bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-            (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','contrast '..fg..'/'..bg)
-        end end
-      end
-    end
-  end)
   test('UI1 odd sizes and blocks stay inside the canvas',function()
     for _,size in ipairs({{100,38},{36,10},{1,1},{29,12}}) do
       local frame=U.status(model(),unpack(size))
@@ -131,28 +115,9 @@ return function(test,equal)
       for _,b in ipairs(frame.buttons) do assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=size[1] and b.y+b.h-1<=size[2]) end
       for _,r in ipairs(frame.rows) do local width=0;for _,run in ipairs(r.runs) do width=width+run[1] end;equal(width,size[1]) end
     end
-    local c=U.canvas(20,10);c.listRow(2,'ready','d');c.search(2,3,12,'iron','find');c.tile(1,5,12,'LONG','123456','fallback','b')
-    local out=capture(c.frame(),20,10).picture()
-    assert(out.text[8]:find('123456',1,true));equal(out.bg[3]:sub(2,13),string.rep('0',12))
     equal(U.size(51,19),'T');local cols,rows=U.grid(100,38);equal(#cols,5);equal(rows,4)
   end)
-  test('UI1 padded tiles keep titles and full big values inside their rows',function()
-    for _,height in ipairs({6,7}) do
-      local c=U.canvas(26,20)
-      c.tile(1,4,26,'TURTLES','12345','0 ok, 0 lost','d',height)
-      local out=capture(c.frame(),26,20).picture()
-      assert(out.text[4]:match('^%s*$'))
-      assert(out.text[5]:find('TURTLES',1,true))
-      assert(out.text[4+height-1]:match('^%s*$'))
-      for y=4,4+height-1 do
-        equal(out.bg[y]:sub(1,1),'f');equal(out.bg[y]:sub(26),'f')
-        assert(out.text[y]:sub(1,2)=='  ')
-      end
-      local expected=U.canvas(26,20);expected.big(3,6,22,'12345','d')
-      local digits=capture(expected.frame(),26,20).picture()
-      for y=6,8 do equal(out.text[y],digits.text[y]) end
-      if height==7 then assert(out.text[9]:find('0 ok, 0 lost',1,true)) end
-    end
+  test('UI1 status keeps its title and turtles at every size',function()
     for _,size in ipairs({{26,20},{29,12},{57,24},{100,38},{164,81}}) do
       local f=U.status(model(),size[1],size[2])
       assert(f.rows[1].text:find('^ STATUS'))

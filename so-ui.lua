@@ -163,21 +163,6 @@ U.canvas = function(w, h, bg)
     text = tostring(text):sub(1, math.max(0, width))
     C.put(x + math.max(0, math.floor((width - #text) / 2)), y, text, nil, background)
   end
-  C.big = function(x, y, width, text, background)
-    text = tostring(text)
-    if #text * 3 > width or text:find('[^0123456789%%%-:/ ]') then
-      C.center(x, width, y + 1, text, background)
-      return
-    end
-    local start = x + math.max(0, math.floor((width - #text * 3) / 2))
-    for i = 1, #text do
-      for r, row in ipairs(U.glyph(text:sub(i,i), U.ink(background), background)) do
-        for c = 1, 3 do
-          C.put(start + (i - 1) * 3 + c - 1, y + r - 1, row.text:sub(c,c), row.fg:sub(c,c), row.bg:sub(c,c))
-        end
-      end
-    end
-  end
   C.hit = function(id, x, y, width, height, label)
     if x > w or y > h or x + width <= 1 or y + height <= 1 then return end
     local right, bottom = math.min(w, x + width - 1), math.min(h, y + height - 1)
@@ -194,28 +179,12 @@ U.canvas = function(w, h, bg)
     C.fill(2, 3, math.max(0,w-2), 1, 'e'); C.put(2, 3, text:sub(1, math.max(0, w - 2)))
     C.hit('alerts', 2, 3, math.max(0,w-2), 1)
   end
-  C.tile = function(x, y, width, label, value, sub, background, height)
-    local right = math.min(w - 1, x + width - 1)
-    x = math.max(2, x)
-    width, height = math.max(0, right - x + 1), height or (h >= 24 and 7 or 6)
-    C.fill(x, y, width, height, background)
-    C.put(x + 1, y + 1, label:sub(1, math.max(0, width - 2)))
-    C.big(x + 1, y + 2, math.max(0, width - 2), value, background)
-    if height >= 7 then C.put(x + 1, y + 5, (sub or ''):sub(1, math.max(0, width - 2))) end
-  end
   C.button = function(x, y, width, label, id, background, height)
     height, background = height or 3, background or '7'
     C.fill(x, y, width, height, background)
     local inset = #label <= width-2 and 1 or 0
     C.center(x + inset, math.max(0,width - 2*inset), y + math.floor(height / 2), label)
     C.hit(id, x, y, width, height)
-  end
-  C.listRow = function(y, text, state)
-    C.fill(1, y, 1, 1, state); C.put(2, y, text:sub(1, math.max(0,w - 1)))
-  end
-  C.search = function(x, y, width, text, id)
-    C.fill(x, y, width, 1, '0'); C.put(x, y, text:sub(1,width), 'f', '0')
-    C.hit(id or 'search', x, y, width, 1)
   end
   -- Route A (docs/ui/SCHEMATIC-SPEC.md). Same names and arguments as docs/ui/schematic/kit.py.
   C.rule = function(x1, y, x2, fg)
@@ -687,52 +656,6 @@ U.branchProgress = function(job, row)
       or not finite(home.x) or not finite(home.z) then return nil, length end
   local dug = row.state == 'done' and length or (p.x-home.x)*(-d[2])+(p.z-home.z)*d[1]
   return math.max(0, math.min(length, dug)), length
-end
-U.progress = function(c, x, y, width, done, total, color)
-  c.fill(x,y,width,1,'c')
-  local n = total > 0 and math.floor(width*math.max(0,math.min(1,done/total))) or 0
-  if n > 0 then c.fill(x,y,n,1,color or 'b') end
-end
-U.pocketHeader = function(c, title)
-  c.header(title, '')
-  c.button(c.w-9,2,5,'MORE','generic','7',1)
-  c.button(c.w-3,2,4,'MAP','map','9',1)
-end
-U.alert = function(model, w, h)
-  local C = U.canvas(w,h,'e')
-  local a = model.takeover or {}
-  C.center(1,w,4,'ALERT'); C.big(1,7,w,tostring(a.count or #model.alerts),'e')
-  C.center(1,w,12,(a.text or model.alert or ''):upper())
-  C.center(1,w,14,a.detail or '')
-  C.center(1,w,16,a.sub or '')
-  C.hit('dismiss',1,1,w,h)
-  return C.frame()
-end
-
--- Chip row: a label on navy, then { text, bg } chips right-aligned to `right`.
--- Returns the column left of the first chip.
-U.chipRow = function(C, y, label, chips, x, right)
-  x, right = x or 2, right or C.w - 1
-  local room = right - x
-  for _, chip in ipairs(chips) do room = room - #tostring(chip[1]) - 2 end
-  C.put(x, y, label:sub(1, math.max(0, room)))
-  for i = #chips, 1, -1 do
-    local text = ' ' .. tostring(chips[i][1]) .. ' '
-    right = right - #text
-    C.put(right + 1, y, text, nil, chips[i][2])
-  end
-  return right
-end
--- Fleet facts from the status model as chip rows: tiles 1-8, `step` rows apart.
--- The ALERTS row is the `alerts` target.
-U.fleetRows = function(C, model, top, step)
-  for i = 1, 8 do
-    local t, y = (model.tiles or {})[i], top + (i - 1) * step
-    if t and y <= C.h then
-      U.chipRow(C, y, t.label, t.chips or { { t.value, t.bg } })
-      if i == 3 then C.hit('alerts', 2, y, C.w - 2, 1) end
-    end
-  end
 end
 -- Line digits draw "-" as the middle stroke alone: a pair code not issued yet reads "------".
 U.segments["-"] = "g"
