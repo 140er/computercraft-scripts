@@ -293,6 +293,12 @@ The server sends `err` when no built-in handler and no module handler matches `t
 
 `body.code` is `unknown`. `body.text` is `unknown type`.
 
+If a built-in or module handler raises, the server logs the error and runs later
+handlers. If none replies, it sends `err` with `{code="handler"}`. The first
+reply remains the result even if another handler raises. Replies use the normal
+120000 UTC millisecond cache. An authenticated retry from the same sender with
+the same request id receives the cached reply without running handlers again.
+
 `body.code` is `store` when the server could not save a new pair key. `body.text` is the store error.
 
 `body.code` is `pair` when `body.pub` is not a 32-byte key. `body.text` is `pub`. `pair2` uses the same code with the reasons listed under [pair2](#pair2).
@@ -459,9 +465,18 @@ For `remove` and `fix`, `body.id` is that point id.
 
 The caller sends `history.page` to the server.
 
-`body.before` is an optional utc millisecond. Omit it to start at the newest entry. `body.limit` is an optional integer from 1 to 50. The default is 20.
+`body.before` is optional. Omit it to start at the newest entry. Continuation
+cursors are `{at=number,seq=number}`. `at` is UTC milliseconds; `seq`
+distinguishes events at the same time. The cursor is exclusive. The server
+returns earlier UTC times, or the same time with a lower sequence. Legacy
+numeric UTC cursors and `{at=number}` select strictly older timestamps.
+`body.limit` is an optional integer from 1 to 50, defaulting to 20.
 
-The reply type is `history.page`. `body.entries` is `{ at = number, text = string }`, newest first. `body.next` is a number, or absent on the last page. Pass `next` as `before` to read the following page.
+The reply type is `history.page`. `body.entries` contains `{at=number,text=string}`
+entries ordered by UTC time descending, then sequence descending. Entries do
+not expose sequence fields. `body.next` is an `{at,seq}` cursor, or absent on
+the last page. Pass it unchanged as `before` to keep equal-time entries reachable.
+The internal `state.history.page` sequence API is unchanged.
 
 ## Module APIs
 
@@ -621,18 +636,39 @@ advances revisions for registry changes in memory. `emit(key, value)` is this sa
 
 `state.history.page({ from = number, count = number })` returns `{ entries, next }`. `entries` is `{ seq, at, gameAt?, kind, data }` in ascending `seq`, starting after `from`. Omit `from` to start at the oldest retained event. `count` defaults to 20 and is clamped to 1..50. `next` is the last `seq` in this page when another page exists, and nil on the last page. Pass `next` as `from` to read the following page. `limit` is accepted as an alias of `count`.
 
+`state.history.page` accepts an optional numeric `id` filter. For example,
+`state.history.page({id=12,count=20})` returns only events with table data whose
+`data.id == 12`. Events without that ID are omitted. The filter combines with
+`kind`, `alerts`, `reverse`, `from` and `before`. `next` is present only when
+more matching events remain. Omit `id` to read all devices.
+
 `state.job(data)` is `emit("job", data)`, except when the disk is 80% full or more. Then it returns false and `"disk"` and does not write the job. `emit("job", data)` follows the same rule.
 
-`state.canStart()` returns true below 80% disk use. At 80% or more it returns false and `"disk >=80%; free space"`. It reads current capacity and free space on every call and writes nothing. Mining and lumber call it before `start` changes their jobs. A missing guard refuses start too. Recovery, stop and ongoing work remain available.
+`state.canStart()` returns true below 80% disk use when no event writes are
+pending or failed. Pending events return false with `"DISK events pending; free space"`.
+Other refusals name the largest store, for example `"disk 83%: log 6.1 MB"`.
+Before the first ledger scan, the reason is `"disk >=80%; free space"`.
+Unreadable or nonpositive capacity returns false with `"disk size unknown"`
+and raises a DISK alert. The call reads current capacity and free space and
+writes nothing. Mining and lumber call it before `start` changes their jobs.
+A missing guard refuses start too. Recovery, stop and ongoing work remain available.
 
 `state.disk()` returns the same data as the status view. `state.canWork()` returns
 false while event writes have failed or events await retry. The lease dispatcher
 then refuses new movement batches. Recovery and stationary parks remain available.
-At 85% disk use, unchanged heartbeat and fuel updates stay in memory. Event-count
+At 85% disk use, unchanged heartbeats stay in memory. Label changes and
+significant fuel changes still emit machine events. Event-count
 checkpoints move to every 10000 events; retention checkpoints still run.
 
 `state.tick(now)` retries at most 16 queued events every five seconds, refreshes
 the disk ledger every 30 seconds, and flushes held view frames. `now` is `SO.now()` game milliseconds. The server passes it once a second.
+
+An event above the log budget returns false and raises a refusal alert without
+setting the disk write error or blocking otherwise healthy starts and work.
+An existing write error remains in effect. If categorized stores exceed reported
+usage, a disk read rescans only when the last ledger scan is at least 30 game
+seconds old. A persistent mismatch reports pressure and refuses new jobs.
+Repeated disk reads, emits and hellos reuse the ledger until that refresh.
 
 #### Events
 
@@ -669,8 +705,14 @@ write and verify a full schema-1 generation before append returns success.
 Current, `.tmp` and `.bak` recovery and protocol version 1 are unchanged.
 `so-store.store` exposes `bytes`, the serialized size of its recovered or most
 recently saved generation. Log accounting uses that size without rereading it.
-Retention checkpoints leave at least 64 KB below the 1 MB window by removing
-whole covered segments. This amortizes snapshot writes across small segments.
+Checkpoint n deletes segment generations only below snapshot n-1's `first`.
+Startup preserves those fallback files but reads events from the newest readable
+snapshot's `first`. It uses n-1's `first` only when n is unreadable. Missing
+segment numbers do not stop the scan. Sequence allocation resumes above the
+highest recovered event or published checkpoint sequence. Retention checkpoints
+begin above 960 KiB of retained segment bytes. They plan the new snapshot's
+`first` to leave at most 768 KiB of newer segments, then defer deletion to the
+previous snapshot's boundary.
 
 Optional `so-server.cfg` `state.coalesceHeartbeats=true` omits routine hello
 events at every disk pressure. The default is false. First contact, role,
@@ -712,6 +754,12 @@ cursor save together at most once a minute, plus on a day change. A restart
 replays retained history after the saved cursor. Events already removed by
 state history retention cannot be reconstructed. There are no new wire types.
 
+
+If `so-data/daily`, `.tmp` and `.bak` have no valid generation, the daily module
+removes all three files and opens with zero totals and cursor zero. It logs
+`so-daily: unreadable totals reset` once. Its next tick reads retained history
+and saves rebuilt totals. A valid surviving generation preserves saved totals.
+Other store errors still stop the module from loading.
 
 ### lease
 
@@ -785,6 +833,9 @@ stationary slow beacons, including after GPS loss, a missing report or failed
 assignment persistence. Earlier journal moves are not reversed.
 `claimProbe(id, owner, pose)` atomically hands its
 standing reservation from the probe to the job owner through `cells.handoff`.
+For `setup:<id>`, it stages that transfer through `cells.prepareHandoff` instead.
+The next `reserveMany` must include the standing cell and saves its transfer
+with the full route. Failure consumes the claim and preserves prior owners.
 The other probe cells remain until the job assignment saves. Only then does
 `clearProbe(id)` release them. A blocked move with unchanged GPS releases the
 probe cells and refuses. Missing GPS or reports retain those cells for recovery.
@@ -1010,6 +1061,12 @@ block names or ore subtype tags before applying the ore classifier.
 sealing stack unless `all` is true. `side` defaults to `down`.
 
 ### cells
+
+`cells.prepareHandoff(from, to, x, y, z, dim)` stages one cell for the
+destination owner's next `reserveMany` without changing reservations. That call
+must include the cell. It transfers the cell and reserves the route in one save.
+A failed reservation consumes the staged claim and keeps prior owners.
+Staged claims are memory-only. `lease.claimProbe` uses this for setup owners.
 
 `cells.handoff(from, to, x, y, z, dim)` atomically changes one reservation owner
 through the generation store. Failed saves leave the old owner in place. Other
@@ -1921,6 +1978,18 @@ Keys live in `so-keys` through `so-store`. The saved value is `{ keys = { ["<com
 
 `pair.key(id)` returns that hex string, or nil.
 
+`pair.forget(id, modules?)` saves key removal. Passing the required module-name
+map also stores a pending cleanup record. `pair.forgetPending()` returns copied
+`{id,modules,key}` records. The previous `key` is retained only to revoke old
+leases; `pair.key(id)` stays nil. `pair.forgetDone(id)` removes the record after
+cleanup. Every key save preserves pending records, and `pair.remember` refuses
+an id with pending cleanup.
+
+After three failed timing initialization attempts, secret generation waits
+30000 game milliseconds before trying again. Saved keys remain usable.
+`SO.pairCode(id)` returns nil when entropy is unavailable. The server terminal
+shows `random source unavailable` until another action replaces it.
+
 ### Forgetting one device
 
 PAIR on the panel opens PAIRED, a paged list of paired ids, role or kind, time
@@ -1937,8 +2006,16 @@ attempt, including after the target pairs again. The confirmation expires after
 The display cannot forget itself, and replacing a target's key cancels its
 pending confirmation. There is no remote forget message type.
 
-Before removing the key, the server saves parked assignments in mine, lumber
-and build. Their `forgotten` flag prevents planning and late reports from
+The server atomically saves key removal and a pending cleanup record in
+`so-keys`, then runs each cleanup hook under `pcall`. It retries pending cleanup
+at boot before planning and before each tick's module work. Missing required
+modules leave cleanup pending. The record is removed only after every hook and
+the completion save succeed. Re-pairing that id waits for cleanup; other devices
+can pair normally. Automatic retries do not recreate the forgotten-device row.
+An initial key-save failure leaves the key, planners, leases, invitation and
+reservations unchanged.
+
+Cleanup saves parked assignments in mine, lumber and build. Their `forgotten` flag prevents planning and late reports from
 releasing reservations. Lease retries, pending anchors and GPS callbacks are
 detached. An invitation owned by the forgotten display is closed.
 Setup scans, chest visits, release probes and facing selection for the forgotten
@@ -1946,7 +2023,7 @@ id are cancelled. `drops.forget(id)` hands its complete `setup:<id>` route to
 `gps:<id>` before releasing the setup owner. This also handles orphaned routes
 after restart. Delayed signed visit steps may still arrive, so recovery cells
 remain protected until explicit re-add claims the actual pose and clears the
-remaining GPS holds. A failed handoff retains the key and reservations.
+remaining GPS holds. A failed handoff retains reservations and leaves cleanup pending.
 Reservations for every possible position stay in place because an unreported
 move may still occupy them. Lumber suspends service through its existing safe
 path, releasing unused queue holds only outside those possible positions. Parked assignments survive restart and prevent dug
@@ -1957,8 +2034,9 @@ and stays put on expiry. The server does not wait for that report or release
 possibly occupied cells. An unreachable worker still follows its existing
 lease-expiry rules.
 
-A save failure keeps the key and shows SAVE FAILED. Assignments already parked
-stay parked. Success emits `pair.forgotten` with `{ id, actor, text }` and adds
+A cleanup or save failure shows SAVE FAILED. Once key removal saves, the key
+stays revoked while cleanup retries. That initial revocation emits
+`pair.forgotten` with `{ id, actor, text }` and adds
 an attention row for the most recently forgotten id. The device's next hello
 receives the existing unsigned `pair.required` hint. Its local key remains
 until a successful pairing replaces it.
@@ -2127,7 +2205,9 @@ See [builder jobs](BUILD.md) for command conventions and proposed Gate B C15.
 ### Setup observations
 
 `pair.done` is a server state event with `{id, at, role?, label?}`. Successful
-pairing emits it; the next hello fills the role and clipped label while keeping
+pair2, legacy pairing and enrollment approval emit it after saving the key.
+The next successful pairing clears the stored `pair.forgotten` row, even when
+a different device pairs. The next hello fills the role and clipped label while keeping
 its original `SO.now()` timestamp. It contains no pairing credentials.
 Machine events and registry views also carry the optional 16-character label.
 

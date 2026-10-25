@@ -90,9 +90,9 @@ The turtle terminal shows its label, assigned job, current step, fuel and reason
 
 Automatic swaps default to off. To enable them on a worker, add
 `autoToolSwap=true` to its plain `so-worker.cfg` table and reboot. Keep any existing
-`dim` field. Put one replacement tool in an inventory slot. The worker swaps only
-into an empty side or a side holding a tool, keeping its modem equipped. The old
-tool goes into inventory. A failed swap keeps the old tool and appears in NEEDS YOU;
+`dim` field. Put one replacement tool in an inventory slot. The worker fills an empty
+equipment side before replacing a tool on the other side. It protects non-tool
+equipment, including its modem. The old tool goes into inventory. A failed swap keeps the old tool and appears in NEEDS YOU;
 retries wait 30 game seconds. Tools stay in inventory during cleanup and unloading.
 Swaps check equipment first, so a replay after reboot does not swap the old tool back.
 Tool durability is not checked.
@@ -545,10 +545,14 @@ starts a fresh assignment at the supplied pose. The worker must save and confirm
 the anchor before work resumes. Rebooting alone does not guess a pose.
 
 If the server is reset or its pairing keys are replaced while its computer ID
-stays the same, clients show an "Old key kept" pairing prompt. Press P on the
-server and type the new code on each client. Turtles also require Enter. The
+stays the same, turtles show `No key on server` above `Code:`. Displays retain
+their `Old key kept` prompt. Press P on the server and type the new code on each client. Turtles also require Enter. The
 client keeps its old key until pairing succeeds. A normal authenticated reply
 restores the client screen, so a false prompt does not require a reset.
+
+A fresh turtle shows `UNPAIRED` on row 4 until it saves a pairing key. After
+pairing, that row shows the server contact age or current job status. A failed
+first-boot pairing shows `Pair failed: <reason>` below `Code:`.
 
 ### Fuel auto-order
 
@@ -687,8 +691,8 @@ moving, and sends a best-effort stationary park. Other lumber workers continue.
 Setup scans and chest visits are cancelled. Their route moves from setup
 ownership to GPS recovery holds until the turtle is explicitly re-added. Re-pair and
 explicitly re-add the turtle at its actual pose before resuming it. The next
-hello shows the normal pairing prompt. NEEDS includes the most recent forget
-event.
+hello shows `No key on server` above `Code:` on the turtle. NEEDS includes
+the most recent forget event.
 
 ### Enroll many turtles
 
@@ -706,9 +710,9 @@ wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/head
 
 If the turtle still shows `Code:` after the install, paste or type the token
 there and press Enter. Each turtle then appears on the panel as a row with its
-id, `TURTLE` and a four-character fingerprint. The turtle shows the same
-fingerprint on its screen. Tap OK or NO per row, or APPROVE ALL for the rows on
-the screen. Rows that did not fit wait for the next tap. CLOSE ends the window. Approved turtles keep their own keys;
+id, `TURTLE` and a four-character fingerprint. While approval is pending, the
+turtle shows `approve on panel <fp>` with the same fingerprint. Tap OK or NO per
+row, or APPROVE ALL for the rows on the screen. Rows that did not fit wait for the next tap. CLOSE ends the window. Approved turtles keep their own keys;
 the token is never a key and the server does not save it.
 
 Only the display that opened the window sees the token and its controls.
