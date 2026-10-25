@@ -64,6 +64,16 @@ and listeners use `listener(sender, message)`.
   config is missing at startup, restore a valid temporary table first, otherwise
   the valid backup, before modules load. This preserves a checked OFF value after
   interruption between the two rename operations.
+  `retireLegacyPair=true` in `so-server.cfg` silently drops legacy `pair`
+  before key selection, cache lookup or dispatch. It defaults off and requires
+  restart. Saved keys remain valid. Startup logs `legacy pair: retired` or
+  `legacy pair: kept`; the removal notice appears only when kept, before discovery.
+  The release notice is [issue #308](https://github.com/140er/computercraft-scripts/issues/308).
+  `SO.updateWorker(id)` and `SO.workerUpdate(id)` provide default-off pinned
+  updates. Server `panelUpdates` and worker `remoteUpdates` must both be true.
+  Requests require an idle updated worker and expire after 120000 game ms.
+  Only a later hello at the target SHA confirms completion. See
+  [worker.update](server-only/PROTOCOL.md#workerupdate) for wire and API-budget rules.
 - [so-proto.lua](../so-proto.lua) builds and checks authenticated envelopes.
   Calls are `encode(value)`, `decode(value)`, `build(key, t, body, rid)`,
   `sign(key, msg)`, `macOk(key, msg)`, `fresh(msg)`, `bind(keyFor)`,
@@ -116,13 +126,25 @@ and listeners use `listener(sender, message)`.
   `store` returns `{ value, bytes, save = function(value) }`; `bytes` is the size
   of the recovered generation and updates after a successful save. `save` returns success
   and an optional error. `read` reads a plain Lua table without generation recovery.
+  `readConfig(path, onRecovery?)` returns a plain table or nil and
+  `{hold,absent?,error?}`. It checks primary, `.tmp` and `.bak` by `settingsSeq`,
+  breaking ties in that order, and restores the selected file before returning.
+  Legacy sequence is zero. Missing or unreadable primary marks recovery with
+  durable `configRecovery=true`. The callback must save the worker's journal
+  hold before promotion. Failed recovery refuses; corrupt files never become
+  fresh absent config. `saveConfig(path, value)` verifies a temporary table,
+  backs up the primary and promotes it. A failed save removes its temp candidate.
 - [so-log.lua](../so-log.lua) stores bounded event segments and snapshots for state.
   `open(store)` returns `{ snap, events(), fits(ev), append(ev), due(pressure?),
   checkpoint(payload), rawBytes(), status() }`.
   `status()` returns event availability, sequence, segment count, bytes, snapshot
-  number, its saved game time and whether a checkpoint is due.
+  number, its saved game time and whether a checkpoint is due. It also exposes
+  `oldestSeq`, `oldestAt`, `newestSeq` and `newestAt` for retained segments,
+  including snapshot-fallback segments. UTC time fields can be absent for legacy
+  events; all four are absent with no retained entries. `state.diagnostics()`
+  exposes the same bounds. Restart rebuilds them; pruning advances them.
 - [so-errors.lua](../so-errors.lua) opens with `open(store, now)` and returns
-  `record(text, force?)`, `flush(now?, force?)`, `entries()` and `status()`. It retains at most
+  `record(text, force?)`, `flush(now?, force?)`, `entries()`, `summary()` and `status()`. It retains at most
   128 errors in `so-data/errors`, with 2048 bytes per message. Each generation
   is at most 21000 bytes, so current, backup and temporary files fit within
   65536 bytes together. `status().bytes` counts every generation and is
@@ -132,6 +154,15 @@ and listeners use `listener(sender, message)`.
   A true force argument bypasses the flush interval. The server forces its final stop line.
   `SO.errors` exposes this log. `SO.health` holds startup time and the last tick's game cadence, wall
   cadence and cost. Wall cadence is diagnostic only.
+  `summary()` returns copied `{text,count,first,last}` rows for exact retained
+  texts in first-appearance order, including pending records. Times use the game
+  clock. Reading or editing the result changes no ring or save state.
+  `SO.health.modules` holds at most 64 module-file facts with `status` absent,
+  loaded or failed, and load `error` capped at 160 characters. Ticks record
+  `lastGood` and `tickError`; success clears the tick error. `revision` is the
+  running full SHA or nil; `config` is the startup config. `configError` marks an
+  unreadable existing config. `gpsGap` compares saved position with boot GPS.
+  These facts stay in memory.
 - [so-plan.lua](../so-plan.lua) provides pure geometry and batch helpers.
   Calls are `frame(worldPose, journalPose)`, `toWorld(frame, pose)`,
   `toJournal(frame, pose)`, `ahead(pose, dir)`, `apply(pose, op)`,
@@ -144,6 +175,10 @@ and listeners use `listener(sender, message)`.
   Dimension helpers are `dimensions`, `dimension(name)`, `dimensionError(dim, config)`
   and `heightError(dim, y)`. They validate vanilla aliases, remote opt-in and
   movement bounds. See [remote dimensions](server-only/PROTOCOL.md#remote-dimensions).
+  `burnValue(name)` returns 15 moves for exact vanilla Overworld log and wood
+  IDs, including stripped variants, for oak, spruce, birch, jungle, acacia,
+  dark oak, mangrove and cherry. Other IDs return nil. It has no production
+  callers; it does not enable log burning or change `fuelValue`.
   `chestCheck` returns `{ok,text}` without writes. A configured usable chest
   without visit verification reads `not scanned`; a verified one reads
   `verified by visit`. Both remain usable. `missing` returns unmet text in order.
@@ -285,11 +320,20 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Days use Amsterdam midnight and `oreRecent` covers `(SO.now() - 600000, SO.now()]` using event `gameAt`.
   Counts and the last consumed sequence save together once a minute and on
   day changes. Restart replays events after that cursor. No wire handlers.
-  See [daily](server-only/PROTOCOL.md#daily).
+  `days()` returns seven copied `{date,ore,logs,partial}` rows, oldest first,
+  for today and six preceding Amsterdam dates on the game clock. Events update
+  their retained date using `gameAt`, with legacy `at` fallback. Missing dates
+  have false counts and `partial=true`; history gaps mark rows partial.
+  See [daily](server-only/PROTOCOL.md#daily) for persistence and migration limits.
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
   `status(id)`, `peek(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)`, `describe(id, job, reason)`,
-  `ensureTool(id, kind)` and `tick(now)`. `status` also returns read-only `tools`
+  `ensureTool(id, kind)`, `settings(id, changes)` and `tick(now)`.
+  `settings` requires server `workerSettings=true`, worker `settingsControl=true`
+  and an idle, certain updated worker. Both flags default off. One request per
+  worker expires after 15000 game ms. `status` and `peek` expose `settings`,
+  `workerSettings`, `settingsControl`, `settingsPending` and `settingsError`.
+  See [worker.settings](server-only/PROTOCOL.md#workersettings). `status` also returns read-only `tools`
   and `toolError`, plus the worker opt-in as `autoToolSwap`. `ensureTool` returns true
   for equipped or unknown tools, or when swaps are disabled, otherwise
   false and a reason. It may send one tool lease when the worker advertises opt-in;
@@ -384,7 +428,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   pick and readiness exclude marked points until enabled. Both setters save
   before success and roll back on failure. The editor draws ROOM and SINKS
   buttons and accepts `room <id> on|off` and `room sink on|off`.
-  `pick` also returns `reason = "none"|"broken"` and `failedPoint` when no point is usable.
+  `pick` also returns `reason = "none"|"broken"|"suspended"` and `failedPoint` when no point is usable.
   `drops.alert` includes the reason and named point with its coordinates.
   Points use the chest's own coordinates. `front` accesses it from beside it
   at the same height; `down` accesses it from directly above.
@@ -406,7 +450,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Both renderers accept typed coordinates or `add kind x y z [side] [dim]`.
   The kit-free editor fits above local input; its paging is per display.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
-  See [drops](server-only/PROTOCOL.md#drops).
+  `choose(kind, nearPos)` selects without writes or events. `usable(id)` returns
+  true or false with unreadable, missing, suspended or broken reason.
+  With default-off `dropsSavedSetup`, SETUP saves FOUND candidates and offers
+  SUSPEND/RESUME. New choices exclude saved suspensions even when the flag is
+  off. Existing trips finish. Mutations migrate to v2 and save before publishing.
+  Each wrapped generation is at most 65536 bytes. Archive generations before
+  rollout; older binaries reject v2. See [drops](server-only/PROTOCOL.md#drops)
+  for the candidate schema, recovery refusal and migration rules.
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
   clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `identify(id)`, `tick(now)`,
   `terminal(model, view, w, h)`, `monitorTouch(side, x, y)`, `assign(id, role)`,
@@ -480,10 +531,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   opens a session-local detail overlay; BACK restores the source page and map view.
   Tick gathers module `turtleView()` snapshots, registry last-seen and lease status;
   rendering reads that cache. Detail actions validate their drawn coordinates.
-  PARK ALL sends mining's `stop`; lumber PARK sends `park <id>` for the selected
-  worker, leaving the other workers running.
-  Mining REMOVE sends `remove <id>` after two taps within five seconds.
-  Lumber removal uses typed commands. Uncertain workers show POSE ? and a
+  With `workerPark=true`, mining and lumber show PARK or RESUME for the
+  selected worker and two-tap REMOVE. Inputs are `park <id>`, `resume <id>` and
+  `remove <id>`. With it off, mining shows PARK ALL for `stop` and REMOVE;
+  lumber shows PARK only. REMOVE confirms within five seconds. Uncertain workers show POSE ? and a
   coordinate editor; RE-ADD
   requires two taps after editing and forwards the existing `add` command.
 - [so-mod-map.lua](../so-mod-map.lua), `map`, registers the top-down screen
@@ -508,7 +559,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Level arrows clamp to -64..319, 1..126 and 1..255 for Overworld, Nether and End.
   Selected-cell and shaft ownership queries search beyond the display-list cap.
   Exports `thumb(C, x, y, w, h)` (status wall)
-  and `crop(C, x, y, w, h, focus)` (alert). The map is its own role with no BACK.
+  and `crop(C, x, y, w, h, focus)` (alert). The map role has no BACK.
+  The status wall's `map` thumbnail opens a map page inside status; its x chip returns.
+  Tick refreshes one assigned mining or lumber worker's newest 20 pose events.
+  Parked or removed workers lose their trails. The cache holds at most 32 workers
+  and 640 poses. Muted dots follow dimension and level filters beneath markers
+  and callouts. They have no time fade. FIT excludes trails; older dots are
+  removed until the serialized frame fits within 15000 bytes. Trails do not latch zoom.
   `docs/ui/schematic/mapdraw.py` and `mapscreen.py` are its Python twins; the
   `view` lines in `tests/ui/map-scene.txt` feed both them and `tests/so/map.lua`.
   See [map](server-only/PROTOCOL.md#map).
@@ -533,6 +590,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Truncation and wrapping preserve UTF-8 codepoints. The pages draw in route A:
   tabs HEALTH and NEEDS n, then EVENTS ALERTS ERRORS, leaders or list rows, and the `prev` and
   `next` chips on the last row ([schematic spec](ui/SCHEMATIC-SPEC.md#23-health-pages)).
+  HEALTH starts with modules, skip, rev, cfg, pos and GPS gap rows. Revision
+  shows eight characters or unknown; cfg lists recognized enabled startup flags.
+  Module rows include load/tick status and errors. Storage uses KB and MB.
+  `attention(facts)` also accepts `gpsGap`, `configError` and `snoozed`, keyed
+  by turtle-id strings. Lost rows show silence age and last world position.
+  Details offer BACK, SNOOZE and OPEN. `display.snoozer(3600000)` hides one
+  turtle's lost row across displays for a game hour. Contact clears it; restart
+  forgets it. OPEN keeps the existing job destination.
   Display inputs receive `event.open(role, actions?)`. Under the role lock it opens
   that screen as a page inside the display's own role (`session.visit`, closed by
   `visit-back`) and sends the listed input IDs to it with the same display session.
@@ -545,11 +610,18 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   forward START and STOP once to the mining or lumber screen.
   Keyboard-equipped panels show the best match and stock, call
   `shop.order(search, count, view)` once and draw the last order and reply below
-  the quantity chips. Shop's count/name sort defines
+  the quantity chips. Chips order the shown item ID. The last order line uses
+  `order:<n>:<item>` to repeat that exact item and count through `shop.order`,
+  still capped at one stack. Shared labels show their namespace, except the
+  single minecraft item under that label. Read-only `fuel auto` uses
+  `shop.fuelConfig()` under the turtles row and on the last pocket JOBS row.
+  It shows off, on, waiting age, timed out or an alert reason once configured.
+  A failing policy read hides it. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
   Monitor panels drop quick search and quantities and show only the job blocks.
-  ALERTS wraps state alerts to two rows as on the pocket; PAIR offers NEW CODE. The panel pages are route A
+  ALERTS lists lost leases by lowest id first, then state alerts wrapped to two
+  rows. The turtles row's N lost button opens this list; PAIR offers NEW CODE. The panel pages are route A
   (twin `docs/ui/schematic/panel.py`, SCHEMATIC-SPEC section 22): job blocks with
   the pocket's facts in columns of 16 to 36 cells, HEALTH and `NEEDS n` chips in
   row 1, ALERTS and PAIR chips on the last row, and bracketed `[FORGET]`,
@@ -566,7 +638,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lumber:start|stop` once. SHOP lists as many `shop.matches` items as fit;
   `pick:<item>` selects, `clear` empties the search, and `order:<1|16|64|stack|all>:<item>`
   under the shown item calls `shop.order(item, count, view)` once while that item
-  still matches the search. ALL has no target at zero stock. Row h-1 shows sent,
+  still matches the search. ALL has no target at zero stock. Tapping the last
+  order repeats its exact item and count. Row h-1 shows sent,
   delivered or failed; row h shows the reply. PAIR draws the code in line digits with a teal
   countdown and uses the same `pair-code` path as the panel. Its PAIRED chip opens
   the paired devices page (per-device FORGET), and ENROLL the batch enroll window
@@ -648,6 +721,23 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   the turtle to let the next probe refresh its fuel and resume the build. A zero-fuel
   report keeps the "out of fuel" hold and sends no movement. Failed movement reports
   "out of fuel" when the worker reports a fuel error or zero fuel.
+  `budget()` returns `{total,remaining,carried}` from blueprint, cursor and
+  inventory. Remaining is an upper bound; carried sums all matching stacks and
+  is nil before inventory arrives. This is a backend model, not a new budget UI.
+  Material changes preserve completed-cell progress. START requires usable
+  storage, a paired certain pose, parkBatch and positive or unlimited fuel.
+  After the initial recovery fuel report, fresh authenticated lease facts can
+  clear a zero-fuel refusal. Numeric -1 becomes unlimited. Add-here locates the
+  turtle, saves assignment and retains its GPS standing reservation before
+  clearing probes. Readiness and service selection use read-only `drops.choose`.
+  `builderFuelTrips` defaults off. When enabled, START also requires usable fuel.
+  Trips budget the work/storage route plus return to fuel, exclude building
+  material as fuel, and retry an empty fuel chest after ten game seconds.
+  An unreachable fuel chest leaves the builder still, polling for manual refuel.
+  Pending placement retains its original material and cursor through recovery.
+  Default-off `builderSolid=true` adds `shape solid` and its shape-cycle entry.
+  It fills the inclusive volume bottom-up, within the 16384-cell volume limit.
+  Restart after changing builder flags.
   See [builder jobs](server-only/BUILD.md).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
@@ -792,6 +882,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   duplicate events after a crash between the event and job saves.
   Wood and supply inspections call `drops.note`. Sapling service reuses a matching
   drop point or registers a stable `storage` point for the drop editor.
+  Default-off `lumberScan=true` enables the overview SCAN chip at width 26 or
+  more and the `scan` command while running. One saved request coalesces taps,
+  waits for current claims, service, queued movement and round cleanup, then
+  clears visited cells and candidates for a new scan. It never starts a stopped
+  farm. Planted times stay intact. Read-only `drops.choose` handles estimates
+  and service selection. Only needed service without a usable chest emits a
+  deduplicated alert; usable fuel or successful refuel clears matching alerts.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
 
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
@@ -800,7 +897,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `drops` and `alerts` toggles. The screen is route A (twin `docs/ui/schematic/ar.py`,
   SCHEMATIC-SPEC section 26): the controller count in the header, then one leader row
   per layer with `[on]` or `[off]`; the whole row is the toggle, with no BACK. Switches save through
-  `so-store` to `so-data/ar`.
+  `so-store` to `so-data/ar`, with a 4096-byte budget. Default-off `arFollowups`
+  adds saved ALL/turtle/drop focus and v2 settings. With `remoteDimensions` too,
+  WORLD/NETHER/END saves a dimension and resets focus to ALL. Broken-chest
+  warnings and consent stay visible under focus. See
+  [AR](server-only/PROTOCOL.md#ar) for validation and downgrade rules.
   Discovery runs at most every five seconds; changed scenes redraw at most once
   per second. Failed controllers are dropped until discovery. Known server
   dimensions filter world elements. Alerts expire after five minutes, renewed
@@ -987,8 +1088,9 @@ a token or selected-server install. Selection merges `server` into
 `so-worker.cfg` or `so-display.cfg` through the installer transaction and keeps
 unrelated fields. A token updates an existing saved server selection to the token's
 server. Without a token or selection, config stays unchanged. These options stage client
-data; consumption depends on the installed client. The current display client
-still uses code pairing. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
+data. Unpaired workers honor the selected server even if discovery finds
+another. Saved keys govern paired boots. The current display client still uses
+code pairing. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
 then the role program. A fresh server install merges
 `pos = { dim = string, x = number, y = number, z = number }` into `so-server.cfg`.
 Rerunning it preserves unrelated settings, including `enroll`.
@@ -1022,7 +1124,23 @@ It deletes `so-enroll` before the swap, because an older worker never reads or
 deletes it.
 Different protocol metadata refuses rollback; missing metadata means protocol 1.
 Client tests measure the peak with one retained release and rollback staging under
-1000000 bytes.
+1000000 bytes. The four core worker sources have a separate 105000-byte test
+budget; that is a source-size guard, not the complete install size.
+See [space admission and offline kits](../README-SERVER-ONLY.md#space-admission-and-offline-kits)
+for the two-stage admission, pinned download resume, trusted-kit warning and
+old-installer refusal. Remote worker updates use at most four API calls and
+fail closed on missing budget headers; see [worker.update](server-only/PROTOCOL.md#workerupdate).
+The admission bound is `2*S-C+L+G+M+4096+512*N`. S is selected code bytes,
+C is verified cached code, L is the largest incomplete file, G is generated
+metadata and fresh config, M covers indexes, swap controls, temporary copies,
+recovery startup and transaction markers, and N counts new files and directories.
+Previous-release bytes already reduce free space. Free space is rechecked before
+writes and swap. Rollback uses local bytes without an unused network cache.
+Kit `so-kit/manifest` is `{version=1,commit,role,files}`; each entry has
+`path`, `bytes`, `blob` and lowercase `sha256`, with bytes at `so-kit/code/<path>`.
+The chooser draws separate SERVER and DISPLAY buttons; only their drawn boxes
+accept touches. Arrow keys and Enter remain available.
+
 `install reset` requires `yes` and deletes writable files on the root drive,
 including pairing keys, except `install.lua` and `/rom`. It skips mounts and
 read-only paths, reports failed deletions and continues with the remaining files.
@@ -1125,7 +1243,9 @@ Do not save inside tight loops.
   occur every 2000 events or when retention needs one. After saving `latest`,
   cleanup removes snapshots older than `n-1`, including `.tmp` and `.bak` files.
   Startup repeats cleanup using the recovered pointer. Snapshots `n` and `n-1`
-  remain available for loading. New jobs stop at 80% disk use.
+  remain available for loading. Warnings begin at 70% and name the largest
+  measured store in MB. Starts and job writes remain allowed below 80% unless
+  events are pending or failed; they refuse at 80%. Pressure stays at 85%.
   Checkpoint n deletes segment generations only below snapshot n-1's `first`.
   Startup preserves those fallback files but reads events from the newest readable
   snapshot's `first`. It uses n-1's `first` only when n is unreadable. Missing
@@ -1148,7 +1268,9 @@ Do not save inside tight loops.
   holds its local monitor role. `pocket` is new in R1; older servers reject a
   file containing it. Old files without `far` remain valid.
   Far displays use scale 1; others use 0.5.
-- `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
+- `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent, partial,
+  previous }`. Previous has at most six aggregate date rows. Each generation is
+  at most 262144 bytes after migration. See [daily](server-only/PROTOCOL.md#daily).
   Recent ore uses game-second buckets `{ total, counts = { [gameMs] = count } }`.
   Bucket keys and timestamp keys are decimal strings. Only the server installs it.
   If `so-data/daily`, `.tmp` and `.bak` have no valid generation, the daily module
@@ -1159,7 +1281,8 @@ Do not save inside tight loops.
   Section files have no aggregate disk bound or automatic pruning. Owner release
   removes reservations only. Marks remain available for recovery across jobs.
 - `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
-- `so-data/ar` holds the four AR layer switches, enabled by default.
+- `so-data/ar` holds the four AR layer switches, enabled by default, and optional
+  v2 dimension/focus with `arFollowups`. See [AR](server-only/PROTOCOL.md#ar).
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
   `so-enroll` holds a client's enrollment token, optional X25519 secret and

@@ -125,7 +125,14 @@ The envelope key is public, so any computer can send a joining client a forged `
 
 ### pair
 
-Legacy pairing, kept for one release so clients from before `pair2` still pair. A recorded `pair` exchange lets a listener test all 10^6 codes offline, because `pair.derive` mixes only public values and the code. The next release removes it.
+Legacy pairing remains available by default so clients from before `pair2` still pair.
+`so-server.cfg.retireLegacyPair=true` retires it at startup. Only literal boolean
+`true` enables retirement. Retired `pair` messages are silently dropped before
+key selection, reply-cache lookup or dispatch. They consume no invitation or
+pairing budget and cannot replace a saved key. Saved pairings remain valid.
+The release notice is [issue #308](https://github.com/140er/computercraft-scripts/issues/308).
+
+A recorded `pair` exchange lets a listener test all 10^6 codes offline, because `pair.derive` mixes only public values and the code. The next release removes it.
 
 The joining computer sends `pair` to the server. `body.pub` is its X25519 public key, 64 lowercase hex characters. The code is not a field.
 
@@ -445,7 +452,8 @@ The server sends 0.5 by default, or 1 for a computer marked far. A monitor appli
 the scale, then sends one `hello` if its character dimensions changed. The resize
 event for the same dimensions does not send another `hello`.
 
-`body.buttons` is a list of `{ id = string, x = number, y = number, w = number, h = number?, label = string }`. The list may be empty.
+`body.buttons` is a list of `{ id = string, x = number, y = number, w = number, h = number?, label = string? }`. The list may be empty.
+Unlabelled hits omit `label`; clients read a missing label as `""`.
 
 `x` and `y` are 1-based character coordinates. `w` is the width in characters. `h` is the height in rows and defaults to 1. Any cell inside the rectangle hits the button.
 
@@ -829,7 +837,18 @@ The optional registry field `eventFuel` saves the last machine event's fuel
 baseline, so cumulative changes still reach the threshold across restarts.
 Older readers ignore that field.
 
-When the disk is 80% full or more, `status` raises the disk alert and new jobs are refused. Other events are still written while the disk accepts them.
+Disk alerts begin at 70% and name the percentage, largest measured store and
+its MB size. Below 80%, starts and job writes remain allowed unless an event
+write is pending or failed. At 80% they refuse. At 85%, `DISK pressure` takes
+priority. Pending-event, failed-write and unknown-capacity messages also take
+priority. Existing work, recovery and stop remain available. Other events still
+write while the disk accepts them. The ledger rescan limit stays 30000 game ms.
+
+`so-log.status()` and `state.diagnostics()` expose `oldestSeq`, `oldestAt`,
+`newestSeq` and `newestAt` for retained event segments, including segments pinned
+for snapshot fallback. Times are UTC event timestamps and can be absent for
+legacy events. All four fields are absent with no retained entries. Restart
+rebuilds the bounds; pruning advances them when it removes segments.
 
 SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, and `input`. SO6 owns wire `history.page`.
 
@@ -840,9 +859,27 @@ SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, a
 to counts. `oreRecent` counts events in `(SO.now() - 600000, SO.now()]` from today's ore, using event `gameAt` or legacy `at`.
 `tick(now)` consumes at most one 50-entry state history page without waiting.
 It counts `mine.ore { id, name, count }` and `lumber.logs { id, count }` by
-event timestamp, ignores other days, and resets totals at Amsterdam midnight.
+`gameAt`, with legacy `at` fallback, for their own retained Amsterdam date.
+Day boundaries follow `SO.now()`. Today and six preceding calendar dates remain.
+A backward clock keeps the latest retained date without resetting it.
 
-The store `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
+`daily.days()` returns seven copied `{date,ore,logs,partial}` rows, oldest first,
+including today. Unknown dates have `ore=false, logs=false, partial=true`.
+Observed counts are finite nonnegative integers. Partial rows contain only known
+counts; history gaps mark retained rows partial. `today()` keeps its existing
+shape and current-day ten-minute `oreRecent`, which resets at midnight.
+
+The store `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent,
+partial, previous }`. `previous` has at most six `{date,ore,logs,partial}` rows
+in date order, with aggregate counts only. Old files without it load with no
+known previous days. A legacy singleton becomes one partial row. Rollover
+archives today and prunes calendar dates, including 23-hour and 25-hour days.
+Current `oreByName` keeps at most 128 exact names of at most 128 bytes; excess
+names count as `other`. Each generation is limited to 262144 bytes. Three
+successfully migrated generations total at most 786432 bytes. An oversized save
+first drops optional recent detail and retries with totals and cursor intact.
+Read-back verification precedes removing oversized backup or temporary files.
+Failed saves or verification keep legacy data recoverable.
 `cursor` is the last consumed sequence, including ignored events. `recent`
 maps decimal game seconds to `{ total, counts }`; `counts` maps decimal game
 milliseconds to ore counts. At most 601 second buckets remain. Counts and
@@ -856,6 +893,93 @@ removes all three files and opens with zero totals and cursor zero. It logs
 `so-daily: unreadable totals reset` once. Its next tick reads retained history
 and saves rebuilt totals. A valid surviving generation preserves saved totals.
 Other store errors still stop the module from loading.
+
+### worker.settings
+
+This authenticated server-to-worker request has `{n,dim?,autoToolSwap?}`.
+`n` is a positive integer within the pairing. At least one setting is required.
+`dim` accepts only `minecraft:overworld`, `minecraft:the_nether` or
+`minecraft:the_end`; `autoToolSwap` accepts only a boolean. Unknown fields refuse.
+Workers advertise `capabilities.workerSettings=true` and `settingsControl` in hello.
+
+Replies use the request rid. Success is
+`ack {command="worker.settings",n,settings={seq,dim?,autoToolSwap,remoteN?}}`.
+Refusal is `err {command="worker.settings",code="settings",n,text}`.
+Equal saved counters return current values; lower counters refuse. Saved
+`settingsRemote={server,n}` and `settingsPair` bind counters to the pairing.
+Replacing the key resets the effective counter while retaining settings.
+Hello carries `settings={seq,dim?,autoToolSwap,remoteN?}`. Missing sequence means
+zero, missing swap means false and missing dimension stays unknown for GPS.
+A new pairing establishes its baseline; only higher sequences replace it afterward.
+
+`lease.settings(id, changes)` returns a rid or nil and a refusal reason. It
+requires server `workerSettings=true`, worker `settingsControl=true`, the
+capability, and no assignment, open lease or lost/uncertain pose. Both flags
+default off. One request per worker remains pending for 15000 game ms.
+`lease.status` and `peek` include copied `settings`, `workerSettings`,
+`settingsControl`, `settingsPending={rid,n}` and `settingsError`.
+
+Local and remote edits use the same durable worker save. The idle guard refuses
+queued/executing batches, uncertain journals, config recovery, expiry recovery,
+nonempty jobs and unexpired leases. Local edits also require server contact
+newer than 60000 game ms. Authenticated unassignment must be newer than 45000
+game ms and echo the latest hello's `idleRid`. Accepting a batch invalidates
+that proof. The server refreshes unchanged status every 30000 game ms.
+Dimension changes with retained history require an explicit re-anchor.
+
+### worker.update
+
+Workers read `/.so-revision` once at boot. Hello advertises the lowercase full
+40-hex running `revision`, or omits it when unknown, plus
+`capabilities.pinnedUpdate=true` and the `remoteUpdates` opt-in. Machine events
+and snapshots retain `revision` as a SHA or false; false clears old knowledge.
+Revision changes emit before heartbeat coalescing and disk-pressure returns.
+A rejected event leaves the previous registry revision intact.
+
+`SO.updateWorker(id)` returns a rid or nil and a refusal reason. It requires
+server `panelUpdates=true` and worker `remoteUpdates=true`, both default off.
+It refuses missing capabilities or revisions, equal revisions, stale workers,
+assignments, open leases or another pending update. Requests are not queued.
+The authenticated request is `worker.update {revision=T}` on the current key.
+The worker checks recovered config, saved API cooldown and its idle guard before
+accepting. A cooldown refusal says `api cooldown`, persists on status repaints
+and starts no installer or reboot.
+
+The reply echoes the request rid. Acceptance is
+`ack {command="worker.update",revision=T,state="accepted"}`. Refusal is
+`err {command="worker.update",code="update",text,revision?}`. The server checks
+sender, current key, rid, command, target and deadline. Unrelated, duplicate or
+expired replies cause no reply. Acceptance changes requested to awaiting reboot;
+only a later hello at T confirms completion. `SO.workerUpdate(id)` returns a
+copy of `{revision,running,state,text,rid}`. At most 128 peers have state.
+Pending requests expire after 120000 game ms as unconfirmed and are not saved.
+
+After acceptance sends successfully, the worker accepts no more leases, exits
+its loop and runs the installed updater's internal no-start path. It reboots
+after success or handled failure. Before reboot it still reports its boot SHA.
+Post-acceptance failures print locally and leave confirmation pending.
+
+Before downloaded code runs, the installed updater resolves branch tip H from
+the fixed GitHub repository. T must be an ancestor of H or equal H. T must
+strictly descend from C, the running and installed worker revision. Compare
+responses must agree on the base and merge-base SHAs and report zero behind.
+Unknown, equal, older, diverged, fork-only or malformed targets refuse. Only a
+locally typed pinned update may skip strict descent, while proving membership.
+Wire requests cannot grant that exception.
+
+An uncached remote attempt uses at most four sequential GitHub API calls,
+including the recursive tree at T after both ancestry checks. Ref, compare and
+tree results stay fixed for the attempt. Known budget must cover all four calls
+before starting. Each response must expose a numeric remaining-budget header
+covering the calls still needed. Missing headers, insufficient budget, 403, 429
+or network errors stop the attempt. There is no automatic API retry or polling.
+Rate-limit refusals save `updateApiRetryAt` in the role config, in UTC seconds,
+using the later Retry-After or reset deadline and at least 60 seconds. Retry-After
+accepts seconds or an HTTP date. Cooldown survives reboot; ancestry proof does not.
+Code uses only the fixed raw HTTPS origin at T with redirects disabled and
+blob, compile and pin checks. Pinned failure has no branch fallback. Trust rests
+in the paired operator, branch history and GitHub/TLS, without a content signature.
+See [installer space and kits](../../README-SERVER-ONLY.md#space-admission-and-offline-kits).
 
 ### lease
 
@@ -1310,12 +1434,11 @@ Rows and map arrows use drawn `turtle:<id>` buttons. The display session retains
 its selected worker and confirmation state; BACK restores the source screen.
 Mining and lumber provide read-only `turtleView()` snapshots for each assigned
 worker. Lumber snapshots keep pose, fuel, inventory, error and pending step per
-worker; spots progress describes the shared farm. Mining PARK ALL forwards
-`stop`; lumber PARK forwards `park <id>` for the selected worker. Mining REMOVE
-forwards `remove <id>`, and uncertain-pose
-RE-ADD forwards `add <id> <x> <y> <z> <facing>` after coordinate confirmation.
-Mining labels its stop action PARK ALL because it stops the whole mining job.
-Lumber exposes PARK and RE-ADD; its command interface also accepts `remove <id>`.
+worker; spots progress describes the shared farm. With `workerPark=true`,
+mining and lumber show PARK or RESUME and two-tap REMOVE for that worker.
+They forward `park <id>`, `resume <id>` and `remove <id>`. With the flag off,
+mining shows PARK ALL for `stop` and REMOVE; lumber shows PARK only.
+Uncertain-pose RE-ADD forwards `add <id> <x> <y> <z> <facing>` after confirmation.
 An armed REMOVE or RE-ADD is drawn as a coral CONFIRM chip with the same id.
 
 
@@ -1390,7 +1513,8 @@ turtle rows, and forwards `mining:start`, `mining:stop`, `lumber:start` and
 selects a match, `clear` empties the search and `order:<count>:<item>` (1, 16
 or 64, `stack` or `all`) under the shown item calls
 `shop.order(item, count, view)` once while that item still matches. ALL has no
-target at zero stock. Row h-1 shows sent, delivered or failed; row h shows the
+target at zero stock. Row h-1 shows sent, delivered or failed; tapping it repeats the same
+`order:<count>:<item>` through the one-stack cap. Row h shows the
 reply. Replies must match the room sender and request id.
 PAIR draws `pair-code` (NEW CODE) and the session's own
 code in line digits. No page changes the saved role. Without the `pocket`
@@ -1718,7 +1842,14 @@ registered screen. Keyboard panels show the best match and stock above the quant
 An order calls `shop.order(search, count, view)` once. Exact ids win; otherwise
 stock count and then item id define the best match. No match sends nothing.
 The last order and the shop's reply appear below the chips. Each panel keeps
-its own view. ALERTS wraps each alert to at most two rows, as on the pocket.
+its own view. ALERTS lists lost leases by lowest id first, then state alerts,
+wrapped to at most two rows. N lost opens that list. Quantity chips order the
+shown item's exact ID. The last order line repeats the same ID and count through
+`shop.order`, capped at one stack, even after a new panel search. Shared stock
+labels show namespaces, except the single minecraft item under that label.
+A read-only `fuel auto` row calls `shop.fuelConfig()` under the turtles row and
+on the last pocket JOBS row. Once configured, it shows off, on, waiting age,
+timed out or the alert reason. A failing read hides it.
 The job probe reads only the rendered header row.
 
 The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
@@ -1875,18 +2006,30 @@ does nothing. The setup tab lists the area, ground, sapling chest and turtle.
 render for a session without `id` keeps the Big Tiles rows `so-mod-panel` probes.
 Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
+`scan` requests one fresh lumber scan round with `so-server.cfg.lumberScan=true`
+and a running farm. The flag defaults off. The overview shows SCAN at widths
+of at least 26 columns. The saved request coalesces repeats and survives restart.
+It waits for targets, trees, service trips, queued motions and round-end cleanup.
+Workers stop claiming scan targets while it waits; existing claims stay held.
+The new round clears visited cells and candidates, observes logs beside the lane
+without waiting for grow timers, and preserves planted timestamps. It never
+starts a stopped farm. Estimates and service selection use read-only
+`drops.choose`. Only a needed service without a usable chest emits a deduplicated
+`lumber.alert`. Usable fuel selection or successful refuel clears the matching
+worker alert; the shared alert clears only for the same worker and text.
+
 ### drops
 
 SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
-`drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert, reason, failedPoint }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension, fewer than 3 inspect failures, and an enabled room sink when the point has `room=true`. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `reason` is `none` when no matching point is configured, or `broken` when all
-matching points have three inspection strikes. When the only matching point is a
+`drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert, reason, failedPoint }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension, fewer than 3 inspect failures, no suspension, and an enabled room sink when the point has `room=true`. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `reason` is `none` when no matching point is configured, or `broken` when all
+matching points have three inspection strikes, or `suspended` when suspension excludes the otherwise matching choices. When the only matching point is a
 marked room point and room sinks are off, `reason` is `none` and the alert reads
 `<kind> room chests off`. `failedPoint` identifies the nearest
 broken point. The alert names the kind, cause and point coordinates. That call also
 emits `drops.alert` with `{ kind, text, reason, point }` when `SO.mods.state.emit` is a function. A call whose first argument is not a string returns nil. `tests/so/so0.lua` calls `pick({ name = "minecraft:cobble", n = 1 })` and gets nil.
 
-`drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken, room?, disabled? }`. Marked room points include `disabled=true` while room sinks are off. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
+`drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken, room?, suspended?, disabled? }`. Marked room points include `disabled=true` while room sinks are off. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
 
 Drop points use the chest's own coordinates. The caller positions the turtle
 beside the chest facing it for `front`, or directly above it for `down`.
@@ -1957,6 +2100,33 @@ unsaved draft. FRONT selects the horizontal cell it faces; DOWN selects `y-1`.
 It maps the server dimension to drop dimensions 0, -1 or 1 and refuses unknown
 maps, moving turtles, stale fixes and uncertain journals. Saving still needs ADD.
 
+With `so-server.cfg.dropsSavedSetup=true`, the first mutation migrates `so-drops`
+to `{v=2,points={...},roomSink=boolean,candidates={...}}`. The flag defaults off.
+Candidates are `{dim,x,y,z,side,block,at}` in discovery order. Dimensions are
+0, -1 or 1; coordinates and `at` are finite integers, with nonnegative game-time
+`at`. Side is front/down and the namespaced block ID is at most 256 bytes.
+The same dimension/coordinate/side replaces an observation. A 65th distinct
+candidate, duplicate keys, sparse arrays and unknown fields refuse. ADD retains
+the candidate. Scans merge FOUND; only confirmed CLEAR FOUND removes saved rows.
+A failed discovery save stops collection, keeps the saved list and returns safely.
+
+Points accept optional boolean `suspended`, default false. `list()` exposes it
+with `disabled=true`. `pick` and read-only `choose` exclude suspended points
+before exact-kind or any fallback; an otherwise fully suspended choice reports
+`reason="suspended"`. `suspend:<id>` and `resume:<id>` save first and issue no
+movement, cancellation or lease command. Committed trips finish. Saved suspensions
+still apply with the flag off; turn it back on to resume them.
+
+`drops.usable(id)` reads the current stable ID without writes or selection.
+It returns true or `false, reason`, with `unreadable`, `missing`, `suspended`
+or `broken`; suspension is checked before strikes. Callers own route and kind
+checks. Legacy files load with no candidates or suspensions. Disabled writes
+keep legacy files unmigrated and retain loaded v2 fields. Mutations validate and
+save the whole envelope before publishing state or revision. Each wrapped
+generation is at most 65536 bytes, or 196608 for three. A newer invalid or
+unsupported generation, or an unreadable generation number, blocks writes and
+selection. Archive all generations before rollout; older binaries reject v2.
+
 ### ar
 
 `so-mod-ar.lua` uses attached cc_ar `ar_controller` peripherals. It exports
@@ -1970,8 +2140,29 @@ ending in `[on]` (green) or `[off]` (muted). Tapping anywhere on a row toggles
 its layer once; the row's button id is the layer name. There is no BACK.
 Gather copies the layer state before the private pure layout renders it.
 All layers are enabled initially. Switches save
-through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
-boolean values. A failed save leaves the current switches unchanged.
+through `so-store` to `so-data/ar`, with a 4096-byte budget, as
+`{ turtles, leases, drops, alerts }` with boolean values. With
+`so-server.cfg.arFollowups=true`, default false, the first edit writes
+`{v=2,turtles,leases,drops,alerts,dim?,focus}`. `dim` is absent or a canonical
+Overworld, Nether or End name. Focus is `{kind="all"}`, `{kind="turtle",id}`
+with integer id 1..2147483647, or `{kind="drop",id}` with up to 128 letters,
+digits, underscores or hyphens. Extra v2 keys, partial focus or other versions
+refuse. Old files load with ALL focus. With the flag off, toggles preserve v2
+fields unused. Failed saves leave settings and scene unchanged.
+
+With follow-ups enabled, `ar-focus` opens the paged ALL/turtle/drop list.
+`ar-more` pages and `ar-back` closes it. `ar-all`, `ar-turtle:<id>` and
+`ar-drop:<id>` validate the target in the drawn dimension before saving.
+A focused turtle keeps its box, trail and reservations for its exact id under
+`mine:`, `lumber:`, `build:`, `setup:` and `gps:`. A focused drop keeps its point.
+Other geometry and branch previews hide, except broken chests. HUD totals,
+alerts, BROKEN and retirement consent stay. A missing target draws nothing and
+reads `missing` until ALL. Keep a four-boolean generation before downgrading;
+older binaries can discard v2 fields on a toggle.
+
+With both `arFollowups` and `remoteDimensions`, WORLD/NETHER/END controls use
+`ar-dim:world|nether|end`. They save `dim` and ALL focus together and redraw on
+the next tick. The saved dimension overrides `arDim` only while both flags are on.
 
 - `turtles` draws a twelve-edge box and a heading chevron for each worker with a
   pose. The chevron stands upright just outside the front face: two lines from
@@ -2135,7 +2326,7 @@ X25519 comes from ccryptolib, MIT, Copyright (c) 2023 Miguel Oliveira. `lib/ccry
 
 ### Rollout
 
-This release accepts both `pair2` and `pair` on the server. Clients send only `pair2`. Update the server first. Then an old client pairs with legacy `pair` and a new client with `pair2`. A new client cannot pair with an old server; it reports `timeout` until the server updates. Pairings from old clients use `pair` and stay open to offline code tests, so update clients before pairing them where you can. The next release drops `pair`, `pair.derive` and `pair.session`; clients that have not updated by then must update before they can pair again. Saved machine keys keep working across both releases.
+With `retireLegacyPair` off, this release accepts both `pair2` and `pair` on the server. Clients send only `pair2`. Update the server first. Then an old client pairs with legacy `pair` and a new client with `pair2`. A new client cannot pair with an old server; it reports `timeout` until the server updates. Pairings from old clients use `pair` and stay open to offline code tests, so update clients before pairing them where you can. Update all clients before enabling retirement and restarting the server. Legacy helpers remain in the code for default-off compatibility. Saved machine keys keep working with either retirement setting.
 
 Keys live in `so-keys` through `so-store`. The saved value is `{ keys = { ["<computer id>"] = "<64 hex>" } }`. On the server, the id is the paired machine. On the machine, the id is the server. The file budget is 200000 bytes.
 
@@ -2356,8 +2547,24 @@ message stable when the error ring changes.
 `HEALTH` pages uptime, game and wall tick cadence, tick cost, event sequence and
 bytes, snapshot age, free disk, modem count, online and lost paired machines,
 open leases, clock reservation and recent errors. Snapshot age is unknown for
-snapshots saved before this change. Health diagnostics do not change the game
-clock or scheduling. Tick cost uses `os.clock()` and has computer tick precision.
+snapshots saved before this change.
+HEALTH starts with `modules`, `skip`, `rev`, `cfg`, `pos` and `GPS gap` rows.
+`rev` shows the first eight revision characters or `unknown`. `cfg` shows the
+recognized enabled startup flags, `defaults` or `unreadable`. Module rows show
+loaded, absent, failed or tick failed status, last-good age and bounded errors.
+Storage uses KB and MB. A GPS gap above two blocks warns without moving the
+saved position. An unreadable existing config warns that defaults are active.
+Startup logs `legacy pair: retired` or `legacy pair: kept`; the next-release
+notice appears only when kept, before discovery opens.
+
+Lost attention rows include silence age and last world position when known.
+Their details offer BACK, SNOOZE and OPEN. SNOOZE calls
+`display.snoozer(3600000)` per turtle across displays. Fresh registry or lease
+contact clears it; expiry restores a still-lost row. Restart clears snoozes.
+OPEN retains the existing job destination. These server-local facts and snoozes
+add no wire message or persisted job, lease or reservation data.
+Health diagnostics do not change the game clock or scheduling. Tick cost uses
+`os.clock()` and has computer tick precision.
 
 `SO.error(text, force?)` prints and records failures. A true force argument
 bypasses the 30000 game-millisecond flush interval. The server forces its final
@@ -2371,9 +2578,10 @@ once per 30 game seconds unless forced, so a power loss can discard recent
 unsaved records.
 The first record can save immediately. Save failures retain pending records and
 appear on HEALTH. `SO.errors.status()` returns `bytes`, `cap`, `count`, `pending`
-and `error`. The byte count includes current, backup and temporary files, for
-integration with the disk ledger. Files already count toward filesystem disk
-pressure. No disk ledger exists on this base.
+and `error`. The byte count includes current, backup and temporary files in the disk ledger.
+`SO.errors.summary()` returns copied `{text,count,first,last}` rows grouped by
+exact retained text in first-appearance order. Times use the game clock. Pending
+records count too. Reading or editing the summary changes no ring or save state.
 
 ## Builder jobs
 
@@ -2384,18 +2592,35 @@ It adds no message types or turtle operations. Workers advertise
 before the worker executes that batch. Builder requires this capability and sets
 the flag on every lease. Older workers receive only recovery inspection leases
 and cannot start builder work. Other jobs keep their existing expiry behaviour.
+`build.budget()` returns `{total,remaining,carried}`. Remaining is an upper
+bound from blueprint and cursor; carried sums matching inventory stacks and is
+nil before the first inventory report. This adds a backend model only.
+START requires usable storage, a paired certain pose, parkBatch and positive or
+unlimited fuel. Wait for the initial stationary recovery report; later fresh
+hello fuel can clear zero-fuel refusal. Numeric -1 becomes unlimited.
+`builderFuelTrips=true` defaults off and also requires a usable fuel chest.
+Fuel trips include a route back to fuel, exclude the building material and retry
+empty fuel chests after ten game seconds. An unreachable chest leaves the
+builder still, polling for manual refuel. Disabling the flag stops saved fuel
+service before further movement. Material edits preserve completed progress.
+Pending placement saves its original material and cursor for reconciliation
+before material or geometry edits. Readiness and service use `drops.choose`.
+
 Its public pure geometry calls are
 `expand(blueprint)` and `import(text)`, both returning a value or `nil, error`.
 The blueprint has inclusive `x1,y1,z1,x2,y2,z2`, `shape` and optional `dim`.
 `expand` emits unique bottom-up placement cells for floor/platform, wall/walls
-and hollow box shapes. `import` reads main builder floor and walls commands.
+and hollow box shapes. With `builderSolid=true`, `shape solid` fills every
+cell bottom-up within the 16384-cell volume limit. Restart after changing
+builder flags. `import` reads main builder floor and walls commands.
 The module also exports `tick()` and `dugProtection(protect)`.
 
 The screen accepts `area x1 y1 z1 x2 y2 z2`, `shape <kind>`, `material <name>`,
 `add <id> [x y z n|e|s|w]`, `import <main builder command>`, `start` and `stop`.
 Its drawn controls are the tabs `tab:job` and `tab:setup` (the old ids `setup` and
 `build-back` still switch them), the shape chips `shape floor`, `shape walls` and
-`shape box` (one `shape-next` chip that cycles them where the three do not fit), `start` and
+`shape box`, plus `shape solid` with default-off `builderSolid=true`
+(one `shape-next` chip that cycles them where the three do not fit), `start` and
 `stop`. The old BACK id `status` is no longer drawn and still does nothing.
 Reservations use `build:<id>`. Supply uses existing storage drop points.
 Saved intents and target inspection reconcile placement after restart.
