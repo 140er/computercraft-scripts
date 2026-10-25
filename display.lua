@@ -300,9 +300,10 @@ C.drawPair = function()
     local w, h = out.getSize()
     if out.clear then out.clear() end
     local f = C.fix
+    local id, go = f and (f.old or C.server), "[Enter] CHANGE SERVER"
     local lines = f and ({
-      { "REPAIR", "Server " .. tostring(f.old or C.server), f.view and "" or "[Enter] CHANGE SERVER" },
-      { "REPAIR", "Leave server " .. tostring(f.old or C.server) .. "?", "[Enter] CHANGE SERVER" },
+      { "REPAIR", "Server " .. id, f.view and "" or go },
+      { "REPAIR", "Leave server " .. id .. "?", go },
       { "REPAIR", "New server: " .. C.digits, "[Enter] USE" },
       { "REPAIR", "Server " .. tostring(f.cand), C.pairError or "", "Code: " .. C.digits },
     })[f.step] or {
@@ -419,6 +420,7 @@ end
 -- Returns true when REPAIR took the event.
 C.fixInput = function(ev, a, c)
   local f, keyed = C.fix, C.phase ~= "live" and C.pair.key(C.server)
+  local p = type(a) == "string" and a:gsub("%s", "")
   if ev == "monitor_touch" then
     if f and f.view then C.closeFix() end
     if not f and keyed and c == 1 and C.repairOn() then
@@ -430,7 +432,7 @@ C.fixInput = function(ev, a, c)
   end
   if not f then
     if not (keyed and (ev == "char" and a == "r" or ev == "mouse_click" and c == 1) and C.repairOn()) then return false end
-    C.fix = { step = 1, at = C.now() }
+    C.fix = { step = 1 }
   elseif f.busy then
     return true
   elseif f.view then
@@ -444,9 +446,8 @@ C.fixInput = function(ev, a, c)
       return true
     end
     if f.step == 2 then
-      -- Discovery only suggests a candidate; the operator confirms it and the code proves it.
+      -- Discovery only suggests a candidate, another server before the old id; the code proves it.
       f.old, C.server, C.digits = C.server, nil, ""
-      -- Any other server found is offered before the old id.
       for _, id in ipairs({ rednet.lookup("so", "server") }) do
         if C.digits == "" or id ~= f.old then C.digits = tostring(id) end
       end
@@ -456,17 +457,16 @@ C.fixInput = function(ev, a, c)
     f.step = f.step + 1
   elseif f.step > 2 and ev == "key" and (a == 259 or a == 14) then
     C.digits = C.digits:sub(1, -2)
-  elseif f.step > 2 and (ev == "char" or ev == "paste") and a:gsub("%s", ""):match("^%d+$") then
+  elseif f.step > 2 and (ev == "char" or ev == "paste") and p:match("^%d+$") then
     -- Like pairing: a seventh digit starts a new code; an over-long paste is ignored.
-    local p, max = a:gsub("%s", ""), f.step == 4 and 6 or 9
+    local max = f.step == 4 and 6 or 9
     C.digits = #C.digits + #p <= max and C.digits .. p or #p <= max and p or C.digits
     if f.step == 4 and #C.digits == 6 then
       C.join()
       return true
     end
   end
-  f = C.fix
-  if f then f.at = C.now() end
+  C.fix.at = C.now()
   C.drawPair()
   return true
 end
