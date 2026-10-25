@@ -1,7 +1,7 @@
 # Schematic spec (route A)
 
-This is the visual system for every server-only screen. It replaces the Big Tiles spec
-([BIG-TILES-SPEC.md](BIG-TILES-SPEC.md)), which stays for the screens not ported yet.
+This is the visual system for every server-only screen. It replaces the historical
+[Big Tiles spec](BIG-TILES-SPEC.md).
 
 Screens are drawn in plain text cells, with no filled tiles, block digits or sextant terrain.
 Structure comes from the CC font's own thin strokes. The background is dark and almost
@@ -91,6 +91,9 @@ muted `·`.
   toggle such as FIT), `off` (`8` on `f`, an inactive chip in a row of choices).
 - Screen-wide actions sit on the last row, view controls on the first, inline chips (steppers,
   categories, order sizes) next to the value they change.
+- A two-tap action reads CONFIRM in coral after the first tap. A second tap within 5 s
+  confirms it; another control or typed text disarms it. Confirmation belongs to the display
+  and the selected item.
 
 ## 7. Navigation inside a role
 
@@ -209,8 +212,10 @@ the map packs its own runs the same way and steps out when a frame would pass 15
 
 Helpers: `U.tone(word)`, `U.mark(line)`, `U.age(ms, long?)` (`now`, `3m`/`3 min`, `2h`/`2 h`),
 `U.arrow(facing)`, `U.filled(n, part, whole)`, `U.g` (glyph bytes), `U.chips` (chip colours),
-`U.palette`, `U.stale`. The Big Tiles canvas methods (`header`, `tile`, `big`, `button`, ...) stay
-for screens not ported yet.
+`U.palette`, `U.stale`. `U.confirm` tracks two-tap actions; `U.confirmChip` draws their armed
+state. The disk page still uses canvas `header`, `alert` and `button`. The unused Big Tiles
+helpers `U.progress`, `U.pocketHeader`, `U.alert`, `U.chipRow`, `U.fleetRows` and canvas `tile`,
+`listRow`, `search`, `big` are removed. Route A uses `C.progress`; drawn output is unchanged.
 
 ## 13. Status
 
@@ -221,7 +226,7 @@ see [display](../server-only/PROTOCOL.md#display).
   seen, jobs with busy, lane and grow, today and server side by side, drops with position and
   state, events with seconds. A rule at column 58, then the map thumbnail (`map.thumb`, at most
   48x30, 40x26 at 100x38) and the display list. Without a thumbnail the display list moves up.
-  Turtles cap at 8 rows, drops at 5, events at 8. A frame over 15000 bytes redraws tight: 5 turtle
+  Turtles cap at 8 rows, drops at 5, events at 8. A frame over 15400 bytes redraws tight: 5 turtle
   rows, 5 events and a 40x26 thumbnail.
 - **Room**, 52x22 and up (57x24): alerts on rows 3 and 4, turtles and jobs on the left, today and
   server on the right, drops in one row, events with minutes to the bottom.
@@ -231,15 +236,29 @@ see [display](../server-only/PROTOCOL.md#display).
 - **Tiny**, anything smaller (15x10): the header, short alerts and leaders for turtles, mining,
   ore, logs, disk and trees as they fit.
 
-More rows than fit end with `+N more`; more alerts than fit end with `+N`. Alert rows are an
-`alerts` button when the state module raised an alert; a broken drop's alert row is a `broken`
-button. The pocket fallback (no panel module) draws the same layout under `FLEET`.
+More rows than fit end with `+N more`; more alerts than fit end with `+N`. Standing alert rows
+open `alerts`; lost-turtle flags open their details and broken-drop flags open `broken`.
+The pocket fallback (no panel module) draws the same layout under `FLEET`.
 
 Some rows are controls that open a page inside the status role; the role itself never changes:
 
 - The `disk` row is a `disk` button that opens the disk page.
-- A broken drop's row, in DROPS or among the alerts, is a `broken` button that opens the drop
-  list on the first broken point.
+- Each turtle row and `#N lost` flag opens that turtle's details with `turtle:<id>`.
+- Every drop row, a room chip or wall row, opens the drop list on that drop with `drop:<id>`.
+  The broken-drop flag keeps `broken` and opens the first broken point. A broken wall drop
+  row is coral throughout, including its position.
+- The wall's map thumbnail opens the map inside the status role; `visit-back` returns.
+- ALERTS opens a status page with the count at the header's right, coral above zero. Flags
+  list standing alerts newest first, with a coral `!`, white text and muted detail when it
+  fits. BACK and `◄ n/N ►` share the last row; the count moves to the header when narrow.
+  Fixtures `alertlist-M/XS/XS2`.
+- Behind `displayAck`, off by default, the `displays` leader reads amber `N · K stale`, or
+  `K stale` when narrow, else grey `N · K unverified` when it fits. Wall DISPLAYS ages count
+  from the last completed frame acknowledgement and turn amber at 10 s. Rows show `waiting`,
+  `unverified`, or amber `stale`, with the age from a minute on. Fixtures `statusack-M/W`.
+
+Unchanged status screens repeat their last frame every 4 s; a model or page change redraws
+on the next tick. Drawn ages advance in 10 s steps.
 
 A page with no back control of its own gets a `×` chip (`visit-back`) at the right end of
 row 1.
@@ -290,7 +309,8 @@ from `tests/ui/shop-stock.tsv`. See [shop](../server-only/PROTOCOL.md#shop) for 
   The pane has the name, leaders for stock, stacks, last hour, category and sub, and craftable
   (above 0), then ORDER with `1 16 64` and `stack all` chips, then the recent orders as
   `• 16 sent  21:14` (green sent, muted delivered, coral failed). Under 13 rows it keeps the name, stock, last hour,
-  ORDER and the orders.
+  ORDER and the orders. Order chips larger than the item's stack are muted; ALL orders the
+  available stock up to one stack.
 - **Footer:** `1 of 2` and the `◄ ►` chips on the last row; a chip with nowhere to go is muted.
   Screens of 16 rows or more keep a blank row under the header and above the footer.
 
@@ -312,10 +332,23 @@ The pocket role at 26x20 (26x19 for older clients); `so-mod-panel.lua` draws it 
   `♠♠♠♠♠♠♠♠♠♣♣♣ 9/12`, `next grow`, `saplings`, `fuel`. Missing values are a muted `-`. START and
   STOP are 11-cell chips two rows under the facts; the one that does nothing now is muted. A
   missing job draws `not loaded` and grey chips without targets.
-- **SHOP:** `> iron_` (muted prompt, teal cursor) with an `×` chip to clear, a hairline, then
-  the matches as leaders, the count amber under 10 and muted at 0. The shown item sits on the
-  panel colour with its `1` `16` `64` chips under it; the last order is on row 19, green when
-  sent, coral when not.
+- **Fuel auto:** JOBS row h shows `fuel auto` when the fuel policy has an output, auto enabled,
+  a waiting order or an alert. It reads `off`, `on`, `waiting 45s`, `timed out` or the alert
+  reason. Fixture `pocket-jobsfuel-P`.
+- **SHOP:** `> iron_` with an `×` chip to clear, then `all low empty` chips, the active one
+  `on`, and matches as leaders. Counts are amber under 10 and muted at 0. The shown item has
+  the panel background, `1 16 64` chips and a second row with STACK and ALL, half width each.
+  A trailing count such as `iron 37` replaces the count chips with `ORDER 37`; over the stack
+  limit it reads muted `MAX 64`. Empty items have no order chips. Matches page on row h-2
+  with `n/N ◄ ►`; a search, clear or filter starts at page 1. Without a room the list reads
+  `! storage room not found`; old stock adds amber `stock stale` above the list.
+- **Order result:** row h-1 keeps the count, item and `sent`, `delivered` or coral `failed`;
+  long item names shorten with `...` so the count and state fit. Row h shows the reply.
+  Tapping the order line repeats its item and count with `order:<n>:<item>`, up to one stack.
+  Shared item labels carry their namespace, such as `CREATE:COPPER INGOT`; the single
+  Minecraft item with that label keeps the bare name. Fixtures `pocket-shoplong-P`,
+  `pocket-shoppage-P`, `pocket-shoplow-P`, `pocket-shopqty-P`, `pocket-shopnoroom-P` and
+  `pocket-shopdupe-P`.
 - **PAIR:** the code in line digits 3 cells wide and 7 tall, a teal 18-cell tick row counting
   its five minutes down with `m:ss`, and NEW CODE on row 18. Without a code the digits read
   `------` in muted grey; `code in use` (amber) when another display holds one. Row 16 holds
@@ -334,17 +367,37 @@ row; `schematic/system.py` is their twin.
   it does not fit. The detail follows, muted, after a blank row. Below it a crop of the map
   around the subject (`map.crop`, one block per cell, the subject inverted) fills down to five
   rows from the bottom, and row h-2 is a coral tick row of the time left out of 5 s. Margins
-  are 4 cells from 40 columns up, else 2. Opened by a tap it has no tick row; any tap
-  dismisses it. Without a crop (no map module, or it failed) the subject's facts take its
-  place as leaders, 30 cells wide: `state`, `where`, `fuel`, `ore`, `seen` for a turtle, `kind`
-  and `state` for a drop.
+  are 4 cells from 40 columns up, else 2. Opened by a tap it has no tick row. The `#id` chip
+  opens its turtle; other taps dismiss, except SNOOZE. Without a crop, the subject's facts
+  take its place as leaders, 30 cells wide: `state`, `where`, `fuel`, `ore`, `seen` for a
+  turtle, `kind` and `state` for a drop.
+- **Snooze:** SNOOZE, id `snooze`, sits at the right of the last inner row when h is at least
+  6 and the inner width at least 8. Its hit follows dismiss and precedes the turtle chip.
+  It suppresses automatic takeovers on that display for 5 minutes, in memory only. Counts
+  remain; alerts raised meanwhile do not queue. After a server restart the newest standing
+  alert takes over once per display.
 - **Unassigned:** the header holds `UNASSIGNED` (or the role whose module is missing) and the
   display id fills the screen in line digits, at most 9 wide and 11 tall, centred. Too small
-  for digits, the id is plain text on row 3.
+  for digits, the id is plain text on row 3. `<id> identify` uses the same page with IDENTIFY
+  for 5 s before returning to the role page.
 - **No server:** the client keeps the last picture and swaps the palette to `U.stale`, then
   draws row 1 on `2` (coral in that palette): ` NO SERVER  0:42` and `retry in 8 s` ending one
   cell from the right edge (`8s`, or nothing, when narrow). Only that row is redrawn each
   second.
+- **Retry:** behind `retryInput`, off by default, a key, character, click or monitor tap in
+  NO SERVER retries the saved server immediately, sharing the timer's limit of one retry
+  per 2 s.
+- **Command input:** on the display's own terminal or pocket, Up and Down recall the last
+  20 sent lines; Down past the newest clears the line, and editing ends recall. Paste adds
+  command text up to 64 characters, without control characters; Enter sends it. During
+  pairing, pasted digits count as typed digits, with spaces removed and six digits
+  submitting once. Other text or a paste longer than six digits does nothing.
+- **Repair:** behind `repairServer`, off by default, a disconnected keyed display opens
+  REPAIR with `r` or a top-row click on its own terminal or pocket. It shows the saved server,
+  CHANGE SERVER, a second confirmation, an editable candidate id and code entry. `[X] CANCEL`
+  remains until `Pairing...` starts. Cancel, failure or 2 minutes idle preserves the old server
+  and key; success selects the proven server. A wall tap opens only the saved-id view;
+  another tap closes it. Wall taps cannot advance the change.
 
 ## 18. Server terminal
 
@@ -360,8 +413,18 @@ FLEET.
   `Rejected` (muted), then their ids in coral.
 - **L:** the whole log under `LOG` with its line count, `[Esc] back  [↑↓] scroll`.
 - **R:** `DISPLAYS` with the count, then id, size (muted) and role (muted when unassigned),
-  `+N more` when they do not fit, the last result above the prompt (two rows when long), and
-  `> 6 shop_` with `[Enter] set  [Esc] back` at the right.
+  the computer label at column 28, cut to the row, and `+N more` when they do not fit. The
+  last result sits above the prompt, two rows when long, then `> 6 shop_` with
+  `[Enter] set  [Esc] back` at the right.
+- **Display commands:** `<id> far on|off` changes text scale to 1 or 0.5 on the next frame,
+  including the server's own monitor. `<id> identify` shows that display's id for 5 s.
+  Unconnected ids are refused. Local monitor taps redraw immediately; the last drawn hit wins.
+- **Stale ids:** the DISPLAYS summary names `#7 stale`, `#7 #9 stale` or `#7 #9 +N stale`.
+- **Freshness:** behind `displayAck`, off by default, R has a right-aligned grey age,
+  `waiting` or `unverified`, or amber `stale <age>`. The label ends one cell before it. The
+  FLEET `displays` leader reads amber `N · K stale` when any are stale; the DISPLAYS summary
+  shows `N unverified` or `all fresh` when none are stale. The server monitor uses its last
+  good local draw. Fixtures `rolesack-T` and `serverstale-T`.
 
 ## 19. Mining
 
@@ -424,13 +487,19 @@ FLEET.
 
 ## 21. Drop points
 
-`so-mod-drops.lua` draws it. Fixtures `drops-M/L/P/XS` and `dropsadd-M/P/XS`.
+`so-mod-drops.lua` draws it. Fixtures `drops-M/L/P/XS`, `dropsadd-M/P/XS`, `dropsedit-M/P`,
+`dropsremove-P/XS`, `dropsdim-P` and `dropspreview-M/P`.
 
 - **List:** `DROP POINTS` (`DROPS` below 30 columns) with the count, or `◄ 1/2 ►` when
   it pages. Columns id, kind, where, side; the selected row has the panel background;
   a broken point's id and kind are coral. Up to two flags (`! 3 junk broken`) follow the
-  table. FIX (primary when the selection is broken, muted otherwise), REMOVE (stop)
-  and ADD sit on the last row and act on the selection. At most 24 rows per page.
+  table. FIX is teal for a broken selection, EDIT plain otherwise. REMOVE is coral and
+  reads CONFIRM when armed. ADD shares the last row. At most 24 rows per page.
+- **Dimension:** an ALL / WORLD / NETHER / END chip appears in the list bar once points cover
+  two dimensions, or while a filter is set. A filter uses `on`, keeps the original point
+  numbers and filters before paging. Narrow screens shorten the title to DROPS, shorten
+  labels to OVW/NTH/END, then drop the title to keep the chip. Opening a point from another
+  screen clears a filter that hides it.
 - **Plan (room monitors):** behind a rule, the chests around home at one block per cell
   when they fit, labelled by row number, with `@ server`, `º shaft` and the farm edge for
   context. Both farm corners are in the fit, so the edge is always drawn. The selected
@@ -439,17 +508,40 @@ FLEET.
 - **Editor:** `ADD DROP POINT`, chips for kind and side, steppers for dim, x, y and z,
   ADD and BACK. Room monitors draw the plan with the draft as an inverted teal `•`.
   Results show in the row above the actions: `point added` in green, errors as a flag.
+  EDIT opens `EDIT POINT n` with SAVE and green `point saved`, keeping the point's id.
+- **Drafts:** each display keeps its own draft, including across reconnects. After 5 minutes
+  without input it drops the unsaved draft and returns to the list. A FOUND chest uses the
+  last draft's kind, ore initially. ADD or BACK returns to setup and leaves the candidate
+  listed for another kind; a NEW editor stays open after ADD.
 - **Chest setup:** `CHEST SETUP`, the selected point, then TURTLES with a `scan` chip each
   and FOUND with an `add` chip each. The setup turtle's bullet is amber, or coral after
   a failed step, with a `release` chip. A turtle without a facing shows `FACING #id` with
   N E S W chips and a `cancel` chip two rows down. TEST, FIX and BACK sit on the last row.
   BACK and `cancel` drop the prompt.
+- **Test selection:** tapping a turtle row selects it for TEST with background `7`; a second
+  tap clears it. `PREVIEW #id` above TURTLES has a kind chip and shows the chest, `any`
+  fallback or `HOLD`, without raising an alert. Typed `test N` and `room N on|off` use list
+  numbers.
+- **Saved setup:** behind `dropsSavedSetup`, off by default, FOUND shows its saved count and
+  bracketed ADD actions. The selected point offers SUSPEND or RESUME and muted `suspended`
+  feedback. CLEAR FOUND takes two taps per display. Controls wrap over the footer on narrow
+  screens; the header's `+` pages turtles and FOUND. Drafts and selection remain session
+  state. Fixtures `dropssaved-M/P/XS`.
+- **Queue:** behind `dropsTestQueue`, off by default, SETUP shows per-display selection marks,
+  TEST ALL, CHECK SELECTED, STOP QUEUE and BACK. CHECK SELECTED shortens to CHECK below 18
+  columns. The header's `+` pages points by stable id. Shared progress shows completed/total,
+  the current point and `testing`, `stopping`, `stopped` or `done`. TOOLS opens scan, single
+  TEST and recovery; QUEUE in its header returns. At 15x10 a content row keeps paged SCAN,
+  RELEASE and candidate ADD reachable. New admission feedback belongs to the display and
+  takes precedence over an old stop reason. FACING keeps all four directions, CANCEL and
+  BACK at every size. The twelve `dropsqueue-*` fixtures cover these states.
 
 ## 22. Panel
 
 `so-mod-panel.lua` draws the panel role; `schematic/panel.py` is the twin. Fixtures
-`panel-M/W/L/S/XS/P`, `panelalerts-M`, `panelpair-P/S`, `panelcode-P/S/M`, `paired-P/S/M` and
-`enroll-P/S/M`, from `tests/ui/panel-scene.txt` and the status and system scenes.
+`panel-M/W/L/S/XS/P`, `panelalerts-M`, `panelpair-P/S`, `panelcode-P/S/M`, `paired-P/S/M`,
+`enroll-P/S/M`, `panelfuel-M`, `paneldupe-P`, `panelqty-P` and `panelnoroom-P`, from
+`tests/ui/panel-scene.txt` and the status and system scenes.
 
 - **Header:** `PANEL`, then on the main page with the health module (26x12 and up) a `HEALTH`
   chip and a `NEEDS 2` chip with the count amber above 0, a hairline, and the time. Pages have
@@ -462,8 +554,20 @@ FLEET.
   facts (section and START STOP only). A refused start is a flag above the chips (`! home not
   set`). A job that is not loaded shows its section and grey chips. ALERTS and PAIR are chips
   on the last row.
-- **ALERTS:** the section with the count in coral, one flag per alert, `◄ 1/2 ►` and BACK on
-  the last row.
+- **Shop block:** six rows hold the section, search, best match and stock, order chips, last
+  order and reply. A typed count replaces `1 16 64` with `ORDER n`; counts over the stack
+  limit are refused as `bad count`. Without a room it reads coral `storage room not found`
+  over muted chips.
+  Shared labels carry their namespace as on pocket SHOP. Tapping the last order repeats its
+  item and count, even after a new search.
+- **Fleet controls:** `N lost` in the row-3 turtles leader opens ALERTS. When the fuel policy
+  is set up, `fuel auto` follows on row 4 and the blocks move down one row. It uses the same
+  states as pocket JOBS.
+- **ALERTS:** the section with the count in coral, one flag per alert, wrapping long text
+  over two rows as on the pocket, with `◄ 1/2 ►` and BACK on the last row. Lost leases each
+  add a `#id lost` row, lowest id first, before state alerts. `Storage room full` occupies
+  one row while the selected room reports full and disappears when it clears; repeated
+  reports add no rows.
 - **PAIR:** the code in line digits from row 3, as large as fit (up to 9 by 11; 3 by 5 at
   29x12), the teal tick row under it, PAIRED (and ENROLL) on row h-2, NEW CODE and BACK on the
   last row. Under 12 rows the code is plain text.
@@ -526,7 +630,8 @@ of `tests/ui/other-scene.txt`.
 `U.turtle.render` in `so-ui.lua` draws them (the overlay that `so-mod-display.lua` opens from
 `turtle:<id>`); `schematic/other.py` is the twin. Fixtures `turtle-P/S/M` and `turtlepose-P/S`,
 from the `detail` and `draft` lines of `tests/ui/other-scene.txt` (the turtle
-`tests/ui/w2screens.lua` builds through the real mining module).
+`tests/ui/w2screens.lua` builds through the real mining module). Fixtures `turtlepark-P` and
+`turtlepose-M` cover the individual worker controls and wide pose editor.
 
 - **Header:** `TURTLE #2` and the state word at the right in its tone; `pose ?` in coral while
   the pose is uncertain, `unassigned` muted.
@@ -534,16 +639,21 @@ from the `detail` and `draft` lines of `tests/ui/other-scene.txt` (the turtle
   pose, fuel (amber under 64), inventory (`1/16 · 14`), lease, step, ore and seen, then the
   progress row: `b1` (the one-based branch) or `spots`, a tick row and `12/48`. Leaders drop
   from the end when rows run out.
-- **Controls:** PARK ALL (mining) or PARK (lumber), REMOVE in coral, RE-ADD in teal for an
+- **Controls:** PARK ALL and coral REMOVE for mining, PARK for lumber, RE-ADD in teal for an
   uncertain pose; an armed REMOVE or RE-ADD reads CONFIRM in coral. They flow over the last
   rows from column 2 and BACK sits at the right end of the last row, beside them when it fits.
+  Behind `workerPark`, off by default, mining and lumber show PARK for the individual worker,
+  RESUME once parked, and two-tap REMOVE.
 - **Pose editor:** `POSE` with the draft at the right, then x, y, z and facing as `-` value `+`
   (ids `pose:<axis>:-1` and `pose:<axis>:1`), RE-ADD and BACK (`turtle-cancel`) on the last row.
+  From 36 columns a `step 1` / `step 10` chip follows RE-ADD and sets the x, y and z step;
+  facing still turns one step. Opening the editor or narrowing below 36 resets the step to 1.
 
 ## 26. AR goggles
 
 `so-mod-ar.lua` draws the `ar` screen and the goggles canvas; `schematic/ar.py` is the screen's
-twin. Fixtures `ar-M/W/L/P/S/XS/A/AS`, from the models in `tests/ui/ra3-ar.lua`.
+twin. Fixtures `ar-M/W/L/P/S/XS/A/AS`, from the models in `tests/ui/ra3-ar.lua`, and
+`ar-FM/FS/FXS/PM/PXS/PS`, from `tests/ui/ar.lua`.
 
 - **Header:** `AR GOGGLES` and the controller count at the right (`1 controller`, `2
   controllers`), the number alone when the words do not fit.
@@ -556,6 +666,17 @@ twin. Fixtures `ar-M/W/L/P/S/XS/A/AS`, from the models in `tests/ui/ra3-ar.lua`.
   rows, directly after them at step 1 or after one blank row at step 2. The next row has
   a coral `!` and white alert text. Both rows are one `alert:next` hit; a tap steps to the
   next alert. The section and text appear only where both rows fit.
+- **Focus:** behind `arFollowups`, off by default, a `focus` leader after the layers ends in
+  `[all]`, `[#id]`, `[drop #n]` or coral `[missing]`; its full row is `ar-focus`. With
+  `remoteDimensions` too, WORLD NETHER END follows, shortened to OVER NETH END below 20 columns.
+  The drawn dimension is green, others muted, each an `ar-dim:<world|nether|end>` hit.
+  These rows keep the layer spacing; alerts follow where they fit. Changing dimension resets
+  focus to ALL. Turtle focus keeps that turtle and its reservations; drop focus keeps the
+  point. Warnings and HUD totals remain. An unavailable target shows `[missing]` without
+  falling back to ALL.
+- **Focus list:** the FOCUS section shows `page/pages` when needed, then ALL, turtle and drop
+  rows at the layer spacing, the current one green and each a full-width hit. BACK, id
+  `ar-back`, sits bottom left; MORE, id `ar-more`, bottom right when more pages exist.
 - **HUD:** one hairline-ruled panel at GUI `(4,72)` on translucent navy `f` (alpha E0): cells
   of 64 units for TURTLES, ALERTS and DISK, muted caps labels,
   white values, coral when a turtle is lost, an alert is active or the disk is at 80% or more.
