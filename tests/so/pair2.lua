@@ -132,6 +132,192 @@ local function entropy(m, failures, silent)
 end
 
 return function(test, equal)
+  test("legacy retirement publishes the D1 notice before server discovery and pairing", function()
+    local notice = "The next server-only release removes legacy pair. " ..
+      "Old turtles must run install update before pairing again. " ..
+      "Update pockets and wall displays too. Saved pairings keep working. Updated clients use pair2 only."
+    for _, enabled in ipairs({ false, true }) do
+      local net, server = boot(false, false, nil, function(m)
+        m.files["so-server.cfg"] = H.encode({ retireLegacyPair = enabled })
+        local host = m.env.rednet.host
+        m.env.rednet.host = function(...)
+          m.env.NOTICE_BEFORE_HOST = logtext(m):find(notice, 1, true) ~= nil
+          return host(...)
+        end
+      end)
+      equal(server.env.NOTICE_BEFORE_HOST, true)
+      pressP(net, server)
+      local log = logtext(server)
+      assert(log:find(notice, 1, true) < log:find("Pair code:", 1, true))
+    end
+  end)
+
+  for _, spec in ipairs({ { "absent" }, { "off", false }, { "string true", "true" }, { "number", 1 } }) do
+    test("legacy pair keeps its keyed reply with retirement " .. spec[1], function()
+      local net, server = boot(false, false, nil, function(m)
+        if spec[2] ~= nil then m.files["so-server.cfg"] = H.encode({ retireLegacyPair = spec[2] }) end
+      end)
+      local old = client(net, 2, true)
+      equal(join(net, old, pressP(net, server)), { "ok" })
+      equal(savedKey(old, 1), savedKey(server, 2))
+      local reply = server.sent[#server.sent].payload
+      equal(reply.t, "ack")
+      assert(reply.body.proof, "legacy keyed proof missing")
+      equal(types(old).pair2, nil)
+    end)
+  end
+
+  test("legacy pair gets no keyed reply with retirement on and leaves the invitation usable", function()
+    local net, server = boot(false, false, nil, function(m)
+      m.files["so-server.cfg"] = H.encode({ retireLegacyPair = true })
+    end)
+    local code = pressP(net, server)
+    local old = client(net, 2, true)
+    local sent = #server.sent
+    equal(join(net, old, code, 1, server.id, 15), { "timeout" })
+    equal(types(old).pair, 2)
+    equal(#server.sent, sent, "retired legacy pair received a reply")
+    equal(savedKey(old, 1), nil)
+    equal(savedKey(server, 2), nil)
+    equal(server.env.SO.pair.pending(), code)
+    equal(server.env.SO.pair.rejected(), {})
+    local fresh = client(net, 3)
+    equal(join(net, fresh, code), { "ok" })
+    equal(savedKey(fresh, 1), savedKey(server, 3))
+    equal(types(fresh).pair, nil)
+  end)
+
+  test("legacy retirement drops keyed requests before cached replies while saved pairings work", function()
+    local net, server = boot(false, false, nil, function(m)
+      m.files["so-server.cfg"] = H.encode({ retireLegacyPair = true })
+    end)
+    local c, key = client(net, 2), string.rep("a", 64)
+    assert(server.env.SO.pair.remember(c.id, key))
+    c.spawn([[proto = dofile("so-proto.lua")]])
+    net.flush()
+    local hello = c.env.proto.build(key, "hello", {})
+    c.env.rednet.send(1, hello, "so")
+    net.flush()
+    local cached = server.sent[#server.sent].payload
+    equal(cached.t, "ack")
+    assert(c.env.proto.macOk(key, cached), "saved key no longer authenticates")
+    local code = pressP(net, server)
+    local hs = server.env.SO.pair.derive(code, 1, c.id)
+    server.env.SO.pair.derive = function() error("retired derive called") end
+    server.env.SO.pair.session = function() error("retired session called") end
+    local sent = #server.sent
+    for _, mac in ipairs({ key, hs, server.env.SO.pair.envelopeKey() }) do
+      for _ = 1, 12 do
+        local msg = c.env.proto.build(mac, "pair", { pub = string.rep("ab", 32) }, hello.rid)
+        c.env.rednet.send(1, msg, "so")
+      end
+    end
+    net.flush()
+    equal(#server.sent, sent, "retired pair reused a cached keyed reply")
+    equal(server.env.SO.pair.pending(), code)
+    equal(server.env.SO.pair.rejected(), {})
+    equal(savedKey(server, c.id), key)
+    assert(not logtext(server):find("retired derive called", 1, true))
+    assert(not logtext(server):find("retired session called", 1, true))
+    c.env.rednet.send(1, hello, "so")
+    net.flush()
+    equal(#server.sent, sent + 1)
+    equal(server.sent[#server.sent].payload, cached)
+  end)
+
+  test("legacy retirement reads a recovered startup config and enrollment saves preserve the flag", function()
+    for _, path in ipairs({ "so-server.cfg.tmp", "so-server.cfg.bak" }) do
+      local net, server = boot(false, false, nil, function(m)
+        m.files[path] = H.encode({ retireLegacyPair = true, keep = "me" })
+      end)
+      assert(server.files["so-server.cfg"], "startup did not recover config")
+      assert(server.env.SO.enroll.setEnabled(true))
+      assert(server.env.SO.enroll.setEnabled(false))
+      equal(server.env.textutils.unserialize(server.files["so-server.cfg"]),
+        { retireLegacyPair = true, enroll = false, keep = "me" })
+      local old = client(net, 2, true)
+      equal(join(net, old, pressP(net, server), 1, server.id, 15), { "timeout" })
+      equal(savedKey(server, 2), nil)
+      equal(#server.sent, 0)
+    end
+  end)
+
+  for _, spec in ipairs({ { "wall display", 3, true, 29, 12 }, { "pocket", 1, false, 26, 20 } }) do
+    test("legacy retirement keeps " .. spec[1] .. " pairing and B1-U repair on pair2", function()
+      local net, server = boot(false, false, nil, function(m)
+        m.files["so-server.cfg"] = H.encode({ retireLegacyPair = true })
+      end)
+      local d = net.machine({ id = 2, modem = true, monitor = spec[3],
+        width = spec[4], height = spec[5], capacity = 1000000 })
+      d.install({ "display.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" })
+      libs(d)
+      if not spec[3] then d.env.pocket = {} end
+      local cfg = H.encode({ repairServer = true, keep = "me" })
+      d.files["so-display.cfg"] = cfg
+      d.boot("display.lua")
+      net.flush()
+      local function event(...)
+        d.env.os.queueEvent(...)
+        net.flush()
+        assert(d.alive(), tostring(d.error))
+      end
+      local function digits(code)
+        for digit in code:gmatch(".") do event("char", digit) end
+      end
+      digits(pressP(net, server))
+      net.advance(3)
+      equal(savedKey(d, 1), savedKey(server, d.id))
+      assert(savedKey(d, 1), "display did not pair")
+      equal(types(d).pair2, 2)
+      local old = savedKey(d, 1)
+      net.kill(server)
+      net.hosts.so = nil
+      net.advance(45)
+      local replacement = net.machine({ id = spec[2], modem = true })
+      replacement.install(SERVER)
+      libs(replacement)
+      replacement.files["so-server.cfg"] = H.encode({ retireLegacyPair = true })
+      replacement.boot("so-server.lua")
+      net.flush()
+      assert(replacement.alive(), tostring(replacement.error))
+      event("char", "r")
+      equal(d.screen[1], "REPAIR")
+      for step = 1, 4 do
+        event("monitor_touch", "right", 2, 1)
+        event("monitor_touch", "right", 2, 3)
+        equal(savedKey(d, 1), old, "public monitor tap changed trust")
+        equal(types(d).pair2, 2, "public monitor tap started pairing")
+        if step < 4 then event("key", 257) end
+      end
+      local code = pressP(net, replacement)
+      digits(wrong(code, 1))
+      net.advance(3)
+      equal(savedKey(d, 1), old, "failed repair replaced the old key")
+      assert(table.concat(d.screen, "\n"):find("Pair failed", 1, true))
+      digits(code)
+      net.advance(3)
+      equal(savedKey(d, replacement.id), savedKey(replacement, d.id))
+      assert(savedKey(d, replacement.id) ~= old, "repair did not replace the key")
+      if replacement.id ~= 1 then equal(savedKey(d, 1), nil) end
+      equal(d.files["so-display.cfg"], cfg)
+      equal(types(d).pair, nil)
+      equal(types(d).pair2, 6)
+      net.kill(d)
+      d = net.boot(d)
+      net.flush()
+      net.advance(3)
+      assert(d.alive(), tostring(d.error))
+      local hello, sub = false, false
+      for _, entry in ipairs(d.sent) do
+        equal(entry.id, replacement.id, "reboot contacted the old server")
+        if entry.payload.t == "hello" then hello = true end
+        if entry.payload.t == "view.sub" then sub = true end
+      end
+      assert(hello and sub, "repaired display did not reconnect after reboot")
+      equal(savedKey(d, replacement.id), savedKey(replacement, d.id))
+    end)
+  end
+
   test("pair2 atomic replacement keeps only the proven peer on same-id and different-id repair", function()
     for _, previous in ipairs({ 0, 1 }) do
       local net, server = boot()
