@@ -14,6 +14,9 @@ local C = {
   timer = nil,
   lastFrame = math.floor(os.clock() * 1000 + 0.5),
   retryAt = 0,
+  lastRetry = nil,
+  history = {},
+  recall = nil,
   stock = {},
   out = nil,
   proto = dofile("so-proto.lua"),
@@ -21,6 +24,10 @@ local C = {
 }
 
 C.now = function() return math.floor(os.clock() * 1000 + 0.5) end
+
+-- retryInput (so-display.cfg, default off): in NO SERVER any key or tap retries at once.
+local cfg = C.store.read and C.store.read("so-display.cfg")
+C.retryInput = type(cfg) == "table" and cfg.retryInput == true
 
 C.pair = dofile("so-pair.lua")
 C.pair.open(C.proto, C.store, C.now)
@@ -306,6 +313,11 @@ C.drawPair = function()
 end
 
 C.retry = function()
+  -- Every keyed retry, in any phase, waits out the shared 2 s limit.
+  if C.server and C.pair.key(C.server) and C.retryWait() > 0 then
+    C.arm(C.retryWait() / 1000)
+    return
+  end
   C.openModems()
   C.output()
   if not C.server or (not C.pair.key(C.server) and C.digits == "") then
@@ -316,6 +328,7 @@ C.retry = function()
     C.phase = C.repair and "pairing" or "stale"
     C.sendHello()
     C.sendSub()
+    C.lastRetry = C.now()
     -- Still stale: the picture is already there, only its row changes.
     if C.repair then C.drawPair() elseif was == "stale" then C.drawStale() else C.clipDraw() end
   else
@@ -324,6 +337,25 @@ C.retry = function()
   end
   C.attempt = C.attempt + 1
   C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
+end
+
+-- With retryInput on, timers and input share one hello/view.sub pair per 2 s.
+C.retryWait = function()
+  if not C.retryInput or not C.lastRetry then return 0 end
+  return math.max(0, C.lastRetry + 2000 - C.now())
+end
+
+-- Steps through sent lines; Down past the newest clears the line.
+C.recallStep = function(step)
+  if not C.recall and step > 0 then return end
+  local n = (C.recall or #C.history + 1) + step
+  if n < 1 then return end
+  if n > #C.history then
+    C.recall, C.typed = nil, ""
+  else
+    C.recall, C.typed = n, C.history[n]
+  end
+  C.clipDraw()
 end
 
 C.join = function()
@@ -356,6 +388,10 @@ C.loop = function()
       end
     elseif ev == "timer" and a == C.timer then
       if C.phase == "live" then C.markStale() else C.retry() end
+    elseif C.phase == "stale" and C.retryInput
+      and (ev == "key" or ev == "char" or ev == "monitor_touch" or ev == "mouse_click") then
+      -- A retry only re-sends hello to the saved server; it never changes C.server or keys.
+      if C.retryWait() == 0 then C.retry() end
     elseif ev == "rednet_message" and c == "so" and a == C.server and type(b) == "table" then
       if C.pair.repairHint(a, b, C.server) then
         C.repair = true
@@ -370,6 +406,14 @@ C.loop = function()
       C.digits = #C.digits < 6 and C.digits .. a or a
       C.drawPair()
       if #C.digits == 6 then C.join() end
+    elseif ev == "paste" and C.phase == "pairing" and type(a) == "string" then
+      -- Pasted digits join the code like typed ones; anything else, or a code over six, is ignored.
+      local p = a:gsub("%s", "")
+      if p:match("^%d+$") and #p <= 6 then
+        C.digits = #C.digits + #p <= 6 and C.digits .. p or p
+        C.drawPair()
+        if #C.digits == 6 then C.join() end
+      end
     elseif ev == "key" and C.phase == "pairing" and (a == 259 or a == 14) then
       C.digits = C.digits:sub(1, -2)
       C.drawPair()
@@ -382,14 +426,21 @@ C.loop = function()
         C.clipDraw()
       end
     elseif ev == "char" and C.phase == "live" and type(a) == "string" and #C.typed < 64 then
-      C.typed = C.typed .. a
+      C.typed, C.recall = C.typed .. a, nil
       C.clipDraw()
+    elseif ev == "paste" and C.phase == "live" and type(a) == "string" then
+      C.typed, C.recall = (C.typed .. a:gsub("%c", "")):sub(1, 64), nil
+      C.clipDraw()
+    elseif ev == "key" and (a == 265 or a == 200 or a == 264 or a == 208) and C.phase == "live" then
+      C.recallStep((a == 265 or a == 200) and -1 or 1)
     elseif ev == "key" and (a == 259 or a == 14) and C.phase == "live" then
-      C.typed = C.typed:sub(1, -2)
+      C.typed, C.recall = C.typed:sub(1, -2), nil
       C.clipDraw()
     elseif ev == "key" and (a == 257 or a == 28) and C.phase == "live" and C.typed ~= "" then
       local text = C.typed
-      C.typed = ""
+      C.typed, C.recall = "", nil
+      if C.history[#C.history] ~= text then C.history[#C.history + 1] = text end
+      if #C.history > 20 then table.remove(C.history, 1) end
       C.send("input", { text = text, x = 1, y = 1 })
       C.clipDraw()
     elseif ev == "monitor_resize" or ev == "term_resize" or ev == "peripheral" or ev == "peripheral_detach" then
