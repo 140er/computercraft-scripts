@@ -8,7 +8,8 @@ local function fixture(at, files, old)
   local m = n.machine({id=1,directories=true,capacity=16000000})
   m.install({"so-store.lua","so-ui.lua","so-mod-daily.lua"})
   for path, text in pairs(files or {}) do m.files[path] = text end
-  local e, s = m.env, {now=at,events={}}
+  local e, s = m.env, {now=at,wall=at,events={}}
+  e.os.epoch = function() return s.wall end
   e.SO = {mods={},now=function() return s.now end}
   e.SO.store = e.dofile("so-store.lua")
   if old then assert(e.SO.store.store("so-data/daily",function() return true end).save(old)) end
@@ -21,12 +22,13 @@ local function fixture(at, files, old)
   end}}
   s.daily = e.dofile("so-mod-daily.lua")
   s.m, s.e = m, e
-  s.tick = function(at)
+  s.tick = function(at, wall)
     s.now = at or s.now
+    s.wall = wall or at or s.wall
     s.daily.tick(s.now)
   end
   s.add = function(kind, count, at, name)
-    local ev = {seq=#s.events+1,gameAt=at or s.now,at=n.time,kind=kind,
+    local ev = {seq=#s.events+1,gameAt=at or s.now,at=at or s.wall,kind=kind,
       data={name=name or "minecraft:diamond",count=count}}
     s.events[#s.events+1] = ev
     return ev
@@ -87,11 +89,11 @@ return function(test, equal)
       s.add("lumber.logs",day*2)
       s.tick()
     end
-    s.tick(midnight[8]-1)
+    s.tick(s.now,midnight[8]-1)
     local before = s.daily.days()
     equal(#before,7) equal(before[1].date,"2026-10-19") equal(before[1].ore,1)
     equal(before[7].date,"2026-10-25") equal(before[7].ore,7)
-    s.tick(midnight[8])
+    s.tick(s.now,midnight[8])
     local after = s.daily.days()
     equal(#after,7) equal(after[1].date,"2026-10-20") equal(after[1].ore,2)
     equal(after[7],{date="2026-10-26",ore=0,logs=0,partial=false})
@@ -107,23 +109,49 @@ return function(test, equal)
       s.tick(midnight[day]) s.add("mine.ore",day) s.tick(midnight[day]+60000)
     end
     local r = fixture(midnight[8],s.m.files)
+    r.now = s.now
     r.events = s.events
     r.tick()
     equal(r.daily.days()[1].date,"2026-10-20") equal(r.daily.days()[1].ore,2)
     equal(r.daily.days()[6].ore,7) equal(r.daily.today().ore,0)
     equal(r.saved().cursor,7) equal(#r.saved().previous,6)
     local again = fixture(midnight[8],r.m.files)
+    again.now = r.now
     again.events = r.events again.tick()
     equal(again.daily.days(),r.daily.days())
   end)
 
-  test("daily rollover follows SO.now even when the wall clock does not advance", function()
+  test("daily UTC controls dates while game time controls recent ore", function()
     local s = fixture(midnight[1])
-    local wall = s.e.os.epoch("utc")
+    s.now = midnight[8]
+    equal(s.daily.days()[7].date,"2026-10-19")
     s.add("mine.ore",3) s.tick()
-    s.tick(midnight[2]-1) equal(s.daily.today().date,"2026-10-19")
-    s.tick(midnight[2]) equal(s.daily.today().date,"2026-10-20")
-    equal(s.daily.days()[6].ore,3) equal(s.e.os.epoch("utc"),wall)
+    equal(s.daily.today().date,"2026-10-19") equal(s.daily.today().oreRecent,3)
+    s.tick(s.now+599999,s.wall)
+    equal(s.daily.today().date,"2026-10-19") equal(s.daily.today().oreRecent,3)
+    s.tick(s.now+1,s.wall) equal(s.daily.today().oreRecent,0)
+    s.tick(s.now,midnight[2]-1) equal(s.daily.today().date,"2026-10-19")
+    s.tick(s.now,midnight[2]) equal(s.daily.today().date,"2026-10-20")
+    equal(s.daily.days()[6].ore,3)
+  end)
+
+  test("daily events use their UTC date even when gameAt is on another date", function()
+    local s = fixture(midnight[7]) s.now = midnight[1]
+    s.add("mine.ore",5)
+    local logs=s.add("lumber.logs",8,midnight[6]) logs.gameAt=midnight[7]
+    s.tick()
+    equal(s.daily.today().date,"2026-10-25") equal(s.daily.today().ore,5)
+    equal(s.daily.today().oreRecent,5) equal(s.daily.today().logs,0)
+    equal(s.daily.days()[6].logs,8)
+    local r=fixture(s.wall,s.m.files) r.now=s.now r.events=s.events r.tick()
+    equal(r.daily.days(),s.daily.days()) equal(r.daily.today(),s.daily.today())
+  end)
+
+  test("daily valid UTC events keep totals when their game timestamp is malformed", function()
+    local s=fixture(midnight[7])
+    local ev=s.add("mine.ore",7) ev.gameAt="invalid"
+    s.tick()
+    equal(s.daily.today().ore,7) equal(s.daily.today().oreRecent,0)
   end)
 
   test("daily calendar pruning crosses both daylight saving boundaries", function()
@@ -134,8 +162,8 @@ return function(test, equal)
       equal((dates[2]-dates[1])/3600000,dates[5])
       local s = fixture(dates[1])
       s.add("mine.ore",17) s.tick()
-      s.tick(dates[2]-1) equal(s.daily.today().date,dates[3])
-      s.tick(dates[2]) equal(s.daily.today().date,dates[4])
+      s.tick(s.now,dates[2]-1) equal(s.daily.today().date,dates[3])
+      s.tick(s.now,dates[2]) equal(s.daily.today().date,dates[4])
       equal(s.daily.days()[6].date,dates[3]) equal(s.daily.days()[6].ore,17)
     end
   end)
@@ -159,7 +187,7 @@ return function(test, equal)
   test("daily backward clocks keep the retained date without duplicate archives", function()
     local s = fixture(midnight[1])
     s.add("mine.ore",2) s.tick() s.tick(midnight[2])
-    s.tick(midnight[1]+1000)
+    s.tick(s.now+1000,midnight[1]+1000)
     s.add("mine.ore",3) s.tick()
     equal(s.daily.today().date,"2026-10-20") equal(s.daily.days()[6].ore,5)
     s.tick(midnight[2]+60000)
@@ -256,7 +284,6 @@ return function(test, equal)
 
   test("daily legacy event timestamps load and unrelated or invalid counts leave missing days unknown", function()
     local s=fixture(midnight[7])
-    s.e.os.epoch=function() return s.now end
     local ev=s.add("mine.ore",3) ev.gameAt=nil ev.at=s.now
     s.add("unrelated",99,midnight[3])
     s.add("mine.ore",1.5,midnight[3])
