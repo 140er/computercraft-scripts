@@ -1,16 +1,16 @@
 15x10 Health history at 15x10
- HEALTH  NEEDS 
- EVENTS  ALERTS
+ HLT  ! 0  --- 
+ EVT  ALR  ERR 
  kind  all     
- • 20s mine.al 
- • 40s mine.or 
+ • 20s mine... 
+ • 40s mine... 
  • 1m mine.ore 
  • 1m mine.ore 
  • 1m mine.ore 
   HOLD         
         ◄   ►  
-888888888888888
-000000008888888
+88888888880ccc0
+000008888888888
 088880000000000
 010888088888880
 080888088888880
@@ -20,7 +20,7 @@
 000000000000000
 000000088800000
 fffffffffffffff
-77777777fffffff
+77777ffffffffff
 ffffff77777ffff
 fffffffffffffff
 fffffffffffffff

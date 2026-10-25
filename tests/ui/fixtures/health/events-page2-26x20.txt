@@ -6,17 +6,17 @@
                           
  • 4m mine.ore            
  • 5m mine.ore            
- • 5m mine.alert ore      
+ • 5m mine.alert ore...   
  • 5m mine.ore            
  • 6m mine.ore            
  • 6m mine.ore            
- • 6m drops.broken chest  
- • 7m mine.alert ore      
+ • 6m drops.broken...     
+ • 7m mine.alert ore...   
  • 7m mine.ore            
  • 7m mine.ore            
  • 8m mine.ore            
  • 8m mine.ore            
- • 8m mine.alert ore      
+ • 8m mine.alert ore...   
                           
   LATEST        2  ◄   ►  
 888888888888888880ccccccc0

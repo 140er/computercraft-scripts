@@ -2,15 +2,15 @@
  HEALTH  NEEDS 4  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
  kind  all                   
- • 10s mine.alert ore chest  
+ • 10s mine.alert ore...     
  • 40s mine.ore 3 diamond    
- • 1m lumber.alert out of    
- • 5m drops.broken chest 3   
+ • 1m lumber.alert out of... 
+ • 5m drops.broken chest...  
  • 10m mine.alert cleared    
                              
                              
                              
-  HOLD                ◄   ►  
+  HOLD                       
 888888888888888e80cccccccccc0
 0000000088888888888888880ccc0
 08888000000000000000000000000
@@ -22,7 +22,7 @@
 00000000000000000000000000000
 00000000000000000000000000000
 00000000000000000000000000000
-00000000000000000000088808880
+00000000000000000000000000000
 fffffffffffffffffffffffffffff
 77777777fffffffffffffffffffff
 ffffff77777ffffffffffffffffff
@@ -34,4 +34,4 @@ fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-f777777ffffffffffffff777f777f
+f777777ffffffffffffffffffffff

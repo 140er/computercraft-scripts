@@ -71,7 +71,7 @@ local function attention(facts)
   if facts.build and facts.build.turtleId then owners[tostring(facts.build.turtleId)] = "build" end
   if facts.configError then add("config",1,"Config unreadable; defaults active","health") end
   if facts.gpsGap and facts.gpsGap > 2 then
-    add("gps",2,string.format("Server GPS gap %.1f blocks",facts.gpsGap),"health")
+    add("gps",2,string.format("GPS gap %.1f blocks",facts.gpsGap),"health")
   end
   for id, row in pairs(facts.machines or {}) do
     local lease = (facts.leases or {})[tostring(id)] or {}
@@ -189,21 +189,23 @@ H.gather = function(now)
     {"paired", online.." online"..dot..lost.." lost", nil, lost > 0 and (lost.." lost")},
     {"leases", open.." open"},
   }
+  local base = #H.metrics
   if runtime.slowest then
     local slow = runtime.slowest
     H.metrics[#H.metrics+1] = {"slow module",tostring(slow.name):sub(1,24)}
-    H.metrics[#H.metrics+1] = {"peak tick",ms(slow.tickMs)}
-    H.metrics[#H.metrics+1] = {"peak age",duration(now-slow.at)}
+    H.metrics[#H.metrics+1] = {"peak tick",ms(slow.tickMs).." "..duration(now-slow.at).." ago"}
   end
   if runtime.refused then
     local refused = runtime.refused
-    local total = 0
+    -- One REFUSED section: the total on its leader, then a row per reason.
+    local total, leader = 0, {section="REFUSED"}
+    H.metrics[#H.metrics+1] = leader
     for _, reason in ipairs({"shape","time","mac","replay","blocked"}) do
       local n = (refused.totals or {})[reason] or 0
       total = total+n
-      H.metrics[#H.metrics+1] = {"deny "..reason,tostring(n),n>0 and "1"}
+      H.metrics[#H.metrics+1] = {reason,tostring(n),n>0 and "1"}
     end
-    H.metrics[#H.metrics+1] = {"refused",tostring(total),total>0 and "1"}
+    leader.value, leader.fg = tostring(total), total>0 and "1" or "0"
     H.metrics[#H.metrics+1] = {"evicted",tostring(refused.evicted or 0)}
     local senders = {}
     for id in pairs(refused.senders or {}) do senders[#senders+1]=id end
@@ -233,13 +235,19 @@ H.gather = function(now)
     end
     if type(cfg.state) == "table" and cfg.state.coalesceHeartbeats == true then flags[#flags+1]="state.coalesceHeartbeats" end
     local prefix = {
-      {"modules",summary}, {"skip",failed.." fail "..absent.." absent"}, {"rev",runtime.revision and runtime.revision:sub(1,8) or "unknown"},
-      {"cfg",runtime.configError and "unreadable" or #flags==0 and "defaults" or flags[1]},
+      {"modules",summary}, {"skip",failed.." fail"..dot..absent.." absent"}, {"rev",runtime.revision and runtime.revision:sub(1,8) or "unknown"},
+      {"cfg",runtime.configError and "unreadable" or #flags==0 and "defaults" or #flags==1 and flags[1] or (#flags.." flags")},
       {"pos",poseText(cfg.pos) or "missing"},
       {"GPS gap",runtime.gpsGap and string.format("%.1f blocks",runtime.gpsGap) or "unavailable",runtime.gpsGap and runtime.gpsGap>2 and "1"},
     }
-    for i=2,#flags do prefix[#prefix+1] = {"cfg",flags[i]} end
-    for _, metric in ipairs(H.metrics) do prefix[#prefix+1]=metric end
+    -- Several flags: the cfg row counts them and a FLAGS section after the fleet rows names each.
+    for i, metric in ipairs(H.metrics) do
+      prefix[#prefix+1]=metric
+      if i == base and #flags > 1 then
+        prefix[#prefix+1] = {section="FLAGS"}
+        for _, name in ipairs(flags) do prefix[#prefix+1] = {item=name} end
+      end
+    end
     for _, file in ipairs(modules) do
       local status = runtime.modules[file]
       local name = file:match("^so%-mod%-(.+)%.lua$") or file
@@ -299,16 +307,44 @@ local function footerRows(w, label, note)
   return #label+5 <= (note ~= "" and w-8-#note or w-7) and 1 or 2
 end
 
--- Rows per page and pages for count lines under a left chip and an n/m note. Returns the capacity,
--- the pages and the footer rows.
+-- Rows per page and pages for count lines under a left chip and, past one page, an n/m note.
+-- Returns the capacity, the pages and the footer rows.
 local function fitPages(count, capacity, page, w, label)
   local pages = math.max(1,math.ceil(count/capacity))
+  if pages == 1 then return capacity, 1, 1 end
   local rows = footerRows(w,label,math.max(1,math.min(page or 1,pages)).."/"..pages)
   if rows == 2 then
     capacity = math.max(1,capacity-1)
     pages = math.max(1,math.ceil(count/capacity))
   end
   return capacity, pages, rows
+end
+
+-- The paging chips, drawn only when another page exists: one rule for every list on these pages.
+local function paging(c, h, note, back, forward)
+  if back or forward then U.pager(c,h,note,back,forward) end
+end
+
+-- The text cut to width, a cut marked with "..." as route A marks it, codepoints kept whole.
+local function cut(text, width)
+  if #text <= width then return text end
+  if width < 4 then return text:sub(1,errorCut(text,math.max(0,width))) end
+  return (text:sub(1,errorCut(text,#U.fit(text,width-3))):gsub("[%s%.]+$","")).."..."
+end
+
+-- Tabs with full labels when every group fits a row, else short ones, so each tab and the NEEDS
+-- count stay on screen down to 15 columns.
+local function tabs(w, needs, accent)
+  local full = {{{"HEALTH","health"},{"NEEDS "..needs,"attention",accent}},
+    {{"EVENTS","events"},{"ALERTS","alerts"},{"ERRORS","errors"}}}
+  for _, group in ipairs(full) do
+    local width = 0
+    for _, t in ipairs(group) do width = width+#t[1]+2 end
+    if width > w then
+      return {{{"HLT","health"},{"! "..needs,"attention",accent}},{{"EVT","events"},{"ALR","alerts"},{"ERR","errors"}}}
+    end
+  end
+  return full
 end
 
 -- An event's recorded facts as leaders { label, value }, from an allowlist of scalar data fields,
@@ -342,8 +378,7 @@ H.render = function(role,w,h,session)
   local c = U.canvas(w,h)
   if h < 5 then c.chip(2,h,"BACK","generic");return c.frame() end
   local first = H.items[1]
-  local last = U.tabRows(c,{{{"HEALTH","health"},{"NEEDS "..#H.items,"attention",first and (first.severity==1 and "e" or "1")}},
-    {{"EVENTS","events"},{"ALERTS","alerts"},{"ERRORS","errors"}}},role,4)
+  local last = U.tabRows(c,tabs(w,#H.items,first and (first.severity==1 and "e" or "1")),role,4)
   local gap, lw = h >= 16 and 1 or 0, math.min(w-2,40)
   local top = last+1+gap
   if role == "attention" and v.lost then
@@ -351,9 +386,12 @@ H.render = function(role,w,h,session)
     for _, item in ipairs(H.items) do if item.key == v.lost then row=item end end
     if row and row.lost then
       c.put(2,top,"T"..row.lost.id.." lost "..duration(H.now-row.lost.seen),"e")
-      c.put(2,top+1,U.fit(row.lost.pose or "pose unknown",lw),"0")
+      c.put(2,top+1,cut(row.lost.pose or "pose unknown",lw),"0")
       c.chip(2,h,"BACK","lost-back")
-      if H.snoozes then c.chip(9,h,"SNOOZE","lost-snooze") end
+      -- SNOOZE sits between BACK and OPEN when it fits, else above BACK.
+      if H.snoozes then
+        if w >= 23 then c.chip(9,h,"SNOOZE","lost-snooze") else c.chip(2,h-1,"SNOOZE","lost-snooze") end
+      end
       c.chip(w-5,h,"OPEN","lost-open")
       v.lostRow = row
       return c.frame()
@@ -364,7 +402,7 @@ H.render = function(role,w,h,session)
   if history and v.fact then
     -- One event's facts: its kind and age, then leaders and the text, BACK to the same list page.
     local e = v.fact
-    c.put(2,top,e.kind:sub(1,w-2),"0")
+    c.put(2,top,cut(e.kind,w-2),"0")
     local age = duration(H.now-(e.gameAt or H.now)).." ago"
     if 3+#e.kind+#age <= w then c.put(3+#e.kind,top,age,"8") end
     top = top+1+gap
@@ -377,7 +415,7 @@ H.render = function(role,w,h,session)
       local y = top+i-1
       if y >= h then break end
       if row.text then c.put(2,y,row.label,"8") c.put(7,y,row.text,"0")
-      else c.leader(2,y,lw,row[1],row[2]:sub(1,math.max(1,lw-#row[1]-2))) end
+      else c.leader(2,y,lw,row[1],cut(row[2],math.max(1,lw-#row[1]-2))) end
     end
     c.chip(2,h,"BACK","fact-back")
     return c.frame()
@@ -393,31 +431,31 @@ H.render = function(role,w,h,session)
       local kind, y = kinds[n], top+i-1
       if not kind then break end
       if kind == (v.kind or "all") then c.put(2,y,U.g.bullet,"0") end
-      c.put(4,y,kind:sub(1,w-4),kind == (v.kind or "all") and "0" or "8")
+      c.put(4,y,cut(kind,w-4),kind == (v.kind or "all") and "0" or "8")
       c.hit("pick:"..n,1,y,w,1,kind)
     end
     c.chip(2,h-foot+1,"BACK","kind-back")
-    U.pager(c,h,v.picker.page.."/"..pages,v.picker.page>1,v.picker.page<pages)
+    paging(c,h,v.picker.page.."/"..pages,v.picker.page>1,v.picker.page<pages)
     return c.frame()
   end
   if role == "events" then
     c.put(2,top,"kind","8")
-    c.chip(7,top,v.kind or "all","kind")
+    c.chip(7,top,cut(v.kind or "all",w-9),"kind")
     top = top+1+gap
     if v.find then
       c.put(2,top,"find","8")
-      c.chip(7,top,v.find:sub(1,w-9),"find")
+      c.chip(7,top,cut(v.find,w-9),"find")
       top = top+1+gap
     end
   end
   local capacity = math.max(0,h-1-gap-top+1)
   -- Page 1 follows new events until HOLD pins its newest sequence; LIVE and LATEST return to it.
+  -- The left chip takes the last row until a pager beside it pushes it up.
   local left, note, foot
   if history then
     left = v.page > 1 and {"LATEST","latest"} or v.cursors[1] and {"LIVE","live","primary"} or {"HOLD","hold"}
     note = v.page > 1 and tostring(v.page) or ""
-    foot = footerRows(w,left[1],note)
-    capacity = math.max(0,capacity-foot+1)
+    foot = 1
   end
   if role == "errors" and v.error then
     c.put(2,top,duration(H.now-v.error.at).." ago","8")
@@ -433,7 +471,7 @@ H.render = function(role,w,h,session)
       if line then c.put(2,top+i-1,line,"0") end
     end
     c.chip(2,h-foot+1,"BACK","error-back")
-    U.pager(c,h,v.errorPage.."/"..pages,v.errorPage>1,v.errorNext)
+    paging(c,h,v.errorPage.."/"..pages,v.errorPage>1,v.errorNext)
     return c.frame()
   end
   local rows, page = {}, nil
@@ -457,6 +495,14 @@ H.render = function(role,w,h,session)
     if state and state.history then
       page = state.history.page({reverse=true,before=v.cursors[v.page],count=math.max(1,capacity),kind=v.kind,
         text=role=="events" and v.find or nil,alerts=role=="alerts"})
+      if (v.page > 1 or page.next) and footerRows(w,left[1],note) == 2 then
+        foot, capacity = 2, math.max(0,capacity-1)
+        local keep = math.max(1,capacity)
+        if #page.entries > keep then
+          for i=#page.entries,keep+1,-1 do page.entries[i] = nil end
+          page.next = page.entries[keep].seq
+        end
+      end
       if v.page == 1 then v.top = page.entries[1] and page.entries[1].seq end
       for i, e in ipairs(page.entries) do
         local data = e.data
@@ -483,13 +529,16 @@ H.render = function(role,w,h,session)
     if row and role == "health" then
       if row.flag then c.flag(2,y,lw,row.flag)
       elseif row.text then c.put(2,y,row.label,"8") c.put(7,y,row.text,"0")
+      -- The section total ends in the leader values' column.
+      elseif row.section then c.section(2,y,lw+1,row.section,row.value,row.fg)
+      elseif row.item then c.put(2,y,cut(row.item,lw),"0")
       else
-        c.leader(2,y,lw,row[1],U.fit(row[2],math.max(1,lw-#row[1]-1)),row[3] or (row[2]=="-" and "8" or "0"))
+        c.leader(2,y,lw,row[1],cut(row[2],math.max(1,lw-#row[1]-1)),row[3] or (row[2]=="-" and "8" or "0"))
         if row[4] then c.put(2+lw-#row[4],y,row[4],"e") end
       end
     elseif row and role == "attention" then
       c.put(2,y,"!",row.severity==1 and "e" or "1")
-      c.put(4,y,U.fit((row.text:gsub("[%c]"," ")),w-4),"0")
+      c.put(4,y,cut((row.text:gsub("[%c]"," ")),w-4),"0")
       if row.target then
         local id = "item:"..row.key
         c.hit(id,1,y,w,1)
@@ -498,12 +547,11 @@ H.render = function(role,w,h,session)
     elseif row then
       c.put(2,y,U.g.bullet,row.fg)
       c.put(4,y,row.time,"8")
-      local x = 5+#row.time
-      if row.kind then c.put(x,y,row.kind:sub(1,math.max(0,w-x)),"8") x = x+#row.kind+1 end
-      local text = row.text:gsub("[%c]"," ")
-      local fitted = U.fit(text,w-x)
-      if role == "errors" then fitted = text:sub(1,errorCut(text,#fitted)) end
-      c.put(x,y,fitted,"0")
+      -- The kind (muted) and the text share the row and one cut.
+      local x, kind, text = 5+#row.time, row.kind or "", (row.text:gsub("[%c]"," "))
+      local line = cut(kind ~= "" and text ~= "" and kind.." "..text or kind..text,math.max(0,w-x))
+      c.put(x,y,line:sub(1,#kind),"8")
+      c.put(x+#kind,y,line:sub(#kind+1),"0")
       if row.entry then
         c.hit(row.id,1,y,w,1)
         v.targets[row.id] = row.entry
@@ -512,7 +560,7 @@ H.render = function(role,w,h,session)
   end
   local pages = math.max(1,math.ceil(#rows/math.max(1,capacity)))
   if history then c.chip(2,h-foot+1,left[1],left[2],left[3]) end
-  U.pager(c,h,note or (v.page.."/"..pages),v.page>1,v.next~=nil)
+  paging(c,h,note or (v.page.."/"..pages),v.page>1,v.next~=nil)
   return c.frame()
 end
 

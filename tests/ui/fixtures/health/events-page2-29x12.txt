@@ -4,12 +4,12 @@
  kind  all                   
  • 3m mine.ore               
  • 3m mine.ore               
- • 3m mine.alert ore chest   
+ • 3m mine.alert ore...      
  • 4m mine.ore               
- • 4m drops.broken chest 3   
+ • 4m drops.broken chest...  
  • 4m mine.ore               
  • 5m mine.ore               
- • 5m mine.alert ore chest   
+ • 5m mine.alert ore...      
   LATEST           2  ◄   ►  
 888888888888888880cccccccccc0
 0000000088888888888888880ccc0

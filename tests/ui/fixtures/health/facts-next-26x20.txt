@@ -7,16 +7,16 @@
  paired 0 online · 0 lost 
  leases ·········· 0 open 
  slow module ······· mine 
- peak tick ········ 142ms 
- peak age ············ 2m 
- deny shape ········· 512 
- deny time ············ 2 
- deny mac ············· 3 
- deny replay ·········· 4 
- deny blocked ········· 5 
- refused ············ 526 
+ peak tick · 142ms 2m ago 
+ REFUSED ------------ 526 
+ shape ·············· 512 
+ time ················· 2 
+ mac ·················· 3 
+ replay ··············· 4 
+ blocked ·············· 5 
  evicted ············ 384 
  sender 612 ··········· 1 
+ ar ·············· absent 
                           
               2/3  ◄   ►  
 000000008888888180ccccccc0
@@ -27,16 +27,16 @@
 08888880000000000000000000
 08888880cccccccccc00000000
 0888888888880ccccccc000000
-08888888880cccccccc0000000
-0888888880cccccccccccc0000
-088888888880ccccccccc01110
-08888888880cccccccccccc010
-0888888880ccccccccccccc010
-0888888888880cccccccccc010
-08888888888880ccccccccc010
+08888888880c00000000000000
 088888880cccccccccccc01110
+0888880cccccccccccccc01110
+088880ccccccccccccccccc010
+08880cccccccccccccccccc010
+08888880ccccccccccccccc010
+088888880cccccccccccccc010
 088888880cccccccccccc00000
 088888888880ccccccccccc010
+0880cccccccccccccc08888880
 00000000000000000000000000
 00000000000000888000000000
 77777777ffffffffffffffffff

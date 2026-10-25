@@ -35,8 +35,8 @@ local FIXTURES = {
 }
 
 -- The real so-mod-state with the log of other.py's history_events: 40 events 20 s apart, a single
--- lumber.logs at 12, and later arrivals from 41 on.
-local function history()
+-- lumber.logs at 12, and later arrivals from 41 on. count logs only the first count events.
+local function history(count)
   local net = Harness.new()
   local m = net.machine({id=1, directories=true})
   m.install({"so-store.lua", "so-log.lua", "so-mod-state.lua"})
@@ -52,7 +52,7 @@ local function history()
     h.now = i <= 40 and 3600000-(41-i)*20000 or 3590000+(i-41)*5000
     assert(h.state.emit(kind,data))
   end
-  for i=1,40 do h.emit(i) end
+  for i=1,count or 40 do h.emit(i) end
   return h
 end
 
@@ -582,12 +582,12 @@ return function(test,equal)
 
   for _,size in ipairs({{26,20},{29,12}}) do
     local w,h=size[1],size[2]
-    for _,row in ipairs({{"modules","1 loaded"},{"skip","1 fail 1 absent"},{"rev","aaaaaaaa"},{"cfg","retireLegacyPair"},
+    for _,row in ipairs({{"modules","1 loaded"},{"skip","1 fail \183 1 absent"},{"rev","aaaaaaaa"},{"cfg","retireLegacyPair"},
       {"pos","missing"},{"GPS gap","10.0 blocks"},{"event bytes","5.8 MB"},{"disk free","5.8 MB"},{"errors","340 B"},
       {"uptime","0s"},{"tick","wall -"},{"tick cost","-"},{"clock reserve","unknown"},
-      {"slow module","mine"},{"peak tick","142ms"},{"peak age","2m"},
-      {"deny shape","512"},{"deny time","2"},{"deny mac","3"},{"deny replay","4"},{"deny blocked","5"},
-      {"refused","526"},{"evicted","384"},{"sender 612","1"},
+      {"slow module","mine"},{"peak tick","142ms 2m ago"},
+      {"shape","512"},{"time","2"},{"mac","3"},{"replay","4"},{"blocked","5"},
+      {"REFUSED","526"},{"evicted","384"},{"sender 612","1"},
       {"events","unavailable"},{"snapshot","none"},{"disk","0%"},{"modems","1"},
       {"paired","0 online"},{"leases","0 open"},{"ar","absent"},{"mine","ok 5s ago"},{"shop","failed"},{"error","loader failed"}}) do
       test("health row "..row[1].." fits "..w.."x"..h,function()
@@ -1099,10 +1099,236 @@ return function(test,equal)
       t.input("events",s,"kind")
       frame=t.render("events",w,h,s)
       if w==15 then match("events-picker-15x10",frame,w,h) end
-      for _,b in ipairs(footer(frame,w,h,"1/1")) do
-        if b.id=="kind-back" then tapAt(t,s,frame,b.x+b.w-1,b.y) end
-      end
+      -- One page of kinds: BACK alone on the last row, no pager.
+      local list=footer(frame,w,h)
+      equal(#list,1)
+      equal(list[1].y,h)
+      tapAt(t,s,frame,list[1].x+list[1].w-1,list[1].y)
       equal(s.visibility.events.picker,nil)
+    end
+  end)
+
+  -- UI-B layout follow-ups: one pager rule, short tabs, marked cuts and the relabelled facts rows.
+  local SIZES={{15,10},{26,20},{29,12},{57,24}}
+  local function pagerShown(frame,h)
+    local b=buttons(frame)
+    equal(b.prev~=nil,b.next~=nil)
+    if not b.prev then assert(not frame.rows[h].text:find("[\16\17]"),"arrows without a pager") end
+    return b.prev~=nil
+  end
+  local function pageTexts(t,role,w,h)
+    local s,out={},{}
+    for _=1,32 do
+      out[#out+1]=frameText(t.render(role,w,h,s))
+      if not s.visibility[role].next then return out end
+      t.input(role,s,"next")
+    end
+    error("health paging did not finish")
+  end
+  -- diagnosticFacts over a real history log, machines from get.
+  local function diagnosticLog(log,get)
+    local t=health(log.state)
+    diagnosticFacts(t)
+    local stub=t.env.SO.mods.state
+    t.env.SO.mods.state=setmetatable({diagnostics=stub.diagnostics,view=stub.view,get=get},{__index=log.state})
+    t.tick()
+    return t
+  end
+  -- Every chip and tab draws its label in its own touch area; list rows are checked by their own tests.
+  local function labelsMatch(frame,w,h,where)
+    capture(frame,w,h)
+    for _,b in ipairs(frame.buttons) do
+      if not (b.id:match("^event:") or b.id:match("^pick:") or b.id:match("^item:") or b.id:match("^error:")) then
+        equal(frame.rows[b.y].text:sub(b.x,b.x+b.w-1):match("^%s*(.-)%s*$"),b.label,b.id.." label at "..where)
+      end
+    end
+  end
+
+  test("health pager is hidden on a single page and shown on 2+ pages",function()
+    for _,size in ipairs(SIZES) do
+      local w,h=size[1],size[2]
+      local where=" at "..w.."x"..h
+      -- One page: no needs, one short error and its detail, a short log and its two kinds.
+      local t,s=health(history(3).state),{}
+      t.entries={{at=t.now,text="short failure"}}
+      t.tick()
+      for _,role in ipairs({"attention","errors","events"}) do
+        assert(not pagerShown(t.render(role,w,h,s),h),role..where)
+      end
+      t.input("errors",s,"error:1")
+      assert(not pagerShown(t.render("errors",w,h,s),h),"error detail"..where)
+      t.input("events",s,"kind")
+      local frame=t.render("events",w,h,s)
+      assert(not pagerShown(frame,h),"picker"..where)
+      equal(buttons(frame)["kind-back"].y,h)
+      equal(pagerShown(t.render("health",w,h,{}),h),h<16,"health"..where)
+      -- Two or more pages: thirty needs, a 2048-byte error, the full log and twenty more kinds.
+      local log=history()
+      for i=1,20 do assert(log.state.emit("extra.kind"..i,{})) end
+      t,s=diagnosticLog(log),{}
+      local rows={}
+      for i=1,30 do rows[i]={id=100+i} end
+      t.enroll={rows=rows}
+      t.entries={{at=t.now,text=string.rep("word ",410)}}
+      t.tick()
+      for _,role in ipairs({"health","attention","events"}) do
+        assert(pagerShown(t.render(role,w,h,s),h),role..where)
+        t.input(role,s,"next")
+        assert(pagerShown(t.render(role,w,h,s),h),role.." page 2"..where)
+      end
+      t.render("errors",w,h,s);t.input("errors",s,"error:1")
+      assert(pagerShown(t.render("errors",w,h,s),h),"error detail"..where)
+      s={}
+      t.render("events",w,h,s);t.input("events",s,"kind")
+      assert(pagerShown(t.render("events",w,h,s),h),"picker"..where)
+    end
+  end)
+
+  test("health at 15x10 reaches every tab and the NEEDS count",function()
+    for _,n in ipairs({0,7,12,100}) do
+      local t=health()
+      local rows={}
+      for i=1,n do rows[i]={id=100+i} end
+      t.enroll={rows=rows}
+      t.tick()
+      for _,role in ipairs({"health","attention","events","alerts","errors"}) do
+        local frame=t.render(role,15,10,{})
+        labelsMatch(frame,15,10,role.." with "..n.." needs")
+        local b=buttons(frame)
+        for _,id in ipairs({"health","attention","events","alerts","errors"}) do assert(b[id],id.." tab on "..role) end
+        equal(b.attention.label:match("%d+$"),tostring(n))
+        -- Row 1 keeps its last three cells for a visited page's x chip.
+        assert(b.attention.y==1 and b.attention.x+b.attention.w-1<=12,"NEEDS clear of the x chip")
+      end
+    end
+    local frame=health().render("events",26,20,{})
+    equal(buttons(frame).errors.label,"ERRORS")
+    equal(buttons(frame).attention.label,"NEEDS 0")
+  end)
+
+  test("health touch areas match their drawn labels at 15x10, 26x20, 29x12 and 57x24",function()
+    for _,size in ipairs(SIZES) do
+      local w,h=size[1],size[2]
+      local where=" "..w.."x"..h
+      local machines={["12"]={role="worker",seen=3180000,pose={x=120,y=64,z=-30}}}
+      local t=diagnosticLog(history(),function(key) if key=="machines" then return machines end end)
+      t.entries={{at=t.now,text=string.rep("word ",410)}}
+      t.env.SO.mods.display.snoozer=function()
+        return {on=function() return false end,set=function() end,clear=function() end}
+      end
+      t.tick()
+      local s={}
+      for _,role in ipairs({"health","attention","events","alerts","errors"}) do
+        labelsMatch(t.render(role,w,h,s),w,h,role..where)
+      end
+      t.input("health",s,"next")
+      labelsMatch(t.render("health",w,h,s),w,h,"health page 2"..where)
+      t.input("attention",s,"item:lost/12")
+      labelsMatch(t.render("attention",w,h,s),w,h,"lost detail"..where)
+      t.input("errors",s,"error:1")
+      labelsMatch(t.render("errors",w,h,s),w,h,"error detail"..where)
+      t.input("errors",s,"next")
+      labelsMatch(t.render("errors",w,h,s),w,h,"error detail page 2"..where)
+      t.input("events",s,"next")
+      labelsMatch(t.render("events",w,h,s),w,h,"events page 2"..where)
+      t.input("events",s,"kind")
+      labelsMatch(t.render("events",w,h,s),w,h,"picker"..where)
+      t.input("events",s,"pick:3")
+      t.screens.events.input({session=s,text="chest broken"})
+      labelsMatch(t.render("events",w,h,s),w,h,"kind and find"..where)
+      t.screens.events.input({session=s,text="*"})
+      t.render("events",w,h,s)
+      t.input("events",s,assert(next(s.visibility.events.targets),"a lumber.logs row"..where))
+      labelsMatch(t.render("events",w,h,s),w,h,"event facts"..where)
+    end
+  end)
+
+  test("health marks every cut event, kind and needs row with ...",function()
+    local cuts=0
+    for _,size in ipairs(SIZES) do
+      local w,h=size[1],size[2]
+      local t,s=health(history().state),{}
+      local frame=t.render("events",w,h,s)
+      local b=buttons(frame)
+      for id,entry in pairs(s.visibility.events.targets) do
+        local data=entry.data
+        local text=type(data)=="table" and (data.text or data.reason)
+        local full=entry.kind..(text and " "..text or "")
+        local drawn=frame.rows[b[id].y].text:match("^ \7 %S+ (.-)%s*$")
+        if drawn~=full then
+          cuts=cuts+1
+          equal(drawn:sub(-3),"...",drawn.." at "..w)
+          equal(full:sub(1,#drawn-3),drawn:sub(1,-4))
+        end
+      end
+      t.input("events",s,"kind")
+      frame=t.render("events",w,h,s)
+      local found=frameText(frame):find("drops.broken",1,true) or frameText(frame):find("drops.br...",1,true)
+      assert(found,"drops.broken kind at "..w)
+    end
+    assert(cuts>0,"no event row was cut")
+    local t=health()
+    local machines={["12"]={role="worker",seen=t.now-420000,pose={x=120,y=64,z=-30}}}
+    t.env.SO.mods.state={get=function(key) if key=="machines" then return machines end end}
+    t.tick()
+    local text=frameText(t.render("attention",15,10,{}))
+    assert(text:find("! T12 lost...",1,true) or text:find("! T12...",1,true),text)
+  end)
+
+  test("health GPS gap NEEDS row shows its unit",function()
+    for _,size in ipairs({{26,20},{29,12},{57,24}}) do
+      local t=health()
+      diagnosticFacts(t)
+      assert(frameText(t.render("attention",size[1],size[2],{})):find("! GPS gap 10.0 blocks",1,true))
+    end
+  end)
+
+  test("health facts skip row separates its counts with a dot",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local t=health()
+      diagnosticFacts(t)
+      assert(pageTexts(t,"health",size[1],size[2])[1]:find("1 fail \183 1 absent",1,true))
+    end
+  end)
+
+  test("health cfg row counts several flags and FLAGS lists them on facts-next",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h=size[1],size[2]
+      local t=health()
+      diagnosticFacts(t)
+      t.env.SO.health.config={enroll=true,remoteDimensions=true,state={coalesceHeartbeats=true}}
+      t.tick()
+      local list=pageTexts(t,"health",w,h)
+      assert(list[1]:find("\n cfg \183+ 3 flags"),list[1])
+      assert(not list[1]:find("remoteDimensions",1,true))
+      local at
+      for i,text in ipairs(list) do if text:find("\n FLAGS ",1,true) then at=i end end
+      if w==26 then equal(at,2) else assert(at and at>1) end
+      local names={}
+      for line in list[at]:gmatch("[^\n]+") do names[#names+1]=line:match("^ (%S+)%s*$") end
+      for _,name in ipairs({"enroll","remoteDimensions","state.coalesceHeartbeats"}) do
+        assert(table.concat(names," "):find(name,1,true),name.." listed whole on page "..at)
+      end
+    end
+  end)
+
+  test("health peak tick row carries the peak age",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local t=health()
+      diagnosticFacts(t)
+      local text=table.concat(pageTexts(t,"health",size[1],size[2]),"\n")
+      assert(text:find("peak tick \183+ 142ms 2m ago"),text)
+      assert(not text:find("peak age",1,true))
+    end
+  end)
+
+  test("health REFUSED section leads the five refusal reasons",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local t=health()
+      diagnosticFacts(t)
+      local text=table.concat(pageTexts(t,"health",size[1],size[2]),"\n")
+      assert(text:find("\n REFUSED %-+ 526%s*\n shape \183+ 512%s*\n time \183+ 2%s*\n mac \183+ 3%s*\n replay \183+ 4%s*\n blocked \183+ 5"),text)
+      assert(not text:find("deny",1,true))
     end
   end)
 

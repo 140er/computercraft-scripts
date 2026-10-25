@@ -1,8 +1,8 @@
 29x12 Errors at 29x12
  HEALTH  NEEDS 4  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
- • 10s lease 7 report        
- • 3m tick failed:           
+ • 10s lease 7 report...     
+ • 3m tick failed:...        
                              
                              
                              
@@ -10,7 +10,7 @@
                              
                              
                              
-                 1/1  ◄   ►  
+                             
 888888888888888e80cccccccccc0
 8888888888888888000000000ccc0
 0e088800000000000000000000000
@@ -22,7 +22,7 @@
 00000000000000000000000000000
 00000000000000000000000000000
 00000000000000000000000000000
-00000000000000000888088808880
+00000000000000000000000000000
 fffffffffffffffffffffffffffff
 ffffffffffffffff77777777fffff
 fffffffffffffffffffffffffffff
@@ -34,4 +34,4 @@ fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-fffffffffffffffffffff777f777f
+fffffffffffffffffffffffffffff

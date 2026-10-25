@@ -4,10 +4,10 @@
                           
  kind  all                
                           
- • 10s mine.alert ore     
+ • 10s mine.alert ore...  
  • 40s mine.ore 3 diamond 
- • 1m lumber.alert out of 
- • 5m drops.broken chest  
+ • 1m lumber.alert out... 
+ • 5m drops.broken...     
  • 10m mine.alert cleared 
                           
                           
@@ -18,7 +18,7 @@
                           
                           
                           
-  HOLD             ◄   ►  
+  HOLD                    
 888888888888888e80ccccccc0
 00000000888888888888888800
 00000000000000000000000000
@@ -38,7 +38,7 @@
 00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
-00000000000000000088808880
+00000000000000000000000000
 ffffffffffffffffffffffffff
 77777777ffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -58,4 +58,4 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-f777777fffffffffff777f777f
+f777777fffffffffffffffffff

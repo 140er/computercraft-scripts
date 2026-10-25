@@ -389,7 +389,7 @@ def attention(hs):
                 text += " x%d y%d z%d" % (pose["x"], pose["y"], pose["z"])
             rows.append((1, "lost/%d" % m["id"], text, owners.get(m["id"], "mining")))
     if hs.get("gps_gap", 0) > 2:
-        rows.append((2, "gps", "Server GPS gap %.1f blocks" % hs["gps_gap"], "health"))
+        rows.append((2, "gps", "GPS gap %.1f blocks" % hs["gps_gap"], "health"))
     if hs["disk"][0] >= 0.8:
         rows.append((1, "disk", "Disk %d%% full" % int(hs["disk"][0] * 100), "health"))
     if hs["errors"][0] and hs["entries"] and 0 <= now - hs["entries"][-1]["at"] < 600000:
@@ -432,17 +432,19 @@ def metrics(hs):
             ("modems", str(hs["modems"][0])),
             ("paired", "%d online%s%d lost" % (online, dot, lost), None, "%d lost" % lost if lost else None),
             ("leases", "%d open" % len(hs["leases"]))]
+    base = len(rows)
     if hs.get("slowest"):
         slow = hs["slowest"]
-        rows += [("slow module", slow["name"][:24]), ("peak tick", "%dms" % slow["tick_ms"]),
-                 ("peak age", duration(now-slow["at"]))]
+        rows += [("slow module", slow["name"][:24]),
+                 ("peak tick", "%dms %s ago" % (slow["tick_ms"], duration(now-slow["at"])))]
     if hs.get("refused"):
         refused = hs["refused"]
         reasons = ("shape", "time", "mac", "replay", "blocked")
         total = sum(refused["totals"].get(reason, 0) for reason in reasons)
-        rows += [("deny " + reason, str(refused["totals"].get(reason, 0)),
+        rows.append(dict(section="REFUSED", value=str(total), fg="1" if total else "0"))
+        rows += [(reason, str(refused["totals"].get(reason, 0)),
                   "1" if refused["totals"].get(reason, 0) else None) for reason in reasons]
-        rows += [("refused", str(total), "1" if total else None), ("evicted", str(refused.get("evicted", 0)))]
+        rows += [("evicted", str(refused.get("evicted", 0)))]
         rows += [("sender %d" % sender, str(sum(row.get(reason, 0) for reason in reasons)), "1")
                  for sender, row in sorted(refused.get("senders", {}).items())]
     if hs.get("modules") is not None:
@@ -457,12 +459,13 @@ def metrics(hs):
             flags.append("state.coalesceHeartbeats")
         pos = cfg.get("pos")
         prefix = [("modules", "%d loaded" % loaded if modules else "unavailable"),
-                  ("skip", "%d fail %d absent" % (failed, absent)),
-                  ("rev", hs.get("revision", "unknown")[:8]), ("cfg", flags[0] if flags else "defaults"),
+                  ("skip", "%d fail%s%d absent" % (failed, dot, absent)),
+                  ("rev", hs.get("revision", "unknown")[:8]), ("cfg", "defaults" if not flags else flags[0] if len(flags) == 1 else "%d flags" % len(flags)),
                   ("pos", "x%d y%d z%d" % (pos["x"], pos["y"], pos["z"]) if pos else "missing"),
                   ("GPS gap", "%.1f blocks" % hs["gps_gap"] if "gps_gap" in hs else "unavailable",
                    "1" if hs.get("gps_gap", 0) > 2 else None)]
-        prefix += [("cfg", flag) for flag in flags[1:]]
+        if len(flags) > 1:
+            rows[base:base] = [dict(section="FLAGS")] + [dict(item=flag) for flag in flags]
         rows = prefix + rows
         for file, status in sorted(modules.items()):
             name = file.removeprefix("so-mod-").removesuffix(".lua")
@@ -484,13 +487,41 @@ def footer_rows(w, label, note):
 
 
 def fit_pages(count, capacity, page, w, label):
-    """Rows per page, pages and footer rows for count lines under a left chip and an n/m note."""
+    """Rows per page, pages and footer rows for count lines under a left chip and, past one page, an
+    n/m note."""
     pages = max(1, -(-count // capacity))
+    if pages == 1:
+        return capacity, 1, 1
     rows = footer_rows(w, label, "%d/%d" % (max(1, min(page, pages)), pages))
     if rows == 2:
         capacity = max(1, capacity - 1)
         pages = max(1, -(-count // capacity))
     return capacity, pages, rows
+
+
+def paging(cv, y, note, back, forward):
+    """The paging chips, drawn only when another page exists: one rule for every health list."""
+    if back or forward:
+        pager(cv, y, note, back, forward)
+
+
+def cut(text, width):
+    """The text cut to width, a cut marked with "..." as route A marks it."""
+    if len(text) <= width:
+        return text
+    if width < 4:
+        return text[:max(0, width)]
+    return re.sub(r"[\s.]+$", "", fit(text, width - 3)) + "..."
+
+
+def health_tabs(w, needs, accent):
+    """Full tab labels when every group fits a row, else short ones down to 15 columns."""
+    full = [[("HEALTH", "health"), ("NEEDS %d" % needs, "attention", accent)],
+            [("EVENTS", "events"), ("ALERTS", "alerts"), ("ERRORS", "errors")]]
+    if all(sum(len(t[0]) + 2 for t in group) <= w for group in full):
+        return full
+    return [[("HLT", "health"), ("! %d" % needs, "attention", accent)],
+            [("EVT", "events"), ("ALR", "alerts"), ("ERR", "errors")]]
 
 
 FACTS = [("id", "id"), ("label", "label"), ("role", "role"), ("pos", None), ("count", "count"), ("item", "name"),
@@ -548,22 +579,24 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
     now = hs["now"][0]
     items = attention(hs)
     accent = ("e" if items[0]["severity"] == 1 else "1") if items else None
-    last = tab_rows(cv, [[("HEALTH", "health"), ("NEEDS %d" % len(items), "attention", accent)],
-                         [("EVENTS", "events"), ("ALERTS", "alerts"), ("ERRORS", "errors")]], role, 4)
+    last = tab_rows(cv, health_tabs(w, len(items), accent), role, 4)
     gap, lw = (1 if h >= 16 else 0), min(w - 2, 40)
     top = last + 1 + gap
     if role == "attention" and lost_detail:
         machine = hs["machines"][0]
         cv.put(2, top, "T%d lost %s" % (machine["id"], duration(now-machine["seen"])), "e")
         pose = machine.get("pose")
-        cv.put(2, top+1, fit("x%d y%d z%d" % (pose["x"], pose["y"], pose["z"]) if pose else "pose unknown", lw), "0")
+        cv.put(2, top+1, cut("x%d y%d z%d" % (pose["x"], pose["y"], pose["z"]) if pose else "pose unknown", lw), "0")
         chip(cv, 2, h, "BACK", "lost-back")
-        chip(cv, 9, h, "SNOOZE", "lost-snooze")
+        if w >= 23:
+            chip(cv, 9, h, "SNOOZE", "lost-snooze")
+        else:
+            chip(cv, 2, h - 1, "SNOOZE", "lost-snooze")
         chip(cv, w-5, h, "OPEN", "lost-open")
         return cv
     history = role in ("events", "alerts")
     if history and fact is not None:
-        cv.put(2, top, fact["kind"][:w - 2], "0")
+        cv.put(2, top, cut(fact["kind"], w - 2), "0")
         ago = duration(now - fact["at"]) + " ago"
         if 3 + len(fact["kind"]) + len(ago) <= w:
             cv.put(3 + len(fact["kind"]), top, ago, "8")
@@ -579,7 +612,7 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
                 cv.put(2, y, row["label"], "8")
                 cv.put(7, y, row["text"], "0")
             else:
-                leader(cv, 2, y, lw, row[0], row[1][:max(1, lw - len(row[0]) - 2)])
+                leader(cv, 2, y, lw, row[0], cut(row[1], max(1, lw - len(row[0]) - 2)))
         chip(cv, 2, h, "BACK", "fact-back")
         return cv
     if role == "events" and picker:
@@ -589,25 +622,24 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
             y = top + i
             if name == (kind or "all"):
                 cv.put(2, y, "•", "0")
-            cv.put(4, y, name[:w - 4], "0" if name == (kind or "all") else "8")
+            cv.put(4, y, cut(name, w - 4), "0" if name == (kind or "all") else "8")
             cv.hit("pick:%d" % (i + 1), 1, y, w, 1, name)
         chip(cv, 2, h - foot + 1, "BACK", "kind-back")
-        pager(cv, h, "1/%d" % pages, False, pages > 1)
+        paging(cv, h, "1/%d" % pages, False, pages > 1)
         return cv
     if role == "events":
         cv.put(2, top, "kind", "8")
-        chip(cv, 7, top, kind or "all", "kind")
+        chip(cv, 7, top, cut(kind or "all", w - 9), "kind")
         top += 1 + gap
         if find:
             cv.put(2, top, "find", "8")
-            chip(cv, 7, top, find[:w - 9], "find")
+            chip(cv, 7, top, cut(find, w - 9), "find")
             top += 1 + gap
     capacity = max(0, h - gap - top)
     if history:
         left = ("LATEST", "latest", "plain") if page > 1 else ("LIVE", "live", "primary") if held else ("HOLD", "hold", "plain")
         note = str(page) if page > 1 else ""
-        foot = footer_rows(w, left[0], note)
-        capacity = max(0, capacity - foot + 1)
+        foot = 1
     if role == "errors" and error is not None:
         cv.put(2, top, duration(now - error["at"]) + " ago", "8")
         top += 1 + gap
@@ -618,12 +650,12 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
         for i, line in enumerate(rows[(error_page - 1) * capacity:error_page * capacity]):
             cv.put(2, top + i, line, "0")
         chip(cv, 2, h - foot + 1, "BACK", "error-back")
-        pager(cv, h, "%d/%d" % (error_page, pages), error_page > 1, error_page < pages)
+        paging(cv, h, "%d/%d" % (error_page, pages), error_page > 1, error_page < pages)
         return cv
     if role == "health":
         rows = []
         for m in metrics(hs):
-            if isinstance(m, dict):
+            if isinstance(m, dict) and "last" in m:
                 for i, line in enumerate(wrap(m["last"], lw - 5)[:2]):
                     rows.append(dict(label="last" if i == 0 else "", text=line))
             else:
@@ -645,6 +677,9 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
             rows.append(dict(time=duration(now - e["at"]), kind=name, text=text or "",
                              fg="e" if role == "alerts" else mark(e["kind"] + (" " + text if text else ""))))
         count = max(1, capacity)
+        if (page > 1 or len(rows) > count) and footer_rows(w, left[0], note) == 2:
+            foot, capacity = 2, max(0, capacity - 1)
+            count = max(1, capacity)
         more = len(rows) > page * count
         rows = rows[(page - 1) * count:page * count]
     total_rows = len(rows)
@@ -660,34 +695,37 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
             break
         row, y = rows[i], top + i
         if role == "health":
-            if isinstance(row, dict):
+            if isinstance(row, dict) and "section" in row:
+                section(cv, 2, y, lw + 1, row["section"], row.get("value", ""), row.get("fg", "8"))
+            elif isinstance(row, dict) and "item" in row:
+                cv.put(2, y, cut(row["item"], lw), "0")
+            elif isinstance(row, dict):
                 cv.put(2, y, row["label"], "8")
                 cv.put(7, y, row["text"], "0")
             else:
-                leader(cv, 2, y, lw, row[0], fit(row[1], max(1, lw-len(row[0])-1)), (row[2] if len(row) > 2 and row[2] else None)
+                leader(cv, 2, y, lw, row[0], cut(row[1], max(1, lw-len(row[0])-1)), (row[2] if len(row) > 2 and row[2] else None)
                        or ("8" if row[1] == "-" else "0"))
                 if len(row) > 3 and row[3]:
                     cv.put(2 + lw - len(row[3]), y, row[3], "e")
         elif role == "attention":
             cv.put(2, y, "!", "e" if row["severity"] == 1 else "1")
-            cv.put(4, y, fit(row["text"], w - 4), "0")
+            cv.put(4, y, cut(row["text"], w - 4), "0")
             cv.hit("item:" + row["key"], 1, y, w, 1)
         else:
             cv.put(2, y, "•", row["fg"])
             cv.put(4, y, row["time"], "8")
-            x = 5 + len(row["time"])
-            if row.get("kind"):
-                cv.put(x, y, row["kind"][:max(0, w - x)], "8")
-                x += len(row["kind"]) + 1
-            cv.put(x, y, fit(row["text"], w - x), "0")
+            x, name, text = 5 + len(row["time"]), row.get("kind") or "", row["text"]
+            line = cut(name + " " + text if name and text else name + text, max(0, w - x))
+            cv.put(x, y, line[:len(name)], "8")
+            cv.put(x + len(name), y, line[len(name):], "0")
             if history:
                 cv.hit("event:%d" % (i + 1), 1, y, w, 1)
     pages = max(1, -(-total_rows // max(1, capacity)))
     if history:
         chip(cv, 2, h - foot + 1, *left)
-        pager(cv, h, note, page > 1, more)
+        paging(cv, h, note, page > 1, more)
     else:
-        pager(cv, h, "%d/%d" % (page, pages), page > 1, page < pages)
+        paging(cv, h, "%d/%d" % (page, pages), page > 1, page < pages)
     return cv
 
 

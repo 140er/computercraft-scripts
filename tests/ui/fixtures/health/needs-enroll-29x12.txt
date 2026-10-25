@@ -10,7 +10,7 @@
                              
                              
                              
-                 1/1  ◄   ►  
+                             
 888888880000000100cccccccccc0
 8888888888888888888888880ccc0
 01000000000000000000000000000
@@ -22,7 +22,7 @@
 00000000000000000000000000000
 00000000000000000000000000000
 00000000000000000000000000000
-00000000000000000888088808880
+00000000000000000000000000000
 ffffffff777777777ffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
@@ -34,4 +34,4 @@ fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-fffffffffffffffffffff777f777f
+fffffffffffffffffffffffffffff
