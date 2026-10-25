@@ -103,6 +103,59 @@ class UpdateContext:
         return {}
 
 
+class InstallTests(unittest.TestCase):
+    names = ("server", "wall", "pocket", "miner1", "miner2", "lumber")
+    message = "Install failed: /install.lua:409: Installer state crosses a mount"
+
+    def install(self, failed=False, failures=0, wrapped=False):
+        ctx = UpdateContext()
+        terminal = {"lines": [{"text": self.message if failed else "Install complete"}]}
+        if wrapped:
+            terminal = {"lines": [{"text": "Install failed: /install.lua:409: Installer state  "},
+                                  {"text": "crosses a mount                                    "},
+                                  {"text": "                                                   "}]}
+        finished = {"transport": {"requests": 2, "failures": failures}, "role_running": True}
+        with patch.object(c1, "wait_http_update", return_value=finished), \
+                patch.object(ctx, "terminal", return_value=terminal), \
+                patch.object(ctx, "lua", return_value=True), \
+                patch.object(ctx, "frame", return_value={"role": "generic"}), \
+                patch.object(c1.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout=ctx.payload)):
+            def record(name, value):
+                ctx.records[name] = value
+                if name.endswith("-install-terminal.json"):
+                    self.assertNotIn((name.removeprefix("C1-").removesuffix("-install-terminal.json"), "reboot"), ctx.reboots)
+                return value
+            with patch.object(ctx, "record", side_effect=record):
+                result = c1.install_roles(ctx, self.names)
+        return ctx, result
+
+    def test_installer_report_is_a_failure_for_every_role(self):
+        ctx, result = self.install(failed=True)
+        self.assertEqual(result.status, "fail")
+        for name in self.names:
+            transport = result.metrics["http_transports"][name]
+            self.assertGreaterEqual(transport["failures"], 1)
+            self.assertEqual(transport["installer_errors"], [self.message])
+            self.assertIn(f"{name} {self.message}", result.findings)
+            self.assertIn(self.message, ctx.records[f"C1-{name}-install-terminal.json"]["lines"][0]["text"])
+
+    def test_wrapped_terminal_preserves_the_failure_message(self):
+        _, result = self.install(wrapped=True)
+        for name in self.names:
+            self.assertIn(f"{name} {self.message}", result.findings)
+            self.assertGreaterEqual(result.metrics["http_transports"][name]["failures"], 1)
+
+    def test_clean_install_has_zero_failures(self):
+        _, result = self.install()
+        self.assertEqual(result.status, "pass")
+        self.assertEqual(result.findings, [])
+        self.assertTrue(all(row["failures"] == 0 for row in result.metrics["http_transports"].values()))
+
+    def test_existing_failure_count_is_preserved(self):
+        _, result = self.install(failed=True, failures=2)
+        self.assertTrue(all(row["failures"] == 2 for row in result.metrics["http_transports"].values()))
+
+
 class UpdateTests(unittest.TestCase):
     def run_c14(self, ctx):
         with patch.object(c14.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout=ctx.payload)):

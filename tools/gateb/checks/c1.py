@@ -11,6 +11,8 @@ def evaluate(d):
     c = Criteria()
     c.require(d.get("normal_http_install"), "Normal HTTP installer used on all six roles")
     c.require(d.get("install_errors") == [] if "install_errors" in d else None, "No initial install error, including successful retries")
+    for error in d.get("install_errors", []):
+        c.require(False, error)
     c.require(d.get("exact_files"), "Installed role files match the exact requested commit")
     c.require(d.get("rebooted_roles", 0) == 6, "All six roles survive native reboot")
     return c.finish(d)
@@ -30,6 +32,21 @@ def run(ctx):
         return install_roles(ctx, names)
 
 
+def installer_failures(terminal):
+    messages = []
+    collecting = False
+    for row in terminal.get("lines", []):
+        text = row.get("text", "").strip()
+        if text.startswith("Install failed:"):
+            messages.append(text)
+            collecting = True
+        elif collecting and text and not text.startswith(">"):
+            messages[-1] += " " + text
+        else:
+            collecting = False
+    return messages
+
+
 def install_roles(ctx, names):
     exact, rebooted, errors, transports = True, 0, [], {}
     for name in names:
@@ -37,11 +54,17 @@ def install_roles(ctx, names):
         job = ctx.request("lua_async", computer=ctx.computer(name), code=HTTP_UPDATE)
         program = "/so-server.lua" if name == "server" else "/display.lua" if name in ("wall", "pocket") else "/worker.lua"
         finished = wait_http_update(ctx, name, job, program, 180)
+        terminal = ctx.record(f"C1-{name}-install-terminal.json", ctx.terminal(name))
+        installer_errors = installer_failures(terminal)
+        errors.extend(f"{name} {message}" for message in installer_errors)
         if not finished:
             ctx.request("lua_cancel", computer=ctx.computer(name), job=job["job"])
             errors.append(f"{name} HTTP installation timed out")
             continue
-        transport = finished["transport"]
+        transport = dict(finished["transport"])
+        if installer_errors:
+            transport["installer_errors"] = installer_errors
+            transport["failures"] = max(transport.get("failures", 0), len(installer_errors))
         files = ctx.integrity(name)["files"]
         transports[name] = transport
         if not finished["role_running"] or transport.get("failures") != 0 or transport.get("requests", 0) < len(files):
