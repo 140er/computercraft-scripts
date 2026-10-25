@@ -214,7 +214,7 @@ def room(cv, m):
     leader(cv, rx, top + 9, 19, "up", m["server"]["up"])
     dy = max(jy + 2, top + 9) + 2
     section(cv, 2, dy, w - 2, "DROPS", len(m["drops"]))
-    # Broken drops first; a +N ends the row when some do not fit.
+    # Broken drops first; a +N ends the row when some do not fit. Each drop opens the drop list on it.
     ds = [d for d in m["drops"] if d["broken"]] + [d for d in m["drops"] if not d["broken"]]
     x = 2
     for i, d in enumerate(ds):
@@ -226,6 +226,7 @@ def room(cv, m):
         c = "e" if d["broken"] else "0"
         cv.put(x, dy + 1, "×" if d["broken"] else "•", c)
         cv.put(x + 2, dy + 1, text, c)
+        cv.hit("drop:%d" % d["id"], x, dy + 1, len(text) + 2, 1)
         x += len(text) + 5
     ey = dy + 3
     if ey < h:
@@ -295,6 +296,7 @@ def wall(cv, m):
         cv.put(7, y, p["kind"][:9], c)
         cv.put(17, y, at(p, True), "8")
         cv.put(31, y, "broken" if p["broken"] else "ok", "e" if p["broken"] else "8")
+        cv.hit("drop:%s" % p["id"], 2, y, 35, 1)
     ey = dy + nd + 2
     bottom = ey - 2
     if ey < h and m["events"]:

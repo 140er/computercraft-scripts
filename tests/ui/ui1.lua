@@ -312,7 +312,7 @@ return function(test,equal)
     for _ in text:gmatch('%d+ %a+') do shown=shown+1 end
     equal(tonumber(text:match('%+(%d+) *$')),7-shown)
     local broken
-    for _,b in ipairs(frame.buttons) do if b.id=='broken' then broken=b end end
+    for _,b in ipairs(frame.buttons) do if b.id=='drop:7' then broken=b end end
     assert(broken and broken.x==2)
     -- Five short drops all fit and need no +N.
     m.drops={}
@@ -333,5 +333,22 @@ return function(test,equal)
     equal(U.confirm(s,'add',3100),false) equal(s.confirm,'add')
     equal(U.confirm(s,'remove',3200),false) equal(s.confirm,'remove')
     equal(U.confirm(s,'remove',9001),false) equal(s.confirm,'remove')
+  end)
+  test('P-U1-5 every drop row carries drop:<id> on the room and wall layouts',function()
+    local m={drops={}}
+    for i=1,4 do m.drops[i]={id=i,kind='ore',broken=i==3,x=0,y=0,z=0} end
+    for _,size in ipairs({{57,24},{164,81}}) do
+      local ids={}
+      for _,b in ipairs(U.status(m,size[1],size[2]).buttons) do ids[b.id]=(ids[b.id] or 0)+1 end
+      for i=1,4 do equal(ids['drop:'..i],1) end
+    end
+  end)
+  test('P-U1-5 tapping drop 2 on status opens the drop list on drop 2',function()
+    local d,s,frame,tap=server()
+    local got={}
+    d.screen('generic',function() end,function(event) got[#got+1]=event.id end)
+    frame(2)
+    tap(2,'drop:2')
+    equal(got,{'list','focus:2'})
   end)
 end

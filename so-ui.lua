@@ -487,7 +487,7 @@ U.st.room = function(C, m)
   C.leader(rx, top + 9, 19, "up", m.server.up)
   local dy = math.max(jy + 2, top + 9) + 2
   C.section(2, dy, w - 2, "DROPS", #m.drops)
-  -- Broken drops first; a +N ends the row when some do not fit.
+  -- Broken drops first; a +N ends the row when some do not fit. Each drop opens the drop list on it.
   local ds, x = {}, 2
   for _, d in ipairs(m.drops) do if d.broken then ds[#ds + 1] = d end end
   for _, d in ipairs(m.drops) do if not d.broken then ds[#ds + 1] = d end end
@@ -501,7 +501,7 @@ U.st.room = function(C, m)
     local c = d.broken and "e" or "0"
     C.put(x, dy + 1, d.broken and U.g.cross or U.g.bullet, c)
     C.put(x + 2, dy + 1, text, c)
-    if d.broken then C.hit("broken", x, dy + 1, #text + 2, 1) end
+    C.hit("drop:" .. d.id, x, dy + 1, #text + 2, 1)
     x = x + #text + 5
   end
   local ey = dy + 3
@@ -558,7 +558,7 @@ U.st.wall = function(C, m)
     C.put(7, y, p.kind:sub(1, 9), c)
     C.put(17, y, U.st.at(p, true), "8")
     C.put(31, y, p.broken and "broken" or "ok", p.broken and "e" or "8")
-    if p.broken then C.hit("broken", 2, y, 35, 1) end
+    C.hit("drop:" .. p.id, 2, y, 35, 1)
   end)
   local ey = dy + nd + 2
   local bottom = ey - 2

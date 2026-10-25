@@ -1512,9 +1512,13 @@ D.load = function()
     end
   end
   if U then D.register("disk", D.diskRender, function() end) end
-  -- A broken drop on status opens the drop list on it, as a page of the status role.
+  -- A drop row on status opens the drop list on that drop, and a broken-drop flag on the first
+  -- broken one, as a page of the status role.
   D.register("status", D.statusRender, function(event)
-    if event.id ~= "broken" or not event.open then return end
+    if not event.open then return end
+    local drop = event.id:match("^drop:(.+)$")
+    if drop then event.open("generic", { "list", "focus:" .. drop }) return end
+    if event.id ~= "broken" then return end
     local points = SO.mods.drops and SO.mods.drops.list() or {}
     for _, p in ipairs(points) do if p.broken then event.open("generic", { "list", "focus:" .. p.id }) return end end
   end)
