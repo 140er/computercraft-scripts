@@ -63,7 +63,7 @@ local function terminal(now)
   env.peripheral={find=function() end,getNames=function() return {} end}
   env.dofile=function(path)
     if path=='so-ui.lua' then return U end
-    if path=='so-pair.lua' then return {open=function() end} end
+    if path=='so-pair.lua' then return {open=function() end,forgetPending=function() return {} end} end
     if path=='so-store.lua' then return {clock=function() return function() return now end end} end
     if path=='so-proto.lua' then return {since=function() end,prune=function() end} end
     if path=='so-mod-capture.lua' then

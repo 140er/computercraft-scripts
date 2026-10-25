@@ -234,6 +234,7 @@ end
 
 local function initRandom()
   if S.rnd.isInit() then return true end
+  if S.randomRetry and S.now() < S.randomRetry then return nil, "random source unavailable" end
   local material = table.concat({
     tostring(os.epoch("utc")),
     tostring(os.clock()),
@@ -245,6 +246,7 @@ local function initRandom()
     local ok = pcall(S.rnd.initWithTiming)
     if ok and S.rnd.isInit() then
       S.rnd.mix(material)
+      S.randomRetry = nil
       return true
     end
     if attempt < 3 then
@@ -257,6 +259,7 @@ local function initRandom()
       end
     end
   end
+  S.randomRetry = S.now() + 30000
   return nil, "random source unavailable"
 end
 
@@ -320,8 +323,19 @@ M.open = function(proto, store, now)
   S.proto = proto
   loadCrypto()
   S.box = store.store("so-keys", function(v)
-    return type(v) == "table" and type(v.keys) == "table"
+    if type(v) ~= "table" or type(v.keys) ~= "table"
+      or v.forgetting ~= nil and type(v.forgetting) ~= "table" then return false end
+    for id, row in pairs(v.forgetting or {}) do
+      local n = tonumber(id)
+      if type(id) ~= "string" or not n or n < 0 or n % 1 ~= 0 or type(row) ~= "table"
+        or type(row.modules) ~= "table" or row.key ~= nil and type(row.key) ~= "string" then return false end
+      for name, required in pairs(row.modules) do
+        if type(name) ~= "string" or required ~= true then return false end
+      end
+    end
+    return true
   end, 200000)
+  S.forgetting = S.box.value and S.box.value.forgetting or {}
   S.keys = {}
   if S.box.value and type(S.box.value.keys) == "table" then
     local invalid = false
@@ -369,13 +383,40 @@ M.list = function()
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
 end
-M.forget = function(id)
+M.forget = function(id, modules)
   local name, copy = tostring(id), {}
   for k, v in pairs(S.keys) do if k ~= name then copy[k] = v end end
-  local ok, err = S.box.save({ keys = copy })
+  local pending = {}
+  for k, v in pairs(S.forgetting) do pending[k] = v end
+  if modules and not pending[name] then
+    pending[name] = { modules = {}, key = S.keys[name] }
+    for mod, required in pairs(modules) do pending[name].modules[mod] = required end
+  end
+  -- Key removal and its cleanup record must survive the same save.
+  local ok, err = S.box.save({ keys = copy, forgetting = pending })
   if not ok then return false, err end
+  S.forgetting = pending
   S.keys[name], S.sessions[name] = nil, nil
   M.enrollDrop(id)
+  return true
+end
+M.forgetPending = function()
+  local out = {}
+  for id, pending in pairs(S.forgetting) do
+    local row = { id = tonumber(id), modules = {}, key = pending.key }
+    for name, required in pairs(pending.modules) do row.modules[name] = required end
+    out[#out + 1] = row
+  end
+  table.sort(out, function(a, b) return a.id < b.id end)
+  return out
+end
+M.forgetDone = function(id)
+  local name, pending = tostring(id), {}
+  if not S.forgetting[name] then return true end
+  for k, v in pairs(S.forgetting) do if k ~= name then pending[k] = v end end
+  local ok, err = S.box.save({ keys = S.keys, forgetting = pending })
+  if not ok then return false, err end
+  S.forgetting = pending
   return true
 end
 M.repairHint = function(sender, payload, server)
@@ -394,11 +435,12 @@ end
 
 M.remember = function(id, key)
   local name = tostring(id)
+  if S.forgetting[name] then return false, "forget cleanup pending" end
   local old = S.keys[name]
   S.keys[name] = key
   local copy = {}
   for k, v in pairs(S.keys) do copy[k] = v end
-  local ok, err = S.box.save({ keys = copy })
+  local ok, err = S.box.save({ keys = copy, forgetting = S.forgetting })
   if not ok then
     if old == nil then S.keys[name] = nil else S.keys[name] = old end
     return false, err

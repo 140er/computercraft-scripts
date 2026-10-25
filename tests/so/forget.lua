@@ -281,6 +281,44 @@ return function(test,equal)
     end
     assert(found,"forgotten hello needs pair.required")
   end)
+  test("forget key save failure leaves every planner, lease and invitation unchanged",function()
+    local s=setup(26,20)
+    local so=s.so
+    local mine=private(so.mods.mine.assigned,"job")
+    mine.turtles["3"]={pose={dim="minecraft:overworld",x=1,y=64,z=0},state="mining",recover=false}
+    local lumber=private(so.mods.lumber.forget,"S").job
+    lumber.turtles["3"]={turtle={id=3,pose={x=2,y=64,z=0}},inv={}}
+    lumber.running=true
+    local build=private(so.mods.build.forget,"j")
+    build.turtle={id=3,pose={x=3,y=64,z=0}}
+    build.running=true
+    local drops=private(so.mods.drops.busy,"S")
+    drops.task={id=3,lease="setup"}
+    local lease=private(so.mods.lease.forget,"S")
+    lease.turtles[3]={open={id="moving",expires=so.now()+100,owner="mine",steps={{op="forward"}}}}
+    assert(so.mods.cells.reserve("setup:3",5,64,0,"minecraft:overworld"))
+    local invitation=assert(so.pairCode(3))
+    local function planners()
+      return H.encode({mine=mine,lumber=lumber,build=build,task=drops.task,lease=lease.turtles[3]})
+    end
+    local before,files,key=planners(),H.encode(s.m.files),so.pair.key(3)
+    local pairState=private(so.pair.key,"S")
+    local save=pairState.box.save
+    pairState.box.save=function() return false,"disk" end
+    local ok,err=so.forgetDevice(3,2)
+    equal(ok,false);equal(err,"disk")
+    equal(so.pair.key(3),key)
+    equal(planners(),before)
+    equal(H.encode(s.m.files),files)
+    equal(so.pairCode(3),invitation)
+    equal(so.mods.cells.owner(5,64,0,"minecraft:overworld"),"setup:3")
+    equal(so.mods.state.get("pair.forgotten"),nil)
+    equal(so.pair.forgetPending(),{})
+    pairState.box.save=save
+    assert(so.forgetDevice(3,2))
+    equal(so.pair.key(3),nil)
+    assert(mine.turtles["3"].forgotten and lumber.turtles["3"].turtle.forgotten and build.turtle.forgotten)
+  end)
   test("forget clears setup and visit state while preserving possible occupied cells",function()
     for _,visit in ipairs({false,true}) do
       local s=setup(26,20)
@@ -322,7 +360,7 @@ return function(test,equal)
     equal(cells.owner(5,64,0,"minecraft:overworld"),"gps:3")
     assert(drops.busy(4));equal(state.task.lease,"other");equal(state.compass.id,4)
   end)
-  test("forget keeps the key when setup reservation handoff cannot save",function()
+  test("forget keeps a device revoked when setup handoff fails and cleanup retries automatically",function()
     local s=setup(26,20)
     local drops,cells=s.so.mods.drops,s.so.mods.cells
     local state=private(drops.busy,"S")
@@ -331,11 +369,13 @@ return function(test,equal)
     local handoff=cells.handoff
     cells.handoff=function() return false,"disk" end
     equal(s.so.forgetDevice(3,2),false)
-    assert(s.so.pair.key(3) and drops.busy(3))
+    assert(not s.so.pair.key(3) and drops.busy(3))
     equal(state.task.lease,nil)
     equal(cells.owner(5,64,0,"minecraft:overworld"),"setup:3")
     cells.handoff=handoff
-    assert(s.so.forgetDevice(3,2))
+    s.net.advance(1.05)
+    assert(s.m.alive(),tostring(s.m.error))
+    equal(s.so.pair.forgetPending(),{})
     equal(s.so.pair.key(3),nil);assert(not drops.busy(3))
     equal(cells.owner(5,64,0,"minecraft:overworld"),"gps:3")
   end)
