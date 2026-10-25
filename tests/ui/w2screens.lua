@@ -441,4 +441,55 @@ return function(test,equal)
     end
     assert(os.execute("rm -r '"..dir.."'"))
   end)
+  test('P-U1-1 a display narrowed below 36 cells drops the x10 step',function()
+    local s=setup(57,24) s.uncertain=2 s.display.tick(s.now)
+    local commands={}
+    s.display.screen('mining').input=function(e) commands[#commands+1]=e.text end
+    s.press('turtle:2') s.press('turtle-add') s.press('pose-step')
+    s.display.handlers.hello({from=9,body={w=26,h=20}})
+    s.press('pose:x:1')
+    s.display.handlers.hello({from=9,body={w=57,h=24}})
+    local _,text=capture(s.frame(),57,24) assert(text:find('step 1',1,true) and not text:find('step 10',1,true),text)
+    s.press('turtle-save') s.press('turtle-save')
+    equal(commands,{'add 2 13 60 -5 e'})
+  end)
+  test('P-U1-3 the crowded 164x81 wall keeps its map hit inside the budget',function()
+    local s=setup(164,81) assert(s.display.assign(9,'status'))
+    local D
+    for i=1,60 do local k,v=debug.getupvalue(s.display.tick,i) if k=='D' then D=v break end if not k then break end end
+    assert(D,'display table')
+    local frame=s.frame()
+    local slim={}
+    for i,b in ipairs(frame.buttons) do slim[i]={id=b.id,x=b.x,y=b.y,w=b.w,h=b.h,label=b.label~='' and b.label or nil} end
+    local bytes,buttons=#s.env.SO.proto.ser({rows=frame.rows,buttons=slim}),#frame.buttons
+    -- A crowd one byte under the budget: with an empty label on every hit it would redraw tight.
+    D.budget=bytes+1 D.model=nil
+    local _,full=capture(frame,164,81)
+    frame=s.frame()
+    local _,text=capture(frame,164,81) equal(text,full)
+    local map
+    for _,b in ipairs(frame.buttons) do if b.id=='map' then map=b end assert(b.label~='','empty label sent') end
+    assert(map and map.x==60 and map.y==3 and map.w==48 and map.h==30,'no map hit on the 164x81 wall')
+    assert(bytes+13*buttons>D.budget and #s.env.SO.proto.ser(frame)<=16384)
+    s.press('map')
+    local open=false
+    for _,b in ipairs(s.frame().buttons) do if b.id=='visit-back' then open=true end end
+    assert(open,'map page not open on the 164x81 wall')
+  end)
+  test('build workers get no PARK RESUME or REMOVE: so-mod-build has no turtle view',function()
+    local frame=U.turtle.render(26,20,{id='7'},{role='worker',workerPark=true,state='parked'},1000)
+    equal(#frame.buttons,1) equal(frame.buttons[1].id,'turtle-back')
+  end)
+  test('a blocked lumber worker that is parked still shows PARK: lumber exports no park flag',function()
+    local s=setup(26,20,{workerPark=true}) lumberWorkers(s)
+    s.press('turtle:5') s.press('turtle-park')
+    local row=s.lumber.turtles['5']
+    row.parkConfirmed=true s.display.tick(s.now)
+    local function ids() local out={} for _,b in ipairs(s.frame().buttons) do out[b.id]=b end return out end
+    assert(ids()['turtle-resume'],'parked lumber worker has no RESUME')
+    row.blocked='path blocked' s.display.tick(s.now)
+    local b=ids()
+    -- Pinned: the view's state word is the block, so the page cannot tell the park was confirmed.
+    assert(b['turtle-park'] and not b['turtle-resume'] and b['turtle-remove'])
+  end)
 end

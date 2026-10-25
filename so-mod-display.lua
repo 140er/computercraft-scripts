@@ -222,7 +222,8 @@ D.fit = function(picture, w, h)
       local width = b.w
       if b.x + width - 1 > w then width = w - b.x + 1 end
       local label = type(b.label) == "string" and b.label or b.id
-      buttons[#buttons + 1] = { id = b.id, x = b.x, y = b.y, w = width, label = label:sub(1, width),
+      -- A hit without a label leaves the field out: 13 bytes a button, and clients read it as "".
+      buttons[#buttons + 1] = { id = b.id, x = b.x, y = b.y, w = width, label = label ~= "" and label:sub(1, width) or nil,
         h = math.min(D.whole(b.h) and b.h or 1, h - b.y + 1) }
     end
   end
@@ -1006,17 +1007,10 @@ D.statusFrame = function(session, w, h, now, pocket)
   for k, v in pairs(model) do copy[k] = v end
   copy.name = pocket and "FLEET" or nil
   local frame = U.status(copy, w, pocket and w == 26 and 20 or h)
-  -- Big walls with many rows can pass the 16 KB frame limit. The thumbnail's map hit goes first,
-  -- then they redraw with fewer rows.
-  local function over() return w * h > 4000 and #SO.proto.ser(D.fit(frame, w, h)) > D.budget end
-  if over() then
-    local kept = {}
-    for _, b in ipairs(frame.buttons) do if b.id ~= "map" then kept[#kept + 1] = b end end
-    frame.buttons = kept
-    if over() then
-      copy.tight = true
-      frame = U.status(copy, w, h)
-    end
+  -- Big walls with many rows can pass the 16 KB frame limit; redraw them with fewer rows.
+  if w * h > 4000 and #SO.proto.ser(D.fit(frame, w, h)) > D.budget then
+    copy.tight = true
+    frame = U.status(copy, w, h)
   end
   return frame
 end
@@ -1064,7 +1058,7 @@ D.consent = function(event, role, w, h, session)
   if not cells or type(cells.decideRetirement) ~= "function" then return end
   local frame = D.compose(role, w, h, session)
   for _, button in ipairs(frame.buttons) do
-    if button.id == event.id and button.label == event.id:match("^dug%.(%a+)/")
+    if button.id == event.id and type(button.label) == "string" and button.label == event.id:match("^dug%.(%a+)/")
       and #button.label == button.w and event.y == button.y
       and event.x >= button.x and event.x < button.x + button.w then
       local choice, token = event.id:match("^dug%.(%a+)/(.+)$")
@@ -1166,6 +1160,8 @@ D.turtleInput = function(event,w,h)
     if id == "turtle-cancel" and selected.draft then selected.draft,selected.confirm=nil,nil return true end
   end
   if selected and selected.draft then selected.draft=Turtle.draft(selected.draft) end
+  -- The step chip is drawn from 36 cells; a narrower display steps by 1 again.
+  if selected and w < 36 then selected.step=nil end
   local frame = D.compose(event.role,w,h,session)
   local drawn = false
   for _,b in ipairs(frame.buttons) do
