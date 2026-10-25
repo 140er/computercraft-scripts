@@ -201,6 +201,7 @@ end
 local function send(steps, action, recover)
   local lease, cells = module("lease"), module("cells")
   if S.pending or not lease.send or lease.status(j.turtle.id).open then return false end
+  if not recover and lease.restartReady and not lease.restartReady() then return false end
   if not recover and not S.safe[j.turtle.id] then alert("update worker for builder safety", "worker_safety") return false end
   local returning = returning()
   local stat=lease.status(j.turtle.id)
@@ -888,6 +889,7 @@ local function tick()
     send({{op="inspectDown"}},"recover",true)
     return
   end
+  if lease.restartReady and not lease.restartReady() then return end
   if j.legacyHold then return end
   if S.workerPark and j.turtle.paused then
     if j.turtle.removeRequested and j.turtle.parkConfirmed then removeParked()

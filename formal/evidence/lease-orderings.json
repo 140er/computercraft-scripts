@@ -1,7 +1,7 @@
 {
   "sync_commit": "d82f456583671350a655ee9c982c126ddd2795d4",
   "covered_file": "so-mod-lease.lua",
-  "source_sha256": "5c842c91f6c858ac20afa34e1cfef02d118c6d88f465fe01d4395484a46a24f4",
+  "source_sha256": "bb05389805034a026fcf7b379f8164d173471accae851a7adbdc9f89cc0b41eb",
   "model_sha256": "315c651a6cb680beb59e8f6b12386c58369bf55c32979c870a3d117cbed077d0",
   "verifier_sha256": "b43ec8456388edc91a372b4d410dfa13b7d7d57c5c6b7496564ae4a3bd3fe16d",
   "tool": "Lua 5.2.4  Copyright (C) 1994-2015 Lua.org, PUC-Rio",
@@ -96,5 +96,5 @@
     "summary": "PASS traces=493941 comparisons=7387242; all legacy schedules, two restarts, acknowledgements, save failures and journal/forget recovery\n"
   },
   "scratch_removed": true,
-  "elapsed_seconds": 22.529
+  "elapsed_seconds": 22.186
 }

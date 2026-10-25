@@ -1062,6 +1062,8 @@ plan = function(id,row)
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
+  local lease = mod("lease")
+  if lease.restartReady and not lease.restartReady() then return end
   if S.recall.worker(id) then S.recall.plan(id,row) return end
   if workerPark and row.paused then
     row.state=row.parkConfirmed and "parked" or "parking"

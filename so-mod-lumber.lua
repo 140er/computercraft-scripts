@@ -659,6 +659,10 @@ S.send = function(steps, action, cells, recover, ms, route)
     j.nextDispatch = {steps=steps,action=action,cells=cells,recover=recover,ms=ms,route=route}
     return true
   end
+  if not recover and lease.restartReady and not lease.restartReady() then
+    j.nextDispatch = {steps=steps,action=action,cells=cells,recover=recover,ms=ms,route=route}
+    return true
+  end
   if action ~= "suck" and action ~= "burnLogs" then S.invalidateProof(j) end
   if not j.turtle or type(lease.send) ~= "function" or type(lease.status) ~= "function" then return false end
   if S.row.pending or lease.status(j.turtle.id).open then return false end
@@ -2212,6 +2216,7 @@ S.tickRow = function(row, now)
     S.park(true)
     return
   end
+  if lease.restartReady and not lease.restartReady() then return end
   if S.workerPark and j.paused then
     if j.removeRequested and j.parkConfirmed then S.removeParked()
     elseif not j.parkConfirmed or not j.parkAt or now-j.parkAt>=540000 then S.park() end

@@ -705,6 +705,12 @@ S.restore = function()
   end
 end
 
+S.restartReady = function()
+  if S.persistenceError then return false end
+  for _, row in pairs(S.turtles) do if row.bootRecovery then return false end end
+  return true
+end
+
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   if S.persistenceError then return nil, S.persistenceError end
@@ -750,11 +756,7 @@ S.send = function(id, steps, opts)
   for _, step in ipairs(steps) do
     if step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" and step.op ~= "gps" then observation = false end
   end
-  if not observation then
-    for _, peer in pairs(S.turtles) do
-      if peer.bootRecovery then return nil, "restart reconciliation pending" end
-    end
-  end
+  if not observation and not S.restartReady() then return nil, "restart reconciliation pending" end
   local frame, from, expected, reconcile
   if S.safety or fencedRecovery then
     if not row.parkBatch or not row.setupFence or not row.journal or not row.pose then
@@ -1268,6 +1270,7 @@ return {
     S.callbacks[owner] = fn
     return true
   end,
+  restartReady = S.restartReady,
   status = S.status,
   peek = S.peek,
   describe = S.describe,

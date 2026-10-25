@@ -147,6 +147,20 @@ return function(test,equal)
     local nextId,why=s.lease.send(2,{{op="inspectDown"}},{owner="mine",recover=true,frame=frame})
     equal(nextId,nil) equal(why,"restart needs fenced observation")
   end)
+  test("C10 lumber retries a fleet reconciliation wait without a sticky hold",function()
+    local f=dofile("tests/so/lumber-fixture.lua")("scan",1000,{})
+    local ready=false
+    f.mods.lease.restartReady=function() return ready end
+    for i=1,3 do
+      f.tick(i)
+      equal(f.queued(),nil)
+      equal(f.row.blocked,nil)
+    end
+    ready=true
+    f.tick(4)
+    assert(f.queued(),"lumber did not retry after peer recovery")
+    equal(f.row.blocked,nil)
+  end)
   test("C10 pending worker operations and failed close saves retain restored leases",function()
     local s=setup()
     local id=assert(s.lease.send(2,{{op="forward"}},{owner="mine",ms=60000,frame=frame}))

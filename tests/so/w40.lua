@@ -101,6 +101,7 @@ return function(test, equal)
     for i = 1, 32 do journal.dug[i] = { x = i, y = -64, z = -i } end
     worker.files["so-journal"] = H.encode({ schema = 1, generation = 1, value = journal })
     worker.co = nil
+    net.advance(0.05)
     worker.boot("worker.lua")
     net.flush()
     local steps = {}
@@ -122,6 +123,7 @@ return function(test, equal)
     worker.files["so-journal"] = H.encode({ schema = 1, generation = 1, value = journal })
     for slot = 1, 16 do worker.inv[slot] = { name = "example:item", count = 64 } end
     worker.co = nil
+    net.advance(0.05)
     worker.boot("worker.lua")
     net.flush()
     local tags, steps = { ["c:ores"] = true }, {}
