@@ -376,7 +376,7 @@ return function(test,equal)
     local lease=a.s.env.SO.mods.lease
     lease.locate(2,"minecraft:overworld",function(_,err) why=err end)
     a.n.advance(27)
-    equal(why,"probe pose unknown; use explicit add")
+    equal(why,"GPS probe lost; retry add")
     equal(#a.s.env.SO.mods.cells.list("gps:2",10),5)
     lease=a.s.env.dofile("so-mod-lease.lua")
     a.s.env.SO.mods.lease=lease

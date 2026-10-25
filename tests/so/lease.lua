@@ -1,10 +1,13 @@
 local H = dofile("tests/so/harness.lua")
+-- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
+-- Part tests carry this hash because their input set excludes formal evidence.
+local evidenceSourceHash = "b5514c400c13a86790c836264f7e33e630ab7facf751653eb3b80061bb3b6cd3"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
-    "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua" })
+    "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua", "so-mod-cells.lua" })
   local libs = {
     "x25519", "random", "blake3", "chacha20", "config", "internal/util",
     "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing",
@@ -25,7 +28,12 @@ local function setup(position, gpsPos)
   assert(server.alive(), tostring(server.error))
   local lease = assert(server.env.SO.mods.lease, table.concat(server.log, "\n"))
   local calls, released = {}, {}
-  server.env.SO.mods.cells = { releaseOwner = function(id) released[#released + 1] = id end }
+  local cells = server.env.SO.mods.cells
+  local releaseOwner = cells.releaseOwner
+  cells.releaseOwner = function(owner)
+    released[#released + 1] = owner
+    return releaseOwner(owner)
+  end
   lease.onReport("mine", function(id, turtleId, results, record)
     calls[#calls + 1] = { id = id, turtleId = turtleId, results = results, lease = record }
   end)
@@ -64,11 +72,17 @@ local function setup(position, gpsPos)
     assert(not worker.error, tostring(worker.error))
   end
   return { net = net, server = server, worker = worker, lease = lease,
-    calls = calls, released = released, send = send, state = server.env.SO.mods.state }
+    calls = calls, released = released, cells = cells, send = send, state = server.env.SO.mods.state }
 end
 local origin = { dim = 0, x = 0, y = 0, z = 0 }
 local steps = { { op = "forward" }, { op = "up" } }
-return function(test, equal)
+return function(test, equal, read)
+  test("lease formal evidence matches the current source bytes", function()
+    local s = setup(origin)
+    local proto = s.server.env.SO.proto
+    equal(proto.hex(proto.sha256(read("so-mod-lease.lua"))), evidenceSourceHash,
+      "lease evidence is stale; rerun python3 formal/verify_lease.py --evidence formal/evidence/lease-orderings.json")
+  end)
   test("lease refuses a second open batch without sending", function()
     local s = setup(origin)
     local id = assert(s.lease.send(2, steps, { owner = "mine" }))
@@ -81,14 +95,20 @@ return function(test, equal)
     equal(s.worker.env.batches[1].expires, s.net.time + 60000)
     equal(s.lease.status(2).open, id)
   end)
-  test("lease full worker report releases cells emits pose and calls once", function()
+  test("lease full worker report keeps planner cells emits pose and calls once", function()
     local s = setup(origin)
     s.worker.env.auto = true
+    for i, owner in ipairs({ "mine:2", "lumber:2", "build:2", "setup:2" }) do
+      assert(s.cells.reserve(owner, i, 0, 0))
+    end
     local pose = { dim = 0, x = 0, y = 1, z = -1, facing = 0 }
     local id = assert(s.lease.send(2, steps, { owner = "mine", pose = pose }))
     s.net.flush()
     equal(s.lease.status(2).open, nil)
-    equal(s.released, { id })
+    equal(s.released, {})
+    for i, owner in ipairs({ "mine:2", "lumber:2", "build:2", "setup:2" }) do
+      equal(s.cells.owner(i, 0, 0), owner)
+    end
     equal(#s.calls, 1)
     equal(s.calls[1].id, id)
     equal(s.calls[1].turtleId, 2)
@@ -111,11 +131,22 @@ return function(test, equal)
       s.send("step.report", { lease = "unknown", results = results })
     end
     equal(#s.calls, 1)
-    equal(#s.released, 1)
+    equal(#s.released, 0)
     equal(s.state.view().rev, before)
+  end)
+  test("lease park cancellation leaves real planner owners intact", function()
+    local s = setup(origin)
+    assert(s.cells.reserve("mine:2", 1, 0, 0))
+    assert(s.lease.send(2, {{op="inspectDown"}}, {owner="mine"}))
+    assert(s.lease.cancelPark(2, "mine"))
+    equal(s.lease.status(2).open, nil)
+    equal(s.cells.owner(1, 0, 0), "mine:2")
+    equal(s.released, {})
+    equal(#s.calls, 0)
   end)
   test("lease silence expires after grace and keeps reservations", function()
     local s = setup(origin)
+    assert(s.cells.reserve("mine:2", 1, 0, 0))
     local id = assert(s.lease.send(2, steps, { owner = "mine", ms = 1000 }))
     s.net.advance(11)
     equal(#s.calls, 0)
@@ -124,6 +155,7 @@ return function(test, equal)
     equal(#s.calls, 1)
     equal(s.calls[1].results, nil)
     equal(s.calls[1].lease.status, "expired")
+    equal(s.cells.owner(1, 0, 0), "mine:2")
     equal(#s.released, 0)
     s.send("step.report", { lease = id, results = { { ok = true }, { ok = true } } })
     s.net.advance(1)
@@ -190,14 +222,149 @@ return function(test, equal)
     equal(s.lease.status(2).open, nil)
     equal(#s.calls, 1)
   end)
-  test("lease history page replies with state history entries over wire", function()
+  test("lease history wire pages use UTC cursors and text without changing sequence pages", function()
     local s = setup(origin)
-    for i = 1, 4 do assert(s.state.emit("sample", { n = i })) end
-    local query = { from = 1, count = 2 }
-    local expected = s.state.history.page(query)
-    s.send("history.page", query)
-    equal(s.worker.env.replies[1].t, "history.page")
-    equal(s.worker.env.replies[1].body, expected)
+    local epoch = s.server.env.os.epoch
+    local utc = 1700000000000
+    s.server.env.os.epoch = function(kind) return kind == "utc" and utc or epoch(kind) end
+    for i = 1, 105 do
+      utc = utc + 1000
+      assert(s.state.emit("sample", { text = "event " .. i }))
+    end
+    s.server.env.os.epoch = epoch
+    local internal = s.state.history.page({ from = 100, count = 2 })
+    equal(internal.entries[1].seq, 101)
+    equal(internal.entries[2].seq, 102)
+    equal(internal.next, 102)
+    local function page(query)
+      local n = #s.worker.env.replies
+      s.send("history.page", query)
+      local reply = s.worker.env.replies[n + 1]
+      equal(reply.t, "history.page")
+      return reply.body
+    end
+    local first = page({ limit = 2, from = 1, count = 1, reverse = false })
+    equal(first.entries, {
+      { at = utc, text = "sample event 105" },
+      { at = utc - 1000, text = "sample event 104" },
+    })
+    equal(first.next, {at=utc-1000, seq=104})
+    local second = page({ limit = 2, before = first.next })
+    equal(second.entries[1], {at=utc-2000, text="sample event 103"})
+    equal(second.entries[2], {at=utc-3000, text="sample event 102"})
+    local last = page({ limit = 50, before = utc - 103000 })
+    equal(last.entries, {{at=utc-104000, text="sample event 1"}})
+    equal(last.next, nil)
+    equal(#page({}).entries, 20)
+    equal(#page({limit=99}).entries, 50)
+    equal(#page({limit=0}).entries, 1)
+    equal(s.state.history.page({from=100,count=2}), internal)
+  end)
+  test("lease history wire sorts UTC times and excludes equal cursor times", function()
+    local s = setup(origin)
+    local epoch = s.server.env.os.epoch
+    local utc = 1700000000000
+    s.server.env.os.epoch = function(kind) return kind == "utc" and utc or epoch(kind) end
+    assert(s.state.emit("sample", "first"))
+    utc = utc - 1000
+    assert(s.state.emit("sample", {reason="older"}))
+    utc = utc + 1000
+    assert(s.state.emit("sample", false))
+    s.server.env.os.epoch = epoch
+    s.send("history.page", {limit=2})
+    equal(s.worker.env.replies[1].body, {entries={
+      {at=utc,text="sample cleared"}, {at=utc,text="sample first"}}, next={at=utc,seq=1}})
+    s.send("history.page", {before=utc,limit=2})
+    equal(s.worker.env.replies[2].body, {entries={{at=utc-1000,text="sample older"}}})
+  end)
+  test("lease history wire cursor retains equal-time overflow across pages", function()
+    for _, count in ipairs({3,55}) do
+      local s = setup(origin)
+      local epoch, utc = s.server.env.os.epoch, 1700000000000
+      s.server.env.os.epoch = function(kind) return kind == "utc" and utc or epoch(kind) end
+      for i = 1, count do assert(s.state.emit("sample", {text="event " .. i})) end
+      s.server.env.os.epoch = epoch
+      local cursor
+      for newest = count, 1, -2 do
+        s.send("history.page", {limit=2, before=cursor})
+        local reply = s.worker.env.replies[#s.worker.env.replies]
+        equal(reply.t, "history.page")
+        local expected = {{at=utc,text="sample event " .. newest}}
+        if newest > 1 then expected[2] = {at=utc,text="sample event " .. (newest-1)} end
+        equal(reply.body.entries, expected)
+        cursor = reply.body.next
+        equal(cursor, newest > 2 and {at=utc,seq=newest-1} or nil)
+      end
+      s.send("history.page", {limit=2, before=utc})
+      equal(s.worker.env.replies[#s.worker.env.replies].body, {entries={}})
+      s.send("history.page", {limit=2, before={at=utc}})
+      equal(s.worker.env.replies[#s.worker.env.replies].body, {entries={}})
+    end
+  end)
+  test("lease setup handoff commits only with the complete route", function()
+    local s = setup(origin)
+    local pose = {dim="minecraft:overworld",x=0,y=0,z=0}
+    local route = {pose, {dim=pose.dim,x=1,y=0,z=0}}
+    assert(s.cells.reserve("gps:2", 0, 0, 0))
+    assert(s.cells.reserve("mine:3", 1, 0, 0))
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    equal(s.cells.owner(0, 0, 0), "gps:2")
+    local ok, err = s.cells.reserveMany("setup:2", route)
+    equal(ok, false)
+    equal(err, "held")
+    equal(#s.cells.list("setup:2", 10), 0)
+    equal(s.cells.owner(0, 0, 0), "gps:2")
+    assert(s.cells.releaseOwner("mine:3"))
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    local open = s.server.env.fs.open
+    s.server.env.fs.open = function(path, mode)
+      if path == "so-data/cells/res.tmp" and mode == "w" then return nil end
+      return open(path, mode)
+    end
+    equal(s.cells.reserveMany("setup:2", route), false)
+    equal(#s.cells.list("setup:2", 10), 0)
+    equal(s.cells.owner(0, 0, 0), "gps:2")
+    s.server.env.fs.open = open
+    -- A failed reservation consumes the pending handoff.
+    equal(s.cells.reserveMany("setup:2", route), false)
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    assert(s.cells.reserveMany("setup:2", route))
+    equal(s.cells.owner(0, 0, 0), "setup:2")
+    equal(s.cells.owner(1, 0, 0), "setup:2")
+    assert(s.lease.clearProbe(2))
+    equal(s.cells.owner(0, 0, 0), "setup:2")
+  end)
+  test("lease setup failure does not claim a free pose or change other planner handoffs", function()
+    local s = setup(origin)
+    local pose = {dim="minecraft:overworld",x=0,y=0,z=0}
+    assert(s.cells.reserve("gps:2", 2, 0, 0))
+    assert(s.cells.reserve("mine:3", 1, 0, 0))
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    equal(s.cells.reserveMany("setup:2", {pose,{dim=pose.dim,x=1,y=0,z=0}}), false)
+    equal(s.cells.owner(0, 0, 0), nil)
+    equal(#s.cells.list("setup:2", 10), 0)
+    assert(s.lease.claimProbe(2, "mine:2", {dim=pose.dim,x=2,y=0,z=0}))
+    equal(s.cells.owner(2, 0, 0), "mine:2")
+  end)
+  test("lease lost GPS probe explains retry and a fresh hello permits another add", function()
+    local dim = "minecraft:overworld"
+    local s = setup({dim=dim,x=0,y=0,z=0})
+    local function hello()
+      s.send("hello", {role="turtle", gps={dim=dim,x=0,y=0,z=0},
+        journal={id="probe",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true}})
+    end
+    hello()
+    local reason
+    s.lease.locate(2, dim, function(_, err) reason = err end)
+    local first = assert(s.lease.status(2).open)
+    s.net.advance(26)
+    equal(reason, "GPS probe lost; retry add")
+    equal(s.lease.status(2).open, nil)
+    hello()
+    s.lease.locate(2, dim, function() error("retry should start a probe") end)
+    local retry = assert(s.lease.status(2).open)
+    assert(retry ~= first)
+    equal(s.lease.status(2).probing, true)
   end)
   test("lease range uses gps or allows positions without a server fix", function()
     local s = setup(nil, origin)

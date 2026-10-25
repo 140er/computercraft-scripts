@@ -151,6 +151,9 @@ S.claimProbe = function(id, owner, pose)
   local cells = S.module("cells")
   local from = "gps:" .. id
   if not cells or not cells.list or #cells.list(from,1) == 0 then return true end
+  if owner == "setup:" .. id then
+    return cells.prepareHandoff(from, owner, pose.x, pose.y, pose.z, pose.dim)
+  end
   if cells.owner(pose.x,pose.y,pose.z,pose.dim) == from then
     return cells.handoff(from,owner,pose.x,pose.y,pose.z,pose.dim)
   end
@@ -192,7 +195,7 @@ S.probed = function(row, results, lease)
     probe.done(nil, not ok and err or "probe blocked; use explicit add")
   else
     row.fix = nil
-    probe.done(nil, "probe pose unknown; use explicit add")
+    probe.done(nil, results and "probe pose unknown; use explicit add" or "GPS probe lost; retry add")
   end
 end
 
@@ -365,8 +368,6 @@ S.cancelPark = function(id, owner)
     or lease.steps[1].op ~= "inspectDown" then return false, "turtle has open lease" end
   row.open = nil
   lease.status = "cancelled"
-  local cells = S.module("cells")
-  if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
   return true
 end
 
@@ -426,8 +427,6 @@ S.report = function(msg)
   if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
   lease.status = "reported"
-  local cells = S.module("cells")
-  if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
   if allOk and lease.pose and not row.uncertain then
     local pose = S.copyPose(lease.pose)
     pose.id = msg.from
@@ -546,6 +545,44 @@ S.tick = function(now)
   end
 end
 
+S.historyPage = function(query, history)
+  query = type(query) == "table" and query or {}
+  local limit = S.number(query.limit) and math.floor(query.limit) or 20
+  limit = math.max(1, math.min(50, limit))
+  local before, beforeSeq = math.huge, nil
+  if S.number(query.before) then before = query.before
+  elseif type(query.before) == "table" and S.number(query.before.at) then
+    before = query.before.at
+    beforeSeq = S.number(query.before.seq) and query.before.seq or nil
+  end
+  local entries, cursor = {}, nil
+  repeat
+    local page = history.page({ reverse = true, before = cursor, count = 50 })
+    for _, entry in ipairs(page.entries) do
+      if entry.at < before or entry.at == before and beforeSeq and entry.seq < beforeSeq then
+        entries[#entries + 1] = entry
+      end
+    end
+    table.sort(entries, function(a, b)
+      if a.at == b.at then return a.seq > b.seq end
+      return a.at > b.at
+    end)
+    while #entries > limit + 1 do entries[#entries] = nil end
+    cursor = page.next
+  until not cursor
+  local more = #entries > limit
+  if more then entries[#entries] = nil end
+  local out = {}
+  for _, entry in ipairs(entries) do
+    local data = entry.data
+    local detail = type(data) == "table" and (data.text or data.reason)
+      or type(data) == "string" and data or data == false and "cleared"
+    out[#out + 1] = { at = entry.at, text = entry.kind .. (detail and " " .. tostring(detail) or "") }
+  end
+  local last = entries[#entries]
+  return { entries = out, next = more and { at = last.at, seq = last.seq } or nil }
+end
+
 S.dugProtection = function(protect)
   for _, row in pairs(S.turtles) do
     if row.uncertain or row.anchor then return false end
@@ -574,7 +611,7 @@ return {
     ["history.page"] = function(msg, reply)
       local state = S.module("state")
       if type(state) == "table" and type(state.history) == "table" and type(state.history.page) == "function" then
-        reply("history.page", state.history.page(msg.body))
+        reply("history.page", S.historyPage(msg.body, state.history))
       end
     end,
   },

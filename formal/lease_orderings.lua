@@ -61,14 +61,14 @@ local function run(trace, foreign, batchSize, grace)
         model.seq = model.seq + 1
         expected = string.format("2-%.0f-%d", model.now, model.seq)
         model.open, model.expires = expected, model.now + 1000
-        model.cells[expected] = true
+        model.cells["mine:2"] = true
       end
       local id, err = lease.send(2, steps, { owner = "mine", ms = 1000 })
       local property = model.uncertain and "uncertainty" or "dispatch"
       equal(property, id, expected)
       equal(property, err, reason)
       actual.ids[action], model.ids[action] = id, expected
-      if id then actual.cells[id] = true end
+      if id then actual.cells["mine:2"] = true end
     elseif action == "restart" then
       boot()
       model.open, model.expires, model.seq, model.uncertain = nil, nil, 0, false
@@ -94,7 +94,6 @@ local function run(trace, foreign, batchSize, grace)
       end
       lease.handlers["step.report"]({ from = sender, body = { lease = id, results = results } })
       if sender == 2 and expectedId == model.open and #results == batchSize then
-        model.cells[model.open] = nil
         model.calls[#model.calls + 1] = model.open .. ":report"
         model.open, model.uncertain = nil, false
       end
