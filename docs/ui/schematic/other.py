@@ -406,7 +406,71 @@ def metrics(hs):
     return rows
 
 
-def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1):
+def footer_rows(w, label, note):
+    """The footer's left chip sits on the last row when it ends a blank column before the pager's
+    note and arrows, else on the row above."""
+    return 1 if len(label) + 5 <= (w - 8 - len(note) if note else w - 7) else 2
+
+
+def fit_pages(count, capacity, page, w, label):
+    """Rows per page, pages and footer rows for count lines under a left chip and an n/m note."""
+    pages = max(1, -(-count // capacity))
+    rows = footer_rows(w, label, "%d/%d" % (max(1, min(page, pages)), pages))
+    if rows == 2:
+        capacity = max(1, capacity - 1)
+        pages = max(1, -(-count // capacity))
+    return capacity, pages, rows
+
+
+FACTS = [("id", "id"), ("label", "label"), ("role", "role"), ("pos", None), ("count", "count"), ("item", "name"),
+         ("total", "total"), ("fuel", "fuel"), ("level", "level"), ("branch", "branch"), ("done", "done"),
+         ("op", "op"), ("reason", "reason")]
+
+
+def event_data(e):
+    """The event's recorded data; scene events carry only a text, and "cleared" is false."""
+    if "data" in e:
+        return e["data"]
+    return False if e["text"] == "cleared" else {"text": e["text"]}
+
+
+def event_text(e):
+    data = event_data(e)
+    if isinstance(data, dict):
+        return data.get("text") or data.get("reason")
+    return "cleared" if data is False else data
+
+
+def event_found(e, find):
+    """history.page's text filter: a plain case-insensitive substring of the kind and the data's text,
+    reason, name and label."""
+    if not find:
+        return True
+    data, parts = event_data(e), [e["kind"]]
+    if isinstance(data, str):
+        parts.append(data)
+    elif isinstance(data, dict):
+        parts += [str(data[k]) for k in ("text", "reason", "name", "label") if k in data]
+    return find[:32].lower() in " ".join(parts).lower()
+
+
+def event_facts(e):
+    """so-mod-health's facts(): allowlisted scalar fields as leaders, then the text."""
+    data, rows = event_data(e), []
+    if isinstance(data, dict):
+        for label, key in FACTS:
+            if key is None:
+                p = data if isinstance(data.get("x"), int) else data.get("point") or {}
+                if all(isinstance(p.get(a), int) for a in "xyz"):
+                    rows.append((label, "%d %d %d" % (p["x"], p["y"], p["z"])))
+            elif key in data:
+                rows.append((label, str(data[key])))
+    text = data.get("text") if isinstance(data, dict) else "cleared" if data is False else data
+    return rows, text
+
+
+def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, page=1, held=False, find=None,
+           picker=False, fact=None):
     """so-mod-health's render for role: tabs, the page's rows from the top, paging on the last row."""
     cv = Canvas(w, h, title)
     hs = facts if facts is not None else SCENE["health"]
@@ -417,25 +481,65 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1):
                          [("EVENTS", "events"), ("ALERTS", "alerts"), ("ERRORS", "errors")]], role, 4)
     gap, lw = (1 if h >= 16 else 0), min(w - 2, 40)
     top = last + 1 + gap
+    history = role in ("events", "alerts")
+    if history and fact is not None:
+        cv.put(2, top, fact["kind"][:w - 2], "0")
+        ago = duration(now - fact["at"]) + " ago"
+        if 3 + len(fact["kind"]) + len(ago) <= w:
+            cv.put(3 + len(fact["kind"]), top, ago, "8")
+        top += 1 + gap
+        rows, text = event_facts(fact)
+        lines = wrap(re.sub(r"[\x00-\x1f\x7f]", " ", text), lw - 5) if text else []
+        rows += [dict(label="text" if i == 0 else "", text=line) for i, line in enumerate(lines)]
+        for i, row in enumerate(rows):
+            y = top + i
+            if y >= h:
+                break
+            if isinstance(row, dict):
+                cv.put(2, y, row["label"], "8")
+                cv.put(7, y, row["text"], "0")
+            else:
+                leader(cv, 2, y, lw, row[0], row[1][:max(1, lw - len(row[0]) - 2)])
+        chip(cv, 2, h, "BACK", "fact-back")
+        return cv
+    if role == "events" and picker:
+        kinds = ["all"] + sorted({e["kind"] for e in hs["events"]})
+        capacity, pages, foot = fit_pages(len(kinds), max(1, h - gap - top), 1, w, "BACK")
+        for i, name in enumerate(kinds[:capacity]):
+            y = top + i
+            if name == (kind or "all"):
+                cv.put(2, y, "•", "0")
+            cv.put(4, y, name[:w - 4], "0" if name == (kind or "all") else "8")
+            cv.hit("pick:%d" % (i + 1), 1, y, w, 1, name)
+        chip(cv, 2, h - foot + 1, "BACK", "kind-back")
+        pager(cv, h, "1/%d" % pages, False, pages > 1)
+        return cv
     if role == "events":
         cv.put(2, top, "kind", "8")
         chip(cv, 7, top, kind or "all", "kind")
         top += 1 + gap
+        if find:
+            cv.put(2, top, "find", "8")
+            chip(cv, 7, top, find[:w - 9], "find")
+            top += 1 + gap
     capacity = max(0, h - gap - top)
+    if history:
+        left = ("LATEST", "latest", "plain") if page > 1 else ("LIVE", "live", "primary") if held else ("HOLD", "hold", "plain")
+        note = str(page) if page > 1 else ""
+        foot = footer_rows(w, left[0], note)
+        capacity = max(0, capacity - foot + 1)
     if role == "errors" and error is not None:
         cv.put(2, top, duration(now - error["at"]) + " ago", "8")
         top += 1 + gap
-        capacity = max(1, h - gap - top)
         text = re.sub(r"[\x00-\x1f\x7f]", " ", error["text"])
         rows = wrap(text, lw)
-        pages = max(1, math.ceil(len(rows) / capacity))
+        capacity, pages, foot = fit_pages(len(rows), max(1, h - gap - top), error_page, w, "BACK")
         error_page = max(1, min(error_page, pages))
         for i, line in enumerate(rows[(error_page - 1) * capacity:error_page * capacity]):
             cv.put(2, top + i, line, "0")
-        chip(cv, 2, h, "BACK", "error-back")
+        chip(cv, 2, h - foot + 1, "BACK", "error-back")
         pager(cv, h, "%d/%d" % (error_page, pages), error_page > 1, error_page < pages)
         return cv
-    history = role in ("events", "alerts")
     if role == "health":
         rows = []
         for m in metrics(hs):
@@ -454,11 +558,15 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1):
         for e in reversed(hs["events"]):
             if kind and e["kind"] != kind or role == "alerts" and not e["kind"].endswith(".alert"):
                 continue
+            if role == "events" and not event_found(e, find):
+                continue
             name = e["kind"][:-len(".alert")] if role == "alerts" and e["kind"].endswith(".alert") else e["kind"]
-            rows.append(dict(time=duration(now - e["at"]), kind=name, text=e["text"],
-                             fg="e" if role == "alerts" else mark(e["kind"] + " " + e["text"])))
-        more = len(rows) > max(1, capacity)
-        rows = rows[:max(1, capacity)]
+            text = event_text(e)
+            rows.append(dict(time=duration(now - e["at"]), kind=name, text=text or "",
+                             fg="e" if role == "alerts" else mark(e["kind"] + (" " + text if text else ""))))
+        count = max(1, capacity)
+        more = len(rows) > page * count
+        rows = rows[(page - 1) * count:page * count]
     if not rows:
         if role == "attention":
             cv.put(2, top, "all clear", "d")
@@ -489,9 +597,12 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1):
                 cv.put(x, y, row["kind"][:max(0, w - x)], "8")
                 x += len(row["kind"]) + 1
             cv.put(x, y, fit(row["text"], w - x), "0")
+            if history:
+                cv.hit("event:%d" % (i + 1), 1, y, w, 1)
     pages = max(1, -(-len(rows) // max(1, capacity)))
     if history:
-        pager(cv, h, "", False, more)
+        chip(cv, 2, h - foot + 1, *left)
+        pager(cv, h, note, page > 1, more)
     else:
         pager(cv, h, "1/%d" % pages, False, pages > 1)
     return cv
@@ -516,6 +627,30 @@ def health_case(role, w, h, pending=False, detail=False, page=1):
                   error=hs["entries"][0] if detail else None, error_page=page)
 
 
+def history_events(n):
+    """The history test's log: 40 events 20 s apart, one lumber.logs among them, then later arrivals.
+    tests/so/health.lua emits the same events into the real so-mod-state."""
+    out = []
+    for i in range(1, n + 1):
+        at = 3600000 - (41 - i) * 20000 if i <= 40 else 3590000 + (i - 41) * 5000
+        if i == 12:
+            kind, data = "lumber.logs", {"id": 5, "count": 12, "total": 40}
+        elif i % 5 == 0:
+            kind, data = "mine.alert", {"id": 7, "text": "ore chest full", "reason": "full"}
+        elif i % 7 == 0:
+            kind, data = "drops.broken", {"text": "chest 3 broken"}
+        else:
+            kind, data = "mine.ore", {"id": 7, "name": "diamond", "count": 1, "x": 12, "y": i - 60, "z": 88}
+        out.append(dict(at=at, kind=kind, data=data))
+    return out
+
+
+def history_case(w, h, n=40, **options):
+    hs = dict(SCENE["health"], machines=[], leases={}, points=[], holds=[], requests=[], errors=[0, 0],
+              entries=[], events=history_events(n))
+    return health("events", w, h, "Health history at %dx%d" % (w, h), facts=hs, **options)
+
+
 HEALTH_FIXTURES = []
 for _w, _h in ((26, 20), (29, 12)):
     for _name, _role, _options in (
@@ -527,6 +662,20 @@ for _w, _h in ((26, 20), (29, 12)):
     ):
         HEALTH_FIXTURES.append(("health/%s-%dx%d" % (_name, _w, _h),
                                 lambda r=_role, w=_w, h=_h, o=_options: health_case(r, w, h, **o)))
+    # Page 2, held page 1 after two later events, the kind picker, a search and one event's facts.
+    for _name, _options in (
+        ("events-page2", dict(page=2)),
+        ("events-held", dict(held=True)),
+        ("events-picker", dict(picker=True)),
+        ("events-find", dict(find="chest")),
+        ("event-facts", dict(fact=history_events(40)[38])),
+    ):
+        HEALTH_FIXTURES.append(("health/%s-%dx%d" % (_name, _w, _h),
+                                lambda w=_w, h=_h, o=_options: history_case(w, h, **o)))
+# A 1x1 monitor at scale 0.5: the footer's left chip moves above the page number and arrows.
+for _name, _options in (("events-15x10", {}), ("events-page2-15x10", dict(page=2)),
+                        ("events-picker-15x10", dict(picker=True))):
+    HEALTH_FIXTURES.append(("health/" + _name, lambda o=_options: history_case(15, 10, **o)))
 
 
 def _health(role, w, h, title, kind=None):

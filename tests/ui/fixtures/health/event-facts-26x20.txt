@@ -1,0 +1,61 @@
+26x20 Health history at 26x20
+ HEALTH  NEEDS 0  ------- 
+ EVENTS  ALERTS  ERRORS   
+                          
+ mine.ore 40s ago         
+                          
+ id ··················· 7 
+ pos ·········· 12 -21 88 
+ count ················ 1 
+ item ··········· diamond 
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  BACK                    
+888888888888888880ccccccc0
+00000000888888888888888800
+00000000000000000000000000
+00000000008888888000000000
+00000000000000000000000000
+0880ccccccccccccccccccc000
+08880cccccccccc00000000000
+0888880cccccccccccccccc000
+088880ccccccccccc000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+77777777ffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777fffffffffffffffffff

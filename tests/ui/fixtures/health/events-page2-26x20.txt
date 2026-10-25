@@ -1,0 +1,61 @@
+26x20 Health history at 26x20
+ HEALTH  NEEDS 0  ------- 
+ EVENTS  ALERTS  ERRORS   
+                          
+ kind  all                
+                          
+ • 4m mine.ore            
+ • 5m mine.ore            
+ • 5m mine.alert ore      
+ • 5m mine.ore            
+ • 6m mine.ore            
+ • 6m mine.ore            
+ • 6m drops.broken chest  
+ • 7m mine.alert ore      
+ • 7m mine.ore            
+ • 7m mine.ore            
+ • 8m mine.ore            
+ • 8m mine.ore            
+ • 8m mine.alert ore      
+                          
+  LATEST        2  ◄   ►  
+888888888888888880ccccccc0
+00000000888888888888888800
+00000000000000000000000000
+08888000000000000000000000
+00000000000000000000000000
+08088088888888000000000000
+08088088888888000000000000
+01088088888888880000000000
+08088088888888000000000000
+08088088888888000000000000
+08088088888888000000000000
+0e088088888888888800000000
+01088088888888880000000000
+08088088888888000000000000
+08088088888888000000000000
+08088088888888000000000000
+08088088888888000000000000
+01088088888888880000000000
+00000000000000000000000000
+00000000000000008000000000
+ffffffffffffffffffffffffff
+77777777ffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffff77777fffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777fffffffff777f777f

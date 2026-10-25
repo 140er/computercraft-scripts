@@ -187,6 +187,47 @@ local function errorWrap(text, width)
   return rows
 end
 
+-- The footer's left chip sits on the last row when it ends a blank column before the pager's note
+-- and arrows, else on the row above. Returns the rows the footer takes.
+local function footerRows(w, label, note)
+  return #label+5 <= (note ~= "" and w-8-#note or w-7) and 1 or 2
+end
+
+-- Rows per page and pages for count lines under a left chip and an n/m note. Returns the capacity,
+-- the pages and the footer rows.
+local function fitPages(count, capacity, page, w, label)
+  local pages = math.max(1,math.ceil(count/capacity))
+  local rows = footerRows(w,label,math.max(1,math.min(page or 1,pages)).."/"..pages)
+  if rows == 2 then
+    capacity = math.max(1,capacity-1)
+    pages = math.max(1,math.ceil(count/capacity))
+  end
+  return capacity, pages, rows
+end
+
+-- An event's recorded facts as leaders { label, value }, from an allowlist of scalar data fields,
+-- then its text as the last row.
+local FACTS = {{"id","id"},{"label","label"},{"role","role"},{"pos"},{"count","count"},{"item","name"},
+  {"total","total"},{"fuel","fuel"},{"level","level"},{"branch","branch"},{"done","done"},{"op","op"},
+  {"reason","reason"}}
+
+local function facts(entry)
+  local data, rows = entry.data, {}
+  local function scalar(v) return (type(v)=="string" or type(v)=="number" or type(v)=="boolean") and tostring(v) end
+  if type(data) == "table" then
+    for _, f in ipairs(FACTS) do
+      local value
+      if f[1] == "pos" then
+        local p = type(data.x)=="number" and data or type(data.point)=="table" and data.point or {}
+        if type(p.x)=="number" and type(p.y)=="number" and type(p.z)=="number" then value = p.x.." "..p.y.." "..p.z end
+      else value = scalar(data[f[2]]) end
+      if value then rows[#rows+1] = {f[1],value} end
+    end
+  end
+  local text = type(data)=="table" and scalar(data.text) or type(data)=="string" and data or data==false and "cleared"
+  return rows, text
+end
+
 -- Route A (docs/ui/schematic/other.py health): HEALTH and NEEDS, then EVENTS ALERTS ERRORS as tabs,
 -- the page's rows, and the paging chips on the last row.
 H.render = function(role,w,h,session)
@@ -199,18 +240,71 @@ H.render = function(role,w,h,session)
     {{"EVENTS","events"},{"ALERTS","alerts"},{"ERRORS","errors"}}},role,4)
   local gap, lw = h >= 16 and 1 or 0, math.min(w-2,40)
   local top = last+1+gap
+  local history = role == "events" or role == "alerts"
+  if history and v.fact then
+    -- One event's facts: its kind and age, then leaders and the text, BACK to the same list page.
+    local e = v.fact
+    c.put(2,top,e.kind:sub(1,w-2),"0")
+    local age = duration(H.now-(e.gameAt or H.now)).." ago"
+    if 3+#e.kind+#age <= w then c.put(3+#e.kind,top,age,"8") end
+    top = top+1+gap
+    local rows, text = facts(e)
+    for _, line in ipairs(text and U.wrap((text:gsub("[%c]"," ")),lw-5) or {}) do
+      rows[#rows+1] = {label=#rows>0 and rows[#rows].label and "" or "text",text=line}
+    end
+    v.targets = {}
+    for i, row in ipairs(rows) do
+      local y = top+i-1
+      if y >= h then break end
+      if row.text then c.put(2,y,row.label,"8") c.put(7,y,row.text,"0")
+      else c.leader(2,y,lw,row[1],row[2]:sub(1,math.max(1,lw-#row[1]-2))) end
+    end
+    c.chip(2,h,"BACK","fact-back")
+    return c.frame()
+  end
+  if role == "events" and v.picker then
+    -- The kind picker: ALL and every kind in the log, the current one marked.
+    local kinds = v.picker.kinds
+    local capacity, pages, foot = fitPages(#kinds,math.max(1,h-gap-top),v.picker.page,w,"BACK")
+    v.picker.page = math.max(1,math.min(v.picker.page,pages))
+    v.targets = {}
+    for i=1,capacity do
+      local n = (v.picker.page-1)*capacity+i
+      local kind, y = kinds[n], top+i-1
+      if not kind then break end
+      if kind == (v.kind or "all") then c.put(2,y,U.g.bullet,"0") end
+      c.put(4,y,kind:sub(1,w-4),kind == (v.kind or "all") and "0" or "8")
+      c.hit("pick:"..n,1,y,w,1,kind)
+    end
+    c.chip(2,h-foot+1,"BACK","kind-back")
+    U.pager(c,h,v.picker.page.."/"..pages,v.picker.page>1,v.picker.page<pages)
+    return c.frame()
+  end
   if role == "events" then
     c.put(2,top,"kind","8")
     c.chip(7,top,v.kind or "all","kind")
     top = top+1+gap
+    if v.find then
+      c.put(2,top,"find","8")
+      c.chip(7,top,v.find:sub(1,w-9),"find")
+      top = top+1+gap
+    end
   end
   local capacity = math.max(0,h-1-gap-top+1)
+  -- Page 1 follows new events until HOLD pins its newest sequence; LIVE and LATEST return to it.
+  local left, note, foot
+  if history then
+    left = v.page > 1 and {"LATEST","latest"} or v.cursors[1] and {"LIVE","live","primary"} or {"HOLD","hold"}
+    note = v.page > 1 and tostring(v.page) or ""
+    foot = footerRows(w,left[1],note)
+    capacity = math.max(0,capacity-foot+1)
+  end
   if role == "errors" and v.error then
     c.put(2,top,duration(H.now-v.error.at).." ago","8")
     top = top+1+gap
-    capacity = math.max(1,h-gap-top)
     local lines = errorWrap(v.error.text:gsub("[%c]"," "),lw)
-    local pages = math.max(1,math.ceil(#lines/capacity))
+    local pages, foot
+    capacity, pages, foot = fitPages(#lines,math.max(1,h-gap-top),v.errorPage,w,"BACK")
     v.errorPage = math.max(1,math.min(v.errorPage or 1,pages))
     v.errorNext = v.errorPage < pages
     v.targets = {}
@@ -218,7 +312,7 @@ H.render = function(role,w,h,session)
       local line = lines[(v.errorPage-1)*capacity+i]
       if line then c.put(2,top+i-1,line,"0") end
     end
-    c.chip(2,h,"BACK","error-back")
+    c.chip(2,h-foot+1,"BACK","error-back")
     U.pager(c,h,v.errorPage.."/"..pages,v.errorPage>1,v.errorNext)
     return c.frame()
   end
@@ -241,13 +335,15 @@ H.render = function(role,w,h,session)
   else
     local state = SO.mods.state
     if state and state.history then
-      page = state.history.page({reverse=true,before=v.cursors[v.page],count=math.max(1,capacity),kind=v.kind,alerts=role=="alerts"})
-      for _, e in ipairs(page.entries) do
+      page = state.history.page({reverse=true,before=v.cursors[v.page],count=math.max(1,capacity),kind=v.kind,
+        text=role=="events" and v.find or nil,alerts=role=="alerts"})
+      if v.page == 1 then v.top = page.entries[1] and page.entries[1].seq end
+      for i, e in ipairs(page.entries) do
         local data = e.data
         local text = type(data)=="table" and (data.text or data.reason) or type(data)=="string" and data or data==false and "cleared"
         local kind = role == "alerts" and (e.kind:gsub("%.alert$","")) or e.kind
         rows[#rows+1] = {time=duration(H.now-(e.gameAt or H.now)),kind=kind,text=text and tostring(text) or "",
-          fg=role=="alerts" and "e" or U.mark(e.kind..(text and " "..tostring(text) or ""))}
+          fg=role=="alerts" and "e" or U.mark(e.kind..(text and " "..tostring(text) or "")),entry=e,id="event:"..i}
         H.kinds[e.kind] = true
       end
     end
@@ -288,14 +384,15 @@ H.render = function(role,w,h,session)
       local fitted = U.fit(text,w-x)
       if role == "errors" then fitted = text:sub(1,errorCut(text,#fitted)) end
       c.put(x,y,fitted,"0")
-      if role == "errors" then
+      if row.entry then
         c.hit(row.id,1,y,w,1)
         v.targets[row.id] = row.entry
       end
     end
   end
   local pages = math.max(1,math.ceil(#rows/math.max(1,capacity)))
-  U.pager(c,h,not page and (v.page.."/"..pages) or "",v.page>1,v.next~=nil)
+  if history then c.chip(2,h-foot+1,left[1],left[2],left[3]) end
+  U.pager(c,h,note or (v.page.."/"..pages),v.page>1,v.next~=nil)
   return c.frame()
 end
 
@@ -315,19 +412,50 @@ H.input = function(role,event)
   elseif role == "errors" and v.targets and v.targets[id] then
     local entry = v.targets[id]
     v.error,v.errorPage = {at=entry.at,text=entry.text},1
+  elseif (role == "events" or role == "alerts") and (v.fact or v.picker) then
+    if id == "fact-back" then v.fact = nil
+    elseif id == "kind-back" then v.picker = nil
+    elseif v.picker and id == "next" then v.picker.page = v.picker.page+1
+    elseif v.picker and id == "prev" then v.picker.page = math.max(1,v.picker.page-1)
+    elseif v.picker and type(id) == "string" and id:match("^pick:%d+$") then
+      local kind = v.picker.kinds[tonumber(id:sub(6))]
+      if kind then
+        v.kind = kind ~= "all" and kind or nil
+        v.page,v.cursors,v.picker = 1,{},nil
+      end
+    elseif event.open and (id=="health" or id=="attention" or id=="events" or id=="alerts" or id=="errors") then
+      v.fact,v.picker = nil,nil
+      event.open(id)
+    end
+  elseif (role == "events" or role == "alerts") and v.targets and v.targets[id] then
+    v.fact = v.targets[id]
+  elseif (role == "events" or role == "alerts") and id == "hold" and v.page == 1 then
+    v.cursors[1] = (v.top or 0)+1
+  elseif (role == "events" or role == "alerts") and (id == "live" or id == "latest") then
+    v.page,v.cursors = 1,{}
+  elseif role == "events" and id == "find" then
+    v.find,v.page,v.cursors = nil,1,{}
+  elseif role == "events" and type(event.text) == "string" then
+    -- Typed text searches EVENTS; blank or * clears the search.
+    local text = event.text:match("^%s*(.-)%s*$"):sub(1,32)
+    v.find = text ~= "" and text ~= "*" and text or nil
+    v.page,v.cursors = 1,{}
   elseif id == "next" and v.next then
     v.page = v.page+1
     if role == "events" or role == "alerts" then v.cursors[v.page] = v.next end
   elseif id == "prev" then v.page=math.max(1,v.page-1)
-  elseif id == "kind" or type(event.text)=="string" and role=="events" then
-    local kinds = {"ALL"}
-    for kind in pairs(H.kinds) do kinds[#kinds+1]=kind end
-    table.sort(kinds)
-    local nextKind = kinds[1]
-    for i,kind in ipairs(kinds) do if kind==(v.kind or "ALL") then nextKind=kinds[i%#kinds+1] break end end
-    v.kind = event.text or nextKind
-    if v.kind=="ALL" or v.kind=="*" or v.kind=="" then v.kind=nil end
-    v.page,v.cursors = 1,{}
+  elseif id == "kind" and role == "events" then
+    -- Every kind in the log when state offers history.kinds, else the kinds drawn since boot.
+    local state, kinds = SO.mods.state, nil
+    if state and state.history and type(state.history.kinds) == "function" then kinds = state.history.kinds() end
+    if type(kinds) ~= "table" then
+      kinds = {}
+      for kind in pairs(H.kinds) do kinds[#kinds+1]=kind end
+      table.sort(kinds)
+    end
+    local list = {"all"}
+    for _, kind in ipairs(kinds) do if type(kind) == "string" and kind ~= "all" then list[#list+1] = kind end end
+    v.picker = {page=1,kinds=list}
   elseif event.open then
     local row = v.targets and v.targets[id]
     if row then event.open(row.target,row.actions)
