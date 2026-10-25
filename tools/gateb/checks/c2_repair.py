@@ -12,15 +12,20 @@ OBSERVER = Path(__file__).resolve().parents[1] / "c2_repair_loader.lua"
 SNAPSHOT = "return GATEB_REPAIR and GATEB_REPAIR()"
 
 
-def snapshot(ctx, name):
+def snapshot(ctx, name, *, required=True):
     result = ctx.lua(name, SNAPSHOT)
     if not isinstance(result, dict):
-        raise Blocked(f"C2 repair observer unavailable on {name}")
+        if required:
+            raise Blocked(f"C2 repair observer unavailable on {name}")
+        return None
     return result
 
 
 def ready(ctx, name, predicate, message, seconds=60):
-    result = ctx.wait(lambda: (lambda s: s if predicate(s) else None)(snapshot(ctx, name)), seconds)
+    def poll():
+        state = snapshot(ctx, name, required=False)
+        return state if state is not None and predicate(state) else None
+    result = ctx.wait(poll, seconds)
     if not result:
         raise Blocked(message)
     return result
@@ -30,6 +35,20 @@ def event(ctx, name, kind, *args):
     before = snapshot(ctx, name)["inputs"]
     ctx.request("input", computer=ctx.computer(name), event=kind, args=list(args))
     return ready(ctx, name, lambda s: s["inputs"] > before, f"{name} did not consume {kind}")
+
+
+def clear_candidate(ctx, name):
+    digits = snapshot(ctx, name)["digits"]
+    # Candidate ids accept at most nine digits in the display client.
+    for _ in range(9):
+        if digits == 0:
+            return
+        remaining = event(ctx, name, "key", 259, False)["digits"]
+        if not 0 <= remaining < digits:
+            raise Blocked(f"{name} candidate Backspace did not reduce digit count")
+        digits = remaining
+    if digits:
+        raise Blocked(f"{name} candidate did not clear within nine Backspace attempts")
 
 
 @contextmanager
@@ -212,8 +231,7 @@ def run(ctx):
                 ready(ctx, name, lambda s: s.get("step") == step, f"{name} did not reach repair phase {step}")
                 if step == 3:
                     # Confirm the actual replacement id even if discovery suggested another server.
-                    while snapshot(ctx, name)["digits"]:
-                        event(ctx, name, "key", 259, False)
+                    clear_candidate(ctx, name)
                     event(ctx, name, "paste", str(new))
                 capture(ctx, name, label)
                 if name == "wall":

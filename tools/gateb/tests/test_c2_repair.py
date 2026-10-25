@@ -107,7 +107,12 @@ class MockWorld:
             elif s["step"] == 4:
                 s["digits"] = 0
         elif kind == "key" and args[0] == 259:
-            s["digits"] -= 1
+            if self.defect == "backspace-swallowed":
+                attempts = sum(e[:2] == (name, "key") and e[2][0] == 259 for e in self.events)
+                if attempts > 9:
+                    raise AssertionError("Candidate clearing exceeded nine Backspace attempts")
+            else:
+                s["digits"] -= 1
         elif kind == "paste":
             s["digits"] += len(args[0])
         elif kind == "char" and args[0].isdigit():
@@ -149,6 +154,64 @@ class RepairTests(unittest.TestCase):
              patch.object(repair, "replace_server", mocked_replace), \
              patch.object(repair, "photo", mocked_photo):
             return repair.run(ctx)
+
+    def test_ready_waits_for_delayed_observer_after_reboot(self):
+        ctx = MockWorld()
+        ctx.power("wall", "reboot")
+        replies = [None, False, state(phase="stale"), state()]
+        polls = []
+        def lua(name, code):
+            self.assertEqual((name, code), ("wall", repair.SNAPSHOT))
+            return replies.pop(0)
+        def wait(predicate, seconds):
+            self.assertEqual(seconds, 60)
+            for _ in range(4):
+                polls.append(True)
+                result = predicate()
+                if result:
+                    return result
+        ctx.lua, ctx.wait = lua, wait
+        result = repair.ready(ctx, "wall", lambda s: s["phase"] == "live", "Wall not ready")
+        self.assertEqual(result["phase"], "live")
+        self.assertEqual(len(polls), 4)
+
+    def test_ready_reports_missing_observer_only_after_wait_expires(self):
+        ctx = MockWorld()
+        polls = []
+        ctx.lua = lambda *args: None
+        def wait(predicate, seconds):
+            self.assertEqual(seconds, 60)
+            for _ in range(3):
+                polls.append(True)
+                self.assertIsNone(predicate())
+            return None
+        ctx.wait = wait
+        with self.assertRaisesRegex(Blocked, "Wall not ready at deadline"):
+            repair.ready(ctx, "wall", lambda s: s["phase"] == "live", "Wall not ready at deadline")
+        self.assertEqual(len(polls), 3)
+
+    def test_swallowed_candidate_backspace_blocks_and_stops_client(self):
+        ctx = MockWorld("backspace-swallowed")
+        with self.assertRaisesRegex(Blocked, "wall candidate Backspace did not reduce digit count"):
+            self.drive(ctx)
+        backspaces = [e for e in ctx.events if e[:2] == ("wall", "key") and e[2][0] == 259]
+        self.assertEqual(len(backspaces), 1)
+        self.assertEqual(ctx.events[-1], ("client", "private", "stop"))
+
+    def test_candidate_clearing_stops_after_nine_progressing_attempts(self):
+        ctx = MockWorld()
+        ctx.states["wall"].update(phase="stale", step=3, digits=10)
+        with self.assertRaisesRegex(Blocked, "wall candidate did not clear within nine Backspace attempts"):
+            repair.clear_candidate(ctx, "wall")
+        self.assertEqual(ctx.states["wall"]["digits"], 1)
+        self.assertEqual(len(ctx.events), 9)
+
+    def test_candidate_clearing_accepts_maximum_length_id(self):
+        ctx = MockWorld()
+        ctx.states["wall"].update(phase="stale", step=3, digits=9)
+        repair.clear_candidate(ctx, "wall")
+        self.assertEqual(ctx.states["wall"]["digits"], 0)
+        self.assertEqual(len(ctx.events), 9)
 
     def test_mock_world_drives_every_phase_and_reboots_both_clients(self):
         ctx = MockWorld()
