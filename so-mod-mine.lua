@@ -642,10 +642,15 @@ plan = function(id,row)
   if status.lost then row.parkConfirmed=nil row.state, row.error, row.recover = "lost", "worker beacon", true row.laneWait=nil end
   if status.open then return end
   if status.lost or row.recover then
+    local cells,p=mod("cells"),row.pose
+    if cells and cells.owner and cells.owner(p.x,p.y,p.z,p.dim)=="gps:"..id then
+      local ok,err=call("cells","handoff","gps:"..id,owner(id),p.x,p.y,p.z,p.dim)
+      if not ok then row.error=err or "standing cell handoff unavailable" return end
+    end
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
-  if row.paused then
+  if workerPark and row.paused then
     row.state=row.parkConfirmed and "parked" or "parking"
     if row.removeRequested and row.parkConfirmed then removeParked(id,row)
     else reservePose(id,row) park(id,row,false) end
@@ -1741,11 +1746,18 @@ return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostr
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end
     lease.onReport("mine",report) display.screen("mining",render,input) S.wired=true
-    for _,row in pairs(job.turtles) do
+    local cleared=false
+    for id,row in pairs(job.turtles) do
+      if not workerPark and (row.paused or row.removeRequested or row.parkConfirmed) then
+        row.paused,row.removeRequested,row.parkConfirmed=nil,nil,nil
+        print("so-mine: workerPark off; cleared park state for "..id)
+        cleared=true
+      end
       -- Rows saved before counted existed were counted when they finished.
       if row.state=="done" and row.counted==nil then row.counted=row.branch end
       if not row.forgotten then row.parkConfirmed=nil row.parkUntil=nil row.recover=true row.state="recovering" end
     end
+    if cleared and not save() then return end
   end
   for id,row in pairs(job.turtles) do
     if row.state ~= "wait lane" or row.recover or not job.running

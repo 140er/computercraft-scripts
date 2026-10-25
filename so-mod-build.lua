@@ -65,6 +65,11 @@ local box = SO.store.store("so-data/build/job", function(j)
   return type(j) == "table" and type(j.dim) == "string" and whole(j.cursor) and j.cursor >= 1
 end)
 local j = box.value or { dim="minecraft:overworld", cursor=1, running=false, phase="check", inv={} }
+if not S.workerPark and j.turtle and (j.turtle.paused or j.turtle.removeRequested or j.turtle.parkConfirmed) then
+  j.turtle.paused,j.turtle.removeRequested,j.turtle.parkConfirmed,j.turtle.state=nil,nil,nil,nil
+  print("so-build: workerPark off; cleared park state for "..j.turtle.id)
+  S.pauseCleared=true
+end
 local function publish()
   local state=module("state")
   if S.published ~= j.alert and state.emit then
@@ -480,6 +485,10 @@ local function render(w,h,session)
   return C.frame()
 end
 local function tick()
+  if S.pauseCleared then
+    if not save() then return end
+    S.pauseCleared=nil
+  end
   publish()
   local lease,display=module("lease"),module("display")
   if not S.wired and display.screen then display.screen("build",render,input) S.wired=true end
@@ -494,6 +503,13 @@ local function tick()
   if stat.uncertain then j.turtle.parkConfirmed=nil alert("pose uncertain; re-add turtle","pose uncertain") return end
   if S.pending or stat.open then return end
   if S.recover or stat.lost then
+    local cells,p=module("cells"),j.turtle.pose
+    local gps="gps:"..j.turtle.id
+    if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)==gps then
+      if not cells.handoff then alert("standing cell handoff unavailable") return end
+      local ok,err=cells.handoff(gps,owner(),p.x,p.y,p.z,p.dim)
+      if not ok then alert(err) return end
+    end
     j.turtle.parkConfirmed=nil
     if j.turtle.paused then j.turtle.state="parking" end
     send({{op="inspectDown"}},"recover",true)

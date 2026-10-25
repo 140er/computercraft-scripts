@@ -6,7 +6,7 @@ local function copy(v)
   local out={} for k,x in pairs(v) do out[k]=copy(x) end return out
 end
 local function fixture(name, enabled)
-  local f={now=1000,calls={},jobs={},fail=nil}
+  local f={now=1000,calls={},jobs={},fail=nil,enabled=enabled,logs={}}
   local net=H.new()
   local server=net.machine({id=1,modem=true})
   server.install({"so-plan.lua","so-ui.lua","so-mine-plan.lua","so-lumber-plan.lua",
@@ -30,17 +30,21 @@ local function fixture(name, enabled)
       material="minecraft:stone",home=pose(2),turtle=turtle(2),blueprint={dim=dim,shape="floor",x1=8,x2=10,y1=0,y2=0,z1=4,z2=4}}
   end
   f.inventory=copy(job.inv or {})
-  f.jobs["so-data/"..name.."/job"]=job
+  local jobPath="so-data/"..name.."/job"
+  f.jobs[jobPath]=copy(job)
   local mods={}
   env.SO={now=function() return f.now end,breathe=function() end,mods=mods,pair={key=function() return "paired" end},
     proto={build=function(_,t,b) return {t=t,body=b} end,encode=function(v) return v end},
-    store={copy=copy,read=function(path) if path=="so-server.cfg" then return {workerPark=enabled~=false} end end,
+    store={copy=copy,read=function(path) if path=="so-server.cfg" then return {workerPark=f.enabled~=false} end end,
       store=function(path)
-        return {value=f.jobs[path],save=function(value)
+        local value=copy(f.jobs[path])
+        if path==jobPath then job=value end
+        return {value=value,save=function(nextValue)
           if f.fail==path then return false,"injected disk failure" end
-          f.jobs[path]=value return true
+          f.jobs[path]=copy(nextValue) return true
         end}
       end}}
+  env.print=function(text) f.logs[#f.logs+1]=text end
   env.rednet.send=function() return true end
   mods.state={emit=function() return true end,get=function() end,canStart=function() return true end}
   mods.display={screen=function(_,_,input) f.input=function(text) input({text=text}) end end}
@@ -74,7 +78,9 @@ local function fixture(name, enabled)
       pose=not missing and {x=at.x,y=at.y,z=at.z,f=at.facing} or nil,fuel=4000,inv=copy(f.inventory)}})
     return q
   end
-  f.restart=function()
+  f.restart=function(workerPark)
+    if workerPark~=nil then f.enabled=workerPark end
+    mods.cells=env.dofile("so-mod-cells.lua")
     mods.lease=env.dofile("so-mod-lease.lua")
     local again=mods.lease.send
     mods.lease.send=function(id,steps,opts)
@@ -83,6 +89,8 @@ local function fixture(name, enabled)
       return lid,err
     end
     mods[name]=env.dofile(({mine="so-mod-mine.lua",lumber="so-mod-lumber.lua",build="so-mod-build.lua"})[name])
+    f.job=job
+    if name=="build" then mods.build.handlers.hello({from=2,body={capabilities={parkBatch=true}}}) end
     f.tick()
   end
   f.tick()
@@ -163,6 +171,57 @@ local function moduleTests(test,equal)
       f.restart() assert(f.row()) assert(not f.row().parkConfirmed)
       f.tick() assert(f.row())
       f.report() parkReport(f) f.tick() equal(f.row(),nil)
+    end)
+    test(name.." failed removal save then restart reclaims the cell and waits for a new park report",function()
+      local f=fixture(name) moving(f) f.input("remove 2") f.report() parkReport(f)
+      local at=copy(f.pose(2))
+      f.fail="so-data/"..name.."/job" f.tick() assert(f.row())
+      equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),"gps:2")
+      f.fail=nil f.restart() assert(f.row()) assert(not f.row().parkConfirmed)
+      equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),name..":2")
+      assert(f.pending().opts.recover) f.report() f.tick() assert(f.row())
+      assert(not f.row().parkConfirmed)
+      local q=assert(f.pending()) equal(#q.steps,1) equal(q.steps[1].op,"inspectDown")
+      f.report() f.tick() equal(f.row(),nil)
+      equal(#f.mods.cells.list(name..":2",100000),0)
+      equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),"gps:2")
+    end)
+    test(name.." recovery retries a failed standing-cell reclaim without deleting the row",function()
+      local f=fixture(name) moving(f) f.input("remove 2") f.report() parkReport(f)
+      local at=copy(f.pose(2))
+      f.fail="so-data/"..name.."/job" f.tick() assert(f.row())
+      f.fail="so-data/cells/res" f.restart() assert(f.row()) equal(f.pending(),nil)
+      equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),"gps:2")
+      f.fail=nil f.tick() assert(f.pending().opts.recover)
+      equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),name..":2")
+      f.report() parkReport(f) f.tick() equal(f.row(),nil)
+    end)
+    test(name.." flag off at restart clears and logs saved pause and removal state",function()
+      for _,command in ipairs({"park 2","remove 2"}) do
+        local f=fixture(name) moving(f) f.input(command) f.report() parkReport(f)
+        f.restart(false) assert(f.row()) assert(not f.row().paused) assert(not f.row().removeRequested)
+        assert(not f.row().parkConfirmed)
+        local saved=f.jobs["so-data/"..name.."/job"]
+        local row=name=="build" and saved.turtle or saved.turtles["2"]
+        assert(not row.paused) assert(not row.removeRequested) assert(not row.parkConfirmed)
+        assert(table.concat(f.logs,"\n"):find("workerPark off; cleared park state for 2",1,true))
+        f.report() moving(f) assert(f.row()) assert(f.job.running)
+      end
+    end)
+    test(name.." flag off before the first park report clears the saved pause",function()
+      local f=fixture(name) moving(f) f.input("park 2") assert(not f.row().parkConfirmed)
+      f.restart(false) assert(f.row()) assert(not f.row().paused) assert(not f.row().removeRequested)
+      f.report() moving(f) assert(f.job.running)
+    end)
+    test(name.." flag off after a failed removal save reclaims the cell and schedules the worker",function()
+      local f=fixture(name) moving(f) f.input("remove 2") f.report() parkReport(f)
+      local at=copy(f.pose(2))
+      f.fail="so-data/"..name.."/job" f.tick() assert(f.row())
+      equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),"gps:2")
+      f.fail=nil f.restart(false)
+      assert(f.row()) assert(not f.row().paused) assert(not f.row().removeRequested)
+      equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),name..":2")
+      f.report() moving(f) assert(f.row()) assert(f.job.running)
     end)
     test(name.." worker park commands default off",function()
       local f=fixture(name,false) moving(f) f.input("resume 2") assert(not f.row().paused)

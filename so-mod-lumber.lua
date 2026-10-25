@@ -33,7 +33,12 @@ if S.job.turtle then
   end
   S.job.turtles[tostring(row.turtle.id)] = row
 end
-for _, row in pairs(S.job.turtles) do
+for id, row in pairs(S.job.turtles) do
+  if not S.workerPark and (row.parkRequested or row.removeRequested or row.parkConfirmed) then
+    row.paused,row.parkRequested,row.removeRequested,row.parkConfirmed,row.idlePark,row.parkAt=nil,nil,nil,nil,nil,nil
+    print("so-lumber: workerPark off; cleared park state for "..id)
+    S.pauseCleared=true
+  end
   if row.inflight then row.uncertain = S.possible(row.uncertain, row.inflight) end
   row.recover, row.pending, row.motion, row.parkConfirmed = true, nil, nil, nil
 end
@@ -729,7 +734,7 @@ S.report = function(id, turtleId, results, lease)
     S.save()
     return
   end
-  if action == "park" and j.paused then
+  if S.workerPark and action == "park" and j.paused then
     j.parkConfirmed=true
   elseif action == "recover" then
     if j.delivery then
@@ -1143,10 +1148,10 @@ S.input = function(ev)
         local ok,err=cells.handoff("gps:"..id,"lumber:"..id,p.x,p.y,p.z,p.dim)
         if not ok then S.alert(err) return end
       end
-      row.paused,row.removeRequested,row.parkConfirmed,row.idlePark=nil,nil,nil,nil
+      row.paused,row.parkRequested,row.removeRequested,row.parkConfirmed,row.idlePark=nil,nil,nil,nil,nil
     else
       if not row.paused then row.parkConfirmed,row.idlePark=nil,nil end
-      row.paused=true
+      row.paused,row.parkRequested=true,true
       if words[1]=="remove" then row.removeRequested=true end
     end
   elseif words[1] == "park" and #words == 2 then
@@ -1650,6 +1655,13 @@ S.tickRow = function(row, now)
   end
   if j.pending or status.open then return end
   if j.recover then
+    local cells,p=S.module("cells"),j.turtle.pose
+    local gps="gps:"..j.turtle.id
+    if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)==gps then
+      if not cells.handoff then S.alert("standing cell handoff unavailable") return end
+      local ok,err=cells.handoff(gps,S.owner(),p.x,p.y,p.z,p.dim)
+      if not ok then S.alert(err) return end
+    end
     S.suspendService()
     if not j.turtle.frame and not j.turtle.anchor then S.alert("waiting for reported pose") return end
     S.park(true)
@@ -1696,6 +1708,10 @@ S.tickRow = function(row, now)
   S.work(now)
 end
 S.tick = function(now)
+  if S.pauseCleared then
+    if not S.save() then return end
+    S.pauseCleared=nil
+  end
   local lease, display = S.module("lease"), S.module("display")
   if not S.wired and type(display.screen) == "function" then display.screen("lumber", S.render, S.input) S.wired = true end
   if not S.callback and type(lease.onReport) == "function" then lease.onReport("lumber", S.report) S.callback = true end
