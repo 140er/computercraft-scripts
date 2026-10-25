@@ -460,4 +460,40 @@ return function(test, equal)
       end
     end
   end)
+
+  test("B8-U saved FOUND and suspension screens match the twin at every size", function()
+    local s3 = dofile("tests/ui/s3.lua")
+    local drops
+    for i = 1, 40 do local k, v = debug.getupvalue(s3, i) if k == "drops" then drops = v end end
+    local paths = {"tests/ui/fixtures/dropssaved-M.txt", "tests/ui/fixtures/dropssaved-P.txt", "tests/ui/fixtures/dropssaved-XS.txt"}
+    for i, size in ipairs({{57,24}, {26,20}, {15,10}}) do
+      local t, a = assert(drops)(), {id=7}
+      local env
+      for j = 1, 30 do local k,v = debug.getupvalue(t.mod.tick,j) if k == "_ENV" then env=v end end
+      local read = env.SO.store.read
+      env.SO.store.read = function(path)
+        local value = read(path)
+        if path == "so-server.cfg" then value.dropsSavedSetup = true end
+        return value
+      end
+      for _, p in ipairs(t.S.points) do p.suspended = i > 1 or nil end
+      t.tap(a,"testing")
+      local frame = t.render(size[1],size[2],a)
+      equal(R.diff(paths[i],capture(frame,size[1],size[2])),{})
+      assert(#H.encode(frame) < 16000, "oversized frame")
+      for _, b in ipairs(frame.buttons) do
+        assert(b.x >= 1 and b.y >= 1 and b.x+b.w-1 <= size[1] and b.y <= size[2],b.id)
+        for _, other in ipairs(frame.buttons) do
+          assert(b == other or b.y ~= other.y or b.x+b.w <= other.x or other.x+other.w <= b.x,b.id .. " overlaps " .. other.id)
+        end
+      end
+      local found = false
+      for _=1,20 do
+        for _, b in ipairs(t.render(size[1],size[2],a).buttons) do if b.id == "candidate:1" then found=true end end
+        t.tap(a,"from-next")
+      end
+      assert(found,"FOUND unreachable")
+    end
+  end)
+
 end

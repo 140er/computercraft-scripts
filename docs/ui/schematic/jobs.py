@@ -6,6 +6,7 @@ layout draws it the way the Lua does, cell for cell. tests/ui/s3.lua feeds the s
 the real modules and compares the frames with the fixtures written from here.
 """
 from cc import Canvas
+from other import control_rows
 from kit import actions, arrow, bar, chip, flag, leader, role_bar, rule, section, stepper, tone
 from scene import DIRS, S, ST, lines
 
@@ -806,9 +807,11 @@ def drop_choose(points, kind, pos, sink):
     """so-mod-drops' choose: the nearest working point of the kind, else of kind any, else HOLD
     with the nearest broken point or the reason."""
     want = anyp = broken = None
-    off = False
+    off = suspended = False
     for p in points:
-        if p["room"] and not sink:
+        if p.get("suspended"):
+            suspended = suspended or p["dim"] == pos["dim"] and p["kind"] in (kind, "any")
+        elif p["room"] and not sink:
             off = off or (p["dim"] == pos["dim"] and p["kind"] == kind)
         elif p["dim"] == pos["dim"] and p["kind"] in (kind, "any"):
             key = ((p["x"] - pos["x"]) ** 2 + (p["y"] - pos["y"]) ** 2 + (p["z"] - pos["z"]) ** 2, p["id"])
@@ -823,11 +826,13 @@ def drop_choose(points, kind, pos, sink):
         return dict(text="%d %s %s" % (point["n"], point["kind"], where(point)), short="%d %s" % (point["n"], where(point)))
     if broken:
         return dict(hold="%d broken" % broken[1]["n"])
+    if suspended:
+        return dict(hold="%s chests suspended" % kind)
     return dict(hold="%s room chests off" % kind if off else "no %s chest set" % kind)
 
 
 def drops_model(selected=None, editing=False, testing=False, edit=False, confirm=False, dim=None, nether=(),
-                turtle=None, pose=None, pick=None):
+                turtle=None, pose=None, pick=None, saved=False, suspended=False):
     """What so-mod-drops' gather builds: the points in list order, the selection, the plan's context,
     the unassigned turtles and the chests their scans found. The list page keeps only the points in
     the dimension filter, with their numbers; a chosen turtle on the setup page brings PREVIEW."""
@@ -839,7 +844,7 @@ def drops_model(selected=None, editing=False, testing=False, edit=False, confirm
         points.append(dict(n=d["id"], id="0_%d_%d_%d_front_%s" % (d["x"], d["y"], d["z"], kind),
                            dim=-1 if d["id"] in nether else 0, kind=kind,
                            x=d["x"], y=d["y"], z=d["z"], side="front", broken=d["broken"],
-                           verified=d["id"] in verified, room=d["id"] in room))
+                           verified=d["id"] in verified, room=d["id"] in room, suspended=suspended))
     every, dims = points, len({p["dim"] for p in points}) > 1 or dim is not None
     shown = [p for p in points if dim is None or p["dim"] == dim]
     if selected is None:
@@ -855,7 +860,7 @@ def drops_model(selected=None, editing=False, testing=False, edit=False, confirm
     if turtle is not None and testing:
         pick = pick or (sel["kind"] if sel else "ore")
         preview = dict(id=turtle, kind=pick, **drop_choose(every, pick, pose, False))
-    return dict(points=points, selected=selected, page=1, editing=editing or edit, testing=testing, message=None,
+    return dict(points=points, selected=selected, page=1, editing=editing or edit, testing=testing, message=None, savedSetup=saved,
                 dim=dim, dims=dims, turtle=turtle, preview=preview,
                 edit=sel["n"] if edit and sel else None, confirm="remove:" + selected if confirm and sel else None,
                 roomSink=False, turtles=[int(a) for a, _ in EXTRA.get("candidate", [])], start=0, compass=None, task=None, failed=None,
@@ -1130,7 +1135,20 @@ def drops_setup(cv, m):
     stop = ya - 2
     bar(cv, "CHEST SETUP" if w >= 30 else "SETUP", [], None, "", "8")
     sel = next((p for p in m["points"] if p["id"] == m["selected"]), None)
-    cv.put(2, 3, "point", "8")
+    if m.get("savedSetup"):
+        controls = [("TEST", "test", "primary" if sel else "muted"),
+                    ("FIX", "fix", "primary" if sel and sel["broken"] else "muted")]
+        if sel:
+            controls.append(("RESUME" if sel.get("suspended") else "SUSPEND",
+                             ("resume:" if sel.get("suspended") else "suspend:") + sel["id"], "plain"))
+        if m["found"]:
+            controls.append(("CONFIRM" if m["confirm"] == "clear-found" else "CLEAR FOUND", "clear-found", "stop"))
+        ya = control_rows(cv, controls, ("BACK", "list", "plain"))
+        stop = ya - 2
+    py = 2 if m.get("savedSetup") and h < 12 else 3
+    if m.get("savedSetup"):
+        chip(cv, w - 3, 1, "+", "from-next", "plain")
+    cv.put(2, py, "point", "8")
     # Narrow screens drop the kind, then the side, before they cut the position.
     text = "-"
     if sel:
@@ -1138,8 +1156,10 @@ def drops_setup(cv, m):
                      "%d %s %s" % (sel["n"], where(sel), sel["side"]), "%d %s" % (sel["n"], where(sel))):
             if len(text) <= w - 9:
                 break
-    cv.put(8, 3, text[:max(0, w - 9)], ("e" if sel["broken"] else "0") if sel else "8")
-    y = 5
+    cv.put(8, py, text[:max(0, w - 9)], ("e" if sel["broken"] else "0") if sel else "8")
+    if sel and sel.get("suspended"):
+        cv.put(2, py + 1, "suspended", "8")
+    y = py + 2
     pv = m["preview"]
     if not m["compass"] and pv and y + 1 < stop:
         # A chosen turtle is TEST's turtle, and PREVIEW shows the chest it would use for the kind.
@@ -1168,15 +1188,15 @@ def drops_setup(cv, m):
             if y + 1 > stop:
                 break
             section_ = name
-            section(cv, 2, y, w - 2, name)
+            section(cv, 2, y, w - 2, "FOUND %d" % len(m["found"]) if name == "FOUND" and m.get("savedSetup") else name)
             y += 1
-        if y == stop and k < len(items) - 1:
+        if not m.get("savedSetup") and y == stop and k < len(items) - 1:
             cv.put(4, y, "+%d more" % (len(items) - k), "8")
             break
         if p:
             cv.put(2, y, "•", "0")
             cv.put(4, y, ("%s %s" % (where(p), p["side"]))[:max(0, w - 10)], "0")
-            chip(cv, w - 5, y, "add", "candidate:%d" % n, "plain")
+            chip(cv, w - 5, y, "ADD" if m.get("savedSetup") else "add", "candidate:%d" % n, "plain")
         elif n is not None:
             busy = m["task"] == n
             bg = "7" if m["turtle"] == n else None
@@ -1198,9 +1218,10 @@ def drops_setup(cv, m):
             cv.put(2, ya - 1, msg, "d")
         else:
             flag(cv, 2, ya - 1, w - 2, msg)
-    actions(cv, ya, [("TEST", "test", "primary" if sel else "muted"),
-                     ("FIX", "fix", "primary" if sel and sel["broken"] else "muted"),
-                     ("BACK", "list", "plain")], 2 if room else 1)
+    if not m.get("savedSetup"):
+        actions(cv, ya, [("TEST", "test", "primary" if sel else "muted"),
+                         ("FIX", "fix", "primary" if sel and sel["broken"] else "muted"),
+                         ("BACK", "list", "plain")], 2 if room else 1)
 
 
 def drops(m, w, h, title=""):
@@ -1284,4 +1305,15 @@ FIXTURES += [
     ("dropsdim-P", dropsdim(26, 20, "NETHER filter at 26x20")),
     ("dropspreview-M", dropspreview(57, 24, "Chest setup, PREVIEW for #12, room monitor 57x24")),
     ("dropspreview-P", dropspreview(26, 20, "Chest setup, PREVIEW for #12 with wood at 26x20", kind="wood")),
+]
+
+
+def dropssaved(w, h, title, suspended=False):
+    return lambda: drops(drops_model(testing=True, saved=True, suspended=suspended), w, h, title)
+
+
+FIXTURES += [
+    ("dropssaved-M", dropssaved(57, 24, "Saved chest setup at 57x24")),
+    ("dropssaved-P", dropssaved(26, 20, "Saved chest setup at 26x20", True)),
+    ("dropssaved-XS", dropssaved(15, 10, "Saved chest setup at 15x10", True)),
 ]
