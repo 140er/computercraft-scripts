@@ -1,0 +1,58 @@
+51x19 Server terminal, one display stale (displayAck)
+ SO SERVER #1  --------------------------- up 3h12 
+                                                   
+ ! #6 lost                                         
+ ! drop 3 junk broken                              
+                                                   
+ FLEET ----------------    DISK ------------- 13%  
+ turtles · 4 ok · 1 lost   |||···················· 
+ displays ·· 4 · 1 stale   used ··········· 2.1 MB 
+ leases ·············· 3   pair ················ - 
+                                                   
+ LOG --------------------------------------------  
+ 21:13:40 • lease 6-311 expired: #6 lost           
+ 21:14:02 • lease 2-961 reported ok                
+ 21:14:05 • drops: 3 junk chest missing            
+ 21:14:09 • pair: display 10 joined                
+ 21:14:11 • mine: #3 waits for lane                
+ 21:14:20 • role: display 7: status                
+                                                   
+ [P] pair    [R] roles   [L] log                   
+000000000000000ccccccccccccccccccccccccccc088888880
+000000000000000000000000000000000000000000000000000
+0e0000000000000000000000000000000000000000000000000
+0e0000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+0888880cccccccccccccccc000088880ccccccccccccc000000
+088888880c00000000eeeeee000333888888888888888888880
+0888888880cc01111111111100088880ccccccccccc00000000
+08888880cccccccccccccc0000088880cccccccccccccccc080
+000000000000000000000000000000000000000000000000000
+08880cccccccccccccccccccccccccccccccccccccccccccc00
+0888888880e0000000000000000000000000000000000000000
+088888888080000000000000000000000000000000000000000
+0888888880e0000000000000000000000000000000000000000
+088888888080000000000000000000000000000000000000000
+088888888010000000000000000000000000000000000000000
+088888888080000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+099900000000099900000000099900000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff

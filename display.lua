@@ -117,7 +117,7 @@ C.send = function(kind, body)
 end
 
 C.sendHello = function()
-  local body = { w = C.w, h = C.h >= 3 and C.h - 1 or C.h, fullH = C.h, keyboard = not C.monitor }
+  local body = { w = C.w, h = C.h >= 3 and C.h - 1 or C.h, fullH = C.h, keyboard = not C.monitor, capabilities = { frameAck = 1 } }
   local label = os.getComputerLabel()
   if type(label) == "string" and label ~= "" then body.label = label end
   C.send("hello", body)
@@ -256,6 +256,7 @@ end
 C.onFrame = function(msg)
   local body = msg.body
   if type(body) ~= "table" then return end
+  local key, ack = C.outputKey, body.ack
   if C.out.setPaletteColour then
     for i = 0, 15 do
       local rgb = type(body.palette) == "table" and body.palette[i]
@@ -283,6 +284,8 @@ C.onFrame = function(msg)
   C.phase = "live"
   C.attempt = 0
   C.clipDraw()
+  -- A full draw on the same output echoes the challenge.
+  if key == C.outputKey and type(ack) == "table" then C.send("view.ack", { v = 1, token = ack.token }) end
   C.arm(10)
 end
 

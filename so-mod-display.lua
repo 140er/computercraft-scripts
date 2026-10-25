@@ -21,6 +21,9 @@ local D = {
   alertSequence = 0,
   modelRev = 0,
   thumbSizes = {},
+  serial = 0,
+  -- Room a challenge may take in a frame, held while the picture is fitted (displayAck).
+  reserve = { v = 1, token = string.rep("0", 64) },
 }
 
 D.now = function() return SO.now() end
@@ -418,6 +421,8 @@ D.sendFrame = function(id, now, force)
   end
   if body == last and not beat then return end
   local slot = (session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
+  local challenge = D.challenge(session, now)
+  if D.ackOn and not D.room(body, challenge) then return end
   local msg = SO.proto.build(key, "view.frame", body)
   local wire = SO.proto.encode(msg)
   while not wire do
@@ -428,9 +433,25 @@ D.sendFrame = function(id, now, force)
   end
   if type(wire) ~= "table" then return end
   if rednet.send(id, wire, "so") == false then return end
+  D.track(session, challenge, now)
   D.rememberFrame(session,body)
   session.sent, session.roleSent, session.scaleSent, session.bodySent, session.stampSent = now, body.role, scale, body, stamp
   if slot then session.revSent = slot.rev end
+end
+
+-- With displayAck every frame is fitted before signing, in an envelope at its largest rid and mac
+-- holding the largest challenge, so the challenge it then carries (or none) never sheds anything.
+-- False when even one row and no buttons do not fit.
+D.room = function(body, challenge)
+  local pad = D.reserve.token
+  local probe = { v = 1, t = "view.frame", rid = pad, from = D.self() or 0, at = os.epoch("utc"), mac = pad, body = body }
+  body.ack = D.reserve
+  while not SO.proto.encode(probe) do
+    if #body.rows > 1 then body.rows[#body.rows] = nil
+    elseif not D.dropButton(body.buttons) then return false end
+  end
+  body.ack = challenge
+  return true
 end
 
 -- BACK and nav controls outlive the rest when an oversize frame sheds buttons: the role and
@@ -531,9 +552,16 @@ D.gather = function()
   end
   table.sort(model.alerts, function(a, b) return a.sequence < b.sequence end)
   model.alert = model.alerts[#model.alerts] and model.alerts[#model.alerts].text
-  local displays, staleIds = 0, {}
+  -- displayAck counts displays stale from their ACKs; without it, from the last send.
+  local displays, staleIds, unverified, now = 0, {}, 0, D.now()
   for id, session in pairs(D.sessions) do
-    if session.w then displays = displays + 1; if D.now() - session.sent > 10000 then staleIds[#staleIds + 1] = id end end
+    if session.w then
+      displays = displays + 1
+      local text, late = nil, now - session.sent > 10000
+      if D.ackOn then text, late = D.freshness(session, now) end
+      if late then staleIds[#staleIds + 1] = id end
+      if text == "unverified" then unverified = unverified + 1 end
+    end
   end
   local stale, staleText = #staleIds, D.staleText(staleIds)
   local points = drops and type(drops.list) == "function" and drops.list() or {}
@@ -562,7 +590,7 @@ D.gather = function()
     {label="ORE TODAY",value=today and tostring(today.ore) or "-",sub=today and ("+" .. today.oreRecent) or "no source",bg=today and "b" or "c"},
     {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "" or "no source",bg=today and "d" or "c"},
     {label="DISK",value=disk,sub=diskSub,bg=(diskState.pending or 0) > 0 and "e" or ratio and (ratio >= 0.8 and "e" or "d") or "c"},
-    {label="DISPLAYS",value=tostring(displays),sub=staleText or "all fresh",bg=stale > 0 and "1" or "d",
+    {label="DISPLAYS",value=tostring(displays),sub=staleText or unverified > 0 and unverified .. " unverified" or "all fresh",bg=stale > 0 and "1" or "d",
       chips=staleText and {{tostring(displays),"d"},{staleText,"1"}} or {{tostring(displays),"d"}}},
     {label=broken>0 and "BROKEN" or "DROPS",value=tostring(broken>0 and broken or #points),sub="",bg=broken > 0 and "e" or "d",
       id=broken>0 and "broken" or nil,chips=chips(tostring(#points),"d",broken,"broken","1")},
@@ -571,6 +599,7 @@ D.gather = function()
   local shown = 0
   for _, row in ipairs(D.listing()) do if row.size ~= "-" then shown = shown + 1 end end
   D.termFacts(model, lostIds, points, turtles, leases, shown, capacity, free)
+  model.terminal.stale = D.ackOn and stale or nil
   model.oreShort = model.tiles[4].sub
   model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
   for _, alert in ipairs(model.alerts) do model.log[#model.log + 1] = alert.text end
@@ -719,8 +748,9 @@ D.facts = function(model, machines, points, today, capacity, free)
   for _, row in ipairs(D.listing()) do
     local session = D.sessions[row.id]
     if row.size ~= "-" then
+      local age = D.ackOn and session and select(3, D.freshness(session, now))
       model.displays[#model.displays + 1] = { id = row.id, role = row.role, size = row.size,
-        ago = session and session.sent and D.ago(now - session.sent) or 0 }
+        ago = age and D.ago(age) or session and session.sent and D.ago(now - session.sent) or 0 }
     end
   end
   model.events = {}
@@ -1033,6 +1063,11 @@ D.hello = function(msg)
   session.label = label ~= "" and label or nil
   session.w = body.w
   session.h = U and D.acceptSize(body.w, body.fullH) and body.fullH or body.h
+  -- displayAck: only a display that offers frameAck=1 gets challenges; a hello without it is unverified.
+  local caps = body.capabilities
+  if D.ackOn and type(caps) == "table" and caps.frameAck == 1 then
+    session.ack = session.ack or { started = D.now(), pending = {} }
+  else session.ack = nil end
   if session.sub then D.sendFrame(msg.from, D.now(), true) end
 end
 
@@ -1050,7 +1085,68 @@ D.once = function(msg, reply)
   if U and (role == "status" or role == "pocket") then D.model = D.gather() end
   local body = D.compose(role, w, h, session)
   body.scale = D.saved.far[tostring(msg.from)] and 1 or 0.5
-  if reply("view.frame", body) ~= false then D.rememberFrame(session,body) end
+  -- The challenge goes in before reply signs the frame under the request's rid, in room fitted for it.
+  local now = D.now()
+  local challenge = D.challenge(session, now)
+  if D.ackOn and not D.room(body, challenge) then return end
+  if reply("view.frame", body) ~= false then
+    D.rememberFrame(session,body)
+    D.track(session, challenge, now)
+  end
+end
+
+-- displayAck challenges. A capable session keeps { started, heard?, pending = {{ token, sentAt }} }:
+-- at most four tokens, each good for 10 s and once.
+D.challenge = function(session, now)
+  local ack = D.ackOn and session.ack
+  if not ack then return end
+  D.prune(ack, now)
+  D.serial = D.serial + 1
+  return { v = 1, token = string.format("%x-%x", D.serial, math.random(0, 0x3fffffff)) }
+end
+
+-- Only a token that went out counts; a fifth pushes out the oldest.
+D.track = function(session, challenge, now)
+  local ack = challenge and session.ack
+  if not ack then return end
+  if #ack.pending >= 4 then table.remove(ack.pending, 1) end
+  ack.pending[#ack.pending + 1] = { token = challenge.token, sentAt = now }
+end
+
+D.prune = function(ack, now)
+  for i = #ack.pending, 1, -1 do
+    if now - ack.pending[i].sentAt >= 10000 then table.remove(ack.pending, i) end
+  end
+end
+
+-- An authenticated view.ack of exactly { v = 1, token }: the sender drew the frame that carried
+-- that token. Forged, foreign, expired and repeated tokens are ignored; only a match sets heard.
+D.onAck = function(msg)
+  local session, body = D.sessions[msg.from], msg.body
+  local ack = D.ackOn and session and session.ack
+  if not ack or type(body) ~= "table" or body.v ~= 1 or type(body.token) ~= "string"
+    or #body.token < 1 or #body.token > 64 then return end
+  for k in pairs(body) do if k ~= "v" and k ~= "token" then return end end
+  local now = D.now()
+  D.prune(ack, now)
+  for i, p in ipairs(ack.pending) do
+    if p.token == body.token then
+      table.remove(ack.pending, i)
+      ack.heard = now
+      return
+    end
+  end
+end
+
+-- A capable display's row text, whether it is stale, and its age since the last ACK (or the hello
+-- that offered frameAck). Stale at 10 s; waiting before the first ACK; unverified without frameAck.
+D.freshness = function(session, now)
+  local ack = session.ack
+  if not ack then return "unverified" end
+  local age = now - (ack.heard or ack.started)
+  local text = age < 60000 and math.floor(age / 1000) .. "s" or math.floor(age / 60000) .. "m"
+  if age >= 10000 then return "stale " .. text, true, age end
+  return ack.heard and text or "waiting", false, age
 end
 
 D.consent = function(event, role, w, h, session)
@@ -1288,7 +1384,8 @@ D.terminal = function(model, view, w, h)
   if not U and view.mode == "role" then
     local rows = { { text = "roles", fg = "0", bg = "f" } }
     for _, row in ipairs(view.displays or {}) do
-      rows[#rows + 1] = { text = row.id .. " " .. (row.size or "-") .. " " .. row.role .. (row.label and " " .. row.label or ""),
+      rows[#rows + 1] = { text = row.id .. " " .. (row.size or "-") .. " " .. row.role .. (row.label and " " .. row.label or "")
+        .. (row.state and " " .. row.state or ""),
         fg = "0", bg = "f" }
     end
     rows[#rows + 1] = { text = tostring(view.notice or ""), fg = "0", bg = "f" }
@@ -1335,7 +1432,10 @@ D.terminal = function(model, view, w, h)
       C.put(2, y, string.format("%3s", tostring(r.id)), "0")
       C.put(7, y, tostring(r.size or "-"), "8")
       C.put(17, y, tostring(r.role):sub(1, math.max(0, w - 17)), r.role == "unassigned" and "8" or "0")
-      if r.label and w > 29 then C.put(28, y, tostring(r.label):sub(1, w - 29), "0") end
+      -- displayAck: the ACK age, waiting, unverified or amber stale at the right; the label gives way.
+      local state = r.state and w >= 40 and r.state or ""
+      if r.label and w > 29 then C.put(28, y, tostring(r.label):sub(1, w - 29 - (state == "" and 0 or #state + 1)), "0") end
+      if state ~= "" then C.put(w - #state, y, state, r.stale and "1" or "8") end
     end
     for r = 1, lines do C.put(2, h - 1 - lines + r, notice:sub((r - 1) * width + 1, r * width), "8") end
     local keys, kx = { { "Enter", "set" }, { "Esc", "back" } }, w - 2
@@ -1361,7 +1461,9 @@ D.terminal = function(model, view, w, h)
     local gone = t.lost > 0 and (" " .. U.g.dot .. " " .. t.lost .. " lost") or ""
     C.leader(2, y + 1, lw, "turtles", t.ok .. " ok" .. gone)
     if t.lost > 0 then C.put(5 + lw - #gone, y + 1, gone:sub(4), "e") end
-    C.leader(2, y + 2, lw, "displays", t.displays)
+    local late = (t.stale or 0) > 0
+    C.leader(2, y + 2, lw, "displays", late and t.displays .. " " .. U.g.dot .. " " .. t.stale .. " stale" or t.displays,
+      late and "1" or nil)
     C.leader(2, y + 3, lw, "leases", t.leases)
     local d = t.disk
     local pct, fg = U.st.diskValue(d)
@@ -1384,16 +1486,21 @@ end
 -- Every known display for the terminal's role list, lowest id first.
 D.listing = function()
   local rows, seen = {}, {}
-  local function add(id, w, h, role, label)
+  local now = D.now()
+  local function add(id, w, h, role, label, session)
     if seen[id] then return end
     seen[id] = true
-    rows[#rows + 1] = { id = id, size = w and (w .. "x" .. h) or "-", role = D.label(role), label = label }
+    local row = { id = id, size = w and (w .. "x" .. h) or "-", role = D.label(role), label = label }
+    if D.ackOn and session then row.state, row.stale = D.freshness(session, now) end
+    rows[#rows + 1] = row
   end
   local m, self = D.monitor, D.self()
   local own = os.getComputerLabel and os.getComputerLabel()
-  if m and self then add(self, m.session.w, m.session.h, D.localRole(), type(own) == "string" and own ~= "" and own or nil) end
+  -- The server's own monitor has no wire ACK: its last good local draw stands in.
+  if m and self then add(self, m.session.w, m.session.h, D.localRole(), type(own) == "string" and own ~= "" and own or nil,
+    m.heard and { ack = { heard = m.heard } }) end
   for id, session in pairs(D.sessions) do
-    if session.w then add(id, session.w, session.h, D.roleOf(id), session.label) end
+    if session.w then add(id, session.w, session.h, D.roleOf(id), session.label, session) end
   end
   for key in pairs(D.saved.roles) do
     local id = tonumber(key)
@@ -1470,6 +1577,7 @@ D.localDraw = function(now, event)
     m.frame = D.compose(role,w,h,m.session)
     D.paint(m.target,m.frame,w,h)
     D.rememberFrame(m.session,m.frame)
+    m.heard = now
   end)
   -- Log each new error, then rebuild the monitor on the next tick.
   if not ok then
@@ -1490,6 +1598,7 @@ D.tick = function(now)
   D.localTick(now)
   D.drawTerminal(now)
   for id, session in pairs(D.sessions) do
+    if session.ack then D.prune(session.ack, now) end
     if session.sub and session.w then D.sendFrame(id, now, false) end
   end
 end
@@ -1497,7 +1606,10 @@ end
 D.load = function()
   for i = 1, #D.order do D.known[D.order[i]] = true end
   -- The job modules read the same flag once at load; the detail page offers their park commands.
-  D.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
+  local cfg = SO.store.read and SO.store.read("so-server.cfg") or {}
+  D.workerPark = cfg.workerPark == true
+  -- displayAck (default off): capable displays acknowledge drawn frames and go stale 10 s after the last.
+  D.ackOn = cfg.displayAck == true
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
@@ -1541,6 +1653,7 @@ return {
     hello = D.hello,
     ["view.sub"] = D.subscribe,
     ["view.get"] = D.once,
+    ["view.ack"] = D.onAck,
     input = D.onInput,
   },
   forget = function(id)
