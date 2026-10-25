@@ -15,7 +15,7 @@ local M = { planes = {}, keys = {}, columns = {}, layouts = {}, aux = {}, serial
   pan = {["map-n"]={0,-1},["map-e"]={1,0},["map-s"]={0,1},["map-w"]={-1,0}},
   prefer = {"r","l","ur","dr","ul","dl","u","d"}, east = {"ur","dr","r","ul","dl","l"}, along = {"r","l","ur","dr"},
   drop = {"r","l","d","dr","dl","u","ur","ul"}, farm = {"u","ur","r"},
-  compass = "\24N", hex = {}, bitsOf = {}, scenes = {},
+  compass = "\24N", hex = {}, bitsOf = {}, scenes = {}, trails = {}, trailVersion = 0, trailCursor = 0, trailLimit = 32,
   -- The dimension chip (remoteDimensions only): its label and the next dimension.
   dimLabel = {["minecraft:overworld"]="OVER",["minecraft:the_nether"]="NETH",["minecraft:the_end"]="END"},
   nextDim = {["minecraft:overworld"]="minecraft:the_nether",["minecraft:the_nether"]="minecraft:the_end",
@@ -90,13 +90,19 @@ M.gather = function(now, pick)
   for id, machine in pairs(machines) do
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then jobs[tostring(id)] = {} end
   end
-  for id, row in pairs(mine.turtles or {}) do jobs[tostring(id)] = row end
+  local assigned = {}
+  for id, row in pairs(mine.turtles or {}) do jobs[tostring(id)], assigned[tostring(id)] = row, row end
   -- Every turtle on the farm (lumber.turtles), or the one turtle of an older lumber view.
   local wood = lumber.turtles or {}
   if lumber.turtle then wood = {lumber.turtle} end
   for id, row in pairs(wood) do
+    assigned[tostring(row.id or id)] = row
     jobs[tostring(row.id or id)] = {pose=row.pose, dim=row.dim or lumber.dim,
       state=row.state == "lumber" and (M.phases[row.phase] or "working") or row.state}
+  end
+  M.workers = {}
+  for id, row in pairs(assigned) do
+    if not (row.paused or row.removeRequested or row.state == "parked" or row.state == "parking") then M.workers[id] = true end
   end
   for id, row in pairs(jobs) do
     local machine = machines[id] or machines[tonumber(id)] or {}
@@ -156,6 +162,56 @@ M.gather = function(now, pick)
   M.version = M.version or 0
   M.scenes[dim] = s
   return s
+end
+-- Refresh one worker per tick. History returns its newest 20 pose events in one page.
+M.readTrail = function()
+  -- A lost or blocked label can hide F4-A's pause state. Generation recovery is read-only.
+  if M.config.workerPark == true and next(M.workers or {}) then
+    for _, role in ipairs({"mine", "lumber"}) do
+      local ok, box = pcall(SO.store.store, "so-data/" .. role .. "/job", function(v)
+        return type(v) == "table" and type(v.turtles) == "table"
+      end)
+      for id, row in pairs(ok and box.value and box.value.turtles or {}) do
+        if row.paused or row.removeRequested then M.workers[tostring(id)] = nil end
+      end
+    end
+  end
+  local ids = {}
+  for id in pairs(M.workers or {}) do ids[#ids+1] = id end
+  for id in pairs(M.trails) do
+    if not M.workers[id] then M.trails[id] = nil M.trailVersion = M.trailVersion + 1 end
+  end
+  table.sort(ids)
+  if #ids == 0 then M.trailCursor = 0 return end
+  local state = SO.mods.state
+  if not (state and state.history and type(state.history.page) == "function") then return end
+  M.trailCursor = M.trailCursor % #ids + 1
+  local id = ids[M.trailCursor]
+  local page = state.history.page({reverse=true, kind="pose", id=tonumber(id) or id, count=20})
+  local poses, sig = {}, {}
+  for i, ev in ipairs(page.entries) do
+    if i > 20 then break end
+    local p = ev.data
+    if type(p) == "table" and tostring(p.id) == id and type(p.x) == "number"
+        and type(p.y) == "number" and type(p.z) == "number" then
+      local dim = M.dim(p.dim)
+      poses[#poses+1] = {dim=dim, x=p.x, y=p.y, z=p.z, seq=ev.seq}
+      sig[#sig+1] = table.concat({ev.seq, dim, p.x, p.y, p.z}, ",")
+    end
+  end
+  sig = table.concat(sig, ";")
+  if not M.trails[id] or M.trails[id].sig ~= sig then
+    M.trails[id] = {poses=poses, sig=sig}
+    M.trailVersion = M.trailVersion + 1
+  end
+  M.trails[id].used = M.ticks
+  local count, oldest = 0, nil
+  for key, trail in pairs(M.trails) do
+    count = count + 1
+    if not oldest or trail.used < M.trails[oldest].used
+        or trail.used == M.trails[oldest].used and key < oldest then oldest = key end
+  end
+  if count > M.trailLimit then M.trails[oldest] = nil M.trailVersion = M.trailVersion + 1 end
 end
 -- The scene a view shows: its own dimension with remoteDimensions on, else the server's.
 M.selected = function(v)
@@ -550,14 +606,38 @@ M.picked = function(m, pick)
   return (m.kind ~= "turtle" and m.kind ~= "drop") or m.ref.id == tostring(pick.id)
 end
 
+-- One dot per text cell, newest first, so a tight wire budget drops the oldest cells.
+M.trailCells = function(v, s)
+  local cells, out = {}, {}
+  for _, trail in pairs(M.trails) do
+    for _, p in ipairs(trail.poses) do
+      if p.dim == s.dim and M.near(p, v.level) then
+        local cx, cy = M.cellOf(v, p.x, p.z)
+        if cx then
+          local key = cy * v.mw + cx
+          if not cells[key] or cells[key].seq < p.seq then cells[key] = {cx=cx, cy=cy, seq=p.seq} end
+        end
+      end
+    end
+  end
+  for _, cell in pairs(cells) do out[#out+1] = cell end
+  table.sort(out, function(a, b) return a.seq > b.seq end)
+  return out
+end
+
 -- Draws the map with its top-left cell at C (ox, oy). The view carries its cells (M.cells).
 -- Returns the marker cells, keyed cy * mw + cx.
-M.draw = function(C, v, s, ox, oy, pick, dropLabel)
+M.draw = function(C, v, s, ox, oy, pick, dropLabel, trails, limit)
   local mw, mh = v.mw, v.mh
   local occ, taken, placed = {}, {}, {}
   for i, c in pairs(v.base) do
     C.put(ox + c[1], oy + c[2], c[3], c[4])
     occ[i] = "line"
+  end
+  -- Trails do not affect label placement. Markers, labels and callouts draw over them.
+  for i, cell in ipairs(trails or M.trailCells(v, s)) do
+    if limit and i > limit then break end
+    C.put(ox + cell.cx, oy + cell.cy, U.g.dot, "8")
   end
   local farmLabel
   if M.farmOn(s, v.level) then
@@ -969,19 +1049,34 @@ M.render = function(w, h, session, tries)
       for _, part in ipairs(row[2]) do detail[#detail+1] = part[2] end
     else detail[#detail+1] = row[2] .. ":" .. row[3] end
   end
-  local fkey = table.concat({key, w, h, s.markers, table.concat(detail, ";"), tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
+  local fkey = table.concat({key, w, h, s.markers, M.trailVersion, table.concat(detail, ";"), tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
   if v.frame and v.fkey == fkey then return v.frame end
-  local C = U.canvas(w, h)
-  v.taken = M.draw(C, v, s, L.mx, L.my, v.pick)
-  v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken, got)
-  M.controls(C, L, w, h, v, s)
-  if L.roster then M.roster(C, L, w, s) end
-  M.pickArea(C, L, v.box and v.box[5])
-  local frame = M.pack(C)
+  local trails = M.trailCells(v, s)
+  local function paint(limit)
+    local C = U.canvas(w, h)
+    v.taken = M.draw(C, v, s, L.mx, L.my, v.pick, nil, trails, limit)
+    v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken, got)
+    M.controls(C, L, w, h, v, s)
+    if L.roster then M.roster(C, L, w, s) end
+    M.pickArea(C, L, v.box and v.box[5])
+    return M.pack(C)
+  end
+  local frame = paint(0)
+  local bytes = SO.proto and #SO.proto.ser(frame) or 0
   -- Wait for complete planes before choosing a zoom for the 16 KB message limit.
-  if v.ready and (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
+  if v.ready and (tries or 0) < 4 and bytes > M.heavy then
     if v.fit then v.extra = math.min((v.extra or 0) + 1, #M.free) else M.zoom(v, 1) end
     return M.render(w, h, session, (tries or 0) + 1)
+  end
+  -- Trails never choose or latch zoom. Keep a newest prefix that fits over the base frame.
+  if #trails > 0 and bytes <= M.heavy then
+    local limit = #trails
+    while limit > 0 do
+      local candidate = paint(limit)
+      if not SO.proto or #SO.proto.ser(candidate) <= M.heavy then frame = candidate break end
+      limit = math.floor(limit / 2)
+    end
+    if limit == 0 then frame = paint(0) end
   end
   v.frame, v.fkey = frame, fkey
   return v.frame
@@ -1113,6 +1208,7 @@ return {name="map",handlers={},render=M.render,input=M.input,thumb=M.thumb,crop=
     if M.config.remoteDimensions == true then
       for _, dim in pairs(M.dimensions) do if dim ~= M.scene.dim then M.gather(now, dim) end end
     end
+    M.readTrail()
     M.revalidate()
   end
 end}
