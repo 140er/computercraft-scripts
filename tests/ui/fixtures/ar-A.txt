@@ -1,0 +1,73 @@
+57x24 AR layers with the second of three alerts
+ AR GOGGLES  ------------------------------ 1 controller 
+                                                         
+ LAYERS ------------------------------------------ 4 on  
+                                                         
+ turtles ·········································· [on] 
+                                                         
+ leases ··········································· [on] 
+                                                         
+ drops ············································ [on] 
+                                                         
+ alerts ··········································· [on] 
+                                                         
+ ALERTS ------------------------------------------- 2/3  
+ ! ore chest full at -120,64,35                          
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+0000000000000cccccccccccccccccccccccccccccc08888888888880
+000000000000000000000000000000000000000000000000000000000
+08888880cccccccccccccccccccccccccccccccccccccccccc0888800
+000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000000000000000000000
+0888880cccccccccccccccccccccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccc088800
+0e0000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
