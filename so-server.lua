@@ -287,6 +287,7 @@ S.run = function()
 
   -- Batch enrollment stays off unless so-server.cfg sets enroll = true.
   local config = type(store.read) == "function" and store.read("so-server.cfg")
+  local enrollConfigCached = true
   if type(config) == "table" and config.enroll == true then
     SO.enroll = {
       open = pair.enrollOpen,
@@ -304,8 +305,11 @@ S.run = function()
   end
   builtin.enroll = function(msg, reply)
     -- Network input stays out of the SO.errors ring, so no error() here.
-    local current = type(store.read) == "function" and store.read("so-server.cfg")
-    local enabled = type(current) == "table" and current.enroll == true
+    if not enrollConfigCached then
+      config = type(store.read) == "function" and store.read("so-server.cfg")
+      enrollConfigCached = true
+    end
+    local enabled = type(config) == "table" and config.enroll == true
     local ok, t, body, event = pcall(pair.enrollAnswer, msg.from, msg.body, enabled)
     if not ok then
       print("so-server: enroll failed for " .. tostring(msg.from))
@@ -468,6 +472,7 @@ S.run = function()
   end
   local timer, ticked
   local function tick()
+    enrollConfigCached = false
     if view.mode == "code" and not view.codeError and not pair.pending() then showPrompt() end
     local began, now = os.clock(), SO.now()
     local wall = os.epoch("utc")

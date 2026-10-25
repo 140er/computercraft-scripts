@@ -153,6 +153,124 @@ return function(test, equal)
     assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
   end)
 
+  test("enroll extended window keeps the waiting turtle's secret past 12:00 and approves at 15:00", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+    local first = t.so.enroll.view(OWNER).rows[1]
+    t.net.advance(536)
+    assert(t.so.enroll.extend(OWNER))
+    t.net.advance(180)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, saved.sk)
+    equal(#t.so.enroll.view(OWNER).rows, 1)
+    equal(t.so.enroll.view(OWNER).rows[1].n, first.n)
+    t.net.advance(180)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, saved.sk)
+    equal(t.so.enroll.view(OWNER).rows[1].n, first.n)
+    assert(t.so.enroll.decide(10, first.n, true))
+    t.net.advance(7)
+    equal(savedKey(w, 1), t.so.pair.key(10))
+    equal(w.files["so-enroll"], nil)
+  end)
+
+  test("enroll sixteen forged off replies cannot pause or set hints in a noisy round", function()
+    for _, locked in ipairs({ false, true }) do
+      for _, text in ipairs({ "off", "closed" }) do
+        local t = boot(true)
+        local token = t.open()
+        local w = t.net.machine({ id = 10, modem = true, turtle = true, capacity = 1000000 })
+        w.install(WORKER)
+        libs(w)
+        w.files["so-enroll"] = H.encode({ token = token })
+        local send, flood, rounds = w.env.rednet.send, not locked, 0
+        w.env.rednet.send = function(id, payload, protocol)
+          if flood and type(payload) == "table" and payload.t == "enroll" then
+            rounds = rounds + 1
+            local wire = t.proto.encode(t.proto.build(t.so.pair.envelopeKey(), "err",
+              { code = "enroll", text = text }, payload.rid))
+            for _ = 1, 16 do
+              w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1, wire, "so")
+            end
+          end
+          send(id, payload, protocol)
+        end
+        w.boot("worker.lua")
+        t.net.advance(4)
+        local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+        equal(saved.paused, nil)
+        flood = true
+        t.net.advance(15)
+        assert(rounds >= 4, "flood did not cover several rounds")
+        equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, saved.sk)
+        equal(w.env.textutils.unserialize(w.files["so-enroll"]).paused, nil)
+        local screenText = table.concat(w.screen, "\n")
+        assert(not screenText:find("enroll off", 1, true), "noisy off changed the screen")
+        assert(not screenText:find("window closed", 1, true), "noisy closed changed the screen")
+        flood = false
+        local row = t.so.enroll.view(OWNER).rows[1]
+        assert(t.so.enroll.decide(10, row.n, true))
+        t.net.advance(7)
+        equal(savedKey(w, 1), t.so.pair.key(10))
+        equal(w.files["so-enroll"], nil)
+      end
+    end
+  end)
+
+  test("enroll one quiet forged off after a tagged share does not pause, but real off does", function()
+    local t = boot(true)
+    local token = t.open()
+    local w = turtle(t, 10, token)
+    t.net.advance(4)
+    local saved = w.env.textutils.unserialize(w.files["so-enroll"])
+    local send, injected = w.env.rednet.send, 0
+    w.env.rednet.send = function(id, payload, protocol)
+      if type(payload) == "table" and payload.t == "enroll" and injected == 0 then
+        injected = injected + 1
+        local wire = t.proto.encode(t.proto.build(t.so.pair.envelopeKey(), "err",
+          { code = "enroll", text = "off" }, payload.rid))
+        w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1, wire, "so")
+        return
+      end
+      send(id, payload, protocol)
+    end
+    t.net.advance(10)
+    equal(injected, 1)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).paused, nil)
+    t.s.files["so-server.cfg"] = H.encode({ enroll = false })
+    t.net.advance(10)
+    local paused = w.env.textutils.unserialize(w.files["so-enroll"])
+    equal(paused.paused, "off")
+    equal(paused.sk, saved.sk)
+  end)
+
+  test("enroll message bursts read server config at most once per tick", function()
+    local t = boot(nil)
+    local w = t.net.machine({ id = 10, modem = true })
+    local reads, readConfig = 0, t.so.store.read
+    t.so.store.read = function(path)
+      if path == "so-server.cfg" then reads = reads + 1 end
+      return readConfig(path)
+    end
+    local function burst()
+      for _ = 1, 20 do
+        local msg = t.proto.build(t.so.pair.envelopeKey(), "enroll", {})
+        msg.from = 10
+        msg.mac = t.proto.sign(t.so.pair.envelopeKey(), msg)
+        w.env.rednet.send(1, t.proto.encode(msg), "so")
+      end
+      t.net.flush()
+    end
+    burst()
+    equal(reads, 1)
+    burst()
+    equal(reads, 1)
+    t.net.advance(1.05)
+    burst()
+    equal(reads, 2)
+  end)
+
   test("enroll paired requests are tagged and logged with the six-digit route", function()
     local t = boot(true)
     local token = t.open()
@@ -197,7 +315,7 @@ return function(test, equal)
     t.net.advance(4)
     assert(t.so.enroll.decide(10, t.so.enroll.view(OWNER).rows[1].n, true))
     t.s.files["so-server.cfg"] = H.encode({ enroll = false })
-    t.net.advance(7)
+    t.net.advance(10)
     equal(savedKey(w, 1), t.so.pair.key(10))
     equal(w.files["so-enroll"], nil)
     equal(pending.env.textutils.unserialize(pending.files["so-enroll"]).paused, "off")
@@ -583,9 +701,10 @@ return function(test, equal)
     assert(not rogue.error, tostring(rogue.error))
     equal(savedKey(w, 1), nil)
     assert(w.files["so-enroll"], "a forged reply ended the attempt")
+    local secret = w.env.textutils.unserialize(w.files["so-enroll"]).sk
     net.advance(620)
     equal(savedKey(w, 1), nil)
-    equal(w.files["so-enroll"], nil)
+    equal(w.env.textutils.unserialize(w.files["so-enroll"]).sk, secret)
   end)
 
   test("enroll: a second token holder answering stops the attempt", function()
@@ -641,8 +760,9 @@ return function(test, equal)
     assert(table.concat(b.screen, "\n"):find("denied", 1, true))
     t.net.advance(600)
     assert(a.files["so-enroll"], "public closed deleted the attempt")
-    t.net.advance(61)
-    equal(a.files["so-enroll"], nil)
+    local secret = a.env.textutils.unserialize(a.files["so-enroll"]).sk
+    t.net.advance(700)
+    equal(a.env.textutils.unserialize(a.files["so-enroll"]).sk, secret)
     equal(savedKey(a, 1), nil)
   end)
 
@@ -661,6 +781,7 @@ return function(test, equal)
     equal(w.env.textutils.unserialize(w.files["so-enroll"]).paused, "off")
     assert(not table.concat(t.s.log, "\n"):find("bad mac from 10", 1, true))
     t.s.files["so-server.cfg"] = H.encode({ enroll = true })
+    t.net.advance(1.05)
     local msg = t.proto.build(t.so.pair.envelopeKey(), "enroll", { kind = "turtle" })
     msg.from = 10
     msg.mac = t.proto.sign(t.so.pair.envelopeKey(), msg)
@@ -668,6 +789,7 @@ return function(test, equal)
     t.net.flush()
     equal(last(), "closed")
     t.s.files["so-server.cfg"] = H.encode({ enroll = false })
+    t.net.advance(1.05)
     w.env.rednet.send(1, t.proto.encode(msg), "so")
     t.net.flush()
     equal(last(), "off", "cached reply bypassed the per-request flag check")

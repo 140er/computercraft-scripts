@@ -450,7 +450,7 @@ M.remember = function(id, key, options)
     -- Discard that failed generation so reboot selects the old keys.
     if S.read then
       local _, after = S.read("so-keys.tmp")
-      if after and after ~= before then fs.delete("so-keys.tmp") end
+      if after and after ~= before then pcall(fs.delete, "so-keys.tmp") end
     end
     return false, err
   end
@@ -926,6 +926,7 @@ M.enroll = function(kind, show, options)
   local body = { pub = S.proto.hex(pub), kind = kind,
     tag = S.proto.hex(E.tag(ctx.tk, 1, ctx.s, ctx.d, pub, kind)) }
   local fp, lock, stop, hint = E.fp(pub), nil, S.now() + E.life + E.linger, nil
+  local offRounds = 0
   while S.now() < stop do
     if show then show(hint or (lock and "pending" or "wait"), fp) end
     local outcome, plain, key
@@ -937,6 +938,9 @@ M.enroll = function(kind, show, options)
       if xs then
         if lock and lock ~= xs then outcome = "conflict" end
         lock = lock or xs
+        if lock == xs and (what == "pending" or what == "wait") then
+          stop = S.now() + E.life + E.linger
+        end
         if outcome == "conflict" then
           outcome = "conflict"
         elseif what == "ok" then
@@ -963,14 +967,16 @@ M.enroll = function(kind, show, options)
       fs.delete(E.file)
       return nil, outcome
     end
-    hint = not outcome and plain or nil
-    if not outcome and plain == "off" then
+    hint = not noisy and not outcome and plain or nil
+    if hint == "off" then offRounds = offRounds + 1 else offRounds = 0 end
+    -- A capped round may have hidden a tagged reply. Once locked, require
+    -- two quiet off rounds before persisting this public hint.
+    if hint == "off" and (lock == nil or offRounds >= 2) then
       saved.paused = plain
       if not E.write(saved) then return nil, "disk" end
       return nil, plain
     end
   end
-  fs.delete(E.file)
   return nil, "timeout"
 end
 
