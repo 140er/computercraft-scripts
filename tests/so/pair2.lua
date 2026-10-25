@@ -132,6 +132,82 @@ local function entropy(m, failures, silent)
 end
 
 return function(test, equal)
+  test("pair2 atomic replacement keeps only the proven peer on same-id and different-id repair", function()
+    for _, previous in ipairs({ 0, 1 }) do
+      local net, server = boot()
+      local c = client(net, 2)
+      c.files["so-keys"] = H.encode({ schema = 1, generation = 1,
+        value = { keys = { [tostring(previous)] = string.rep("a", 64), ["9"] = string.rep("b", 64) } } })
+      local code = pressP(net, server)
+      c.spawn(string.format([[
+        local p = dofile("so-pair.lua")
+        p.open(dofile("so-proto.lua"), dofile("so-store.lua"))
+        OK, WHY = p.join(%q, 1, { replace = %d })
+        PEER, KEYS = p.peer(), p.list()
+      ]], code, previous))
+      net.flush()
+      equal(c.env.OK, true, tostring(c.env.WHY))
+      equal(c.env.PEER, 1)
+      equal(#c.env.KEYS, 1)
+      equal(savedKey(c, 1), savedKey(server, 2))
+      equal(savedKey(c, 9), nil)
+      if previous ~= 1 then equal(savedKey(c, previous), nil) end
+    end
+  end)
+
+  test("pair2 a key save failure keeps the old keys in memory and across reopen", function()
+    for _, failure in ipairs({ "open", "verify", "rename" }) do
+      local net, server = boot()
+      local c = client(net, 2)
+      local old = string.rep("a", 64)
+      c.files["so-keys"] = H.encode({ schema = 1, generation = 1,
+        value = { keys = { ["0"] = old, ["9"] = old } } })
+      local code = pressP(net, server)
+      c.env.FAILURE = failure
+      c.spawn(string.format([[
+        local p, proto, store = dofile("so-pair.lua"), dofile("so-proto.lua"), dofile("so-store.lua")
+        p.open(proto, store)
+        local open, move = fs.open, fs.move
+        fs.open = function(path, mode)
+          if path == "so-keys.tmp" and FAILURE == "open" and mode == "w" then return nil end
+          if path == "so-keys.tmp" and FAILURE == "verify" and mode == "r" then
+            return { readAll = function() return "bad" end, close = function() end }
+          end
+          return open(path, mode)
+        end
+        fs.move = function(from, to)
+          if from == "so-keys.tmp" and to == "so-keys" and FAILURE == "rename" then error("rename failed") end
+          return move(from, to)
+        end
+        OK, WHY = p.join(%q, 1, { replace = 0 })
+        KEYS, PEER, NEW = p.list(), p.peer(), p.key(1)
+        fs.open, fs.move = open, move
+        local reboot = dofile("so-pair.lua")
+        reboot.open(proto, store)
+        REBOOT_KEYS, REBOOT_PEER, REBOOT_NEW = reboot.list(), reboot.peer(), reboot.key(1)
+      ]], code))
+      net.flush()
+      assert(not c.error, tostring(c.error))
+      equal(c.env.OK, nil)
+      assert(c.env.WHY)
+      equal(c.env.PEER, 0)
+      equal(#c.env.KEYS, 2)
+      equal(c.env.NEW, nil)
+      equal(c.env.REBOOT_PEER, 0)
+      equal(#c.env.REBOOT_KEYS, 2)
+      equal(c.env.REBOOT_NEW, nil)
+      equal(c.files["so-keys.tmp"], nil)
+    end
+  end)
+
+  test("pair2 server remember adds devices without replacing other keys", function()
+    local _, server = boot()
+    assert(server.env.SO.pair.remember(2, string.rep("a", 64)))
+    assert(server.env.SO.pair.remember(3, string.rep("b", 64)))
+    equal(#server.env.SO.pair.list(), 2)
+    equal(server.env.SO.pair.key(2), string.rep("a", 64))
+  end)
+
   local function unavailable(silent)
     local net = H.new()
     local m = client(net, 2)
@@ -625,7 +701,7 @@ return function(test, equal)
         proto = dofile("so-proto.lua")
         pair = dofile("so-pair.lua")
         pair.open(proto, dofile("so-store.lua"))
-        OK, WHY = pair.join("123456", 1)
+        OK, WHY = pair.join("123456", 1, { replace = 1 })
         KEY = pair.key(1)
         DONE = true
       ]])

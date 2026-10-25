@@ -27,6 +27,84 @@ local function setup(paired)
   return net, s, w
 end
 return function(test, equal)
+  test("worker repair screen re-keys with a token while install refuses", function()
+    for _, serverId in ipairs({ 1, 7 }) do
+      local n, s, w = setup(true)
+      s.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = { ["3"] = key } } })
+      s.files["so-server.cfg"] = H.encode({ enroll = true })
+      w.files["so-worker.cfg"] = H.encode({ repairServer = true, autoToolSwap = false })
+      s.boot("so-server.lua")
+      n.advance(3)
+      if serverId ~= 1 then
+        s = n.machine({ id = serverId, modem = true })
+        s.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" })
+        libs(s)
+        s.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = { ["3"] = key } } })
+        s.files["so-server.cfg"] = H.encode({ enroll = true })
+        s.boot("so-server.lua")
+        n.advance(1.05)
+      end
+      local old = w.files["so-keys"]
+      assert(s.env.SO.enroll.open(3))
+      local token = s.env.SO.enroll.view(3).token
+      w.env.os.queueEvent("monitor_touch", "wall", 1, 1)
+      n.flush()
+      equal(w.files["so-keys"], old)
+      w.env.os.queueEvent("paste", token)
+      n.flush()
+      assert(not table.concat(w.screen, "\n"):find(token, 1, true), "repair printed token")
+      w.env.os.queueEvent("key", 257)
+      n.flush()
+      n.advance(4)
+      local row = s.env.SO.enroll.view(3).rows[1]
+      assert(row, "repair did not request enrollment")
+      equal(w.files["so-keys"], old, "unapproved repair replaced keys")
+      assert(s.env.SO.enroll.decide(2, row.n, true))
+      n.advance(7)
+      local saved = w.env.textutils.unserialize(w.files["so-keys"]).value.keys
+      equal(saved[tostring(serverId)], s.env.SO.pair.key(2))
+      assert(saved[tostring(serverId)] ~= key)
+      if serverId ~= 1 then equal(saved["1"], nil, "repair retained the old lower-id peer") end
+      equal(w.files["so-enroll"], nil)
+      local journal = w.env.textutils.unserialize(w.files["so-journal"]).value
+      equal(journal.uncertain, true)
+      equal(w.pos, { x = 0, y = 0, z = 0 })
+      local fuel = w.fuel
+      s.env.rednet.send(2, s.env.SO.proto.build(saved[tostring(serverId)], "lease.batch",
+        { lease = "after-repair", ttl = 10000, expires = w.env.os.epoch("utc") + 10000, steps = { { op = "forward" } } }), "so")
+      n.flush()
+      n.advance(3)
+      equal(w.fuel, fuel, "replacement moved before re-anchor")
+
+      local f = assert(io.open("install.lua", "rb"))
+      local source = f:read("*a")
+      f:close()
+      local m = n.machine({ id = 8, turtle = true })
+      m.files["/so-keys"] = old
+      m.env.http = { get = function() error("keyed install reached network") end }
+      local main = assert(load(source, "@install.lua", "t", m.env))("prepare")
+      main(token)
+      equal(m.files["/so-keys"], old)
+      equal(m.files["/so-enroll"], nil)
+      assert(table.concat(m.log, "\n"):find("paired keys", 1, true))
+    end
+  end)
+
+  test("worker token repair defaults off and does not change trust", function()
+    local n, s, w = setup(true)
+    s.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = {} } })
+    s.boot("so-server.lua")
+    n.advance(3)
+    local old = w.files["so-keys"]
+    w.env.os.queueEvent("paste", "1-K7QP-3MXA-9WTD-HR2E")
+    w.env.os.queueEvent("key", 257)
+    n.flush()
+    n.advance(4)
+    equal(w.files["so-keys"], old)
+    equal(w.files["so-enroll"], nil)
+    assert(table.concat(w.screen, "\n"):find("token repair disabled", 1, true))
+  end)
+
   test("worker re-pairs with replaced server keys without losing the old key on failure", function()
     local n, s, w = setup(true)
     s.files["so-keys"] = H.encode({schema=1,generation=1,value={keys={["2"]=string.rep("b",64)}}})

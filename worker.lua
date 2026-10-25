@@ -390,7 +390,8 @@ W.paint = function()
     term.setCursorPos(1, 6)
     term.write("No key on server")
     term.setCursorPos(1, 7)
-    term.write("Code: " .. (W.codeText or ""))
+    local text = W.codeText or ""
+    term.write("Code: " .. (text:find("%D") and string.rep("*", #text) or text))
     term.setCursorPos(1, 8)
     term.write(W.pairError or "")
   end
@@ -458,6 +459,38 @@ W.accept = function(sender, payload)
   end
 end
 
+W.enrollError = function(why)
+  local words = { off = "enroll off; enter token to resume", closed = "window closed", token = "token wrong",
+    busy = "id busy", paired = "already paired; use 6-digit code", denied = "denied on panel" }
+  return "Enroll: " .. (words[why] or tostring(why))
+end
+
+W.repairPair = function()
+  if W.inBatch then return nil, "wait for batch to finish" end
+  local text, previous = W.codeText or "", W.server
+  local config = W.store.read("so-worker.cfg")
+  local enabled = type(config) == "table" and config.repairServer == true
+  local candidate = W.pair.enrollToken(text)
+  if candidate and not enabled then return nil, "token repair disabled" end
+  if not candidate and not text:match("^%d%d%d%d%d%d$") then return nil, "code" end
+  local options = enabled and { replace = previous } or nil
+  if enabled then
+    -- Save uncertainty before replacing trust, including across a reboot.
+    W.journal.uncertain = true
+    W.queued, W.expires, W.lease = nil, nil, nil
+    W.enterSlow()
+    if not W.save() then return nil, "journal save failed" end
+  end
+  if candidate then
+    if not W.pair.enrollSave(text) then return nil, "token save failed" end
+    local server, why = W.pair.enroll("turtle", W.showEnroll, options)
+    if not server then return nil, W.enrollError(why) end
+    W.server, W.seen = server, nil
+    return true
+  end
+  return W.pair.join(text, previous, options)
+end
+
 W.breathe = function(seconds)
   local id = os.startTimer(seconds)
   while true do
@@ -469,14 +502,14 @@ W.breathe = function(seconds)
         return
       end
     elseif W.repair and (ev == "char" or ev == "paste") then
-      W.codeText = ((W.codeText or "") .. tostring(a):gsub("%D", "")):sub(1, 6)
+      W.codeText = ((W.codeText or "") .. tostring(a):upper():gsub("[^%w%-]", "")):sub(1, 32)
       W.paint()
     elseif W.repair and ev == "key" and (a == 259 or a == 14) then
       W.codeText = (W.codeText or ""):sub(1, -2)
       W.paint()
-    elseif W.repair and ev == "key" and (a == 257 or a == 28) and #(W.codeText or "") == 6 then
+    elseif W.repair and ev == "key" and (a == 257 or a == 28) then
       os.cancelTimer(id)
-      local ok, err = W.pair.join(W.codeText, W.server)
+      local ok, err = W.repairPair()
       id = os.startTimer(seconds)
       W.codeText = ""
       if ok then
@@ -696,6 +729,7 @@ W.startBatch = function(msg)
   end
   W.lease, W.expires, W.legacyExpires = body.lease, deadline, msg.legacyExpires
   local results, safetyStop = {}, false
+  W.inBatch = true
   for i = 1, n do
     if W.now() >= W.expires then
       W.refuse(results, i, n)
@@ -739,6 +773,7 @@ W.startBatch = function(msg)
       break
     end
   end
+  W.inBatch = nil
   W.report(results)
   if safetyStop then W.queued=nil W.enterSlow() return end
   if W.queued then
@@ -959,7 +994,9 @@ W.readCode = function()
 end
 
 W.showEnroll = function(state, fp)
-  W.stepName = state == "pending" and ("approve on panel " .. fp) or ("enroll " .. fp .. " " .. state)
+  local words = { closed = "window closed", token = "token wrong", share = "invalid share", body = "invalid request" }
+  W.stepName = state == "pending" and ("approve on panel " .. fp)
+    or ("enroll " .. fp .. " " .. (words[state] or state))
   W.paint()
 end
 
@@ -989,13 +1026,12 @@ W.boot = function()
   W.mode = "idle"
   W.stepName = "idle"
   local saved = W.pair.peer()
-  if saved then fs.delete("so-enroll") end
   local delay, code = 2, nil
   while true do
     -- A token names its server, so enrolling needs no lookup.
     if not saved and fs.exists("so-enroll") then
       local server, why = W.pair.enroll("turtle", W.showEnroll)
-      saved, W.pairError = server, not server and ("Enroll: " .. tostring(why)) or nil
+      saved, W.pairError = server, not server and W.enrollError(why) or nil
       W.stepName = "idle"
     end
     local found = rednet.lookup("so", "server")
@@ -1006,6 +1042,7 @@ W.boot = function()
       W.paint()
       W.hello()
       W.breathe(delay)
+      saved = W.pair.peer()
       if W.seen then break end
       delay = math.min(delay * 2, 30)
     else
