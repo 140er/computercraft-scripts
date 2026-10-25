@@ -432,10 +432,26 @@ local history = {
       start = reverse and hi or lo
     end
     local entries, i, step = {}, start, reverse and -1 or 1
+    -- text is a case-insensitive plain substring of the kind, the data string or the data's
+    -- text, reason, name and label, cut to 32 bytes.
+    local text = type(query.text) == "string" and query.text:sub(1, 32):lower() or ""
+    local function found(ev)
+      if text == "" then return true end
+      local data, parts = ev.data, { ev.kind }
+      if type(data) == "string" then parts[2] = data
+      elseif type(data) == "table" then
+        for _, key in ipairs({ "text", "reason", "name", "label" }) do
+          local v = data[key]
+          if type(v) == "string" or type(v) == "number" then parts[#parts + 1] = tostring(v) end
+        end
+      end
+      return table.concat(parts, " "):lower():find(text, 1, true) ~= nil
+    end
     local function matches(ev)
       return (not query.kind or query.kind == ev.kind)
         and (not query.alerts or ev.kind:match("%.alert$") ~= nil)
         and (query.id == nil or type(ev.data) == "table" and ev.data.id == query.id)
+        and found(ev)
     end
     while i >= 1 and i <= #evs and #entries < count do
       local ev = evs[i]
@@ -448,6 +464,16 @@ local history = {
       i = i + step
     end
     return { entries = entries, next = nxt }
+  end,
+  -- Every kind in the log, sorted, at most 64.
+  kinds = function()
+    local seen, out = {}, {}
+    for _, ev in ipairs(H.events()) do
+      if not seen[ev.kind] then seen[ev.kind] = true; out[#out + 1] = ev.kind end
+    end
+    table.sort(out)
+    while #out > 64 do out[#out] = nil end
+    return out
   end,
 }
 

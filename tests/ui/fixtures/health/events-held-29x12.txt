@@ -1,0 +1,37 @@
+29x12 Health history at 29x12
+ HEALTH  NEEDS 0  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ kind  all                   
+ • 20s mine.alert ore chest  
+ • 40s mine.ore              
+ • 1m mine.ore               
+ • 1m mine.ore               
+ • 1m mine.ore               
+ • 2m mine.alert ore chest   
+ • 2m mine.ore               
+ • 2m mine.ore               
+  LIVE                ◄   ►  
+888888888888888880cccccccccc0
+0000000088888888888888880ccc0
+08888000000000000000000000000
+01088808888888888000000000000
+08088808888888800000000000000
+08088088888888000000000000000
+08088088888888000000000000000
+08088088888888000000000000000
+01088088888888880000000000000
+08088088888888000000000000000
+08088088888888000000000000000
+09999990000000000000088800000
+fffffffffffffffffffffffffffff
+77777777fffffffffffffffffffff
+ffffff77777ffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777777ffffffffffffff777f777f

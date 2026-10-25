@@ -1,0 +1,61 @@
+26x20 Health history at 26x20
+ HEALTH  NEEDS 0  ------- 
+ EVENTS  ALERTS  ERRORS   
+                          
+ • all                    
+   drops.broken           
+   lumber.logs            
+   mine.alert             
+   mine.ore               
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  BACK        1/1  ◄   ►  
+888888888888888880ccccccc0
+00000000888888888888888800
+00000000000000000000000000
+00000000000000000000000000
+00088888888888800000000000
+00088888888888000000000000
+00088888888880000000000000
+00088888888000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000888088808880
+ffffffffffffffffffffffffff
+77777777ffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777fffffffffff777f777f

@@ -1,4 +1,5 @@
 local R = dofile("tests/ui/render.lua")
+local Harness = dofile("tests/so/harness.lua")
 
 local ERROR = "tick\nfailed: so-mod-mine.lua:120 attempt to index a nil value while saving the mining job "..
   "for turtle 7; checkpoint refused because the disk is full. Free space in so-data, "..
@@ -11,9 +12,36 @@ local FIXTURES = {
   "tests/ui/fixtures/health/errors-list-26x20.txt", "tests/ui/fixtures/health/errors-list-29x12.txt",
   "tests/ui/fixtures/health/error-detail-26x20.txt", "tests/ui/fixtures/health/error-detail-29x12.txt",
   "tests/ui/fixtures/health/error-detail-next-26x20.txt", "tests/ui/fixtures/health/error-detail-next-29x12.txt",
+  "tests/ui/fixtures/health/events-page2-26x20.txt", "tests/ui/fixtures/health/events-page2-29x12.txt",
+  "tests/ui/fixtures/health/events-held-26x20.txt", "tests/ui/fixtures/health/events-held-29x12.txt",
+  "tests/ui/fixtures/health/events-picker-26x20.txt", "tests/ui/fixtures/health/events-picker-29x12.txt",
+  "tests/ui/fixtures/health/events-find-26x20.txt", "tests/ui/fixtures/health/events-find-29x12.txt",
+  "tests/ui/fixtures/health/event-facts-26x20.txt", "tests/ui/fixtures/health/event-facts-29x12.txt",
 }
 
-local function health()
+-- The real so-mod-state with the log of other.py's history_events: 40 events 20 s apart, a single
+-- lumber.logs at 12, and later arrivals from 41 on.
+local function history()
+  local net = Harness.new()
+  local m = net.machine({id=1, directories=true})
+  m.install({"so-store.lua", "so-log.lua", "so-mod-state.lua"})
+  local h = {now=0}
+  m.env.SO = {mods={}, now=function() return h.now end, breathe=function() end, store=m.env.dofile("so-store.lua")}
+  h.state = m.env.dofile("so-mod-state.lua")
+  h.emit = function(i)
+    local kind, data
+    if i == 12 then kind, data = "lumber.logs", {id=5,count=12,total=40}
+    elseif i%5 == 0 then kind, data = "mine.alert", {id=7,text="ore chest full",reason="full"}
+    elseif i%7 == 0 then kind, data = "drops.broken", {text="chest 3 broken"}
+    else kind, data = "mine.ore", {id=7,name="diamond",count=1,x=12,y=i-60,z=88} end
+    h.now = i <= 40 and 3600000-(41-i)*20000 or 3590000+(i-41)*5000
+    assert(h.state.emit(kind,data))
+  end
+  for i=1,40 do h.emit(i) end
+  return h
+end
+
+local function health(state)
   local t = {now=3600000,clock=0,entries={},screens={},enroll=nil}
   local env = setmetatable({}, {__index=_G})
   env.os = {clock=function() return t.clock end}
@@ -22,6 +50,7 @@ local function health()
     enroll={view=function(owner) assert(owner==nil);return t.enroll end},
     errors={entries=function() return t.entries end,status=function() return {count=#t.entries,bytes=340} end}}
   env.SO.mods.display = {screen=function(role,render,input) t.screens[role]={render=render,input=input} end}
+  env.SO.mods.state = state
   t.mod = assert(loadfile("so-mod-health.lua","t",env))()
   t.tick = function(now) t.now=now or t.now;t.clock=t.clock+5;t.mod.tick(t.now) end
   t.render = function(role,w,h,session) return t.screens[role].render(w,h,session) end
@@ -279,5 +308,132 @@ return function(test,equal)
     t.input("errors",s,"error-back")
     equal(s.visibility.errors.page,2)
     assert(buttons(t.render("errors",29,12,s))[id])
+  end)
+
+  local function text(frame)
+    local out = {}
+    for _,row in ipairs(frame.rows) do out[#out+1]=row.text end
+    return table.concat(out,"\n")
+  end
+
+  test("health EVENTS page 2 shows 2 and LATEST returns to the newest page with the filter",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h=size[1],size[2]
+      local t,s=health(history().state),{}
+      local first=text(t.render("events",w,h,s))
+      assert(buttons(t.render("events",w,h,s)).hold)
+      t.input("events",s,"next")
+      local frame=t.render("events",w,h,s)
+      match("events-page2",frame,w,h)
+      equal(frame.rows[h].text:match("(%d+)%s+\17"),"2")
+      t.input("events",s,"latest")
+      equal(text(t.render("events",w,h,s)),first)
+      -- LATEST keeps the kind: four pages deep in mine.ore it returns to mine.ore's newest page.
+      t.input("events",s,"kind")
+      local kinds=s.visibility.events.picker.kinds
+      for i,kind in ipairs(kinds) do if kind=="mine.ore" then t.input("events",s,"pick:"..i) end end
+      for _=1,3 do t.render("events",w,h,s);t.input("events",s,"next") end
+      t.render("events",w,h,s)
+      t.input("events",s,"latest")
+      equal(s.visibility.events.page,1)
+      equal(s.visibility.events.kind,"mine.ore")
+      assert(text(t.render("events",w,h,s)):find("40s mine.ore",1,true))
+    end
+  end)
+
+  test("health EVENTS kind picker offers a kind seen only on page 4 from page 1",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h=size[1],size[2]
+      -- The single lumber.logs is the 29th newest event: page 4 of eight rows at 29x12, page 3 at 26x20.
+      local t,s=health(history().state),{}
+      assert(not text(t.render("events",w,h,s)):find("lumber",1,true))
+      t.input("events",s,"kind")
+      local frame=t.render("events",w,h,s)
+      match("events-picker",frame,w,h)
+      local pick
+      for id in pairs(buttons(frame)) do
+        local n=id:match("^pick:(%d+)$")
+        if n and s.visibility.events.picker.kinds[tonumber(n)]=="lumber.logs" then pick=id end
+      end
+      assert(pick,"lumber.logs offered")
+      t.input("events",s,pick)
+      frame=t.render("events",w,h,s)
+      equal(buttons(frame).kind.label,"lumber.logs")
+      assert(text(frame):find("9m lumber.logs",1,true),text(frame))
+      -- BACK leaves the picker without changing the kind; ALL clears it.
+      t.input("events",s,"kind")
+      t.input("events",s,"kind-back")
+      equal(buttons(t.render("events",w,h,s)).kind.label,"lumber.logs")
+      t.input("events",s,"kind")
+      t.input("events",s,"pick:1")
+      equal(buttons(t.render("events",w,h,s)).kind.label,"all")
+    end
+  end)
+
+  test("health HOLD keeps EVENTS rows while events arrive, another display stays live, LIVE resumes",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h=size[1],size[2]
+      local log=history()
+      local t,s,other=health(log.state),{},{}
+      local before=text(t.render("events",w,h,s))
+      t.input("events",s,"hold")
+      log.emit(41);log.emit(42)
+      local frame=t.render("events",w,h,s)
+      match("events-held",frame,w,h)
+      local held=text(frame)
+      equal(held:gsub("LIVE","HOLD"),before)
+      assert(text(t.render("events",w,h,other)):find("10s mine.ore",1,true))
+      -- Paging from the held page and back keeps the hold.
+      t.input("events",s,"next");t.render("events",w,h,s);t.input("events",s,"prev")
+      equal(text(t.render("events",w,h,s)),held)
+      t.input("events",s,"live")
+      frame=t.render("events",w,h,s)
+      assert(text(frame):find("5s drops.broken",1,true) and buttons(frame).hold)
+    end
+  end)
+
+  test("health EVENTS text search filters rows case-insensitively and clears",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h=size[1],size[2]
+      local t,s=health(history().state),{}
+      local all=text(t.render("events",w,h,s))
+      t.screens.events.input({session=s,text="chest"})
+      local frame=t.render("events",w,h,s)
+      match("events-find",frame,w,h)
+      assert(not text(frame):find("mine.ore",1,true))
+      t.screens.events.input({session=s,text=" CHEST "})
+      equal(text(t.render("events",w,h,s)):lower(),text(frame):lower())
+      t.input("events",s,"find")
+      equal(text(t.render("events",w,h,s)),all)
+      t.screens.events.input({session=s,text="chest"})
+      t.screens.events.input({session=s,text="*"})
+      equal(text(t.render("events",w,h,s)),all)
+    end
+    -- The state filter: name and kind match, the query is cut to 32 bytes, no match is empty.
+    local state=history().state
+    equal(#state.history.page({text="DIAMOND",count=50}).entries,27)
+    equal(#state.history.page({text="lumber.",count=50}).entries,1)
+    equal(#state.history.page({text="ore chest full"..string.rep("x",18).."ignored",count=50}).entries,0)
+    equal(#state.history.page({text="nothing like it",count=50}).entries,0)
+    equal(state.history.kinds(),{"drops.broken","lumber.logs","mine.alert","mine.ore"})
+  end)
+
+  test("health opens an event's facts from its row and BACK returns to the same page",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h=size[1],size[2]
+      local t,s=health(history().state),{}
+      local row=buttons(t.render("events",w,h,s))["event:2"]
+      assert(row and row.x==1 and row.w==w)
+      t.input("events",s,"event:2")
+      match("event-facts",t.render("events",w,h,s),w,h)
+      t.input("events",s,"fact-back")
+      t.input("events",s,"next")
+      local list=text(t.render("events",w,h,s))
+      t.input("events",s,"event:1")
+      assert(buttons(t.render("events",w,h,s))["fact-back"])
+      t.input("events",s,"fact-back")
+      equal(s.visibility.events.page,2)
+      equal(text(t.render("events",w,h,s)),list)
+    end
   end)
 end

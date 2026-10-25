@@ -192,7 +192,14 @@ local function health()
           local l = hs.log
           return { available = true, seq = l[1], segments = l[2], bytes = l[3], snapshot = l[4], snapshotAt = l[5] }
         end,
-        history = { page = page } },
+        history = { page = page, kinds = function()
+          local seen, out = {}, {}
+          for _, e in ipairs(hs.events) do
+            if not seen[e.kind] then seen[e.kind] = true; out[#out + 1] = e.kind end
+          end
+          table.sort(out)
+          return out
+        end } },
       lease = { status = function(id) return { open = hs.leases[id] == 'open' or nil } end },
       drops = { list = function() return copy(points) end },
       display = { screen = function(role, render, input) t.screens[role] = { render = render, input = input } end },
@@ -257,7 +264,7 @@ return function(test, equal)
     end
   end)
 
-  test('RA2 health rows open their fix, the kind chip cycles and pages turn', function()
+  test('RA2 health rows open their fix, the kind picker sets the kind and pages turn', function()
     local t = health()
     local session, opened = {}, {}
     local frame = t.render('attention', 26, 20, session)
@@ -269,6 +276,9 @@ return function(test, equal)
     equal(opened, { 'events' })
     t.render('events', 26, 20, session)
     t.screens.events.input({ id = 'kind', session = session })
+    frame = t.render('events', 26, 20, session)
+    assert(ids(frame)['pick:2'], 'picker row')
+    t.screens.events.input({ id = 'pick:2', session = session })
     frame = t.render('events', 26, 20, session)
     equal(ids(frame).kind.label, 'drops.broken')
     -- Two pages of health at 29x12: the right chip turns to the second, which has the fleet counts.
