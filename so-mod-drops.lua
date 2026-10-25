@@ -163,6 +163,14 @@ S.add = function(point)
   return S.commit(previous, "add", point.id)
 end
 
+-- The index of a point other than skip at point's place, side and kind.
+S.match = function(point, skip)
+  for i, p in ipairs(S.points) do
+    if i ~= skip and p.dim == point.dim and p.x == point.x and p.y == point.y and p.z == point.z
+      and p.side == point.side and p.kind == point.kind then return i end
+  end
+end
+
 -- Changes a point in place in one save; a failed save restores the list. The point keeps its id, and
 -- keeps its strikes and verified state only while its place and side are unchanged.
 S.edit = function(id, point)
@@ -170,10 +178,8 @@ S.edit = function(id, point)
   if not idx then return false, "missing" end
   local valid, why = S.check(point)
   if not valid then return false, why end
-  for i, p in ipairs(S.points) do
-    if i ~= idx and p.dim == point.dim and p.x == point.x and p.y == point.y and p.z == point.z
-      and p.side == point.side and p.kind == point.kind then return false, "exists" end
-  end
+  local other = S.match(point, idx)
+  if other then return false, "exists" end
   local p = S.points[idx]
   if S.same(p, point) then return true end
   local previous = S.clone(S.points)
@@ -662,15 +668,25 @@ S.legacyRender = function(w, h, clientId)
   return { rev = S.rev, rows = rows, buttons = buttons }
 end
 
+-- A draft's id comes from its place, side and kind. An edited point keeps its old id, so when that id
+-- is taken by a point that has since moved, the new one gets the first free numbered id.
 S.idOf = function(d)
-  return string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)
+  local base = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)
+  local id, n = base, 1
+  while S.find(id) do n = n + 1 id = base .. "_" .. n end
+  return id
 end
--- ADD makes a new point; the next NEW starts again from the selection.
-S.addDraft = function(view)
+-- ADD makes a new point; the next NEW starts again from the selection. A point already at the
+-- draft's place, side and kind is a duplicate whatever its id: a tapped ADD says so, and a typed
+-- add of the same point still reads as added.
+S.addDraft = function(view, tapped)
   local d = S.draftOf(view)
-  local ok, err = S.add({
-    id = S.idOf(d), dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind, room = d.room,
-  })
+  local same = S.match(d)
+  if same and tapped then S.message = S.errText.exists return end
+  local ok, err = same and S.same(S.points[same], d), "exists"
+  if not same then
+    ok, err = S.add({ id = S.idOf(d), dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind, room = d.room })
+  end
   S.message = ok and "point added" or (S.errText[err] or tostring(err))
   if ok then view.drafted, view.edit = false, nil end
 end
@@ -1233,8 +1249,7 @@ S.input = function(ev)
   end
   if ev.id == "add" then
     -- The tapped ADD says when the draft is a point that already exists; typed add stays as it was.
-    if S.find(S.idOf(d)) then S.message = S.errText.exists return end
-    S.addDraft(view)
+    S.addDraft(view, true)
     return
   end
   local step = S.nudge[ev.id]

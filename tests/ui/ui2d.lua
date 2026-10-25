@@ -131,6 +131,25 @@ return function(test,equal)
     tap(a,'list');tap(a,'new');equal({s.views[7].edit,s.views[7].draft.x,s.views[7].draft.y},{nil,2,65})
     assert(capture(ui.render(57,24,a),57,24).picture().text[1]:find('ADD DROP POINT',1,true))
   end)
+  test('UI2d ADD after EDIT checks the current place and never reuses a moved point id',function()
+    local d,_,screens,s=boot();local ui=screens.generic;local tap=tapper(ui)
+    local a={id=7}
+    tap(a,'new');tap(a,'x+');tap(a,'add')
+    local first='0_1_64_0_front_ore'
+    equal({#d.list(),d.list()[1].id},{1,first})
+    -- EDIT moves the point to x 2; it keeps the id made for x 1.
+    tap(a,'list');tap(a,'select:'..first);ui.render(57,24,a);tap(a,'fix');tap(a,'x+');tap(a,'save')
+    equal({#d.list(),d.list()[1].id,d.list()[1].x},{1,first,2})
+    -- ADD at x 2 is the edited point: refused, no duplicate under a new id.
+    tap(a,'list');tap(a,'new');equal(s.views[7].draft.x,2);tap(a,'add')
+    equal({s.message,#d.list()},{'id exists',1})
+    tap(a,'x-');tap(a,'add')
+    -- ADD at x 1 is a new point; x 1's own id is taken, so it gets the next free one.
+    equal({s.message,#d.list(),d.list()[2].id,d.list()[2].x},{'point added',2,first..'_2',1})
+    tap(a,'add');equal({s.message,#d.list()},{'id exists',2})
+    -- A typed add of the edited point's place still reads as added and adds nothing.
+    ui.input({text='add ore 2 64 0',session=a,from=7});equal({s.message,#d.list()},{'point added',2})
+  end)
   test('UI2d EDIT and an armed REMOVE match their fixtures',function()
     local s3=dofile('tests/ui/s3.lua');local drops
     for i=1,40 do local k,v=debug.getupvalue(s3,i);if k=='drops' then drops=v end end
