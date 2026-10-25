@@ -26,7 +26,7 @@ local C = {
 C.now = function() return math.floor(os.clock() * 1000 + 0.5) end
 
 -- retryInput (so-display.cfg, default off): in NO SERVER any key or tap retries at once.
-local cfg = C.store.read("so-display.cfg")
+local cfg = C.store.read and C.store.read("so-display.cfg")
 C.retryInput = type(cfg) == "table" and cfg.retryInput == true
 
 C.pair = dofile("so-pair.lua")
