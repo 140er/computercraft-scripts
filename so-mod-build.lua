@@ -73,7 +73,7 @@ local j = box.value or { dim="minecraft:overworld", cursor=1, running=false, pha
 j.fuel=normalizeFuel(j.fuel)
 if j.blueprint then
   S.targets=expand(j.blueprint)
-  if S.targets and #S.targets>0 and j.cursor>#S.targets then j.running,j.complete=false,true end
+  if S.targets and #S.targets>0 and j.cursor>#S.targets then j.running,j.complete,j.blocked,j.alert,j.legacyHold=false,true,nil,nil,nil end
 end
 if not j.placement and j.intent and j.intent.action=="place" then
   j.placement={cursor=j.cursor,material=j.material}
@@ -84,6 +84,22 @@ if not S.workerPark and j.turtle and (j.turtle.paused or j.turtle.removeRequeste
   print("so-build: workerPark off; cleared park state for "..j.turtle.id)
   S.pauseCleared=true
 end
+local causes = {
+  fuel={2,"Build needs fuel"}, material={2,"Build needs material"},
+  range={1,"Build out of range"}, path={1,"Build path blocked"}, lost={1,"Build worker lost"},
+  pose_uncertain={1,"Build pose uncertain"}, save={1,"Build save failed"},
+  reservation={1,"Build reservation blocked"}, cell_occupied={1,"Build cell occupied"},
+  cell_unknown={1,"Build cell unknown"}, placement={1,"Build placement failed"},
+  worker_safety={1,"Build worker update required"}, assignment_conflict={1,"Build worker assigned elsewhere"},
+  dimension_mismatch={1,"Build dimension mismatch"}, storage_missing={2,"Build chest missing"},
+  storage_access={2,"Build chest inaccessible"}, inventory_full={2,"Build inventory full"},
+  device_forgotten={2,"Build worker forgotten"},
+}
+local aliases = { ["pose uncertain"]="pose_uncertain", ["device forgotten"]="device_forgotten",
+  cells="reservation", lane="reservation", fuelStock="fuel" }
+j.blocked = aliases[j.blocked] or j.blocked
+if j.blocked=="hold" then j.legacyHold=j.legacyHold or j.alert or "legacy hold; review BUILD" end
+local function feedback(text) S.feedback, S.feedbackUntil = tostring(text), SO.now()+5000 end
 local function publish()
   local state=module("state")
   if S.published ~= j.alert and state.emit then
@@ -92,12 +108,13 @@ local function publish()
   end
 end
 local function save()
+  if j.complete and j.blocked=="save" then j.blocked,j.alert=nil,nil end
   local announce = j.complete and not j.announced
   if announce then j.announced=true end
   local ok, err = box.save(j)
   if not ok then
     if announce then j.announced=nil end
-    j.running, j.alert = false, "save failed: " .. tostring(err)
+    j.running, j.blocked, j.alert = false, "save", "save failed: " .. tostring(err)
   end
   publish()
   if ok and announce and module("state").emit then
@@ -106,19 +123,20 @@ local function save()
   return ok
 end
 local function alert(text, blocked)
-  j.blocked = blocked or "hold"
-  if j.alert ~= text then
-    j.alert = text
+  S.feedback = nil
+  assert(causes[blocked], "unknown build cause")
+  if j.alert ~= text or j.blocked ~= blocked then
+    j.blocked, j.alert = blocked, text
     save()
   end
 end
 local function owner() return "build:" .. j.turtle.id end
 local function removeParked()
   local cells,p=module("cells"),j.turtle.pose
-  if not cells.handoff or not cells.releaseOwner or not cells.list then alert("cells unavailable") return end
+  if not cells.handoff or not cells.releaseOwner or not cells.list then alert("cells unavailable", "reservation") return end
   local ok,err=cells.handoff(owner(),"gps:"..j.turtle.id,p.x,p.y,p.z,p.dim)
   if ok then ok,err=cells.releaseOwner(owner()) end
-  if not ok or #cells.list(owner(),1)>0 then alert(err or "reservation cleanup pending") return end
+  if not ok or #cells.list(owner(),1)>0 then alert(err or "reservation cleanup pending", "reservation") return end
   local row,service,intent,inv,fuel=j.turtle,j.service,j.intent,j.inv,j.fuel
   j.turtle,j.service,j.intent,j.inv,j.fuel,j.running=nil,nil,nil,{},nil,false
   if not save() then
@@ -133,7 +151,7 @@ local function trim()
   for _, p in ipairs(cells.list(owner(), 256)) do
     if p.dim ~= j.dim or not same(p, j.turtle.pose) then
       local ok, err = cells.release(owner(), p.x, p.y, p.z, p.dim)
-      if ok == false then alert("reservation save failed: " .. tostring(err)) return false end
+      if ok == false then alert("reservation save failed: " .. tostring(err), "reservation") return false end
     end
   end
   return true
@@ -145,10 +163,19 @@ local function lane(p)
     turtles={{branch=math.max(0,(mine.branches or 0)-1)}}}
   return M.inLane(job,p)
 end
+local sendCauses = {
+  ["DISK events pending"]="save", ["pose uncertain"]="pose_uncertain", pose="pose_uncertain",
+  lost="lost", send="lost", busy="assignment_conflict", ["no key"]="device_forgotten",
+  ["update remote worker"]="worker_safety", ["invalid dimension"]="dimension_mismatch",
+  ["remote dimensions disabled"]="dimension_mismatch",
+  ["worker dimension mismatch; set so-worker.cfg"]="dimension_mismatch",
+  ["Nether bedrock boundary"]="dimension_mismatch", ["End void or height boundary"]="dimension_mismatch",
+  id="path", owner="path", steps="path", opts="path", ms="path", size="path",
+}
 local function send(steps, action, recover)
   local lease, cells = module("lease"), module("cells")
   if S.pending or not lease.send or lease.status(j.turtle.id).open then return false end
-  if not recover and not S.safe[j.turtle.id] then alert("update worker for builder safety") return false end
+  if not recover and not S.safe[j.turtle.id] then alert("update worker for builder safety", "worker_safety") return false end
   steps[1].park = true
   local start, at = j.turtle.pose, j.turtle.pose
   local reserved = { start }
@@ -166,12 +193,12 @@ local function send(steps, action, recover)
   end
   if not recover then
     if not P.rangeBatch(lease,j.turtle.id,{steps=steps,cells=reserved}) then alert("out of range", "range") return false end
-    for _, p in ipairs(reserved) do if lane(p) then alert("mining lane", "lane") return false end end
+    for _, p in ipairs(reserved) do if lane(p) then alert("mining lane", "reservation") return false end end
   end
-  if not cells.reserveMany then alert("cells unavailable") return false end
+  if not cells.reserveMany then alert("cells unavailable", "reservation") return false end
   local ok, err = cells.reserveMany(owner(),reserved)
   if not ok then
-    if action ~= "fuel" or err ~= "held" then alert(err == "held" and "cells held" or "reservation save failed", "cells") end
+    if action ~= "fuel" or err ~= "held" then alert(err == "held" and "cells held" or "reservation save failed", "reservation") end
     return false
   end
   j.intent = {action=action, steps=steps, pose=start}
@@ -182,8 +209,9 @@ local function send(steps, action, recover)
   if not id then
     j.intent = nil
     if action=="place" then j.placement=nil end
-    if err == "lost" then S.recover = true end
-    alert("lease " .. tostring(err))
+    local cause=sendCauses[err] or "path"
+    if cause == "lost" then S.recover = true end
+    alert("lease " .. tostring(err), cause)
     return false
   end
   S.pending = { id=id, action=action, steps=steps, pose=start }
@@ -261,10 +289,10 @@ end
 local function supply(kind)
   local picked=choose(kind,j.turtle.pose)
   local point=picked and picked.point
-  if not point then alert(picked and picked.alert or ("no "..kind.." chest set")) return end
-  if point.dim ~= dimensions[j.dim] then alert(kind.." dimension mismatch") return end
+  if not point then alert(picked and picked.alert or ("no "..kind.." chest set"), "storage_missing") return end
+  if point.dim ~= dimensions[j.dim] then alert(kind.." dimension mismatch", "dimension_mismatch") return end
   local stand=access(point,j.turtle.pose)
-  if not stand then alert("no "..kind.." access") return end
+  if not stand then alert("no "..kind.." access", "storage_access") return end
   if kind == "fuel" and type(j.fuel)=="number" and distance(j.turtle.pose,stand)>j.fuel then
     alert("out of fuel", "fuel")
     send({{op="inspectDown"}},"fuel")
@@ -281,8 +309,10 @@ local function fuelNeed(target)
   local stand=j.service and j.service.kind~="fuel" and j.service.access or {x=target.x,y=target.y+1,z=target.z}
   local picked=choose("fuel",stand)
   local point=picked and picked.point
-  local fuelStand=point and access(point,stand)
-  if not fuelStand then return nil,picked and picked.alert or "no fuel chest set" end
+  if not point then return nil,picked and picked.alert or "no fuel chest set","storage_missing" end
+  if point.dim~=dimensions[j.dim] then return nil,"fuel dimension mismatch","dimension_mismatch" end
+  local fuelStand=access(point,stand)
+  if not fuelStand then return nil,"no fuel access","storage_access" end
   return distance(j.turtle.pose,stand)+distance(stand,fuelStand)+2
 end
 local function readiness()
@@ -292,19 +322,19 @@ local function readiness()
   local stat=pose and lease.status and lease.status(j.turtle.id) or {}
   if j.fuel~=nil and stat.fuel~=nil then j.fuel=normalizeFuel(stat.fuel) end
   local picked=pose and choose("storage",pose)
-  checks[#checks+1]={ok=picked and picked.point~=nil,text=picked and picked.alert or "no storage chest set"}
+  checks[#checks+1]={ok=picked and picked.point~=nil,text=picked and picked.alert or "no storage chest set",cause="storage_missing"}
   checks[#checks+1]={ok=pose and SO.pair and SO.pair.key(j.turtle.id) and not j.turtle.forgotten and not stat.uncertain and not stat.lost,
-    text="paired turtle pose missing or uncertain"}
-  checks[#checks+1]={ok=j.turtle and S.safe[j.turtle.id],text="update worker for builder safety"}
-  checks[#checks+1]={ok=j.fuel=="unlimited" or type(j.fuel)=="number" and j.fuel>0,text=j.fuel==nil and "fuel unknown; wait for report" or "out of fuel"}
+    text="paired turtle pose missing or uncertain",cause=stat.lost and "lost" or "pose_uncertain"}
+  checks[#checks+1]={ok=j.turtle and S.safe[j.turtle.id],text="update worker for builder safety",cause="worker_safety"}
+  checks[#checks+1]={ok=j.fuel=="unlimited" or type(j.fuel)=="number" and j.fuel>0,text=j.fuel==nil and "fuel unknown; wait for report" or "out of fuel",cause="fuel"}
   if S.fuelTrips and pose then
     picked=choose("fuel",pose)
-    checks[#checks+1]={ok=picked and picked.point~=nil,text=picked and picked.alert or "no fuel chest set"}
+    checks[#checks+1]={ok=picked and picked.point~=nil,text=picked and picked.alert or "no fuel chest set",cause="storage_missing"}
   end
   return checks
 end
 local function budget()
-  local targets=S.targets or (j.blueprint and expand(j.blueprint))
+  local targets=S.targets
   local total=targets and #targets or 0
   local carried
   if j.inv~=nil then
@@ -323,7 +353,7 @@ local function reconcile(last)
   local pose=j.turtle.pose
   if pending.cursor~=j.cursor or not target or pose.dim~=target.dim
     or pose.x~=target.x or pose.y~=target.y+1 or pose.z~=target.z then
-    alert("pending placement pose changed") return false
+    alert("pending placement pose changed", "pose_uncertain") return false
   end
   if last.ok and last.data and last.data.name==pending.material then
     j.placement=nil
@@ -331,7 +361,7 @@ local function reconcile(last)
   elseif not last.ok and last.err=="No block to inspect" then
     j.placement=nil
     j.phase="check"
-  else alert(last.ok and "build cell occupied" or "build cell unknown") return false end
+  else alert(last.ok and "build cell occupied" or "build cell unknown", last.ok and "cell_occupied" or "cell_unknown") return false end
   return true
 end
 local function report(id, turtleId, results, lease)
@@ -358,43 +388,47 @@ local function report(id, turtleId, results, lease)
     j.turtle.parkConfirmed=true
     if j.turtle.paused then j.turtle.state="parked" end
   elseif action == "recover" then
-    S.recover, j.blocked, j.alert, j.phase = false, nil, nil, "check"
+    S.recover, j.phase = false, "check"
+    if j.legacyHold then j.blocked,j.alert="hold",j.legacyHold
+    elseif not (j.retryAt and (j.blocked=="material" or j.blocked=="fuel")) then j.blocked,j.alert=nil,nil end
     if j.service then j.service.stage = "travel" end
     if j.placement and not reconcile(last) then S.recover=true end
   elseif action == "fuel" then
     local target=S.targets and S.targets[j.cursor]
     local required=S.fuelTrips and target and fuelNeed(target) or 1
     if j.fuel == "unlimited" or type(j.fuel) == "number" and j.fuel >= (required or 1) then
-      j.blocked, j.alert = nil, nil
+      j.blocked, j.alert, j.retryAt = nil, nil, nil
     else alert("out of fuel", "fuel") end
   elseif action == "check" then
     if j.placement then reconcile(last)
     elseif last.ok and last.data and last.data.name == j.material then advance()
-    elseif last.ok then alert("build cell occupied")
+    elseif last.ok then alert("build cell occupied", "cell_occupied")
     elseif last.err == "No block to inspect" then j.phase = "place"
-    else alert("build cell unknown") end
+    else alert("build cell unknown", "cell_unknown") end
   elseif action == "place" then
-    if last.ok then j.placement=nil advance() else j.phase="check" alert("placement failed") end
+    if last.ok then j.placement=nil advance() else j.phase="check" alert("placement failed", "placement") end
   elseif action == "supplyCheck" then
     if last.ok and last.data and (last.data.name:find("chest",1,true)
       or last.data.name:find("barrel",1,true) or last.data.name:find("shulker",1,true)) then
       j.service.stage = "take"
-    else alert((j.service.kind or "storage").." chest missing") end
+    else alert((j.service.kind or "storage").." chest missing", "storage_missing") end
     local drops = module("drops")
     if drops.note then drops.note(j.service.point.id,last.ok and last.data and last.data.name or nil) end
   elseif action == "refuel" then
-    if last.ok and (j.fuel=="unlimited" or type(j.fuel)=="number" and j.fuel>=1) then
+    local target=S.targets and S.targets[j.cursor]
+    local required=S.fuelTrips and target and fuelNeed(target) or 1
+    if last.ok and (j.fuel=="unlimited" or type(j.fuel)=="number" and j.fuel>=(required or 1)) then
       if j.service and j.service.kind=="fuel" then j.service=nil end
       j.blocked,j.alert,j.retryAt=nil,nil,nil
     elseif last.ok then
       if j.service then j.service.stage="take" end
-    else alert("fuel item rejected") end
+    else alert("fuel item rejected", "fuel") end
   elseif action == "take" and j.service.kind=="fuel" then
     if fuelItem() then j.service.stage="refuel"
-    elseif last.ok then alert("fuel chest has no usable fuel")
-    else j.service.stage="check" j.retryAt=SO.now()+10000 alert("fuel chest empty", "fuelStock") end
+    elseif last.ok then alert("fuel chest has no usable fuel", "fuel")
+    else j.service.stage="check" j.retryAt=SO.now()+10000 alert("fuel chest empty", "fuel") end
   elseif action == "take" then
-    if item() then j.service=nil j.phase="check" j.alert=nil j.retryAt=nil
+    if item() then j.service=nil j.phase="check" j.blocked=nil j.alert=nil j.retryAt=nil
     elseif last.ok and empty() then j.service.stage="take"
     else j.service.stage="check" j.retryAt=SO.now()+10000 alert("out of material", "material") end
   elseif action == "move" then
@@ -426,6 +460,7 @@ end
 local function input(ev)
   local text = ev.text or ev.id
   if type(text) ~= "string" then return end
+  S.feedback = nil
   local session = ev.session or S.view
   if text == "setup" or text == "tab:setup" then session.buildSetup=true return end
   if text == "build-back" or text == "tab:job" then session.buildSetup=false return end
@@ -435,13 +470,13 @@ local function input(ev)
     local stat = row and module("lease").status and module("lease").status(row.id)
     local p = row and row.pose
     if not p or row.forgotten or not SO.pair or not SO.pair.key(row.id) or S.recover
-      or not stat or stat.open or stat.lost or stat.uncertain or j.running or S.pending then alert("paired pose unavailable") return end
+      or not stat or stat.open or stat.lost or stat.uncertain or j.running or S.pending then feedback("paired pose unavailable") return end
     if p.dim ~= j.dim or not whole(p.x) or not whole(p.y) or not whole(p.z)
-      or not whole(p.facing) or p.facing<0 or p.facing>3 then alert("paired pose unavailable") return end
+      or not whole(p.facing) or p.facing<0 or p.facing>3 then feedback("paired pose unavailable") return end
     if text == "home-here" then j.home=SO.store.copy(p) save() return end
     if text == "from-here" then session.buildCorner=SO.store.copy(p) return end
     local first = session.buildCorner
-    if not first or first.dim ~= p.dim or p.dim ~= j.dim then alert("set first corner") return end
+    if not first or first.dim ~= p.dim or p.dim ~= j.dim then feedback("set first corner") return end
     text=table.concat({"area",first.x,first.y-1,first.z,p.x,p.y-1,p.z}," ")
   end
   if text == "shape-next" then
@@ -454,13 +489,13 @@ local function input(ev)
   for word in text:gmatch("%S+") do w[#w+1]=word end
   if S.workerPark and (w[1]=="park" or w[1]=="resume" or w[1]=="remove") and #w==2 then
     local row=j.turtle
-    if not row or tonumber(w[2])~=row.id then alert("unknown turtle") return end
-    if row.forgotten then alert("device forgotten; re-pair and re-add turtle") return end
+    if not row or tonumber(w[2])~=row.id then feedback("unknown turtle") return end
+    if row.forgotten then feedback("device forgotten; re-pair and re-add turtle") return end
     if w[1]=="resume" then
       local cells,p=module("cells"),row.pose
       if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)=="gps:"..row.id then
         local ok,err=cells.handoff("gps:"..row.id,owner(),p.x,p.y,p.z,p.dim)
-        if not ok then alert(err) return end
+        if not ok then feedback(err) return end
       end
       row.paused,row.removeRequested,row.parkConfirmed,row.state=nil,nil,nil,nil
     else
@@ -476,28 +511,37 @@ local function input(ev)
     local state = module("state")
     local ok, err = false,"disk guard unavailable"
     if state.canStart then ok,err=state.canStart() end
-    if not ok then alert(err) return end
-    if not j.blueprint or not j.turtle or not j.material then alert("configure area, material, turtle") return end
+    if not ok then feedback(err) return end
+    if not j.blueprint or not j.turtle or not j.material then feedback("configure area, material, turtle") return end
     S.targets, err = expand(j.blueprint)
-    if not S.targets then alert(err) return end
+    if not S.targets then feedback(err) return end
     if j.cursor > #S.targets then j.running=false save() return end
-    local missing=P.missing(readiness())
-    if #missing>0 then alert(table.concat(missing,"; ")) return end
-    j.running,j.blocked,j.alert,j.phase=true,nil,nil,"check"
+    local checks=readiness()
+    local missing=P.missing(checks)
+    if #missing>0 then
+      if j.blocked then feedback(table.concat(missing,"; "))
+      else
+        for _, check in ipairs(checks) do
+          if not check.ok then alert(table.concat(missing,"; "), check.cause) break end
+        end
+      end
+      return
+    end
+    j.running,j.blocked,j.alert,j.phase,j.legacyHold=true,nil,nil,"check",nil
     save()
     return
   end
   local status = j.turtle and module("lease").status and module("lease").status(j.turtle.id) or {}
   local reanchor = w[1] == "add" and j.turtle and tonumber(w[2]) == j.turtle.id and status.uncertain
-  if (j.running or S.pending or status.open) and not reanchor then alert("stop before configuring") return end
-  if j.placement and w[1]~="add" then alert("reconcile placement before configuring") return end
+  if (j.running or S.pending or status.open) and not reanchor then feedback("stop before configuring") return end
+  if j.placement and w[1]~="add" then feedback("reconcile placement before configuring") return end
   if w[1] == "area" and #w == 7 then
     local n={}
-    for i=2,7 do n[i]=tonumber(w[i]) if not whole(n[i]) then alert("invalid area") return end end
+    for i=2,7 do n[i]=tonumber(w[i]) if not whole(n[i]) then feedback("invalid area") return end end
     local b={x1=math.min(n[2],n[5]),y1=math.min(n[3],n[6]),z1=math.min(n[4],n[7]),
       x2=math.max(n[2],n[5]),y2=math.max(n[3],n[6]),z2=math.max(n[4],n[7]),shape=j.shape or "floor",dim=j.dim}
     local cells,err=expand(b)
-    if not cells then alert(err) return end
+    if not cells then feedback(err) return end
     j.blueprint,j.cursor,j.phase,j.service=b,1,"check",nil
     S.targets=cells
   elseif w[1] == "shape" and #w == 2 and shapes[w[2]] then
@@ -507,50 +551,50 @@ local function input(ev)
   elseif w[1] == "material" and #w == 2 and material(w[2]) then j.material=material(w[2]) j.phase="check" j.service=nil
   elseif w[1] == "import" then
     local b,err=import(text:match("^%S+%s+(.+)$"))
-    if not b then alert(err) return end
+    if not b then feedback(err) return end
     b.dim=j.dim
     j.blueprint,j.shape,j.material,j.cursor,j.phase,j.service=b,b.shape,b.material,1,"check",nil
     S.targets=expand(b)
   elseif w[1] == "add" and (#w == 2 or #w == 6) then
     local id=tonumber(w[2])
-    if not whole(id) or id < 0 then alert("invalid turtle") return end
-    if j.turtle and j.turtle.forgotten and j.turtle.id == id and #w ~= 6 then alert("add needs x y z n|e|s|w") return end
-    if j.turtle and not j.turtle.forgotten and j.turtle.id ~= id then alert("builder already has a turtle") return end
+    if not whole(id) or id < 0 then feedback("invalid turtle") return end
+    if j.turtle and j.turtle.forgotten and j.turtle.id == id and #w ~= 6 then feedback("add needs x y z n|e|s|w") return end
+    if j.turtle and not j.turtle.forgotten and j.turtle.id ~= id then feedback("builder already has a turtle") return end
     local lease=module("lease")
     local stat=lease.status and lease.status(id) or {}
-    if stat.open and not stat.uncertain then alert("turtle has open lease") return end
+    if stat.open and not stat.uncertain then feedback("turtle has open lease") return end
     local other=assigned(id)
-    if other then alert("turtle assigned to " .. other) return end
+    if other then feedback("turtle assigned to " .. other) return end
     local pose
     if #w == 6 then
       local x,y,z=tonumber(w[3]),tonumber(w[4]),tonumber(w[5])
       local f=({n=0,e=1,s=2,w=3})[w[6]]
       if whole(x) and whole(y) and whole(z) and f then pose={dim=j.dim,x=x,y=y,z=z,facing=f} end
     else
-      if not lease.locate then alert("GPS unavailable; use explicit add") return end
+      if not lease.locate then feedback("GPS unavailable; use explicit add") return end
       S.locating=(S.locating or 0)+1
       local attempt=S.locating
       lease.locate(id,j.dim,function(found,err)
         if attempt~=S.locating then return end
-        if not found then alert(err or "GPS locate failed") return end
+        if not found then feedback(err or "GPS locate failed") return end
         if found.dim~=j.dim or not whole(found.x) or not whole(found.y) or not whole(found.z)
-          or not whole(found.facing) or found.facing<0 or found.facing>3 then alert("invalid GPS pose") return end
+          or not whole(found.facing) or found.facing<0 or found.facing>3 then feedback("invalid GPS pose") return end
         input({text=string.format("add %d %d %d %d %s",id,found.x,found.y,found.z,({[0]="n","e","s","w"})[found.facing])})
       end)
       return
     end
-    if not pose then alert("add needs x y z n|e|s|w") return end
-    if SO.pair and SO.pair.key and not SO.pair.key(id) then alert("turtle is not paired") return end
+    if not pose then feedback("add needs x y z n|e|s|w") return end
+    if SO.pair and SO.pair.key and not SO.pair.key(id) then feedback("turtle is not paired") return end
     if stat.uncertain then
       local ok,err=lease.reanchor(id,pose)
-      if not ok then alert(err) return end
+      if not ok then feedback(err) return end
       S.pending=nil
       j.running=false
     end
     S.locating=(S.locating or 0)+1
     if lease.claimProbe then
       local ok,err=lease.claimProbe(id,"build:"..id,pose)
-      if not ok then alert(err) return end
+      if not ok then feedback(err) return end
     end
     j.turtle={id=id,pose=pose,anchor=SO.store.copy(pose)}
     j.home=SO.store.copy(pose)
@@ -559,10 +603,10 @@ local function input(ev)
     j.blocked,j.alert=nil,nil
     if save() and lease.clearProbe then
       local ok,err=lease.clearProbe(id)
-      if not ok then alert(err) end
+      if not ok then feedback(err) end
     end
     return
-  else alert("invalid command") return end
+  else feedback("invalid command") return end
   if w[1]=="area" or w[1]=="shape" or w[1]=="import" then j.complete,j.announced=nil,nil end
   j.blocked,j.alert=nil,nil
   save()
@@ -575,7 +619,7 @@ local function render(w,h,session)
   session=session or S.view
   local C=U.canvas(w,h)
   local gap,lw=h>=16 and 1 or 0,math.min(w-2,40)
-  local state=j.blocked or (j.complete and "COMPLETE" or j.running and "running" or "stopped")
+  local state=j.legacyHold and "hold" or j.blocked or (j.complete and "COMPLETE" or j.running and "running" or "stopped")
   local tone=U.tone(state)
   if j.blocked and tone~="e" then tone="1" end
   local shape=({platform="floor",wall="walls"})[j.shape] or j.shape or "floor"
@@ -585,7 +629,8 @@ local function render(w,h,session)
   local stuff=j.material and (j.material:gsub("^minecraft:",""))
   U.roleBar(C,"BUILD",{"job","setup"},{"job","setup"},session.buildSetup and 2 or 1)
   local y=2+gap
-  if j.alert then y=y+U.flagLines(C,2,y,w-2,j.alert,nil,2)+gap end
+  local message=S.feedback and SO.now()<S.feedbackUntil and S.feedback or j.alert or j.legacyHold
+  if message then y=y+U.flagLines(C,2,y,w-2,message,nil,2)+gap end
   if session.buildSetup then
     local cx=w>=36 and 13 or 11
     C.put(2,y,"shape","8")
@@ -636,23 +681,24 @@ local function tick()
   if not j.turtle or j.turtle.forgotten or not lease.status or not S.callback then return end
   S.targets=S.targets or (j.blueprint and expand(j.blueprint))
   local other=assigned(j.turtle.id)
-  if other then j.running=false alert("turtle assigned to " .. other) return end
+  if other then j.running=false alert("turtle assigned to " .. other, "assignment_conflict") return end
   local stat=lease.status(j.turtle.id)
-  if stat.uncertain then j.turtle.parkConfirmed=nil alert("pose uncertain; re-add turtle","pose uncertain") return end
+  if stat.uncertain then j.turtle.parkConfirmed=nil alert("pose uncertain; re-add turtle","pose_uncertain") return end
   if S.pending or stat.open then return end
   if S.recover or stat.lost then
     local cells,p=module("cells"),j.turtle.pose
     local gps="gps:"..j.turtle.id
     if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)==gps then
-      if not cells.handoff then alert("standing cell handoff unavailable") return end
+      if not cells.handoff then alert("standing cell handoff unavailable", "reservation") return end
       local ok,err=cells.handoff(gps,owner(),p.x,p.y,p.z,p.dim)
-      if not ok then alert(err) return end
+      if not ok then alert(err, "reservation") return end
     end
     j.turtle.parkConfirmed=nil
     if j.turtle.paused then j.turtle.state="parking" end
     send({{op="inspectDown"}},"recover",true)
     return
   end
+  if j.legacyHold then return end
   if S.workerPark and j.turtle.paused then
     if j.turtle.removeRequested and j.turtle.parkConfirmed then removeParked()
     elseif not j.turtle.parkConfirmed or not S.parkAt or SO.now()-S.parkAt>=540000 then
@@ -661,25 +707,24 @@ local function tick()
     return
   end
   if j.service and j.service.kind=="fuel" and not S.fuelTrips then
-    j.running=false alert("builder fuel trips disabled") return
+    j.running=false alert("builder fuel trips disabled", "fuel") return
   end
   if j.service and j.service.kind=="fuel" and j.fuel=="unlimited" then
-    j.service=nil save()
+    j.service,j.blocked,j.alert,j.retryAt=nil,nil,nil,nil save()
   end
-  if (j.blocked == "material" or j.blocked == "fuelStock") and j.retryAt and SO.now() >= j.retryAt then
-    j.blocked=nil
-  end
+  local retrying = j.retryAt and SO.now()>=j.retryAt and j.service
+    and (j.blocked=="material" and j.service.kind=="storage" or j.blocked=="fuel" and j.service.kind=="fuel")
   if S.fuelTrips and j.running and (not j.blocked or j.blocked=="fuel") and type(j.fuel)=="number" then
     local target=S.targets and S.targets[j.cursor]
-    local need,err
-    if target then need,err=fuelNeed(target) end
+    local need,err,cause
+    if target then need,err,cause=fuelNeed(target) end
     if need and j.fuel<need or j.service and j.service.stage=="refuel" then
       local carried=fuelItem()
       if carried then
         send({{op="select",slot=carried.slot},{op="refuel",n=math.min(carried.count,math.max(1,math.ceil((math.max(2000,need or 0)-j.fuel)/P.fuelValue(carried.name))))}},"refuel")
         return
       elseif not j.service or j.service.kind~="fuel" then supply("fuel") return end
-    elseif target and not need then alert(err) return end
+    elseif target and not need then alert(err, cause) return end
   end
   local atFuel = S.fuelTrips and j.service and j.service.kind=="fuel" and same(j.turtle.pose,j.service.access)
   if j.running and not atFuel and (j.blocked == "fuel" or not j.blocked and type(j.fuel)=="number" and j.fuel>=0 and j.fuel<1) then
@@ -687,10 +732,10 @@ local function tick()
     send({{op="inspectDown"}},"fuel")
     return
   end
-  if not j.running or j.blocked then return end
+  if not j.running or j.blocked and not retrying then return end
   S.targets=S.targets or expand(j.blueprint)
   local target=S.targets and S.targets[j.cursor]
-  if not target then j.running,j.complete=false,true save() return end
+  if not target then j.running,j.complete,j.blocked,j.alert=false,true,nil,nil save() return end
   if j.service then
     local service=j.service
     if service.stage == "travel" then
@@ -700,7 +745,7 @@ local function tick()
     if service.stage == "check" then send({{op=service.point.side=="down" and "inspectDown" or "inspect"}},"supplyCheck")
     elseif service.stage == "take" then
       local slot=empty()
-      if not slot then alert("inventory full") return end
+      if not slot then alert("inventory full", "inventory_full") return end
       send({{op="select",slot=slot},{op=service.point.side=="down" and "suckDown" or "suck",n=64}},"take")
     end
     return
@@ -726,16 +771,57 @@ end
 local function forget(id)
   if not j.turtle or j.turtle.id ~= id then return true end
   S.locating=(S.locating or 0)+1
-  j.turtle.forgotten, j.running, j.blocked = true, false, "device forgotten"
+  j.turtle.forgotten, j.running, j.blocked, j.alert = true, false, "device_forgotten", "device forgotten; re-pair and re-add turtle"
   S.pending, S.recover = nil, true
   return save()
 end
+local function facts()
+  local total = j.blueprint and S.targets and #S.targets or 0
+  local done = math.max(0, math.min(j.cursor-1, total))
+  local complete = j.blueprint and j.blocked~="save" and (j.complete or total>0 and done==total)
+  local row = j.turtle
+  local stat = row and module("lease").peek and module("lease").peek(row.id) or {}
+  local out = {dim=j.dim, running=j.running==true, done=done, total=total,
+    state=not j.blueprint and "idle" or complete and "complete" or (j.blocked or j.legacyHold) and "held"
+      or (S.recover or stat.lost or stat.uncertain) and row and not row.forgotten and "recovering"
+      or j.running and "running" or "stopped"}
+  if j.blueprint then
+    out.bounds={dim=j.dim}
+    for _, field in ipairs({"x1","y1","z1","x2","y2","z2"}) do out.bounds[field]=j.blueprint[field] end
+  end
+  if row and not row.forgotten then
+    out.turtleId=row.id
+    local p=row.pose
+    local f=p and (p.facing or p.f)
+    if not S.recover and not stat.lost and not stat.uncertain and j.blocked~="pose_uncertain"
+      and j.blocked~="lost" and j.blocked~="dimension_mismatch" and p and p.dim==j.dim
+      and whole(p.x) and whole(p.y) and whole(p.z) and whole(f) and f>=0 and f<=3 then
+      out.pose={x=p.x,y=p.y,z=p.z,f=f,dim=p.dim}
+    end
+  end
+  local cause=not complete and causes[j.blocked]
+  if cause then
+    out.alert={key="build:"..j.blocked,severity=cause[1],text=cause[2],target="build",
+      actions=j.blocked=="device_forgotten" and {"setup"} or nil}
+  end
+  return out
+end
 local function turtleView()
   if not j.turtle or j.turtle.forgotten then return {} end
-  local totals=budget()
-  return {[tostring(j.turtle.id)]={role="build",pose=SO.store.copy(j.turtle.pose),anchor=SO.store.copy(j.turtle.anchor),
-    state=j.turtle.state or j.blocked or (j.complete and "complete" or j.running and "running" or "stopped"),
+  local f=facts()
+  local pose=SO.store.copy(f.pose)
+  if pose then pose.facing=pose.f end
+  return {[tostring(j.turtle.id)]={role="build",pose=pose,anchor=SO.store.copy(j.turtle.anchor),
+    state=j.turtle.state or f.state,alert=f.alert,
     paused=j.turtle.paused,parkConfirmed=j.turtle.parkConfirmed,inv=SO.store.copy(j.inv or {}),fuel=j.fuel,
-    done=totals.total-totals.remaining,total=totals.total,error=j.alert,step=S.pending and S.pending.action}}
+    done=f.done,total=f.total,error=j.alert,step=S.pending and S.pending.action}}
 end
-return {name="build",forget=forget,assigned=function(id) return j.turtle and not j.turtle.forgotten and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,budget=budget,expand=expand,import=import,dugProtection=protect,turtleView=turtleView}
+local function mapView()
+  local f=facts()
+  local turtles={}
+  if f.turtleId and f.pose then
+    turtles[tostring(f.turtleId)]={id=f.turtleId,dim=f.dim,pose=f.pose,state=f.state,alert=f.alert}
+  end
+  return {dim=f.dim,bounds=f.bounds,turtles=turtles}
+end
+return {name="build",forget=forget,assigned=function(id) return j.turtle and not j.turtle.forgotten and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,facts=facts,mapView=mapView,budget=budget,expand=expand,import=import,dugProtection=protect,turtleView=turtleView}

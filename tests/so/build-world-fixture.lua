@@ -63,7 +63,9 @@ return function(w,h)
       f.advance(0.25)
       local j=f.job()
       if not j.running then assert(not j.blocked,j.alert) return end
-      assert(not j.blocked,j.alert)
+      local retry=j.retryAt and f.server.env.SO.now()>=j.retryAt and j.service
+        and (j.blocked=="material" and j.service.kind=="storage" or j.blocked=="fuel" and j.service.kind=="fuel")
+      assert(not j.blocked or retry,j.alert)
     end
     error("real worker build timed out")
   end
