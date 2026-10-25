@@ -1,9 +1,27 @@
 local L = {}
 
-function L.isLog(block)
+L.species = {
+  ["minecraft:oak_log"] = "minecraft:oak_leaves",
+  ["minecraft:spruce_log"] = "minecraft:spruce_leaves",
+  ["minecraft:birch_log"] = "minecraft:birch_leaves",
+  ["minecraft:jungle_log"] = "minecraft:jungle_leaves",
+  ["minecraft:acacia_log"] = "minecraft:acacia_leaves",
+  ["minecraft:cherry_log"] = "minecraft:cherry_leaves",
+  ["minecraft:mangrove_log"] = "minecraft:mangrove_leaves",
+}
+
+function L.selected(name, species)
+  if species == false or species == nil then return true end
+  if not L.species[name] then return false end
+  for _, log in ipairs(species) do if log == name then return true end end
+  return false
+end
+
+function L.isLog(block, species)
   return type(block) == "table" and type(block.name) == "string"
     and not block.name:find("dark_oak", 1, true)
     and block.tags ~= nil and block.tags["minecraft:logs"] == true
+    and L.selected(block.name, species)
 end
 
 function L.isLeaves(block)
@@ -20,8 +38,13 @@ function L.saplingFor(name)
   return type(name) == "string" and (name:gsub("_log$", "_sapling")) or nil
 end
 
-function L.canDig(block)
-  if L.isLog(block) or L.isLeaves(block) then return true end
+function L.canDig(block, species)
+  if L.isLog(block, species) then return true end
+  if L.isLeaves(block) then
+    if species == false or species == nil then return true end
+    for _, log in ipairs(species) do if L.species[log] == block.name then return true end end
+    return false
+  end
   local plants = {
     ["minecraft:short_grass"] = true, ["minecraft:grass"] = true,
     ["minecraft:tall_grass"] = true, ["minecraft:fern"] = true,

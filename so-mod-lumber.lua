@@ -27,6 +27,12 @@ end
 S.box = SO.store.store("so-data/lumber/job", S.valid)
 S.job = S.box.value or { dim = "minecraft:overworld", spots = {}, running = false, logs = 0 }
 S.job.turtles = S.job.turtles or {}
+S.job.cycleMode = S.job.cycleMode or "repeat"
+if S.job.species == nil then S.job.species = false end
+if S.job.cycle then
+  S.job.candidates = S.job.cycle.candidates
+  S.job.cycle.parked = {}
+end
 if S.job.turtle then
   local row = {}
   for _, key in ipairs({ "turtle", "phase", "cursor", "inv", "fuel", "tree", "service", "probing",
@@ -153,12 +159,18 @@ S.dimensionError = function(dim, y)
 end
 S.readiness = function()
   local j = S.job
+  local rows = S.rows()
+  if S.once() then
+    local members = {}
+    for _, row in ipairs(rows) do if S.member(row) then members[#members + 1] = row end end
+    rows = members
+  end
   local checks = {{ok=j.area ~= nil,text=j.area and "area ready" or "area not set"},{ok=j.ground ~= nil,text=j.ground and ("ground "..j.ground) or "ground not set"}}
   local drops, lease = S.module("drops"), S.module("lease")
   if j.dim ~= "minecraft:overworld" then
     local err=S.dimensionError(j.dim,(j.ground or 0)+2) or P.heightError(j.dim,(j.ground or 0)+4)
     checks[#checks+1]={ok=not err,text=err or j.dim}
-    for _,row in ipairs(S.rows()) do
+    for _,row in ipairs(rows) do
       local ok, why
       if lease.remoteReady then ok,why=lease.remoteReady(row.turtle.id,j.dim) end
       checks[#checks+1]={ok=ok==true,text=why or "remote worker requires update"}
@@ -166,7 +178,7 @@ S.readiness = function()
   end
   local points = type(drops.list)=="function" and drops.list() or {}
   local dim = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[j.dim]
-  local first = S.rows()[1]
+  local first = rows[1]
   local p = first and first.turtle.pose or {x=0,y=j.ground or 0,z=0}
   local near = {dim=dim,x=p.x,y=p.y,z=p.z}
   for _,kind in ipairs({"wood","fuel"}) do checks[#checks+1]=P.chestCheck(points,kind,near) end
@@ -178,7 +190,7 @@ S.readiness = function()
   checks[#checks+1]={ok=j.saplings ~= nil and not (saplings and saplings.broken),
     text=not j.saplings and "no saplings chest set" or saplings and saplings.broken
       and P.chestError("saplings","broken",saplings) or "saplings chest ready"}
-  local rows, paired, fueled = S.rows(), true, true
+  local paired, fueled = true, true
   for _, row in ipairs(rows) do
     local id = row.turtle.id
     local status = type(lease.status)=="function" and lease.status(id)
@@ -258,6 +270,92 @@ S.removeParked = function()
   S.row=nil
 end
 S.cellKey = function(p) return p.x .. "," .. p.y .. "," .. p.z end
+S.cycleKey = function(p) return (p.dim or S.job.dim) .. ":" .. S.cellKey(p) end
+S.once = function() return S.job.cycle ~= nil and S.job.cycle.phase ~= "complete" end
+S.member = function(row)
+  return S.job.cycle and S.job.cycle.members[tostring(row.turtle.id)] == true
+end
+S.hasClaims = function()
+  for _, row in pairs(S.job.turtles) do
+    if row.target or row.tree or row.service or row.delivery or row.motion or row.inflight then return true end
+  end
+  return false
+end
+S.newCycle = function()
+  local job, seen = S.job, {}
+  local cycle = { id = math.max(job.cycleSerial or 0, job.cycle and job.cycle.id or 0) + 1, targets = L.scan(job.area, job.ground, job.dim),
+    cursor = 1, claims = {}, done = {}, members = {}, candidates = {}, phase = "survey", parks = {}, parked = {} }
+  for _, p in ipairs(job.candidates) do
+    local key = S.cycleKey(p)
+    if not seen[key] then cycle.candidates[#cycle.candidates + 1], seen[key] = SO.store.copy(p), true end
+  end
+  for id, row in pairs(job.turtles) do
+    cycle.members[id] = true
+    row.phase, row.idlePark = "scan", nil
+  end
+  job.cycle, job.candidates, job.visited, job.nextRound = cycle, cycle.candidates, {}, nil
+  job.cycleSerial = cycle.id
+  job.scanRequested, job.scanRound = nil, nil
+end
+S.addCandidate = function(p)
+  local cycle, key = S.job.cycle, S.cycleKey(p)
+  if S.once() and (cycle.done[key] or cycle.claims[key]) then return end
+  for _, candidate in ipairs(S.job.candidates) do if S.cycleKey(candidate) == key then return end end
+  S.job.candidates[#S.job.candidates + 1] = p
+end
+S.clear = function(p)
+  if S.occupied(p) then return false end
+  local cells = S.module("cells")
+  return (S.job.clear or {})[S.cellKey(p)] == true
+    or type(cells.isDug) == "function" and cells.isDug(p.x, p.y, p.z, S.job.dim) == true
+end
+S.parkSafe = function(p)
+  local job, drops = S.job, S.module("drops")
+  local a = job.area
+  if p.x >= a.x1 - 1 and p.x <= a.x2 + 1 and p.z >= a.z1 - 1 and p.z <= a.z2 + 1 then return false end
+  local points = { job.saplings }
+  for _, point in ipairs(type(drops.list) == "function" and drops.list() or {}) do
+    if point.dim == S.dropDim() then points[#points + 1] = point end
+  end
+  for _, row in pairs(job.turtles) do
+    if row.service then points[#points + 1] = row.service.point end
+  end
+  for _, point in pairs(points) do
+    if math.abs(point.x - p.x) + math.abs(point.z - p.z) <= 2 then return false end
+  end
+  for id, park in pairs(job.cycle.parks) do
+    if id ~= tostring(S.row.turtle.id) and S.cellKey(park) == S.cellKey(p) then return false end
+  end
+  return S.clear(p) and not S.busy(p)
+end
+S.parkDestination = function()
+  local job, row = S.job, S.row
+  local id, best, distance = tostring(row.turtle.id)
+  local function consider(p)
+    if not S.parkSafe(p) then return end
+    local d = L.distance(row.turtle.pose, p)
+    if distance and d >= distance then return end
+    if d > 0 and not L.nextCell(row.turtle.pose, p, job.ground, function(cell)
+      return S.busy(cell) or not S.clear(cell)
+    end) then return end
+    best, distance = p, d
+  end
+  for x = job.area.x1 - 8, job.area.x2 + 8 do
+    for z = job.area.z1 - 8, job.area.z2 + 8 do
+      if x < job.area.x1 - 1 or x > job.area.x2 + 1 or z < job.area.z1 - 1 or z > job.area.z2 + 1 then
+        for y = job.ground + 2, job.ground + 4 do
+          consider({ dim = job.dim, x = x, y = y, z = z, facing = row.turtle.pose.facing })
+        end
+      end
+    end
+  end
+  if not best then S.alert("no clear parking route") return nil end
+  local cells = S.module("cells")
+  if not cells.reserveMany(S.owner(), { best }) then S.alert("parking cell held") return nil end
+  job.cycle.parks[id] = best
+  if not S.save() then return nil end
+  return best
+end
 S.occupied = function(p)
   if p.y <= S.job.ground or (S.job.obstacles or {})[S.cellKey(p)] then return true end
   local chests = { S.job.saplings }
@@ -316,6 +414,7 @@ S.keep = function()
     for _, cell in ipairs(row.service.lane) do add(cell) end
   end
   if row.motion and row.motion.cell then add(row.motion.cell) end
+  if S.member(row) then add(S.job.cycle.parks[tostring(row.turtle.id)]) end
   for _, p in ipairs(S.positions(row)) do add(p) end
   return keep
 end
@@ -376,8 +475,11 @@ S.claimTarget = function()
   local row, job, cells = S.row, S.job, S.module("cells")
   if type(cells.reserveMany) ~= "function" then row.blocked = "hold" S.alert("cells unavailable") return false end
   S.route = S.route or L.scan(job.area, job.ground, job.dim)
+  local cycle = S.once() and job.cycle
+  local route = cycle and cycle.targets or S.route
   local best, distance, candidateIndex
   local function consider(p, index, candidate)
+    if cycle and (cycle.done[S.cycleKey(p)] or cycle.claims[S.cycleKey(p)]) then return end
     if not S.claimed(p, row) and not S.busy(p) then
       local d = L.distance(row.turtle.pose, p)
       if not distance or d < distance then
@@ -387,12 +489,12 @@ S.claimTarget = function()
     end
   end
   for index, p in ipairs(job.candidates) do consider(p, nil, index) end
-  for index, p in ipairs(S.route) do if not job.visited[index] then consider(p, index) end end
+  for index, p in ipairs(route) do if not job.visited[index] then consider(p, index) end end
   if not best or not cells.reserveMany(S.owner(), {best}) then return false end
   row.target, row.probing = best, candidateIndex ~= nil or nil
   if candidateIndex then table.remove(job.candidates, candidateIndex) end
-  S.save()
-  return true
+  if cycle then cycle.claims[S.cycleKey(best)] = tostring(row.turtle.id) end
+  return S.save()
 end
 S.chestKey = function(point)
   return S.job.dim .. ":" .. S.cellKey(point)
@@ -443,6 +545,7 @@ S.noteBlocks = function(pending, results)
     dig = "forward", digUp = "up", digDown = "down" }
   local known = S.job.obstacles or {}
   S.job.obstacles = known
+  if S.once() then S.job.clear = S.job.clear or {} end
   for i, step in ipairs(pending.steps) do
     local result, dir = results[i], directions[step.op]
     if dir then
@@ -450,8 +553,14 @@ S.noteBlocks = function(pending, results)
       local key = S.cellKey({ x = x, y = y, z = z })
       if step.op:match("^inspect") then known[key] = result.ok and result.data ~= nil or nil
       elseif result.ok then known[key] = nil end
+      if S.once() then
+        S.job.clear[key] = not known[key] and (result.ok or not result.err or result.err == "No block to inspect") or nil
+      end
     end
-    if result.ok then at = P.apply(at, step.op) end
+    if result.ok then
+      at = P.apply(at, step.op)
+      if S.once() and P.moves[step.op] then S.job.clear[S.cellKey(at)] = true end
+    end
   end
 end
 
@@ -459,7 +568,13 @@ S.send = function(steps, action, cells, recover, ms, route)
   local j, lease = S.row, S.module("lease")
   if not j.turtle or type(lease.send) ~= "function" or type(lease.status) ~= "function" then return false end
   if S.row.pending or lease.status(j.turtle.id).open then return false end
-  local boundary = lease.boundaries and lease.boundaries()
+  local once = S.once() and S.member(j)
+  local status = lease.status(j.turtle.id)
+  if once and (not status.parkBatch or not status.setupFence or not status.journal or not status.pose) then
+    S.alert("ONCE needs a certain fenced worker") return false
+  end
+  if once then steps = SO.store.copy(steps) end
+  local boundary = once or lease.boundaries and lease.boundaries()
   if boundary then
     local prefix = P.boundary({from=j.turtle.pose,steps=steps})
     if #prefix.rest > 0 or route then
@@ -469,6 +584,18 @@ S.send = function(steps, action, cells, recover, ms, route)
     steps = prefix.steps
     local check = lease.assess(j.turtle.id,j.turtle.pose,steps,{owner="lumber"})
     if not check.ok then j.blocked="hold" S.alert(check.reason) return false end
+  end
+  if once then
+    steps[1].park = true
+    if j.phase == "cyclePark" then
+      local at = j.turtle.pose
+      for _, step in ipairs(steps) do
+        at = P.apply(at, step.op)
+        if step.op:match("^dig") or P.moves[step.op] and not S.clear(at) then
+          S.alert("parking needs a clear route") return false
+        end
+      end
+    end
   end
   cells = cells or { j.turtle.pose }
   local at = j.turtle.pose
@@ -527,6 +654,7 @@ S.send = function(steps, action, cells, recover, ms, route)
   if not S.save() then S.prune() return false end
   local id, err = lease.send(j.turtle.id, steps, {
     owner = "lumber", recover = recover == true, ms = ms, pose = pose, frame = j.turtle.frame,
+    journal = once and status.journal or nil,
   })
   if not id then
     j.inflight = nil
@@ -538,7 +666,7 @@ S.send = function(steps, action, cells, recover, ms, route)
     return false
   end
   S.row.pending = { id = id, action = action, steps = steps, pose = j.turtle.pose,
-    boundary = boundary and not recover, route = route }
+    boundary = boundary and not recover, route = route, journal = once and status.journal or nil }
   S.row.idlePark = action == "park" or action == "recover"
   if S.row.idlePark then S.row.parkAt = SO.now() end
   return true
@@ -551,7 +679,7 @@ S.park = function(recover)
 end
 
 S.follow = function(motion)
-  if S.row.paused then return end
+  if S.row.paused or S.once() and not S.job.running then return end
   if #S.rows() > 1 then S.row.motion = motion return end
   return S.send(motion.steps or { { op = motion.op } }, motion.action or "motion",
     motion.cell and { S.row.turtle.pose, motion.cell })
@@ -567,10 +695,11 @@ S.moveDirect = function(target)
     end
     return true
   end
-  if #S.rows() > 1 then
+  if #S.rows() > 1 or S.row.phase == "cyclePark" then
     local goal = target
     local nextCell = L.nextCell(p, goal, S.job.ground, function(cell)
-      return S.busy(cell) or (S.cellKey(cell) ~= S.cellKey(goal) and S.occupied(cell))
+      return S.busy(cell) or (S.row.phase == "cyclePark" and not S.clear(cell))
+        or (S.cellKey(cell) ~= S.cellKey(goal) and S.occupied(cell))
     end)
     if not nextCell then S.row.wait = "wait cells" return false end
     S.row.wait = nil
@@ -680,6 +809,13 @@ end
 S.finishTarget = function()
   local row = S.row
   if row.target and row.target.index then S.job.visited[row.target.index] = true end
+  if S.once() and row.target then
+    local cycle, key = S.job.cycle, S.cycleKey(row.target)
+    cycle.done[key], cycle.claims[key] = true, nil
+    while cycle.targets[cycle.cursor] and cycle.done[S.cycleKey(cycle.targets[cycle.cursor])] do
+      cycle.cursor = cycle.cursor + 1
+    end
+  end
   row.target, row.tree, row.probing, row.detour = nil, nil, nil, nil
   row.phase = "scan"
   S.save()
@@ -692,6 +828,7 @@ S.report = function(id, turtleId, results, lease)
   if not pending or pending.id ~= id then return end
   S.row.pending = nil
   if not results then
+    if S.member(j) then S.job.cycle.parked[tostring(turtleId)] = nil end
     j.parkConfirmed=nil
     j.uncertain = S.possible(j.uncertain, pending)
     S.row.recover, j.motion = true, nil
@@ -714,6 +851,18 @@ S.report = function(id, turtleId, results, lease)
     S.alert("missing pose")
     return
   end
+  local fenced = true
+  if pending.journal then
+    fenced = type(report.journal) == "string" and report.journal ~= pending.journal
+    for _, result in ipairs(results) do if result.err == "journal changed" then fenced = false end end
+  end
+  if S.once() and (not fenced or report.uncertain or type(report.inv) ~= "table") then
+    j.uncertain = S.possible(j.uncertain, pending)
+    j.recover, j.motion, j.blocked = true, nil, "lost"
+    S.suspendService()
+    S.alert("cycle report unconfirmed; reservations held")
+    return
+  end
   if pending.boundary and (report.uncertain or not P.confirm(pending.pose,pending.steps,results,j.turtle.pose)) then
     j.uncertain = S.possible(j.uncertain,pending)
     j.recover, j.motion, j.blocked = true, nil, "lost"
@@ -723,6 +872,11 @@ S.report = function(id, turtleId, results, lease)
   end
   if pending.route then
     local route = pending.route
+    if S.once() and not S.job.running and not route.recover then
+      j.inflight, j.motion = nil, nil
+      S.noteBlocks(pending, results)
+      S.prune() S.save() return
+    end
     for _, result in ipairs(results) do route.results[#route.results+1] = result end
     if #route.rest > 0 then
       if not S.send(route.rest,route.action,nil,route.recover,route.ms,route) then
@@ -787,7 +941,13 @@ S.report = function(id, turtleId, results, lease)
     S.save()
     return
   end
-  if S.workerPark and action == "park" and j.paused then
+  if S.once() and action == "cyclePark" then
+    local target = S.job.cycle.parks[tostring(turtleId)]
+    if target and P.samePose(j.turtle.pose, target) and S.parkSafe(target) then
+      S.job.cycle.parked[tostring(turtleId)] = true
+      j.idlePark, j.parkAt = true, SO.now()
+    end
+  elseif S.workerPark and action == "park" and j.paused then
     j.parkConfirmed=true
   elseif action == "recover" then
     if j.delivery then
@@ -797,6 +957,11 @@ S.report = function(id, turtleId, results, lease)
       if j.service then j.service.stage = "drop" end
     end
     S.row.recover, j.uncertain = false, nil
+    if S.once() then
+      S.job.clear = S.job.clear or {}
+      S.job.clear[S.cellKey(j.turtle.pose)] = true
+      if j.tree and j.phase == "plantPlace" then j.phase = "plant" end
+    end
     if j.service then j.service.suspended = nil end
     j.blocked = nil
     S.prune()
@@ -809,13 +974,16 @@ S.report = function(id, turtleId, results, lease)
     elseif j.service and j.service.stage == "travel" and j.service.access
       and S.cellKey(action.cell) == S.cellKey(j.service.access) then
       j.service.access, j.service.lane, j.detour = nil, nil, nil
-    elseif action.cell.y > (S.job.ground or -math.huge)
-      and (not j.service or action.cell.y > S.job.ground + 1) and L.canDig(block) then
+    elseif j.phase ~= "cyclePark" and action.cell.y > (S.job.ground or -math.huge)
+      and (not j.service or action.cell.y > S.job.ground + 1) and L.canDig(block, S.job.species) then
       local dig = ({ up = "digUp", down = "digDown", forward = "dig" })[action.move]
       S.follow({ op = dig, cell = action.cell })
     else
       local scan = j.target
-      if j.phase == "scan" and not j.service and scan
+      if j.phase == "cyclePark" then
+        S.job.cycle.parks[tostring(turtleId)], S.job.cycle.parked[tostring(turtleId)] = nil, nil
+        S.alert("parking route blocked")
+      elseif j.phase == "scan" and not j.service and scan
         and action.cell.x == scan.x and action.cell.y == scan.y and action.cell.z == scan.z then
         S.finishTarget()
       elseif action.move == "forward" and not j.service then
@@ -837,14 +1005,14 @@ S.report = function(id, turtleId, results, lease)
       local p = j.turtle.pose
       for _, side in ipairs({ { i = 2, op = "turnLeft" }, { i = 5, op = "turnRight" } }) do
         local seen = results[side.i]
-        if seen and seen.ok and L.isLog(seen.data) then
+        if seen and seen.ok and L.isLog(seen.data, S.job.species) then
           local x, _, z = P.ahead(P.apply(p, side.op), "forward")
           if x >= S.job.area.x1 and x <= S.job.area.x2 and z >= S.job.area.z1 and z <= S.job.area.z2 then
             local duplicate = false
             for _, candidate in ipairs(S.job.candidates) do if candidate.x == x and candidate.z == z then duplicate = true end end
             local spot = S.job.spots[x .. "," .. z]
-            if not duplicate and (S.scanNow and S.job.scanRound or not spot or SO.now() - (spot.plantedAt or 0) >= 600000) then
-              S.job.candidates[#S.job.candidates + 1] = { dim = S.job.dim, x = x, y = S.job.ground + 2, z = z }
+            if not duplicate and (S.once() or S.scanNow and S.job.scanRound or not spot or SO.now() - (spot.plantedAt or 0) >= 600000) then
+              S.addCandidate({ dim = S.job.dim, x = x, y = S.job.ground + 2, z = z })
             end
           end
         end
@@ -854,18 +1022,18 @@ S.report = function(id, turtleId, results, lease)
     local p = j.turtle.pose
     local key = p.x .. "," .. p.z
     local spot = S.job.spots[key]
-    if L.isLog(block) and not S.claimed(p, j) then
+    if L.isLog(block, S.job.species) and not S.claimed(p, j) then
       S.job.spots[key] = { kind = block.name, plantedAt = spot and spot.plantedAt or 0 }
       j.tree = { x = p.x, z = p.z, kind = block.name }
       j.phase = "base"
-    elseif spot and not block and not j.noSaplings and not S.claimed(p, j) then
+    elseif spot and L.selected(spot.kind, S.job.species) and not block and not j.noSaplings and not S.claimed(p, j) then
       j.tree = { x = p.x, z = p.z, kind = spot.kind }
       j.phase = "plant"
     else
       S.finishTarget()
     end
   elseif action == "baseCheck" then
-    if result.ok and L.isLog(result.data) then
+    if result.ok and L.isLog(result.data, S.job.species) then
       S.follow({ op = "digDown", action = "base" })
     else
       j.phase = "climb"
@@ -873,7 +1041,7 @@ S.report = function(id, turtleId, results, lease)
   elseif action == "base" then
     if ok then j.phase = "climb" else j.phase = "base" end
   elseif action == "climb" then
-    if result.ok and L.isLog(result.data) then
+    if result.ok and L.isLog(result.data, S.job.species) then
       local p = j.turtle.pose
       local cell = { dim = S.job.dim, x = p.x, y = p.y + 1, z = p.z }
       S.follow({ steps = { { op = "digUp" }, { op = "up" } }, action = "ascend", cell = cell })
@@ -886,13 +1054,13 @@ S.report = function(id, turtleId, results, lease)
       S.job.spots[j.tree.x .. "," .. j.tree.z].plantedAt = SO.now()
       S.finishTarget()
     elseif block then
-      S.finishTarget()
+      if S.once() then j.blocked = "hold" S.alert("replant blocked") else S.finishTarget() end
     else
       j.phase = "plantPlace"
     end
   elseif action == "plant" then
     if ok then S.job.spots[j.tree.x .. "," .. j.tree.z].plantedAt = SO.now() end
-    S.finishTarget()
+    if ok or not S.once() then S.finishTarget() else j.blocked = "hold" S.alert("replant failed") end
   elseif action == "supplyCheck" then
     if j.service then
       if S.noteChest(j.service.point, result) then
@@ -1102,6 +1270,28 @@ end
 S.work = function(now)
   local j = S.row
   if j.service then S.workService() return end
+  if S.once() and (j.phase == "cycleUnload" or j.phase == "cyclePark") then
+    if j.phase == "cycleUnload" then
+      if S.slot(function(name) return name:match("_log$") ~= nil end) or S.junk() then
+        S.service("wood", "cycleUnload") return
+      end
+      j.phase = "cyclePark"
+      if not S.save() then return end
+    end
+    local cycle, id = S.job.cycle, tostring(j.turtle.id)
+    local target = cycle.parks[id]
+    if target and not S.parkSafe(target) then
+      cycle.parks[id], cycle.parked[id], target = nil, nil, nil
+      if not S.save() then return end
+    end
+    target = target or S.parkDestination()
+    if not target then return end
+    if not S.moveDirect(target) then return end
+    if not cycle.parked[id] or not j.parkAt or now - j.parkAt >= 540000 then
+      S.send(P.park.steps, "cyclePark", nil, false, P.park.ms)
+    end
+    return
+  end
   if P.free(j.inv or {}) < 3 and (S.junk() or S.slot(function(name) return name:match("_log$") ~= nil end)) then S.service("wood") return end
   if j.phase == "roundEnd" then
     local logs = S.slot(function(name) return name:match("_log$") ~= nil end)
@@ -1122,6 +1312,7 @@ S.work = function(now)
       return
     end
     if not j.target and not S.claimTarget() then
+      if S.once() then j.wait = "wait cycle" return end
       j.phase = "roundEnd"
       S.save()
       return
@@ -1143,11 +1334,14 @@ S.work = function(now)
   elseif j.phase == "descend" then
     if S.move({ dim = S.job.dim, x = j.tree.x, y = S.job.ground + 2, z = j.tree.z }) then j.phase = "plant" S.save() end
   elseif j.phase == "plant" or j.phase == "plantPlace" then
-    if j.noSaplings then S.finishTarget() return end
+    if j.noSaplings then
+      if S.once() then S.alert("replant needs saplings") else S.finishTarget() end
+      return
+    end
     local desired = L.saplingFor(j.tree.kind)
     local item = S.slot(function(name) return name == desired end)
     if not item then
-      if not S.service("saplings") then S.finishTarget() end
+      if not S.service("saplings") and not S.once() then S.finishTarget() end
       return
     end
     local target = { dim = S.job.dim, x = j.tree.x, y = S.job.ground + 2, z = j.tree.z }
@@ -1196,6 +1390,10 @@ S.input = function(ev)
     local n = tonumber(words[i])
     if n and n == n and n % 1 == 0 and math.abs(n) < 30000000 then return n end
   end
+  if S.once() and (words[1] == "area" or words[1] == "remove"
+    or words[1] == "add" and j.turtles[tostring(integer(2))]) then
+    S.alert("finish the current cycle before configuring members or area") return
+  end
   if words[1] == "add" and #words == 2 and integer(2) and integer(2) >= 0 then
     if j.turtles[tostring(integer(2))] then S.alert("turtle already assigned") return end
     if j.running or S.anyPending() then S.alert("stop before configuring") return end
@@ -1209,8 +1407,26 @@ S.input = function(ev)
     end)
     return
   end
-  if words[1] == "stop" and #words == 1 then S.clearAlert() j.running=false
+  if words[1] == "mode" and #words == 2 and (words[2] == "once" or words[2] == "repeat") then
+    if j.running or S.anyPending() or S.once() or S.hasClaims() then S.alert("finish work and stop before configuring") return end
+    j.cycleMode, j.cycle = words[2], nil
+    j.visited, j.nextRound = {}, nil
+    for _, row in pairs(j.turtles) do row.phase, row.idlePark = "scan", nil end
+  elseif words[1] == "species" and #words >= 2 then
+    if j.running or S.anyPending() or S.once() or S.hasClaims() then S.alert("finish work and stop before configuring") return end
+    local selection, seen = {}, {}
+    if #words == 2 and words[2] == "false" then selection = false
+    elseif not (#words == 2 and words[2] == "none") then
+      for i = 2, #words do
+        if not L.species[words[i]] then S.alert("unsupported log ID") return end
+        if not seen[words[i]] then selection[#selection + 1], seen[words[i]] = words[i], true end
+      end
+      table.sort(selection)
+    end
+    j.species = selection
+  elseif words[1] == "stop" and #words == 1 then S.clearAlert() j.running=false
   elseif words[1] == "scan" and #words == 1 and S.scanNow then
+    if S.once() or j.cycleMode == "once" then return end
     if not j.running or not j.area or j.ground == nil then return end
     if j.scanRequested then return end
     j.scanRequested = true
@@ -1224,10 +1440,28 @@ S.input = function(ev)
     S.admission = nil
     local missing=P.missing(S.readiness())
     if #missing>0 then S.alert(table.concat(missing,"; ")) return end
+    if j.cycleMode == "once" then
+      local lease = S.module("lease")
+      for _, row in pairs(j.turtles) do
+        if not S.once() or S.member(row) then
+          local status = lease.status(row.turtle.id)
+          if not status.parkBatch or not status.setupFence or not status.journal or not status.pose
+            or status.uncertain or status.lost or row.turtle.forgotten or S.workerPark and row.paused or type(lease.assess) ~= "function" then
+            S.alert("ONCE needs certain fenced workers") return
+          end
+          if not S.once() and (row.target or row.tree or row.service) then S.alert("finish existing claims before ONCE") return end
+        end
+      end
+      if not S.once() then S.newCycle() end
+    end
     j.running, j.blocked, j.noSaplings, j.alert, j.failures = true, nil, false, nil, nil
     if type(state.get)=="function" and state.get("lumber.alert") then S.emit("lumber.alert",false) end
     for _, row in pairs(j.turtles) do
       row.blocked, row.noSaplings, row.alert, row.failures, row.recover, row.paused = nil, false, nil, nil, true, S.workerPark and row.paused or nil
+      if S.member(row) then
+        S.job.cycle.parked[tostring(row.turtle.id)] = nil
+      end
+      if S.once() or j.species ~= false then row.motion = nil end
     end
   elseif S.workerPark and (words[1]=="park" or words[1]=="resume" or words[1]=="remove") and #words==2 then
     local id=integer(2)
@@ -1264,6 +1498,7 @@ S.input = function(ev)
     j.dim=dim
     j.area = { x1 = math.min(x1, x2), z1 = math.min(z1, z2), x2 = math.max(x1, x2), z2 = math.max(z1, z2) }
     j.ground, j.visited, j.candidates, j.spots, j.nextRound, j.scanRequested = ground, {}, {}, {}, nil, nil
+    j.clear = nil
     j.scanRound = nil
     for _, row in pairs(j.turtles) do
       row.phase, row.target, row.tree, row.service, row.probing, row.detour, row.motion = "scan", nil, nil, nil, nil, nil, nil
@@ -1402,7 +1637,7 @@ A.gather = function()
   local j, now = S.job, SO.now()
   local daily, drops, lease = S.module("daily"), S.module("drops"), S.module("lease")
   local today = type(daily.today) == "function" and daily.today()
-  local m = { state = j.running and "running" or "stopped", alert = S.admission or j.alert, area = j.area, ground = j.ground,
+  local m = { state = j.cycle and j.cycle.phase == "complete" and "complete" or j.running and "running" or "stopped", alert = S.admission or j.alert, area = j.area, ground = j.ground,
     spots = {}, chests = {}, turtles = {}, ready = 0, total = 0, planted = 0, logs = today and today.logs, saplings = 0, chest = j.saplings }
   local blocked, recovering
   for _, row in ipairs(S.rows()) do
@@ -1750,7 +1985,9 @@ end
 S.facts = function()
   if not S.ui and (not fs or not fs.exists or fs.exists("so-ui.lua")) then S.ui = dofile("so-ui.lua") end
   local m = A.gather()
-  return { state = m.state, ready = m.ready, spots = m.total, grow = m.grow, saplings = m.saplings, fuel = m.fuel, alert = m.alert }
+  return { state = m.state, ready = m.ready, spots = m.total, grow = m.grow, saplings = m.saplings, fuel = m.fuel, alert = m.alert,
+    cycleMode = S.job.cycleMode, species = S.job.species and SO.store.copy(S.job.species) or false,
+    cycle = S.job.cycle and { id = S.job.cycle.id, phase = S.job.cycle.phase } }
 end
 
 S.tickRow = function(row, now)
@@ -1769,11 +2006,13 @@ S.tickRow = function(row, now)
     return
   end
   if status.lost then
+    if S.member(j) then S.job.cycle.parked[tostring(j.turtle.id)] = nil end
     j.recover, j.parkConfirmed = true, nil j.blocked = "lost"
     if not j.pending and not status.open then S.suspendService() end
   end
   if j.pending or status.open then return end
   if j.recover then
+    if S.member(j) then S.job.cycle.parked[tostring(j.turtle.id)] = nil end
     local cells,p=S.module("cells"),j.turtle.pose
     local gps="gps:"..j.turtle.id
     if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)==gps then
@@ -1789,6 +2028,10 @@ S.tickRow = function(row, now)
   if S.workerPark and j.paused then
     if j.removeRequested and j.parkConfirmed then S.removeParked()
     elseif not j.parkConfirmed or not j.parkAt or now-j.parkAt>=540000 then S.park() end
+    return
+  end
+  if S.job.cycle and not S.member(j) then
+    if not j.idlePark or not j.parkAt or now - j.parkAt >= 540000 then S.park() end
     return
   end
   if S.job.running and not j.paused and j.blocked == "fuel" and j.fuelRetry and now >= j.fuelRetry then
@@ -1833,6 +2076,33 @@ S.tickRow = function(row, now)
   end
   S.work(now)
 end
+S.advanceCycle = function()
+  local job, lease = S.job, S.module("lease")
+  if not job.running or not S.once() then return end
+  local cycle = job.cycle
+  for id in pairs(cycle.members) do
+    local row = job.turtles[id]
+    if not row or row.turtle.forgotten or row.recover or row.blocked or row.paused or row.pending
+      or row.target or row.tree or row.service or row.delivery or row.motion then return end
+    local status = lease.status(row.turtle.id)
+    if status.open or status.lost or status.uncertain then return end
+  end
+  if cycle.phase == "survey" then
+    if #cycle.candidates > 0 or cycle.cursor <= #cycle.targets or next(cycle.claims) then return end
+    cycle.phase = "finishing"
+    for id in pairs(cycle.members) do job.turtles[id].phase, job.turtles[id].wait = "cycleUnload", nil end
+    S.save()
+  else
+    for id in pairs(cycle.members) do
+      local row = job.turtles[id]
+      S.row = row
+      if not cycle.parked[id] or not cycle.parks[id] or not P.samePose(row.turtle.pose, cycle.parks[id])
+        or not S.parkSafe(cycle.parks[id]) then return end
+    end
+    cycle.phase, job.running = "complete", false
+    if not S.save() then cycle.phase = "finishing" end
+  end
+end
 S.tick = function(now)
   if S.pauseCleared then
     if not S.save() then return end
@@ -1844,7 +2114,7 @@ S.tick = function(now)
   if not S.callback or type(lease.status) ~= "function" then return end
   local rows = S.rows()
   local requested = S.scanNow and S.job.scanRequested and S.job.running and S.job.area and S.job.ground ~= nil
-  if requested or S.job.nextRound and now >= S.job.nextRound then
+  if not S.once() and S.job.cycleMode ~= "once" and (requested or S.job.nextRound and now >= S.job.nextRound) then
     local active = false
     for _, row in ipairs(rows) do
       if (requested or not row.blocked) and (row.target or row.tree or row.service or row.motion
@@ -1858,7 +2128,9 @@ S.tick = function(now)
       S.save()
     end
   end
+  S.advanceCycle()
   for _, row in ipairs(rows) do S.tickRow(row, now) end
+  S.advanceCycle()
   S.row = nil
 end
 

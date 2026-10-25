@@ -538,7 +538,8 @@ return function(test, equal)
   test('S3 mine and lumber facts give other screens the job state without a frame', function()
     equal(mining().mod.facts(), { state = 'running', done = 7, total = 10, busy = 2, workers = 4, depth = -58,
       lane = { id = 4, facing = 2 }, fuel = { value = 412, id = 6 } })
-    equal(lumber().mod.facts(), { state = 'running', ready = 9, spots = 12, grow = '6:20', saplings = 14, fuel = 640 })
+    equal(lumber().mod.facts(), { state = 'running', ready = 9, spots = 12, grow = '6:20', saplings = 14, fuel = 640,
+      cycleMode = 'repeat', species = false })
     -- The pocket panel still probes a 120x18 frame from an id-less session until it reads facts().
     local probe = mining().render(120, 18, {})
     equal({ probe.rows[2].text, probe.rows[5].text, probe.rows[5].runs[1][3] }, { 'MINING running', 'BRANCHES 7/10', 'b' })
