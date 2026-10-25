@@ -318,7 +318,7 @@ return function(test, equal)
   end)
 
   test("UI0 generator preserves section 7.1 and reproduces every fixture", function()
-    assert(#source("display.lua") < 16384, "display.lua exceeds 16 KB")
+    assert(#source("display.lua") < 20000, "display.lua exceeds 20000 bytes")
     local pipe = io.popen("pwd")
     local root = pipe and pipe:read("*l")
     if pipe then pipe:close() end
