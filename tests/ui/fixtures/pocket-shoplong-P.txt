@@ -2,7 +2,7 @@
  FLEET• JOBS  SHOP  PAIR  
                           
  > stairs_             ×  
- ------------------------ 
+   all     low    empty   
  POLISHED DEEPSLATE S 120 
     1      16      64     
     STACK        ALL      
@@ -22,7 +22,7 @@
 888888e8888880000008888880
 00000000000000000000000000
 08000000090000000000008880
-0cccccccccccccccccccccccc0
+0fffffff000000000000000000
 00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
@@ -42,7 +42,7 @@
 fffffffffffff777777fffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
+f9999999f7777777f7777777ff
 77777777777777777777777777
 f7777777f7777777f7777777ff
 f77777777777f77777777777ff

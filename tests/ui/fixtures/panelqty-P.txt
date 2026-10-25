@@ -1,0 +1,61 @@
+26x20 Panel role on a pocket 26x20, a typed quantity of 37
+ PANEL  ----------- 21:14 
+                          
+ turtles ·· 4 ok · 1 lost 
+                          
+ MINING -------- running  
+    START        STOP     
+                          
+ LUMBER -------- running  
+    START        STOP     
+                          
+ SHOP ------------------  
+ > iron 37_               
+ IRON INGOT ········ 1240 
+         ORDER 37         
+                          
+                          
+                          
+                          
+                          
+  ALERTS   PAIR           
+00000000ccccccccccc0888880
+00000000000000000000000000
+088888880cc00000000eeeeee0
+00000000000000000000000000
+08888880cccccccc0ddddddd00
+08888888888800eeeeeeeeeee0
+00000000000000000000000000
+08888880cccccccc0ddddddd00
+08888888888800eeeeeeeeeee0
+00000000000000000000000000
+088880cccccccccccccccccc00
+08000000009000000000000000
+088888888880cccccccc000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777ff77777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777ff77777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777777777777777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777f777777ffffffffff

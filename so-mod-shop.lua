@@ -358,19 +358,38 @@ S.best = function(search)
   return nil
 end
 
--- One order for the best match: 1, 16, 64, "stack" (its stack size) or "all" (its stock, at most one
--- stack: no order is ever larger than a stack). Returns the
+-- Read-only: low and empty items (S.items) whose id or name contains the search, emptiest first, then by id.
+S.lows = function(limit, search)
+  local query, list = S.norm(tostring(search or "")), {}
+  for _, item in ipairs(S.items()) do
+    if item.state ~= "ok" and S.match(item.name, query) then
+      list[#list + 1] = { name = item.name, count = item.count, label = item.label:upper(), stack = item.stack,
+        state = item.state }
+    end
+  end
+  table.sort(list, function(a, b) return a.count < b.count or (a.count == b.count and a.name < b.name) end)
+  for i = #list, (limit or 10) + 1, -1 do list[i] = nil end
+  return list
+end
+
+-- Whether the storage room is known and whether its stock is older than 30 seconds.
+S.status = function()
+  return { found = S.turtle ~= nil, stale = S.heardAt == nil or SO.now() - S.heardAt >= 30000 }
+end
+
+-- One order for the best match: a whole count from 1 to its stack size, "stack" (its stack size) or "all"
+-- (its stock, at most one stack). No order is ever larger than a stack. Returns the
 -- item and count sent, or nil and a reason. Changes no display's screen state; a given view gets the
 -- order status and reply the way a shop display's view does.
 S.order = function(search, count, view)
   local name, stock = S.best(search)
-  if count == "stack" or count == "all" then
-    if not name then return nil, "no match" end
-    local stack = S.stackOf(name, S.kind(name))
-    count = count == "stack" and stack or math.min(stock, stack)
-  elseif count ~= 1 and count ~= 16 and count ~= 64 then return nil, "bad count" end
   if not name then return nil, "no match" end
+  local stack = S.stackOf(name, S.kind(name))
+  if count == "stack" then count = stack elseif count == "all" then count = math.min(stock, stack) end
   if stock <= 0 then return nil, "out of stock" end
+  if type(count) ~= "number" or count ~= math.floor(count) or count < 1 or count > stack then
+    return nil, "bad count"
+  end
   local rid, err = S.request("order", name, count)
   if not rid then return nil, err end
   if type(view) == "table" then
@@ -410,14 +429,18 @@ S.legacy = function(_w, _h, clientId)
     local samples = S.history[item.name]
     local baseline = samples and samples[1] or item.count
     local arrow = item.count > baseline and "^" or (item.count < baseline and "v" or "-")
-    local y = #rows + 1
-    rows[y] = S.row("1 16 64 " .. arrow .. " " .. tostring(item.count) .. " " .. item.name)
+    -- Counts above the item's stack are left blank and get no button.
+    local y, stack = #rows + 1, S.stackOf(item.name, S.kind(item.name))
+    rows[y] = S.row("1 " .. (stack >= 16 and "16" or "  ") .. " " .. (stack >= 64 and "64" or "  ") .. " " .. arrow
+      .. " " .. tostring(item.count) .. " " .. item.name)
     for _, amount in ipairs({ 1, 16, 64 }) do
-      buttons[#buttons + 1] = {
-        id = "order:" .. tostring(amount) .. ":" .. item.name,
-        x = amount == 1 and 1 or (amount == 16 and 3 or 6),
-        y = y, w = #tostring(amount), label = tostring(amount),
-      }
+      if amount <= stack then
+        buttons[#buttons + 1] = {
+          id = "order:" .. tostring(amount) .. ":" .. item.name,
+          x = amount == 1 and 1 or (amount == 16 and 3 or 6),
+          y = y, w = #tostring(amount), label = tostring(amount),
+        }
+      end
     end
   end
   return picture
@@ -604,8 +627,8 @@ S.sorts = {
 -- The shown list for this display: its tab's filter in its sort, plus the selected item.
 S.gather = function(client)
   local view = S.view(client)
-  local m = { found = S.turtle ~= nil, all = S.items(), items = {}, recipes = S.recipes,
-    stale = S.heardAt == nil or SO.now() - S.heardAt >= 30000, time = "-" }
+  local status = S.status()
+  local m = { found = status.found, all = S.items(), items = {}, recipes = S.recipes, stale = status.stale, time = "-" }
   if S.heardAt then m.time = U and U.clock(S.heardDate).hm or "-" end
   local query = S.norm(view.search)
   for _, item in ipairs(m.all) do
@@ -761,7 +784,7 @@ S.pane = function(C, m, item, x, y, pw, bottom, close)
   C.section(x, y, pw, "ORDER")
   local cw, cw2 = math.floor((pw - 2) / 3), math.floor((pw - 1) / 2)
   for i, n in ipairs({ "1", "16", "64" }) do
-    S.chip(C, x + (i - 1) * (cw + 1), y + 1, n, "order:" .. n .. ":" .. item.name, m.found, cw)
+    S.chip(C, x + (i - 1) * (cw + 1), y + 1, n, "order:" .. n .. ":" .. item.name, m.found and tonumber(n) <= item.stack, cw)
   end
   for i, n in ipairs({ "stack", "all" }) do
     S.chip(C, x + (i - 1) * (cw2 + 1), y + 2, n, "order:" .. n .. ":" .. item.name,
@@ -960,7 +983,7 @@ S.press = function(view, client, id)
   local item = S.gather(client).selected
   local count = item and (amount == "stack" and item.stack or amount == "all" and math.min(item.count, item.stack)
     or (amount == "1" or amount == "16" or amount == "64") and tonumber(amount))
-  if count and count >= 1 then S.request("order", target, count, view) end
+  if count and count >= 1 and count <= item.stack then S.request("order", target, count, view) end
 end
 
 S.input = function(event)
@@ -977,9 +1000,8 @@ S.input = function(event)
   if U then return S.press(view, client, event.id) end
   local count, name = event.id:match("^order:(%d+):(.+)$")
   count = tonumber(count)
-  if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil then
-    S.request("order", name, count, view)
-  end
+  -- S.order refuses a count above the item's stack.
+  if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil then S.order(name, count, view) end
 end
 
 S.tick = function(now)
@@ -1034,6 +1056,9 @@ return {
   order = S.order,
   matches = S.matches,
   best = S.best,
+  lows = S.lows,
+  stack = function(name) return type(name) == "string" and S.stackOf(name, S.kind(name)) or nil end,
+  status = S.status,
   fuelConfig = S.fuelConfig,
   fuelEmpty = S.fuelEmpty,
   fuelAvailable = S.fuelAvailable,

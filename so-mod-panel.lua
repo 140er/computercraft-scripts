@@ -156,6 +156,19 @@ P.order = function(shop, search, amount, label)
   return {n=n or amount,label=label,view=view}
 end
 
+-- A typed search may end in a quantity ("sand 37"): the search, then the count or nil.
+P.split = function(text)
+  local search,n = tostring(text or ""):match("^(.-)%s+(%d+)$")
+  if search and search ~= "" then return search,tonumber(n) end
+  return tostring(text or ""),nil
+end
+
+-- The shop's storage room state; a shop without status() counts as found and fresh.
+P.room = function(shop)
+  if shop and type(shop.status) == "function" then return shop.status() end
+  return {found=true,stale=false}
+end
+
 -- An order record as a line of at most width cells and its colour, then the shop's reply (or why it
 -- was not sent). The count and status always show; a long label is cut and ends in "...".
 P.orderLine = function(sent, width)
@@ -176,16 +189,24 @@ P.shopBlock = function(c, session, x, y, cw)
     local typed = (panel.search or ""):sub(-(cw-3))
     c.put(x,y+1,">","8");c.put(x+2,y+1,typed,"0");c.put(x+2+#typed,y+1,"_","9")
     c.hit("search",x,y+1,cw,1)
-    local item = P.item(SO.mods.shop,panel.search or "")
-    if item then
-      local n = tonumber(item.count) or 0
-      c.leader(x,y+2,cw,item.label,tostring(item.count),n < 10 and "1" or "0")
-    elseif (panel.search or "") ~= "" then c.put(x,y+2,"no match","8") end
   end
+  local search,qty = P.split(panel.search)
+  local item = loaded and P.item(SO.mods.shop,search)
+  -- Without a storage room the chips are muted.
+  local live = loaded and P.room(SO.mods.shop).found
+  if loaded and not live then c.put(x,y+2,("storage room not found"):sub(1,cw),"e")
+  elseif item then
+    local n = tonumber(item.count) or 0
+    c.leader(x,y+2,cw,item.label,tostring(item.count),n < 10 and "1" or "0")
+  elseif loaded and search ~= "" then c.put(x,y+2,"no match","8") end
   local third = math.floor((cw-2)/3)
-  for i,n in ipairs({1,16,64}) do
+  if qty then
+    local label = "ORDER "..qty
+    if live then c.chip(x,y+3,label,"order:"..qty,"plain",cw) else P.dead(c,x,y+3,label,cw) end
+  end
+  for i,n in ipairs(qty and {} or {1,16,64}) do
     local cx = x+(i-1)*(third+1)
-    if loaded then c.chip(cx,y+3,tostring(n),"order:"..n,"plain",third) else P.dead(c,cx,y+3,tostring(n),third) end
+    if live then c.chip(cx,y+3,tostring(n),"order:"..n,"plain",third) else P.dead(c,cx,y+3,tostring(n),third) end
   end
   if loaded and panel.sent then
     local text,fg,detail = P.orderLine(panel.sent,cw)
@@ -459,12 +480,13 @@ P.input = function(event)
       local target = P.screens[role]
       if target and type(target.input) == "function" then target.input({id=cmd,role=role}) end
     else
-      local amount = (id or ""):match("^order:(%d+)$")
+      -- 1, 16, 64 or the typed quantity; shop.order refuses a count over one stack.
+      local amount = tonumber((id or ""):match("^order:(%d+)$"))
       local shop = SO.mods.shop
-      if (amount == "1" or amount == "16" or amount == "64") and P.screens.shop and session.keyboard
-          and shop and type(shop.order) == "function" then
-        local item = P.item(shop,panel.search or "")
-        panel.sent = P.order(shop,panel.search,tonumber(amount),item and item.label or "")
+      if amount and P.screens.shop and session.keyboard and shop and type(shop.order) == "function" then
+        local search = P.split(panel.search)
+        local item = P.item(shop,search)
+        panel.sent = P.order(shop,search,amount,item and item.label or "")
       end
     end
     P.refresh()
@@ -647,44 +669,83 @@ P.job = function(c, x, y, cw, role, f, mode, reason)
   P.jobChips(c,x,last,cw,role,loaded and state ~= "stopped",loaded)
 end
 
--- The item the order chips act on: the tapped one while it still matches, else the best match.
+-- The item the order chips act on: the tapped one while it is listed, else the first listed.
 P.shown = function(state, items)
   for _,item in ipairs(items) do if item.name == state.selected then return item end end
   return items[1]
 end
 
--- Search, then the matches with the shown item's 1, 16, 64, STACK and ALL chips under it; the last
--- order on row h-1 and the shop's reply on row h.
+-- The pocket's list for its filter: the search's matches, or its low or empty items from shop.lows.
+P.shopItems = function(shop, search, filter)
+  if filter == "all" or type(shop.lows) ~= "function" then return shop.matches(search,256) end
+  local list = {}
+  for _,item in ipairs(shop.lows(256,search)) do if item.state == filter then list[#list+1] = item end end
+  return list
+end
+
+-- Search, the all/low/empty chips, then one page of matches with the shown item's order chips under it
+-- (1, 16 and 64, or the typed quantity, then STACK and ALL; none for an empty item), a pager on row h-2
+-- when they do not fit, the last order on row h-1 and the shop's reply on row h.
 P.shopPage = function(c, state, keyboard, w, h)
   local shop = SO.mods.shop
   if not P.screens.shop or not shop or type(shop.matches) ~= "function" or type(shop.order) ~= "function" then
     c.put(2,3,"shop not loaded","8");return
   end
-  local search,y = state.search or "",3
+  local raw,y = state.search or "",3
+  local search,qty = P.split(raw)
   if keyboard then
-    local typed = search:sub(-(w-8))
+    local typed = raw:sub(-(w-8))
     c.put(2,3,">","8");c.put(4,3,typed,"0");c.put(4+#typed,3,"_","9")
-    if search ~= "" then c.chip(w-3,3,U.g.cross,"clear","off") end
-    c.rule(2,4,w-1)
-    y = 5
+    if raw ~= "" then c.chip(w-3,3,U.g.cross,"clear","off") end
+    y = 4
   end
-  local items = shop.matches(search,h)
-  local shown = P.shown(state,items)
-  if #items == 0 then c.put(2,y,search == "" and "no stock" or "no match","8") end
-  for _,item in ipairs(items) do
-    if y > h-2-(item == shown and 2 or 0) then break end
-    if item == shown then c.put(1,y,string.rep(" ",w),"0","7") end
+  local filter,cw = state.filter or "all",math.floor((w-4)/3)
+  for i,f in ipairs({"all","low","empty"}) do
+    if f == "all" or type(shop.lows) == "function" then
+      c.chip(2+(i-1)*(cw+1),y,f,"show:"..f,filter == f and "on" or "plain",cw)
+    end
+  end
+  y = y+1
+  local room = P.room(shop)
+  if not room.found then c.flag(2,y,w-2,"storage room not found") end
+  if room.stale and room.found then c.put(2,y,"stock stale","1");y = y+1 end
+  local items = room.found and P.shopItems(shop,search,filter) or {}
+  if #items == 0 and room.found then
+    c.put(2,y,search == "" and filter == "all" and "no stock" or filter ~= "all" and "none "..filter or "no match","8")
+  end
+  local grow = function(item) return (tonumber(item.count) or 0) > 0 and 3 or 0 end
+  local bottom,list = h-2,items
+  if #items+grow(P.shown(state,items) or {count=0}) > bottom-y+1 then
+    -- Pages hold the rows above the pager less the shown item's chip rows.
+    local per = math.max(1,bottom-y-3)
+    local pages = math.ceil(#items/per)
+    state.shopPage = math.max(1,math.min(state.shopPage or 1,pages))
+    list = {}
+    for i = (state.shopPage-1)*per+1,math.min(#items,state.shopPage*per) do list[#list+1] = items[i] end
+    U.pager(c,bottom,state.shopPage.."/"..pages,state.shopPage > 1,state.shopPage < pages)
+    bottom = bottom-1
+  else state.shopPage = 1 end
+  local shown = P.shown(state,list)
+  for _,item in ipairs(list) do
     local n = tonumber(item.count) or 0
+    if y > bottom-(item == shown and grow(item) > 0 and 2 or 0) then break end
+    if item == shown then c.put(1,y,string.rep(" ",w),"0","7") end
     c.leader(2,y,w-2,item.label,tostring(item.count),n == 0 and "8" or n < 10 and "1" or "0","0")
     c.hit("pick:"..item.name,2,y,w-2,1)
     y = y+1
-    if item == shown then
-      local cw,half = math.floor((w-4)/3),math.floor((w-3)/2)
-      for i,amount in ipairs({1,16,64}) do
-        c.chip(2+(i-1)*(cw+1),y,tostring(amount),"order:"..amount..":"..item.name,"plain",cw)
+    if item == shown and n > 0 then
+      local half = math.floor((w-3)/2)
+      if not qty then
+        for i,amount in ipairs({1,16,64}) do
+          c.chip(2+(i-1)*(cw+1),y,tostring(amount),"order:"..amount..":"..item.name,"plain",cw)
+        end
+      else
+        local stack = tonumber(item.stack) or type(shop.stack) == "function" and shop.stack(item.name) or 64
+        if qty >= 1 and qty <= stack then c.chip(2,y,"ORDER "..qty,"order:"..qty..":"..item.name,"plain",w-2)
+        else P.dead(c,2,y,"MAX "..stack,w-2) end
       end
       c.chip(2,y+1,"STACK","order:stack:"..item.name,"plain",half)
-      if n > 0 then c.chip(3+half,y+1,"ALL","order:all:"..item.name,"plain",half) else P.dead(c,3+half,y+1,"ALL",half) end
+      c.chip(3+half,y+1,"ALL","order:all:"..item.name,"plain",half)
       y = y+3
     end
   end
@@ -782,7 +843,7 @@ P.pocketInput = function(event)
     return
   end
   if type(event.text) == "string" then
-    if session.keyboard then state.search,state.selected,state.sent = event.text:sub(1,64),nil,nil end
+    if session.keyboard then state.search,state.selected,state.sent,state.shopPage = event.text:sub(1,64),nil,nil,1 end
     return
   end
   local tab = (id or ""):match("^tab:(%a+)$")
@@ -802,14 +863,20 @@ P.pocketInput = function(event)
   elseif state.page == "shop" then
     local shop, name = SO.mods.shop, (id or ""):match("^pick:(.+)$")
     local amount, item = (id or ""):match("^order:(%w+):(.+)$")
+    local filter = (id or ""):match("^show:(%a+)$")
+    amount = amount and (amount:match("^%d+$") and tonumber(amount) or amount)
     if name then state.selected,state.sent = name,nil
-    elseif id == "clear" then state.search,state.selected,state.sent = "",nil,nil
-    elseif (amount == "1" or amount == "16" or amount == "64" or amount == "stack" or amount == "all")
+    elseif id == "clear" then state.search,state.selected,state.sent,state.shopPage = "",nil,nil,1
+    elseif filter == "all" or filter == "low" or filter == "empty" then
+      state.filter,state.selected,state.shopPage = filter,nil,1
+    elseif id == "prev" or id == "next" then
+      state.shopPage,state.selected = math.max(1,(state.shopPage or 1)+(id == "next" and 1 or -1)),nil
+    elseif (type(amount) == "number" or amount == "stack" or amount == "all")
         and P.screens.shop and shop and type(shop.order) == "function" and type(shop.matches) == "function" then
-      -- The chip names its item; it must still match the search.
-      for _,match in ipairs(shop.matches(state.search or "",256)) do
+      -- The chip names its item; it must still match the search. shop.order refuses a count over one stack.
+      for _,match in ipairs(shop.matches(P.split(state.search),256)) do
         if match.name == item then
-          state.sent = P.order(shop,item,tonumber(amount) or amount,match.label)
+          state.sent = P.order(shop,item,amount,match.label)
           break
         end
       end
