@@ -6,7 +6,7 @@ import time
 
 from .lua_data import parse
 from .model import Blocked, values, lumber_workers
-from .admission import admit, record_load_wait
+from .admission import admit, record_load_wait, Refused
 from .readiness import start_job
 
 HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local originalRun=shell.run
@@ -85,6 +85,10 @@ class Context:
         if args[0] in ("serve", "reset") or args[:2] == ("pool", "up") or (args[0] == "client" and args[-1] == "start"):
             admit(check_load=False)
         options = ["--load-admitted"] if self.load_admitted else []
+        if getattr(self.runtime, "slot", None):
+            options += ["--slot", self.runtime.slot]
+        if getattr(self.runtime, "home", None):
+            options += ["--home", str(self.runtime.home)]
         if args[:2] == ("pool", "up"):
             args = (*args, "--load-wait-timeout", self.load_wait_timeout)
         command = ["python3", str(getattr(self, "runtime_dir", Path(__file__).resolve().parents[1]) / "world.py"), *options, *map(str, args)]
@@ -102,7 +106,8 @@ class Context:
                 reason = json.loads(completed.stdout).get("error", "Runtime request failed")
             except (ValueError, AttributeError):
                 reason = "Runtime process failed without an API v1 error"
-            raise Blocked(f"Runtime {args[0]} failed: {sanitize(str(reason))[:500]}")
+            error = Refused if payload.get("retryable") is True else Blocked
+            raise error(f"Runtime {args[0]} failed: {sanitize(str(reason))[:500]}")
         try:
             return json.loads(completed.stdout)["result"]
         except (ValueError, KeyError):

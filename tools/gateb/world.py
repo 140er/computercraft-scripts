@@ -89,7 +89,10 @@ def installer_manifest(source, role):
 
 
 class Runtime:
-    def __init__(self, home=None):
+    def __init__(self, home=None, slot=None):
+        self.slot = slot or os.environ.get('GATEB_SLOT')
+        if self.slot is not None and self.slot not in ('A', 'B'):
+            raise ValueError('Gate B slot must be A or B')
         self.home = Path(home or os.environ.get('GATEB_HOME', WORK / 'gateb-runtime2')).expanduser().resolve()
         for protected in (WORK/'mc-serverfiles',WORK/'gateb-livefiles'):
             if self.home.is_relative_to(protected.resolve()):
@@ -125,7 +128,15 @@ class Runtime:
     def ensure_keeper(self):
         with locked(self.home / 'keeper-start.lock'):
             try:
-                return keeper.call(self.home, {'op':'status'})
+                status = keeper.call(self.home, {'op':'status'})
+                if self.slot:
+                    try:
+                        capabilities = keeper.call(self.home, {'op':'capabilities'})
+                    except RuntimeError as error:
+                        raise keeper.AdmissionRefused('Gate B keeper must become idle before upgrading to two slots') from error
+                    if capabilities.get('worlds_per_slot') != 2:
+                        raise keeper.AdmissionRefused('Gate B keeper does not enforce two worlds per slot')
+                return status
             except OSError:
                 pass
             error = self.home / 'keeper-error';error.unlink(missing_ok=True)
@@ -133,7 +144,7 @@ class Runtime:
                 subprocess.Popen([sys.executable,str(HERE/'keeper.py'),str(self.home),str(self.suite_lock)], stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
             for _ in range(100):
                 if error.exists():
-                    raise RuntimeError(error.read_text())
+                    raise keeper.AdmissionRefused(error.read_text())
                 try:
                     return keeper.call(self.home, {'op':'status'})
                 except OSError:
@@ -416,6 +427,8 @@ class Runtime:
                 raise
 
     def _serve(self, name, timeout=180):
+        if self.slot and not name.startswith(f'slot-{self.slot}-'):
+            raise ValueError('World name must start with slot-'+self.slot+'-')
         run = self.run(name);state=self.state(name)
         self.ensure_keeper()
         if name in self.status():
@@ -750,11 +763,14 @@ class Runtime:
         return client_action(self,name,action)
 
     def pool(self, action, count=0, prefix=None, load_wait_timeout=300):
-        owner=prefix or 'pool'
+        owner=prefix or (f'slot-{self.slot}-pool' if self.slot else 'pool')
+        if self.slot and not owner.startswith(f'slot-{self.slot}-'):
+            raise ValueError('Pool prefix must start with slot-'+self.slot+'-')
         self.run(owner+'-1')
         def owned(name):
             return re.fullmatch(re.escape(owner)+r'-[1-4]',name) is not None
         if action=='up':
+            if self.slot and count > 2: raise ValueError('A Gate B slot uses at most 2 worlds')
             if not 1<=count<=4: raise ValueError('Pool size must be 1..4')
             for i in range(1,count+1):
                 name=owner+'-'+str(i)
@@ -792,6 +808,7 @@ class Runtime:
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--home');parser.add_argument('--load-admitted',action='store_true')
+    parser.add_argument('--slot', choices=['A', 'B'], default=os.environ.get('GATEB_SLOT'))
     sub=parser.add_subparsers(dest='command',required=True)
     p=sub.add_parser('build-template');p.add_argument('--snapshot')
     for command in ('clone','serve','reset','stop'):
@@ -803,7 +820,7 @@ def main():
     args=parser.parse_args();start=time.monotonic()
     runtime=None
     try:
-        runtime=Runtime(args.home)
+        runtime=Runtime(args.home, slot=args.slot)
         runtime.load_admitted=args.load_admitted
         if args.command=='build-template': result=runtime.build_template(args.snapshot)
         elif args.command=='api': result=runtime.request(args.run,json.loads(args.request),args.timeout)
@@ -813,7 +830,7 @@ def main():
         else: result=getattr(runtime,args.command)(args.run)
         print(json.dumps({'ok':True,'result':result,'elapsed_s':round(time.monotonic()-start,3),'load_waits':runtime.pool_load_waits}))
     except (OSError,ValueError,RuntimeError,KeyError,StopIteration,subprocess.SubprocessError) as exc:
-        print(json.dumps({'ok':False,'error':str(exc),'load_waits':runtime.pool_load_waits if runtime else []}));return 1
+        print(json.dumps({'ok':False,'error':str(exc),'retryable':isinstance(exc,keeper.AdmissionRefused),'load_waits':runtime.pool_load_waits if runtime else []}));return 1
     return 0
 
 
