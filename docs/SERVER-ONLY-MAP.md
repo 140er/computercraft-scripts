@@ -50,7 +50,11 @@ and listeners use `listener(sender, message)`.
   At start it calls `proto.since` with the current UTC time. `SO.pairCode(id)` returns
   `{ code, expires }` only for a paired requester. It reuses that requester's
   pending invitation and returns nil while another requester or the terminal
-  owns one. New invitations use `pair.invite` and also appear on the terminal.
+  owns one, or entropy is unavailable. New invitations use `pair.invite` and also appear on the terminal.
+  Dispatch isolates handler errors and preserves the first reply. If no handler
+  replies after an error, it caches `err {code="handler"}` for 120000 UTC ms.
+  Successful pair2, legacy pairing and enrollment approval emit `pair.done`
+  after key persistence and clear the previous `pair.forgotten` row.
   R opens the role prompt; Enter passes its line to `display.command`.
   With `so-server.cfg` `enroll = true` it adds the built-in `enroll` handler and
   `SO.enroll` with `open`, `view`, `close` and `decide`; otherwise `SO.enroll` is nil.
@@ -65,7 +69,7 @@ and listeners use `listener(sender, message)`.
 - [so-pair.lua](../so-pair.lua) pairs machines with CPace over X25519 and saves their keys.
   Calls are `open(proto, store, now?)`, `derive(code, serverId, clientId)`,
   `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
-  `list()`, `forget(id)`, `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
+  `list()`, `forget(id, modules?)`, `forgetPending()`, `forgetDone(id)`, `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
   `repairHint(sender, payload, serverId)`, `envelopeKey()`, `start(from, body)`,
   `confirm(from, body)`, `blocked(id)`, `charge(id, kind, paired)`, `rejected()` and
   `machineKey(secret)`.
@@ -88,6 +92,8 @@ and listeners use `listener(sender, message)`.
   It ignores invalid entries and logs one line without key text. The next key save omits
   ignored entries. `proto.macOk` returns false for malformed keys, allowing dispatch to
   refuse the frame without stopping the server.
+  Failed timing initialization waits 30000 game ms after three attempts before
+  another secret-generation attempt. Saved keys remain usable.
   `open` accepts the role's millisecond clock; omission uses local tick uptime.
   `join` is a client boot call that waits. Omitting `serverId` uses discovery.
   `peer()` returns the lowest saved numeric peer id, or nil. Workers use it
@@ -230,10 +236,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `view.sub` returns a subscription with `stop()`. Query fields are `name`
   and `notify` for views, and `from`, `count` or `limit` for history.
   `reverse=true` reads newest first with an exclusive `before` cursor. `kind`
-  filters exact kinds and `alerts=true` filters `.alert` events. Cursor lookup
+  filters exact kinds and `alerts=true` filters `.alert` events. Optional numeric
+  `id` selects table data with a matching `data.id` and combines with the other
+  filters. Cursor lookup
   uses binary search. `diagnostics()` returns the event log status.
   `canStart()` reads current disk use. Mining and lumber `start` refuse at 80%
-  or more and show `disk >=80%; free space`. Existing work, recovery and stop
+  or more, or while event writes are pending or failed. Reasons name the largest
+  store after a ledger scan; unknown capacity reports `disk size unknown`.
+  Oversized events raise a refusal alert without setting a write error.
+  Disk reads throttle mismatch-triggered ledger rescans to 30 game seconds.
+  Existing work, recovery and stop
   remain available. Authenticated `hello` registers turtles and displays through
   `machine` events, on first contact, role or journal changes, fuel changes of
   at least 100 or crossing zero, and after 60 seconds. Built-in views are `fleet`, `turtle/<id>`,
@@ -245,7 +257,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Optional `so-server.cfg` `state.coalesceHeartbeats=true` keeps routine hello
   freshness and small fuel changes in memory at all disk pressures. It defaults
   to false. Real role, journal, fingerprint and significant fuel changes still
-  emit events. Snapshots include freshness; restored machines get boot-time grace.
+  emit events, as do label changes. Snapshots include freshness; restored machines get boot-time grace.
   View revisions can advance without an event sequence change in this mode.
   See [state](server-only/PROTOCOL.md#state).
 - [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
@@ -274,7 +286,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Handlers are `step.report`, `beacon`, `hello` and `history.page`.
   Range starts at 16 and only grows with known world poses or successful reports.
   Work may extend eight blocks beyond that proof.
-  Reports release lease-owned cells; silence leaves reservations in place.
+  Reports notify the owning planner. Planner callbacks manage reservations under
+  `mine:<id>`, `lumber:<id>`, `build:<id>` and `setup:<id>`. Reports, park
+  cancellation and silence do not release them in the lease module.
   `peek(id)` returns a copied status for an existing row or nil, without creating
   workers. AR and map use it. `inRange` also reads without creating rows and uses
   range 16 for an unknown worker. `status(id)` retains its row-creation behavior.
@@ -289,11 +303,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `locate(id, dim, done)` resolves add-here asynchronously, probing one forward
   step plus `gps` when needed. `candidates()` lists unassigned paired workers.
   `claimProbe(id, owner, pose)` saves the destination reservation before add.
+  For `setup:<id>` it stages the occupied-cell handoff. The next `reserveMany`
+  must include that cell and saves its transfer with the complete route.
+  A conflict or save failure consumes the claim and leaves prior owners intact.
+  Other planners keep the immediate handoff. Drops keeps its claim-then-reserve
+  call sequence.
   `clearProbe(id)` releases other probe cells only after assignment saves.
   GPS fixes must carry the worker's explicit `so-worker.cfg` dimension.
   See [lease](server-only/PROTOCOL.md#lease).
 - [so-mod-cells.lua](../so-mod-cells.lua), `cells`, owns reservations and dug marks.
-  Calls are `handoff(from, to, x, y, z, dim)`, `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
+  Calls are `prepareHandoff(from, to, x, y, z, dim)`, `handoff(from, to, x, y, z, dim)`, `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
   `release(who, x, y, z, dim)`, `releaseOwner(who)`, `forgetOwner(who)`,
   `owner(x, y, z, dim)`, `isFree(x, y, z, dim)`, `markDug(x, y, z, dim)`,
   `isDug(x, y, z, dim)`, `forget(x, y, z, dim)`, `counts()`,
@@ -728,7 +747,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   stays put and beacons every 30 seconds, retaining its move history.
   Paired boots retry discovery and hello with backoff capped at 30 seconds,
   using the saved server id if discovery fails. They show `waiting for server`
-  until an authenticated reply arrives. A `pair.required` hint also offers a code
+  until an authenticated reply arrives. Fresh turtles show `UNPAIRED`; failed
+  pairing shows `Pair failed: <reason>`. Pending enrollment shows
+  `approve on panel <fp>`. A `pair.required` hint shows `No key on server` above
+  `Code:` and offers a code
   prompt while retaining the saved key until a new pairing succeeds. Otherwise
   only unpaired boots prompt for a code. That prompt keeps retrying discovery
   while accepting digits and Enter. Idle workers send hello every 30 seconds
@@ -934,8 +956,19 @@ The [shop](server-only/PROTOCOL.md#shop) uses plain-rednet protocols `roomsorter
 `roomsorter_stock` and `dns` as a legacy exception. Its commands are `stock`
 and `order`; discovery uses `lookup` and `lookup response` on `dns`.
 State's in-process `view.frame` is separate from the wire frame.
-The implemented `history.page` delegates to state and uses ascending sequence
-cursors `from` and `next`, despite the older timestamp wording in Message types.
+The `history.page` wire handler returns `{at,text}` entries newest first.
+`next` is an exclusive `{at,seq}` cursor, ordered by UTC milliseconds and then
+sequence, both descending. Pass it unchanged as `before`. Legacy numbers and
+`{at}` cursors select strictly older timestamps. `limit` defaults to 20 and is
+bounded to 1..50. Internal `state.history.page` keeps sequence cursors, its
+reverse option and full event entries.
+
+Lease proof maintenance uses `formal/verify_lease.py` against the real lease
+module. `--evidence formal/evidence/lease-orderings.json` writes the source
+hash into the JSON evidence and `tests/so/lease.lua`. Focused tests and the full
+suite check those hashes. `--check-evidence formal/evidence/lease-orderings.json`
+rejects stale evidence without regeneration. The model uses planner owner
+`mine:2`; reports and expiry retain it for planner callbacks to manage.
 
 ## State and disk layout
 
@@ -956,6 +989,14 @@ Do not save inside tight loops.
   cleanup removes snapshots older than `n-1`, including `.tmp` and `.bak` files.
   Startup repeats cleanup using the recovered pointer. Snapshots `n` and `n-1`
   remain available for loading. New jobs stop at 80% disk use.
+  Checkpoint n deletes segment generations only below snapshot n-1's `first`.
+  Startup preserves those fallback files but reads events from the newest readable
+  snapshot's `first`. It uses n-1's `first` only when n is unreadable. Missing
+  segment numbers do not stop the scan. Sequence allocation resumes above the
+  highest recovered event or published checkpoint sequence. Retention checkpoints
+  begin above 960 KiB of retained segment bytes. They plan the new snapshot's
+  `first` to leave at most 768 KiB of newer segments, then defer deletion to the
+  previous snapshot's boundary.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
@@ -973,6 +1014,11 @@ Do not save inside tight loops.
 - `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
   Recent ore uses game-second buckets `{ total, counts = { [gameMs] = count } }`.
   Bucket keys and timestamp keys are decimal strings. Only the server installs it.
+  If `so-data/daily`, `.tmp` and `.bak` have no valid generation, the daily module
+  removes all three files and opens with zero totals and cursor zero. It logs
+  `so-daily: unreadable totals reset` once. Its next tick reads retained history
+  and saves rebuilt totals. A valid surviving generation preserves saved totals.
+  Other store errors still stop the module from loading.
   Section files have no aggregate disk bound or automatic pruning. Owner release
   removes reservations only. Marks remain available for recovery across jobs.
 - `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
@@ -1215,13 +1261,22 @@ first four uppercase hex characters of SHA-256 of the stored hex key string.
 `pair.forget(id)` saves the remaining keys before changing memory and cancels
 that id's pending pair2 exchange. It returns success and an optional save error.
 
-`SO.forgetDevice(id, actor)` parks assignments through `mine.forget(id)`,
-`lumber.forget(id)`, `build.forget(id)` and `drops.forget(id)`, then removes the key, clears reply
+`pair.forget(id, modules)` atomically saves key removal and pending cleanup in
+`so-keys`. `forgetPending()` returns copied `{id,modules,key}` records;
+`forgetDone(id)` removes a completed record. The old key is only for revoking
+leases. Normal key lookup returns nil, and `remember` refuses pending ids.
+
+`SO.forgetDevice(id, actor)` revokes the key first, then parks assignments through `mine.forget(id)`,
+`lumber.forget(id)`, `build.forget(id)` and `drops.forget(id)`, clears reply
 caches, and calls `lease.forget(id)` and `display.forget(id)`. Planner forget
 calls return success and save a `forgotten` flag. Lease forget accepts the previous key as an optional second argument, sends a
 best-effort stationary park after revocation, detaches callbacks and marks the
 pose uncertain. Display forget deletes the session. Possibly occupied reservations
-remain intact. Lumber suspends unused service queues through its existing safe
+remain intact. Each hook runs under `pcall`. Pending cleanup retries at boot
+before planning and before every tick's module work. Missing required modules
+or failed hooks and completion saves keep the record pending. Other ids can
+pair; the same id waits for cleanup. Retries do not recreate the forget row.
+An initial key-save failure leaves keys and cleanup targets unchanged. Lumber suspends unused service queues through its existing safe
 path and pauses only the forgotten worker. These are local calls, with no new wire handler.
 
 A forgotten builder frees its active assignment slot. Another paired turtle can take the
@@ -1242,7 +1297,7 @@ and facing selection. It hands all `setup:<id>` reservations to `gps:<id>`
 before releasing the setup owner, including orphaned routes after restart.
 Delayed steps may still arrive, so the full route stays protected until the
 existing explicit re-add and `lease.clearProbe(id)` path clears recovery cells.
-A failed handoff keeps the key and the remaining reservations. The call returns
+A failed handoff keeps the remaining reservations and leaves cleanup pending. The call returns
 success and an optional save error. Other devices' setup state stays intact.
 ## Remote job scope
 
