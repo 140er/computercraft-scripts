@@ -248,7 +248,7 @@ return function(test, equal, read)
       { at = utc, text = "sample event 105" },
       { at = utc - 1000, text = "sample event 104" },
     })
-    equal(first.next, utc - 1000)
+    equal(first.next, {at=utc-1000, seq=104})
     local second = page({ limit = 2, before = first.next })
     equal(second.entries[1], {at=utc-2000, text="sample event 103"})
     equal(second.entries[2], {at=utc-3000, text="sample event 102"})
@@ -273,9 +273,33 @@ return function(test, equal, read)
     s.server.env.os.epoch = epoch
     s.send("history.page", {limit=2})
     equal(s.worker.env.replies[1].body, {entries={
-      {at=utc,text="sample cleared"}, {at=utc,text="sample first"}}, next=utc})
+      {at=utc,text="sample cleared"}, {at=utc,text="sample first"}}, next={at=utc,seq=1}})
     s.send("history.page", {before=utc,limit=2})
     equal(s.worker.env.replies[2].body, {entries={{at=utc-1000,text="sample older"}}})
+  end)
+  test("lease history wire cursor retains equal-time overflow across pages", function()
+    for _, count in ipairs({3,55}) do
+      local s = setup(origin)
+      local epoch, utc = s.server.env.os.epoch, 1700000000000
+      s.server.env.os.epoch = function(kind) return kind == "utc" and utc or epoch(kind) end
+      for i = 1, count do assert(s.state.emit("sample", {text="event " .. i})) end
+      s.server.env.os.epoch = epoch
+      local cursor
+      for newest = count, 1, -2 do
+        s.send("history.page", {limit=2, before=cursor})
+        local reply = s.worker.env.replies[#s.worker.env.replies]
+        equal(reply.t, "history.page")
+        local expected = {{at=utc,text="sample event " .. newest}}
+        if newest > 1 then expected[2] = {at=utc,text="sample event " .. (newest-1)} end
+        equal(reply.body.entries, expected)
+        cursor = reply.body.next
+        equal(cursor, newest > 2 and {at=utc,seq=newest-1} or nil)
+      end
+      s.send("history.page", {limit=2, before=utc})
+      equal(s.worker.env.replies[#s.worker.env.replies].body, {entries={}})
+      s.send("history.page", {limit=2, before={at=utc}})
+      equal(s.worker.env.replies[#s.worker.env.replies].body, {entries={}})
+    end
   end)
   test("lease setup handoff commits only with the complete route", function()
     local s = setup(origin)

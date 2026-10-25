@@ -549,12 +549,19 @@ S.historyPage = function(query, history)
   query = type(query) == "table" and query or {}
   local limit = S.number(query.limit) and math.floor(query.limit) or 20
   limit = math.max(1, math.min(50, limit))
-  local before = S.number(query.before) and query.before or math.huge
+  local before, beforeSeq = math.huge, nil
+  if S.number(query.before) then before = query.before
+  elseif type(query.before) == "table" and S.number(query.before.at) then
+    before = query.before.at
+    beforeSeq = S.number(query.before.seq) and query.before.seq or nil
+  end
   local entries, cursor = {}, nil
   repeat
     local page = history.page({ reverse = true, before = cursor, count = 50 })
     for _, entry in ipairs(page.entries) do
-      if entry.at < before then entries[#entries + 1] = entry end
+      if entry.at < before or entry.at == before and beforeSeq and entry.seq < beforeSeq then
+        entries[#entries + 1] = entry
+      end
     end
     table.sort(entries, function(a, b)
       if a.at == b.at then return a.seq > b.seq end
@@ -572,7 +579,8 @@ S.historyPage = function(query, history)
       or type(data) == "string" and data or data == false and "cleared"
     out[#out + 1] = { at = entry.at, text = entry.kind .. (detail and " " .. tostring(detail) or "") }
   end
-  return { entries = out, next = more and out[#out].at or nil }
+  local last = entries[#entries]
+  return { entries = out, next = more and { at = last.at, seq = last.seq } or nil }
 end
 
 S.dugProtection = function(protect)
