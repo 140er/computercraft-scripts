@@ -236,6 +236,15 @@ return function(test,equal)
       t.drain() equal(t.visits,{"a"}) equal(t.S.queue.state,"stopped") equal(#t.S.queue.pending,0)
     end
   end)
+  test("P-U4-2 an edit after inspection stops the queue even before the next tick",function()
+    local t=boot() t.add("a",3) t.add("b",4) t.open() t.tap("test-all")
+    while not t.S.task.inspected do t.step() end
+    local p=t.S.copy(t.S.points[1]) p.x=8 assert(t.S.edit("a",p))
+    while t.active do t.step() end
+    t.mod.tick()
+    equal({t.S.queue.state,t.S.queue.completed,#t.S.queue.pending},{"stopped",0,0})
+    equal(t.visits,{"a"}) equal(t.cells.list("setup:12",100),{})
+  end)
   test("P-U4-2 uncertainty, timeout and handoff failure retain recovery reservations",function()
     for _,kind in ipairs({"uncertain","timeout","handoff"}) do
       local t=boot() t.add("a",2) t.add("b",3) t.open() t.tap("test-all")

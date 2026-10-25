@@ -786,6 +786,13 @@ S.finishRelease = function(id,pose)
     S.stopQueue("return pose unconfirmed")
     return S.setupRefuse("return pose unconfirmed; reservations held")
   end
+  if task and task.queued then
+    local point, why = S.queuePoint(S.queue.current, task.inspected)
+    if not point then
+      S.queue.current.verified = false
+      S.stopQueue(why)
+    end
+  end
   local cells=SO.mods.cells
   local owner="setup:"..id
   local held=cells.owner(pose.x,pose.y,pose.z,pose.dim)
