@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from .model import Criteria, Blocked
 
@@ -75,6 +76,9 @@ def evaluate(d):
 
 
 def run(ctx):
+    if os.environ.get("GATEB_C2_REPAIR") == "1":
+        from .c2_repair import run as repair
+        return repair(ctx)
     clients = [ctx.computer(n) for n in ("wall", "pocket", "miner1", "miner2", "lumber")]
     probe, server = ctx.computer("probe"), ctx.computer("server")
     paired = ctx.lua("server", "local n=0; for _,id in ipairs(textutils.unserializeJSON(" + json.dumps(json.dumps(clients)) + ")) do if SO.pair.key(id) then n=n+1 end end; return n")
