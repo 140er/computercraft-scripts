@@ -1,0 +1,61 @@
+26x20 Saved chest setup at 26x20
+ SETUP  -------------- +  
+                          
+ point 3 123,64,-337      
+ suspended                
+ TURTLES ---------------  
+ • #12              scan  
+ FOUND 1 ---------------  
+ • 121,64,-340 down  ADD  
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  TEST   FIX   RESUME     
+  CLEAR FOUND       BACK  
+00000000cccccccccccccc0000
+00000000000000000000000000
+0888880eeeeeeeeeeeee000000
+08888888880000000000000000
+088888880ccccccccccccccc00
+0d000000000000000009999990
+088888880ccccccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999990999990000000000000
+0eeeeeeeeeeeee000000000000
+ffffffffffffffffffffff777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffffffff777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffff77777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777f77777f77777777ffff
+f7777777777777fffff777777f

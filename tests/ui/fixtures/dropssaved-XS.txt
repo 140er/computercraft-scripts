@@ -1,0 +1,31 @@
+15x10 Saved chest setup at 15x10
+ SETUP  --- +  
+ point 3 123,  
+ suspended     
+ TURTLES ----  
+ • #12   scan  
+               
+  TEST   FIX   
+  RESUME       
+  CLEAR FOUND  
+         BACK  
+00000000ccc0000
+0888880eeeeee00
+088888888800000
+088888880cccc00
+0d0000009999990
+000000000000000
+099999909999900
+000000000000000
+0eeeeeeeeeeeee0
+000000000000000
+fffffffffff777f
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+ffffffff777777f
+fffffffffffffff
+f777777f77777ff
+f77777777ffffff
+f7777777777777f
+ffffffff777777f

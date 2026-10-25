@@ -49,16 +49,17 @@ S.recordOk = function(p)
   for key in pairs(p) do
     keys = keys + 1
     if key ~= "id" and key ~= "dim" and key ~= "x" and key ~= "y" and key ~= "z"
-      and key ~= "side" and key ~= "kind" and key ~= "fails" and key ~= "verified" and key ~= "room" then
+      and key ~= "side" and key ~= "kind" and key ~= "fails" and key ~= "verified" and key ~= "room" and key ~= "suspended" then
       return false
     end
   end
-  if keys ~= 8+(p.verified and 1 or 0)+(p.room ~= nil and 1 or 0) then return false end
+  if keys ~= 8+(p.verified and 1 or 0)+(p.room ~= nil and 1 or 0)+(p.suspended ~= nil and 1 or 0) then return false end
   if p.verified then
     if type(p.verified) ~= "table" or not S.whole(p.verified.at) or p.verified.at<0
       or type(p.verified.block) ~= "string" or #p.verified.block > 256 then return false end
     for key in pairs(p.verified) do if key ~= "at" and key ~= "block" then return false end end
   end
+  if p.suspended ~= nil and type(p.suspended) ~= "boolean" then return false end
   if p.room ~= nil and (type(p.room) ~= "boolean" or p.room and p.kind ~= "ore" and p.kind ~= "wood") then return false end
   if type(p.id) ~= "string" or not p.id:match("^[%w_%-]+$") then return false end
   if not S.whole(p.dim) or not S.whole(p.x) or not S.whole(p.y) or not S.whole(p.z) then return false end
@@ -67,27 +68,49 @@ S.recordOk = function(p)
   return true
 end
 
+S.candidateKey = function(p)
+  return string.format("%.0f/%.0f/%.0f/%.0f/%s", p.dim, p.x, p.y, p.z, p.side)
+end
+S.candidateOk = function(p)
+  if type(p) ~= "table" then return false end
+  local count = 0
+  for key in pairs(p) do
+    count = count + 1
+    if key ~= "dim" and key ~= "x" and key ~= "y" and key ~= "z" and key ~= "side"
+      and key ~= "block" and key ~= "at" then return false end
+  end
+  return count == 7 and (p.dim == 0 or p.dim == -1 or p.dim == 1)
+    and S.whole(p.x) and S.whole(p.y) and S.whole(p.z) and S.face[p.side] ~= nil
+    and type(p.block) == "string" and #p.block <= 256 and p.block:match("^[a-z0-9_.%-]+:[a-z0-9_./%-]+$") ~= nil
+    and S.whole(p.at) and p.at >= 0
+end
+S.arrayOk = function(list, valid, keyOf)
+  if type(list) ~= "table" or #list > S.cap then return false end
+  local count, seen = 0, {}
+  for key in pairs(list) do
+    count = count + 1
+    if not S.whole(key) or key < 1 or key > #list then return false end
+  end
+  if count ~= #list then return false end
+  for _, p in ipairs(list) do
+    if not valid(p) then return false end
+    local key = keyOf(p)
+    if seen[key] then return false end
+    seen[key] = true
+  end
+  return true
+end
 S.valid = function(value)
-  if type(value) ~= "table" or type(value.points) ~= "table" then return false end
+  if type(value) ~= "table" or value.v ~= nil and value.v ~= 2 then return false end
   for key in pairs(value) do
-    if key ~= "points" and key ~= "roomSink" then return false end
+    if key ~= "points" and key ~= "roomSink" and not (value.v == 2 and (key == "v" or key == "candidates")) then return false end
   end
   if value.roomSink ~= nil and type(value.roomSink) ~= "boolean" then return false end
-  local points = value.points
-  local n = #points
-  if n > S.cap then return false end
-  local seen = {}
-  local count = 0
-  for key in pairs(points) do
-    count = count + 1
-    if not S.whole(key) or key < 1 or key > n then return false end
+  if not S.arrayOk(value.points, S.recordOk, function(p) return p.id end) then return false end
+  if value.v == 2 then
+    return type(value.roomSink) == "boolean" and S.arrayOk(value.candidates, S.candidateOk, S.candidateKey)
   end
-  if count ~= n then return false end
-  for i = 1, n do
-    local row = points[i]
-    if not S.recordOk(row) or seen[row.id] then return false end
-    seen[row.id] = true
-  end
+  for _, p in ipairs(value.points) do if p.suspended ~= nil then return false end end
   return true
 end
 
@@ -97,20 +120,30 @@ S.clone = function(list)
     local p = list[i]
     out[i] = {
       id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z,
-      side = p.side, kind = p.kind, fails = p.fails, room = p.room or nil, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil,
+      side = p.side, kind = p.kind, fails = p.fails, suspended = p.suspended, room = p.room, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil,
     }
   end
   return out
 end
 
 S.pub = function(p)
-  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind, room = p.room or nil, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil, disabled = p.room and not S.roomSink or nil }
+  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind, room = p.room or nil, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil, suspended = p.suspended, disabled = (p.suspended or p.room and not S.roomSink) or nil }
 end
 
 S.find = function(id)
   for i = 1, #S.points do
     if S.points[i].id == id then return i end
   end
+end
+
+S.usable = function(id)
+  if S.blocked then return false, "unreadable" end
+  local idx = S.find(id)
+  local p = idx and S.points[idx]
+  if not p then return false, "missing" end
+  if p.suspended then return false, "suspended" end
+  if p.fails >= S.strikes then return false, "broken" end
+  return true
 end
 
 S.same = function(p, point)
@@ -124,15 +157,80 @@ S.emit = function(key, value)
   state.emit(key, value)
 end
 
-S.commit = function(previous, op, id)
-  local ok, err = S.box.save({ points = S.clone(S.points), roomSink = S.roomSink or nil })
-  if not ok then
-    S.points = previous
-    return false, err
+S.enabled = function()
+  local cfg = type(SO.store.read) == "function" and SO.store.read("so-server.cfg") or {}
+  return cfg.dropsSavedSetup == true
+end
+S.preflight = function()
+  if not fs or not fs.exists then return true end
+  local newest, rejected = 0, 0
+  for _, path in ipairs({"so-drops", "so-drops.tmp", "so-drops.bak"}) do
+    if fs.exists(path) then
+      local ok, t, bytes = pcall(SO.store.read, path)
+      local generation = ok and type(t) == "table" and t.generation
+      if not S.whole(generation) or generation < 1 then return false end
+      if t.schema == 1 and S.valid(t.value) and (not bytes or #bytes <= 65536) then
+        newest = math.max(newest, generation)
+      else rejected = math.max(rejected, generation) end
+    end
   end
+  return rejected == 0 or rejected < newest
+end
+S.cloneFound = function(list)
+  local out = {}
+  for i, p in ipairs(list) do
+    out[i] = {dim=p.dim, x=p.x, y=p.y, z=p.z, side=p.side, block=p.block, at=p.at}
+  end
+  return out
+end
+S.publishFound = function(list)
+  S.candidates, S.candidateIndex = S.cloneFound(list), {}
+  for i, p in ipairs(S.candidates) do S.candidateIndex[S.candidateKey(p)] = i end
+end
+S.envelope = function()
+  local value = {points = S.clone(S.points), roomSink = S.roomSink or nil}
+  if S.data.v == 2 or S.enabled() then
+    value.v, value.roomSink = 2, S.roomSink
+    value.candidates = S.cloneFound(S.data.candidates or {})
+  end
+  return value
+end
+S.commit = function(value, op, id)
+  if S.blocked or not S.preflight() then S.blocked = true return false, "drops unreadable" end
+  if not S.valid(value) then return false, "invalid state" end
+  local ok, err = S.box.save(value)
+  if not ok then return false, err end
+  S.data, S.points, S.roomSink = value, value.points, value.roomSink == true
+  if S.enabled() then S.publishFound(value.candidates or {}) end
   S.rev = S.rev + 1
   S.emit("drops", { op = op, id = id })
   return true
+end
+S.observe = function(p)
+  if S.blocked then return false, "drops unreadable" end
+  if not S.candidateOk(p) then return false, "bad candidate" end
+  local list = S.cloneFound(S.candidates)
+  local at = S.candidateIndex[S.candidateKey(p)] or #list + 1
+  if at > S.cap then return false, "64 found" end
+  list[at] = {dim=p.dim, x=p.x, y=p.y, z=p.z, side=p.side, block=p.block, at=p.at}
+  if not S.enabled() then S.publishFound(list) return true end
+  local value = S.envelope()
+  value.candidates = list
+  return S.commit(value, "found")
+end
+S.suspend = function(id, on)
+  if not S.enabled() then return false, "dropsSavedSetup off" end
+  local idx = S.find(id)
+  if not idx then return false, "missing" end
+  local value = S.envelope()
+  value.points[idx].suspended = on
+  return S.commit(value, on and "suspend" or "resume", id)
+end
+S.clearFound = function()
+  if not S.enabled() then return false, "dropsSavedSetup off" end
+  local value = S.envelope()
+  value.candidates = {}
+  return S.commit(value, "clear found")
 end
 
 S.check = function(point)
@@ -147,6 +245,7 @@ S.check = function(point)
 end
 
 S.add = function(point)
+  if S.blocked then return false, "drops unreadable" end
   if type(point) ~= "table" or type(point.id) ~= "string" or not point.id:match("^[%w_%-]+$") then
     return false, "bad"
   end
@@ -158,12 +257,12 @@ S.add = function(point)
     return false, "exists"
   end
   if #S.points >= S.cap then return false, "full" end
-  local previous = S.clone(S.points)
-  S.points[#S.points + 1] = {
+  local value = S.envelope()
+  value.points[#value.points + 1] = {
     id = point.id, dim = point.dim, x = point.x, y = point.y, z = point.z,
     side = point.side, kind = point.kind, fails = 0, room = point.room or nil,
   }
-  return S.commit(previous, "add", point.id)
+  return S.commit(value, "add", point.id)
 end
 
 -- The index of a point other than skip at point's place, side and kind.
@@ -174,9 +273,9 @@ S.match = function(point, skip)
   end
 end
 
--- Changes a point in place in one save; a failed save restores the list. The point keeps its id, and
--- keeps its strikes and verified state only while its place and side are unchanged.
+-- An edit keeps its stable id. Moving a point clears its strikes and verification.
 S.edit = function(id, point)
+  if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false, "missing" end
   local valid, why = S.check(point)
@@ -185,50 +284,54 @@ S.edit = function(id, point)
   if other then return false, "exists" end
   local p = S.points[idx]
   if S.same(p, point) then return true end
-  local previous = S.clone(S.points)
+  local value = S.envelope()
+  p = value.points[idx]
   local moved = p.dim ~= point.dim or p.x ~= point.x or p.y ~= point.y or p.z ~= point.z or p.side ~= point.side
   p.dim, p.x, p.y, p.z, p.side, p.kind, p.room = point.dim, point.x, point.y, point.z, point.side, point.kind, point.room or nil
   if moved then p.fails, p.verified = 0, nil end
-  return S.commit(previous, "edit", id)
+  return S.commit(value, "edit", id)
 end
 
 S.setRoomSink = function(on)
+  if S.blocked then return false, "drops unreadable" end
   if type(on) ~= "boolean" then return false,"bad" end
-  local previous = S.roomSink
-  S.roomSink = on
-  local ok, err = S.commit(S.clone(S.points),"roomSink")
-  if not ok then S.roomSink = previous end
-  return ok, err
+  local value = S.envelope()
+  value.roomSink = on
+  return S.commit(value,"roomSink")
 end
 
 S.roomMark = function(id, on)
+  if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false,"missing" end
   if type(on) ~= "boolean" then return false,"bad" end
   if on and S.points[idx].kind ~= "ore" and S.points[idx].kind ~= "wood" then return false,"kind" end
-  local previous = S.clone(S.points)
-  S.points[idx].room = on or nil
-  return S.commit(previous,"room",id)
+  local value = S.envelope()
+  value.points[idx].room = on or nil
+  return S.commit(value,"room",id)
 end
 
 S.remove = function(id)
+  if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return true end
-  local previous = S.clone(S.points)
-  table.remove(S.points, idx)
-  return S.commit(previous, "remove", id)
+  local value = S.envelope()
+  table.remove(value.points, idx)
+  return S.commit(value, "remove", id)
 end
 
 S.fix = function(id)
+  if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false, "missing" end
   if S.points[idx].fails == 0 then return true end
-  local previous = S.clone(S.points)
-  S.points[idx].fails = 0
-  return S.commit(previous, "fix", id)
+  local value = S.envelope()
+  value.points[idx].fails = 0
+  return S.commit(value, "fix", id)
 end
 
 S.note = function(id, blockName)
+  if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false, "missing" end
   local fails = S.points[idx].fails
@@ -242,19 +345,20 @@ S.note = function(id, blockName)
   else
     return false, "bad"
   end
-  local previous = S.clone(S.points)
-  if blockName == nil then S.points[idx].verified = nil end
-  S.points[idx].fails = nextFails
-  return S.commit(previous, "note", id)
+  local value = S.envelope()
+  if blockName == nil then value.points[idx].verified = nil end
+  value.points[idx].fails = nextFails
+  return S.commit(value, "note", id)
 end
 
 S.scan = function(kind, nearPos)
   local want, wantDist, wantId
   local anyPoint, anyDist, anyId
-  local broken, brokenDist, off
+  local broken, brokenDist, off, suspended
   for i = 1, #S.points do
     local p = S.points[i]
-    if p.room and not S.roomSink then off = off or p.dim == nearPos.dim and p.kind == kind
+    if p.suspended then suspended = suspended or p.dim == nearPos.dim and (p.kind == kind or p.kind == "any")
+    elseif p.room and not S.roomSink then off = off or p.dim == nearPos.dim and p.kind == kind
     elseif p.dim == nearPos.dim and (p.kind == kind or p.kind == "any") then
       local dx = p.x - nearPos.x
       local dy = p.y - nearPos.y
@@ -272,7 +376,7 @@ S.scan = function(kind, nearPos)
       end
     end
   end
-  return want, anyPoint, broken, off
+  return want, anyPoint, broken, off, suspended
 end
 
 -- The chest a turtle at nearPos would use for kind, the fallback or HOLD. Reads only; pick and the
@@ -283,7 +387,8 @@ S.choose = function(kind, nearPos)
     or not S.whole(nearPos.y) or not S.whole(nearPos.z) then
     return nil
   end
-  local want, anyPoint, broken, off = S.scan(kind, nearPos)
+  if S.blocked then return {chain={"hold"}, reason="unreadable", alert="drops unreadable"} end
+  local want, anyPoint, broken, off, suspended = S.scan(kind, nearPos)
   local chain = { { kind = kind, point = want and S.pub(want) or nil, usable = want ~= nil } }
   if kind ~= "any" then
     chain[2] = { kind = "any", point = anyPoint and S.pub(anyPoint) or nil, usable = anyPoint ~= nil }
@@ -298,9 +403,9 @@ S.choose = function(kind, nearPos)
   end
   local alert, reason, failedPoint
   if not point then
-    reason, failedPoint = broken and "broken" or "none", broken and S.pub(broken) or nil
+    reason, failedPoint = broken and "broken" or suspended and "suspended" or "none", broken and S.pub(broken) or nil
     alert = broken and (kind .. " #" .. broken.id .. " broken at " .. broken.x .. "," .. broken.y .. "," .. broken.z)
-      or off and (kind .. " room chests off") or ("no " .. kind .. " chest set")
+      or suspended and (kind .. " chests suspended") or off and (kind .. " room chests off") or ("no " .. kind .. " chest set")
   end
   return { point = point, chain = chain, alert = alert, reason = reason, failedPoint = failedPoint }
 end
@@ -362,18 +467,19 @@ S.inventory = function(result)
 end
 
 S.verify = function(id, result)
+  if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false, "missing" end
   if S.points[idx].fails >= S.strikes then return false, "fix broken point first" end
-  local previous = S.clone(S.points)
+  local value = S.envelope()
   if not result or not result.ok and result.err ~= "No block to inspect" then
     return false,"inspection failed; test again"
   end
   local block = result.ok and result.data and result.data.name or "minecraft:air"
-  S.points[idx].verified = S.inventory(result) and {at=SO.now(),block=block} or nil
-  S.points[idx].fails = S.inventory(result) and 0 or math.min(S.strikes,S.points[idx].fails+1)
+  value.points[idx].verified = S.inventory(result) and {at=SO.now(),block=block} or nil
+  value.points[idx].fails = S.inventory(result) and 0 or math.min(S.strikes,S.points[idx].fails+1)
   S.message = S.inventory(result) and "chest found" or ("no chest: "..tostring(block))
-  return S.commit(previous,"verify",id)
+  return S.commit(value,"verify",id)
 end
 
 S.inLane = function(p)
@@ -446,10 +552,15 @@ S.setupReport = function(lid,id,results,lease)
     task.failed=true S.message="setup blocked; reservations held" return
   end
   task.pose=actual
-  if step.scan and S.inventory(result) then
+  if step.scan and not task.collectFailed and S.inventory(result) then
     local p=SO.store.copy(step.scan)
-    p.block=result.data.name
-    S.candidates[#S.candidates+1]=p
+    p.block, p.at = result.data.name, SO.now()
+    local ok, err = S.observe(p)
+    if not ok then
+      task.collectFailed = true
+      task.message = err == "64 found" and err or "save failed"
+      S.message = task.message
+    end
   end
   if step.verify then
     local idx=S.find(step.verify)
@@ -511,7 +622,6 @@ S.beginSetup = function(id, point, facing)
     local inverse={forward="back",back="forward",up="down",down="up",turnLeft="turnRight",turnRight="turnLeft"}
     for i=outward,1,-1 do steps[#steps+1]={op=inverse[steps[i].op]} end
   else
-    S.candidates={}
     local function scan(op,p)
       p.dim=dim
       steps[#steps+1]={op=op,scan=p}
@@ -608,7 +718,10 @@ S.forget = function(id)
   end
   local ok, err = cells.releaseOwner(owner)
   if not ok then return false, err end
-  if task then S.task, S.candidates = nil, {} end
+  if task then
+    S.task = nil
+    if S.data.v ~= 2 and not S.enabled() then S.publishFound({}) end
+  end
   if releasing then S.releasing = nil end
   if S.compass and S.compass.id == id then S.compass = nil end
   return true
@@ -853,7 +966,7 @@ S.gather = function(view)
   for i, p in ipairs(S.points) do
     dims[p.dim] = true
     if not filter or p.dim == filter then list[#list + 1] = { n = i, id = p.id, dim = p.dim, kind = p.kind, x = p.x, y = p.y, z = p.z, side = p.side,
-      broken = p.fails >= S.strikes, verified = p.verified ~= nil, room = p.room == true } end
+      suspended = p.suspended == true, broken = p.fails >= S.strikes, verified = p.verified ~= nil, room = p.room == true } end
   end
   local multi = next(dims) ~= nil and next(dims, next(dims)) ~= nil
   -- Unassigned turtles for the editor's from row and the setup tab's scans.
@@ -872,7 +985,7 @@ S.gather = function(view)
     confirm = view.confirm and SO.now() - (view.confirmAt or 0) <= 5000 and view.confirm or nil,
     -- A turtle waiting for its facing shows the compass on every drop display until it is answered.
     testing = view.testing or S.compass ~= nil and not view.editing,
-    message = S.message, draft = view.draft or S.blank, roomSink = S.roomSink, turtles = turtles,
+    savedSetup = S.enabled(), message = S.message, draft = view.draft or S.blank, roomSink = S.roomSink, turtles = turtles,
     from = view.fromPage or 0, compass = S.compass, found = S.candidates, task = S.task and S.task.id,
     failed = S.task and S.task.failed,
     server = ctx.server, shaft = ctx.shaft, area = ctx.area,
@@ -1065,14 +1178,25 @@ end
 -- asks for it first.
 S.okText = { ["chest found"] = true, ["scan complete"] = true, ["setup released"] = true, ["scanning"] = true,
   ["testing chest"] = true, ["confirming release"] = true, ["room saved"] = true, ["point added"] = true,
-  ["point saved"] = true }
+  ["point saved"] = true, ["point suspended"] = true, ["point resumed"] = true, ["found cleared"] = true }
 S.setup = function(C, m)
   local w, h = C.w, C.h
   local room = w >= 52 and h >= 22
   local ya, stop, sel = room and h - 1 or h, (room and h - 1 or h) - 2, nil
   C.bar(w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
   for _, p in ipairs(m.points) do if p.id == m.selected then sel = p end end
-  C.put(2, 3, "point", "8")
+  if m.savedSetup then
+    local controls = { { "TEST", "test", sel and "primary" or "muted" },
+      { "FIX", "fix", sel and sel.broken and "primary" or "muted" } }
+    if sel then controls[#controls+1] = { sel.suspended and "RESUME" or "SUSPEND",
+      (sel.suspended and "resume:" or "suspend:") .. sel.id, "plain" } end
+    if #m.found > 0 then controls[#controls+1] = U.confirmChip(m, "clear-found", "CLEAR FOUND", "clear-found", "stop") end
+    ya = U.controlRows(C, controls, { "BACK", "list", "plain" })
+    stop = ya - 2
+  end
+  local py = m.savedSetup and h < 12 and 2 or 3
+  if m.savedSetup then C.chip(w - 3, 1, "+", "from-next", "plain") end
+  C.put(2, py, "point", "8")
   -- Narrow screens drop the kind, then the side, before they cut the position.
   local text = "-"
   if sel then
@@ -1082,8 +1206,9 @@ S.setup = function(C, m)
       if #t <= w - 9 then break end
     end
   end
-  C.put(8, 3, text:sub(1, math.max(0, w - 9)), sel and (sel.broken and "e" or "0") or "8")
-  local y = 5
+  C.put(8, py, text:sub(1, math.max(0, w - 9)), sel and (sel.broken and "e" or "0") or "8")
+  if sel and sel.suspended then C.put(2, py + 1, "suspended", "8") end
+  local y = py + 2
   if m.compass then
     C.section(2, y, w - 2, "FACING #" .. m.compass.id)
     local x = 2
@@ -1113,10 +1238,10 @@ S.setup = function(C, m)
       if it[1] ~= section then
         if y + 1 > stop then break end
         section = it[1]
-        C.section(2, y, w - 2, section)
+        C.section(2, y, w - 2, section == "FOUND" and m.savedSetup and "FOUND " .. #m.found or section)
         y = y + 1
       end
-      if y == stop and k < #items then
+      if not m.savedSetup and y == stop and k < #items then
         C.put(4, y, "+" .. (#items - k + 1) .. " more", "8")
         C.hit("from-next", 2, y, w - 2, 1)
         break
@@ -1124,7 +1249,7 @@ S.setup = function(C, m)
       if it[3] then
         C.put(2, y, U.g.bullet, "0")
         C.put(4, y, (S.at(it[3]) .. " " .. it[3].side):sub(1, math.max(0, w - 10)), "0")
-        C.chip(w - 5, y, "add", "candidate:" .. it[2], "plain")
+        C.chip(w - 5, y, m.savedSetup and "ADD" or "add", "candidate:" .. it[2], "plain")
       elseif it[2] then
         local busy, bg = m.task == it[2], m.turtle == it[2] and "7" or nil
         if bg then C.fill(1, y, w - 7, 1, bg) end
@@ -1138,8 +1263,8 @@ S.setup = function(C, m)
   end
   if m.message and S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
   elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
-  U.actions(C, ya, { { "TEST", "test", sel and "primary" or "muted" }, { "FIX", "fix", sel and sel.broken and "primary" or "muted" },
-    { "BACK", "list", "plain" } }, room and 2 or 1)
+  if not m.savedSetup then U.actions(C, ya, { { "TEST", "test", sel and "primary" or "muted" }, { "FIX", "fix", sel and sel.broken and "primary" or "muted" },
+    { "BACK", "list", "plain" } }, room and 2 or 1) end
 end
 S.editor = function(C, m)
   local w, h = C.w, C.h
@@ -1227,7 +1352,16 @@ S.input = function(ev)
   -- REMOVE arms on the first tap and removes on the second; any other tap or text disarms. The key
   -- names the point, so a selection that moved on arms again instead of removing.
   local removing = ev.id == "remove" and S.selectedPoint(view) or type(ev.id) == "string" and ev.id:match("^remove:(.+)$")
-  local confirmed = S.confirm(view, removing and "remove:" .. removing or nil, now)
+  local clearing = ev.id == "clear-found"
+  local confirmed = S.confirm(view, removing and "remove:" .. removing or clearing and "clear-found" or nil, now)
+  if clearing then
+    if confirmed then
+      local ok, err = S.clearFound()
+      S.message = ok and "found cleared" or "save failed: " .. tostring(err)
+    end
+    return
+  end
+  if S.blocked then S.message = "drops unreadable" return end
   if removing then
     if confirmed then S.remove(removing) end
     return
@@ -1241,6 +1375,13 @@ S.input = function(ev)
     return
   end
   if type(ev.id) ~= "string" then return end
+  local suspended = ev.id:match("^suspend:(.+)$")
+  local resumed = ev.id:match("^resume:(.+)$")
+  if suspended or resumed then
+    local ok, err = S.suspend(suspended or resumed, suspended ~= nil)
+    S.message = ok and (suspended and "point suspended" or "point resumed") or tostring(err)
+    return
+  end
   -- NEW starts from the selected point, room mark included, unless this display has an unsaved draft.
   if ev.id == "new" then
     view.editing, view.testing, view.found = true, false, nil
@@ -1377,10 +1518,19 @@ S.tick = function()
   S.wired = true
 end
 
-S.box = SO.store.store("so-drops", S.valid)
-if S.box.value and type(S.box.value.points) == "table" then
-  S.points = S.clone(S.box.value.points)
-  S.roomSink = S.box.value.roomSink == true
+S.blocked = not S.preflight()
+S.data = {points = {}}
+S.publishFound({})
+if not S.blocked then
+  local ok, box = pcall(SO.store.store, "so-drops", S.valid, 65536)
+  if ok then S.box = box else S.blocked = true end
+end
+if S.blocked then S.message = "drops unreadable"
+elseif S.box.value then
+  S.data = S.box.value
+  S.points = S.clone(S.data.points)
+  S.roomSink = S.data.roomSink == true
+  S.publishFound(S.data.candidates or {})
 end
 
 return {
@@ -1398,6 +1548,7 @@ return {
   end,
   pick = S.pick,
   choose = S.choose,
+  usable = S.usable,
   steps = S.steps,
   add = S.add,
   remove = S.remove,
