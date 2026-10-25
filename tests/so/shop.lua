@@ -37,7 +37,7 @@ local function forty()
 end
 
 local function setup(legacy)
-  local s = { now = 1000, sends = {}, session = { id = 2 } }
+  local s = { now = 1000, sends = {}, session = { id = 2 }, events = {}, values = {} }
   local env = setmetatable({
     fs = { exists = function() return not legacy end },
     os = { epoch = function() return 72840000 end },
@@ -52,6 +52,14 @@ local function setup(legacy)
       screen = function(_, render, input) s.render, s.input = render, input end,
     } } },
   }, { __index = _G })
+  env.SO.mods.state = {
+    get = function(key) return s.values[key] end,
+    emit = function(kind, data)
+      s.events[#s.events + 1] = { kind = kind, data = data }
+      s.values[kind] = data
+      return true
+    end,
+  }
   s.mod = assert(loadfile("so-mod-shop.lua", "t", env))()
   function s.at(ms)
     s.now = 1000 + ms
@@ -79,6 +87,44 @@ local function setup(legacy)
 end
 
 return function(test, equal)
+  test("shop P-U2-14 full stock raises one standing alert and clears on false or missing full", function()
+    local s = setup()
+    local function stock(full)
+      s.mod.listen.roomsorter_stock(9, { totals = {}, full = full })
+    end
+    equal(#s.events, 0)
+    for _, clear in ipairs({ false, "missing" }) do
+      stock(true)
+      equal(s.values["shop.room.alert"], { text = "Storage room full" })
+      local raised = #s.events
+      stock(true)
+      equal(#s.events, raised, "repeated full stock does not repeat the event")
+      if clear == false then stock(false) else stock(nil) end
+      equal(s.values["shop.room.alert"], false)
+      equal(#s.events, raised + 1)
+      stock(nil)
+      equal(#s.events, raised + 1, "repeated clear stock does not repeat the event")
+    end
+    equal(s.events[1].kind, "shop.room.alert")
+    equal(s.events[2], { kind = "shop.room.alert", data = false })
+  end)
+
+  test("shop P-U2-14 ignores other rooms and malformed stock and clears a retained alert", function()
+    local s = setup()
+    s.mod.listen.roomsorter_stock(10, { totals = {}, full = true })
+    equal(#s.events, 0)
+    s.mod.listen.roomsorter_stock(9, { totals = {}, full = true })
+    s.mod.listen.roomsorter_stock(10, { totals = {}, full = false })
+    s.mod.listen.roomsorter_stock(9, { full = false })
+    s.mod.listen.roomsorter_stock(9, "bad stock")
+    equal(#s.events, 1)
+    equal(s.values["shop.room.alert"], { text = "Storage room full" })
+    local fresh = setup()
+    fresh.values["shop.room.alert"] = { text = "Storage room full" }
+    fresh.mod.listen.roomsorter_stock(9, { totals = {} })
+    equal(fresh.events, { { kind = "shop.room.alert", data = false } })
+  end)
+
   for _, acknowledgement in ipairs({ "Getting 16 Iron ingot...", "Crafting 16 Iron ingot..." }) do
     test("shop UB-10 delivers after 121 seconds: " .. acknowledgement, function()
       local s = setup()
