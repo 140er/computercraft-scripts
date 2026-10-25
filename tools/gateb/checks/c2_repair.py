@@ -133,6 +133,9 @@ def capture(ctx, name, label):
 
 def photo(ctx, name, label):
     from . import photos
+    state = snapshot(ctx, name)
+    if state.get("phase") != "live" or state.get("step") or state["digits"]:
+        raise Blocked(f"{name} {label} photo requires a live display outside REPAIR")
     if name == "pocket":
         photos.open_pocket(ctx)
     else:
@@ -192,6 +195,7 @@ def evaluate(d):
         c.require(row.get("server_fingerprint") == success.get("peers", {}).get(str(new))
                   and bool(row.get("server_fingerprint")), f"{name} key matches replacement server")
         c.require(bool(row.get("frame")), f"{name} receives a fresh authenticated frame")
+        c.require(bool(row.get("repair_frame")), f"{name} receives a fresh authenticated frame before its repair photo")
         c.require(len(row.get("photos", [])) == 2, f"{name} repair and reboot photos saved")
     attacks = d.get("attacks", {})
     for phase in PHASES:
@@ -241,7 +245,8 @@ def run(ctx):
                 if step < 4:
                     event(ctx, name, "key", 257, False)
             row = d["clients"][name]
-            row["photos"] = [photo(ctx, name, "repair")]
+            # Discard the old server's captured frame before the six-digit exchange.
+            ctx.lua(name, "GATEB_FRAME=nil;return true")
             invitation = ctx.wait(lambda: ctx.lua("probe", "return SO.pair.invite()"), 60)
             if not isinstance(invitation, str) or len(invitation) != 6 or not invitation.isdigit():
                 raise Blocked("Replacement did not issue a six-digit invitation")
@@ -254,6 +259,12 @@ def run(ctx):
             row["success"] = ready(ctx, name, lambda s: repaired(s, new, old), f"{name} REPAIR did not succeed")
             row["server_fingerprint"] = ctx.lua("probe", f'''local k=SO.pair.key({ctx.computer(name)})
               return k and SO.proto.hex(SO.proto.sha256(k)):sub(1,16)''')
+            frame = ctx.wait(lambda: ctx.request("frame", computer=ctx.computer(name)), 30)
+            if not frame:
+                raise Blocked(f"{name} received no fresh authenticated frame after REPAIR")
+            row["repair_frame"] = ctx.record(f"C2R-{name}-repair-frame.json", frame)
+            capture(ctx, name, "repaired")
+            row["photos"] = [photo(ctx, name, "repair")]
             # Clear the observer's previous frame before reboot, so cached data cannot pass.
             ctx.lua(name, "GATEB_FRAME=nil;return true")
             ctx.power(name, "reboot")

@@ -34,8 +34,12 @@ native client is stopped on exit. The normal driver owns world shutdown.
 
 Evidence includes `C2R-observations.json`, before/after attack snapshots, terminal
 and monitor snapshots with empty credential fields, a fresh received frame for
-each reboot, and four native photos showing repair and reboot. Candidate entry
-and partial code snapshots contain state only. Photos document the run and do
+each reboot, and four native photos taken after successful repair and reboot. Before the
+six-digit exchange the previous frame is discarded. A repair photo waits for the
+client to be live with only the new peer and for a fresh authenticated frame;
+`C2R-<client>-repair-frame.json` and `C2R-<client>-repaired.json` retain that proof.
+The photo uses the existing settling threshold without extra masks. Candidate
+entry and partial code snapshots contain state only. Photos document the run and do
 not claim reviewed visual approval. The C2 result records the exact commit and TPS.
 
 This tooling PR runs mocked tests only. The UI-B orchestrator runs native Gate B

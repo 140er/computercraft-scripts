@@ -62,6 +62,7 @@ class MockWorld:
         if "local k=SO.pair.key" in code:
             return "wrong" if self.defect == "server-key" else "aabbccddeeffaabb"
         if code == "GATEB_FRAME=nil;return true":
+            self.events.append((name, "clear-frame"))
             return True
         raise AssertionError(code)
 
@@ -70,6 +71,7 @@ class MockWorld:
             return {"left": {"width": 2, "height": 1}}
         name = "wall" if kw["computer"] == 2 else "pocket"
         if op == "frame":
+            self.events.append((name, "frame"))
             return None if self.defect == "frame" else {"rows": [{"text": "STATUS"}]}
         assert op == "input"
         s = self.states[name]
@@ -144,6 +146,10 @@ def mocked_replace(ctx):
 
 def mocked_photo(ctx, name, label):
     assert ctx.states[name]["digits"] == 0
+    assert repair.repaired(ctx.states[name], 10, 1), "Photo requested before repair succeeded"
+    if label == "repair":
+        assert f"C2R-{name}-repair-frame.json" in ctx.records, "Photo requested before a fresh frame"
+    ctx.events.append((name, "photo", label))
     ctx.photos.append((name, label))
     return f"{name}-{label}.png"
 
@@ -213,6 +219,51 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(ctx.states["wall"]["digits"], 0)
         self.assertEqual(len(ctx.events), 9)
 
+    def test_repair_photos_follow_success_and_fresh_frames(self):
+        ctx = MockWorld()
+        result = self.drive(ctx)
+        self.assertEqual(result.status, "pass", result.findings)
+        for name in repair.CLIENTS:
+            photograph = ctx.events.index((name, "photo", "repair"))
+            last_digit = ctx.events.index((name, "char", ["6"]))
+            clear = ctx.events.index((name, "clear-frame"))
+            frame = ctx.events.index((name, "frame"))
+            self.assertLess(clear, last_digit)
+            self.assertLess(last_digit, frame)
+            self.assertLess(frame, photograph)
+            self.assertEqual(result.metrics["clients"][name]["repair_frame"],
+                             ctx.records[f"C2R-{name}-repair-frame.json"])
+            self.assertEqual(ctx.records[f"C2R-{name}-repaired.json"]["state"]["phase"], "live")
+
+    def test_missing_post_repair_frame_blocks_before_photos(self):
+        ctx = MockWorld("frame")
+        with self.assertRaisesRegex(Blocked, "wall received no fresh authenticated frame after REPAIR"):
+            self.drive(ctx)
+        self.assertEqual(ctx.photos, [])
+        self.assertEqual(ctx.events[-1], ("client", "private", "stop"))
+
+    def test_photo_rejects_pending_repair_even_with_empty_digits(self):
+        from checks import photos
+        ctx = MockWorld()
+        ctx.states["wall"].update(phase="stale", step=4)
+        with patch.object(photos, "settled") as settled:
+            with self.assertRaisesRegex(Blocked, "photo requires a live display outside REPAIR"):
+                repair.photo(ctx, "wall", "repair")
+        settled.assert_not_called()
+
+    def test_live_wall_photo_keeps_existing_settling_check(self):
+        from checks import photos
+        ctx = MockWorld()
+        ctx.states["wall"] = state(10)
+        ctx.fixture = lambda name: {"pos": [-3, 64, -1]}
+        ctx.command = lambda command: None
+        kept = []
+        ctx.keep = lambda source, target: kept.append((source, target))
+        with patch.object(photos, "close_screens"), patch.object(photos, "settled", return_value="shot.png") as settled:
+            self.assertEqual(repair.photo(ctx, "wall", "repair"), "C2R-wall-repair.png")
+        settled.assert_called_once_with(ctx, "C2R-wall-repair.png", False)
+        self.assertEqual(kept, [("shot.png", "C2R-wall-repair.png")])
+
     def test_mock_world_drives_every_phase_and_reboots_both_clients(self):
         ctx = MockWorld()
         result = self.drive(ctx)
@@ -231,7 +282,7 @@ class RepairTests(unittest.TestCase):
         self.assertIn('"digits": 3', saved)
 
     def test_failure_findings_from_mocked_world(self):
-        for defect in ("server-key", "reboot-key", "frame", "touch-step", "touch-key",
+        for defect in ("server-key", "reboot-key", "touch-step", "touch-key",
                        "touch-digits", "touch-server", "touch-readonly"):
             with self.subTest(defect=defect):
                 self.assertEqual(self.drive(MockWorld(defect)).status, "fail")
@@ -251,7 +302,7 @@ class RepairTests(unittest.TestCase):
 
     def test_evaluator_rejects_missing_evidence_and_stale_peer(self):
         good = self.drive(MockWorld()).metrics
-        for field in ("initial", "success", "reboot", "server_fingerprint", "frame", "photos"):
+        for field in ("initial", "success", "reboot", "server_fingerprint", "frame", "repair_frame", "photos"):
             bad = copy.deepcopy(good)
             del bad["clients"]["wall"][field]
             self.assertEqual(repair.evaluate(bad).status, "fail", field)
