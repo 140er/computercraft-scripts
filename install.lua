@@ -68,29 +68,64 @@ local function recover()
   fs.delete(NEW)
   fs.delete(BOOT)
 end
+-- Two stacked buttons centred on the screen. Each button's box is both what
+-- gets drawn and what accepts a touch.
+local function roleButtons(out)
+  local w, h = out.getSize()
+  local tall = h >= 7 and 3 or 1
+  local top = math.floor((h - 2 * tall - 1) / 2) + 1
+  local list = {}
+  for i, role in ipairs({ "server", "display" }) do
+    local y1 = top + (i - 1) * (tall + 1)
+    list[i] = { role = role, x1 = 2, x2 = w - 1, y1 = y1, y2 = y1 + tall - 1 }
+  end
+  return list
+end
+local function drawRoleButtons(out, list, selected)
+  out.setBackgroundColor(colors.black)
+  out.clear()
+  for i, b in ipairs(list) do
+    local on, width = i == selected, b.x2 - b.x1 + 1
+    local label = b.role:upper()
+    if on and #label + 4 <= width then label = "> " .. label .. " <" end
+    out.setBackgroundColor(on and colors.white or colors.gray)
+    out.setTextColor(on and colors.black or colors.white)
+    for y = b.y1, b.y2 do
+      local text = y == math.floor((b.y1 + b.y2) / 2) and label or ""
+      local left = math.floor((width - #text) / 2)
+      out.setCursorPos(b.x1, y)
+      out.write((string.rep(" ", left) .. text .. string.rep(" ", width)):sub(1, width))
+    end
+  end
+end
 local function choose()
   if turtle then return "worker" end
   if pocket then return "display" end
   local monitor = peripheral.find("monitor")
   local out = monitor or term
-  local options, selected = { "server", "display" }, monitor and 2 or 1
-  while true do
-    out.clear()
-    out.setCursorPos(1, 1)
-    out.write("Server-only role (arrows, Enter or touch)")
-    for i, role in ipairs(options) do
-      out.setCursorPos(1, i + 2)
-      out.write((selected == i and "> " or "  ") .. role)
+  local list, selected = roleButtons(out), monitor and 2 or 1
+  -- Reset the screen even when the picker is terminated or fails, then pass the error on.
+  local ok, role = pcall(function()
+    while true do
+      drawRoleButtons(out, list, selected)
+      local ev, a, x, y = os.pullEvent()
+      if ev == "key" then
+        if a == keys.up or a == keys.down then selected = 3 - selected end
+        if a == keys.enter then return list[selected].role end
+      elseif (ev == "mouse_click" and not monitor) or
+        (ev == "monitor_touch" and monitor and a == peripheral.getName(monitor)) then
+        for _, b in ipairs(list) do
+          if x >= b.x1 and x <= b.x2 and y >= b.y1 and y <= b.y2 then return b.role end
+        end
+      end
     end
-    local ev, a, _, y = os.pullEvent()
-    if ev == "key" then
-      if a == keys.up or a == keys.down then selected = 3 - selected end
-      if a == keys.enter then return options[selected] end
-    elseif (ev == "mouse_click" and not monitor) or
-      (ev == "monitor_touch" and monitor and a == peripheral.getName(monitor)) then
-      if y == 3 or y == 4 then return options[y - 2] end
-    end
-  end
+  end)
+  out.setBackgroundColor(colors.black)
+  out.setTextColor(colors.white)
+  out.clear()
+  out.setCursorPos(1, 1)
+  if not ok then error(role, 0) end
+  return role
 end
 local function position()
   local config = {}
