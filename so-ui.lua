@@ -360,6 +360,7 @@ U.st.turtle = function(C, x, y, t, width, pos, pfg, cut)
     C.put(x + 5, y, t.state:sub(1, math.max(0, width - 11)), U.st.fg(t.tone))
     C.put(x + width - 4, y, t.where:sub(1, 4), "8")
   end
+  C.hit("turtle:" .. tostring(t.id), x, y, width, 1)
 end
 -- "x,z" or "x,y,z", or "-" before the first known position.
 U.st.at = function(t, full)

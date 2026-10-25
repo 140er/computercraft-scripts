@@ -198,6 +198,8 @@ def terminal(m, view, w=51, h=19, title="Server terminal"):
             cv.put(2, y, "%3s" % r["id"], "0")
             cv.put(7, y, r.get("size", "-"), "8")
             cv.put(17, y, r["role"][:w - 17], "8" if r["role"] == "unassigned" else "0")
+            if r.get("label") and w > 29:
+                cv.put(28, y, r["label"][:w - 29], "0")
         for r in range(lines):
             cv.put(2, h - lines + r, notice[r * width:(r + 1) * width], "8")
         typed = view.get("input", "")

@@ -94,14 +94,39 @@ D.assign = function(id, role)
   if not ok then return false, "save failed: " .. tostring(err) end
   -- The next tick sends the new role; the command itself never renders.
   local session = D.sessions[id]
-  if session then session.pocket, session.page, session.visit, session.turtle, session.sent = nil, nil, nil, nil, -math.huge end
+  if session then
+    session.pocket, session.page, session.visit, session.turtle, session.alertList = nil, nil, nil, nil, nil
+    session.sent = -math.huge
+  end
   return true, "display " .. id .. ": " .. (role and D.label(role) or "cleared")
 end
 
--- Parses the server terminal's "<id> <role>" or "<id> -".
+-- Shows the id in large digits on that display alone for five seconds. Nothing is saved.
+D.identify = function(id)
+  local session = id == D.self() and D.monitor and D.monitor.session or D.sessions[id]
+  if not session or not session.w then return false, "display " .. id .. " not connected" end
+  session.identify, session.sent = D.now() + 5000, -math.huge
+  return true, "display " .. id .. ": identify 5 s"
+end
+
+-- Parses the server terminal's "<id> <role>", "<id> -", "<id> far on|off" and "<id> identify".
 D.command = function(text)
-  local id, role = tostring(text or ""):lower():match("^%s*(%d+)%s+(%S+)%s*$")
-  if not id then return false, "use <id> <role> or <id> -" end
+  local line = tostring(text or ""):lower()
+  local id, rest = line:match("^%s*(%d+)%s+far(.*)$")
+  if id and (rest == "" or rest:match("^%s")) then
+    local flag = rest:match("^%s+(%a+)%s*$")
+    if flag ~= "on" and flag ~= "off" then return false, "use <id> far on|off" end
+    id = tonumber(id)
+    if not D.isDisplay(id) then return false, "no display " .. id end
+    local ok, err = D.far(id, flag == "on")
+    if not ok then return false, "save failed: " .. tostring(err) end
+    return true, "display " .. id .. ": far " .. flag
+  end
+  id = line:match("^%s*(%d+)%s+identify%s*$")
+  if id then return D.identify(tonumber(id)) end
+  local role
+  id, role = line:match("^%s*(%d+)%s+(%S+)%s*$")
+  if not id then return false, "use <id> <role>, <id> far on|off or <id> identify" end
   return D.assign(tonumber(id), role)
 end
 
@@ -268,10 +293,12 @@ D.compose = function(role, w, h, session)
   local contentH = math.max(1, h - offset)
   local screen = D.screens[role]
   local picture
+  if session and session.identify and D.now() >= session.identify then session.identify = nil end
+  if session and session.identify then picture = D.idFrame(w, contentH, session.id, "IDENTIFY") end
   local glance = U and session and (role == "status" and screen and screen.render == D.statusRender
     or role == "pocket")
   local visit = session and session.visit and D.screens[session.visit]
-  if glance and visit then
+  if glance and visit and not picture then
     D.model = D.model or D.gather()
     picture = D.takeover(session, D.model, w, contentH, D.now())
   end
@@ -470,10 +497,11 @@ D.gather = function()
   end
   table.sort(model.alerts, function(a, b) return a.sequence < b.sequence end)
   model.alert = model.alerts[#model.alerts] and model.alerts[#model.alerts].text
-  local displays, stale = 0, 0
-  for _, session in pairs(D.sessions) do
-    if session.w then displays = displays + 1; if D.now() - session.sent > 10000 then stale = stale + 1 end end
+  local displays, staleIds = 0, {}
+  for id, session in pairs(D.sessions) do
+    if session.w then displays = displays + 1; if D.now() - session.sent > 10000 then staleIds[#staleIds + 1] = id end end
   end
+  local stale, staleText = #staleIds, D.staleText(staleIds)
   local points = drops and type(drops.list) == "function" and drops.list() or {}
   local broken = 0
   for _, point in ipairs(points) do if point.broken then broken = broken + 1 end end
@@ -500,8 +528,8 @@ D.gather = function()
     {label="ORE TODAY",value=today and tostring(today.ore) or "-",sub=today and ("+" .. today.oreRecent) or "no source",bg=today and "b" or "c"},
     {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "" or "no source",bg=today and "d" or "c"},
     {label="DISK",value=disk,sub=diskSub,bg=(diskState.pending or 0) > 0 and "e" or ratio and (ratio >= 0.8 and "e" or "d") or "c"},
-    {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d",
-      chips=chips(tostring(displays),"d",stale,"stale","1")},
+    {label="DISPLAYS",value=tostring(displays),sub=staleText or "all fresh",bg=stale > 0 and "1" or "d",
+      chips=staleText and {{tostring(displays),"d"},{staleText,"1"}} or {{tostring(displays),"d"}}},
     {label=broken>0 and "BROKEN" or "DROPS",value=tostring(broken>0 and broken or #points),sub="",bg=broken > 0 and "e" or "d",
       id=broken>0 and "broken" or nil,chips=chips(tostring(#points),"d",broken,"broken","1")},
   }
@@ -513,6 +541,16 @@ D.gather = function()
   model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
   for _, alert in ipairs(model.alerts) do model.log[#model.log + 1] = alert.text end
   return model
+end
+
+-- "#7 stale", "#7 #9 stale", or the two lowest ids and +N; nil when every display is fresh.
+D.staleText = function(ids)
+  if #ids == 0 then return nil end
+  table.sort(ids, function(a, b) return (tonumber(a) or 0) < (tonumber(b) or 0) end)
+  local names = {}
+  for i = 1, math.min(2, #ids) do names[i] = "#" .. tostring(ids[i]) end
+  if #ids > 2 then names[3] = "+" .. (#ids - 2) end
+  return table.concat(names, " ") .. " stale"
 end
 
 -- The server terminal's facts, without a mapView: counts, disk and the alert lines.
@@ -607,7 +645,7 @@ D.facts = function(model, machines, points, today, capacity, free)
   local flags = {}
   for _, t in ipairs(model.turtles) do
     if t.lost then
-      flags[#flags + 1] = { text = "#" .. t.id .. " lost", short = U.age(t.ago),
+      flags[#flags + 1] = { text = "#" .. t.id .. " lost", short = U.age(t.ago), hit = "turtle:" .. t.id,
         detail = (t.x and (t.x .. "," .. t.y .. "," .. t.z .. " " .. U.g.dot .. " ") or "") .. U.age(t.ago, true) }
     end
   end
@@ -731,8 +769,8 @@ D.takeover = function(session, model, w, h, now)
       end
     end
   end
-  if session.takeover and (session.showAlerts or now < (session.alertUntil or 0)) then
-    return D.alertFrame(model, session.takeover, w, h, not session.showAlerts and session.alertUntil - now or nil)
+  if session.takeover and now < (session.alertUntil or 0) then
+    return D.alertFrame(model, session.takeover, w, h, session.alertUntil - now)
   end
 end
 
@@ -780,8 +818,8 @@ D.subjectRows = function(s)
 end
 
 -- Coral frame and title chip, the subject's position and the detail, a map crop around the subject
--- from map.crop, and a coral tick row counting down the time left (none once opened by a tap).
--- A tap anywhere dismisses it. docs/ui/schematic/system.py alert is the twin.
+-- from map.crop, and a coral tick row counting down the time left.
+-- The #id chip opens its turtle; a tap anywhere else dismisses it. docs/ui/schematic/system.py alert is the twin.
 D.alertFrame = function(model, a, w, h, left)
   local C, s = U.canvas(w, h), D.subject(model, a)
   C.box(1, 1, w, h, "e")
@@ -793,6 +831,7 @@ D.alertFrame = function(model, a, w, h, left)
   local rest = #name > iw - 2 and s and s.id ~= nil
   local label = " " .. (rest and s.label or name):upper():sub(1, math.max(0, iw - 2)) .. " "
   local y = h >= 10 and 3 or 2
+  local chipY = y
   C.put(mx, y, label, "f", "e")
   if rest then
     for i, line in ipairs(D.wrap(text, iw)) do
@@ -819,6 +858,32 @@ D.alertFrame = function(model, a, w, h, left)
   end
   if left and h >= 8 then C.ticks(mx, h - 2, iw, U.filled(iw, left, 5000), "e") end
   C.hit("dismiss", 1, 1, w, h)
+  -- Clients take the last button drawn, so the chip goes after the dismiss hit.
+  if s and s.id ~= nil then C.hit("turtle:" .. s.id, mx, chipY, #label, 1) end
+  return C.frame()
+end
+
+-- Status ALERTS: every standing alert, newest first, a pager when they do not fit, and BACK.
+D.alertList = function(model, session, w, h)
+  local C, list = U.canvas(w, h), {}
+  for i = #model.alerts, 1, -1 do list[#list + 1] = model.alerts[i] end
+  C.bar("ALERTS", nil, nil, tostring(#list), #list > 0 and "e" or "8")
+  local top = h >= 6 and 3 or 2
+  local capacity = math.max(1, h - top - 1)
+  local pages = math.max(1, math.ceil(#list / capacity))
+  session.alertList = session.alertList % pages
+  if #list == 0 then C.put(2, top, "no alerts", "8") end
+  for i = 1, capacity do
+    local a = list[session.alertList * capacity + i]
+    if a then C.flag(2, top + i - 1, w - 2, tostring(a.text or ""), a.detail and tostring(a.detail)) end
+  end
+  C.chip(2, h, "BACK", "alerts-back")
+  if pages > 1 then
+    local note = (session.alertList + 1) .. "/" .. pages
+    C.chip(w - 7, h, U.g.left, "alert-prev")
+    C.chip(w - 3, h, U.g.right, "alert-next")
+    C.put(w - 8 - #note, h, note, "8")
+  end
   return C.frame()
 end
 
@@ -828,6 +893,7 @@ D.statusFrame = function(session, w, h, now, pocket)
   local model = D.model
   local alert = D.takeover(session, model, w, h, now)
   if alert then return alert end
+  if session.alertList then return D.alertList(model, session, w, h) end
   if pocket and D.screens.pocket then return D.screens.pocket.render(w, h, session) end
   local copy = {}
   for k, v in pairs(model) do copy[k] = v end
@@ -854,6 +920,9 @@ D.hello = function(msg)
   session = D.session(msg.from)
   session.isDisplay = display
   session.keyboard = body.keyboard == true
+  -- The computer label, printable and short, for the terminal's role list.
+  local label = type(body.label) == "string" and (body.label:gsub("[^\32-\126]", "")):sub(1, 32) or ""
+  session.label = label ~= "" and label or nil
   session.w = body.w
   session.h = U and D.acceptSize(body.w, body.fullH) and body.fullH or body.h
   if session.sub then D.sendFrame(msg.from, D.now(), true) end
@@ -909,16 +978,26 @@ end
 D.handle = function(role, session, event, now)
   local screen, own = D.screens[role], role
   if role == "status" or role == "pocket" then
-    if session.showAlerts or now < (session.alertUntil or 0) then
-      session.alertUntil, session.showAlerts = 0, false
+    if now < (session.alertUntil or 0) then
+      session.alertUntil = 0
+      -- The takeover's #id chip opens its turtle; any other tap dismisses it.
+      local target = Turtle and type(event.id) == "string" and event.id:match("^turtle:(%d+)$")
+      if target and session.takeover and tostring(session.takeover.id) == target then
+        D.gatherTurtles()
+        if D.details[target] then session.turtle = { id = target } end
+        return
+      end
       event.id = "dismiss"
     elseif session.visit then
+    elseif session.alertList and not session.turtle then
+      if event.id == "alerts-back" then session.alertList = nil
+      elseif event.id == "alert-next" then session.alertList = session.alertList + 1
+      elseif event.id == "alert-prev" then session.alertList = session.alertList - 1 end
+      return
     elseif event.id == "disk" and D.screens.disk then session.visit = "disk"; return
-    elseif role == "status" or not screen then
-      if event.id == "alerts" then
-        session.takeover = D.model and D.model.alerts[#D.model.alerts]
-        session.showAlerts = session.takeover ~= nil
-      end
+    elseif (role == "status" or not screen) and event.id == "alerts" and U then
+      session.alertList = 0
+      return
     end
     if role == "pocket" and (event.id == "dismiss" or not screen) then return end
   end
@@ -1094,7 +1173,8 @@ D.terminal = function(model, view, w, h)
   if not U and view.mode == "role" then
     local rows = { { text = "roles", fg = "0", bg = "f" } }
     for _, row in ipairs(view.displays or {}) do
-      rows[#rows + 1] = { text = row.id .. " " .. (row.size or "-") .. " " .. row.role, fg = "0", bg = "f" }
+      rows[#rows + 1] = { text = row.id .. " " .. (row.size or "-") .. " " .. row.role .. (row.label and " " .. row.label or ""),
+        fg = "0", bg = "f" }
     end
     rows[#rows + 1] = { text = tostring(view.notice or ""), fg = "0", bg = "f" }
     rows[#rows + 1] = { text = "> " .. tostring(view.input or "") .. "_", fg = "0", bg = "f" }
@@ -1140,6 +1220,7 @@ D.terminal = function(model, view, w, h)
       C.put(2, y, string.format("%3s", tostring(r.id)), "0")
       C.put(7, y, tostring(r.size or "-"), "8")
       C.put(17, y, tostring(r.role):sub(1, math.max(0, w - 17)), r.role == "unassigned" and "8" or "0")
+      if r.label and w > 29 then C.put(28, y, tostring(r.label):sub(1, w - 29), "0") end
     end
     for r = 1, lines do C.put(2, h - 1 - lines + r, notice:sub((r - 1) * width + 1, r * width), "8") end
     local keys, kx = { { "Enter", "set" }, { "Esc", "back" } }, w - 2
@@ -1188,15 +1269,16 @@ end
 -- Every known display for the terminal's role list, lowest id first.
 D.listing = function()
   local rows, seen = {}, {}
-  local function add(id, w, h, role)
+  local function add(id, w, h, role, label)
     if seen[id] then return end
     seen[id] = true
-    rows[#rows + 1] = { id = id, size = w and (w .. "x" .. h) or "-", role = D.label(role) }
+    rows[#rows + 1] = { id = id, size = w and (w .. "x" .. h) or "-", role = D.label(role), label = label }
   end
   local m, self = D.monitor, D.self()
-  if m and self then add(self, m.session.w, m.session.h, D.localRole()) end
+  local own = os.getComputerLabel and os.getComputerLabel()
+  if m and self then add(self, m.session.w, m.session.h, D.localRole(), type(own) == "string" and own ~= "" and own or nil) end
   for id, session in pairs(D.sessions) do
-    if session.w then add(id, session.w, session.h, D.roleOf(id)) end
+    if session.w then add(id, session.w, session.h, D.roleOf(id), session.label) end
   end
   for key in pairs(D.saved.roles) do
     local id = tonumber(key)
@@ -1222,11 +1304,14 @@ D.localTouch = function(side,x,y)
   local m = D.monitor
   if not m or side ~= m.name or not m.frame then return end
   local id
-  for _, b in ipairs(m.frame.buttons) do
+  -- The last button drawn wins, as on display.lua clients.
+  for i = #m.frame.buttons, 1, -1 do
+    local b = m.frame.buttons[i]
     if x >= b.x and x < b.x+b.w and y >= b.y and y < b.y+(b.h or 1) then id=b.id; break end
   end
   if not id then return end
-  m.pending = {id=id,x=x,y=y}
+  -- The tap acts and redraws at once instead of waiting for the next tick.
+  D.localDraw(D.now(), {id=id,x=x,y=y})
 end
 
 -- The server's own monitor shows the role saved under the server's id, or status.
@@ -1246,34 +1331,37 @@ D.localTick = function(now)
       else D.monitor.target=target end
     else D.monitor=nil end
   end
+  if D.monitor then D.localDraw(now) end
+end
+
+-- Handles one tap on the server's monitor, if any, and redraws it at the saved scale.
+D.localDraw = function(now, event)
   local m = D.monitor
-  if m then
-    local ok, err = pcall(function()
-      m.target.setTextScale(0.5)
-      local w,h = m.target.getSize()
-      m.session.w, m.session.h = w, h
-      local role = D.localRole()
-      if m.role ~= role then m.role, m.session.page, m.session.visit, m.session.turtle = role, nil, nil, nil end
-      local event = m.pending
-      m.pending = nil
-      if event and m.frame and m.frame.role ~= role then event = nil end
-      if event and not D.visibleInput(m.session, role, event.id) then event = nil end
-      if event and event.id:match("^dug%.") then
-        D.consent(event, role, w, h, m.session)
-      elseif event then
-        D.handle(role, m.session, event, now)
-      end
-      m.frame = D.compose(role,w,h,m.session)
-      D.paint(m.target,m.frame,w,h)
-      D.rememberFrame(m.session,m.frame)
-    end)
-    -- Log each new error, then rebuild the monitor on the next tick.
-    if not ok then
-      local line = "display: monitor " .. tostring(m.name) .. " failed: " .. tostring(err)
-      if line ~= D.monitorError then D.monitorError = line; (SO.error or print)(line) end
-      D.monitor, D.scanAt = nil, 0
-    else D.monitorError = nil end
-  end
+  local ok, err = pcall(function()
+    m.target.setTextScale(D.saved.far[tostring(D.self())] and 1 or 0.5)
+    local w,h = m.target.getSize()
+    m.session.w, m.session.h = w, h
+    local role = D.localRole()
+    if m.role ~= role then
+      m.role, m.session.page, m.session.visit, m.session.turtle, m.session.alertList = role, nil, nil, nil, nil
+    end
+    if event and m.frame and m.frame.role ~= role then event = nil end
+    if event and not D.visibleInput(m.session, role, event.id) then event = nil end
+    if event and event.id:match("^dug%.") then
+      D.consent(event, role, w, h, m.session)
+    elseif event then
+      D.handle(role, m.session, event, now)
+    end
+    m.frame = D.compose(role,w,h,m.session)
+    D.paint(m.target,m.frame,w,h)
+    D.rememberFrame(m.session,m.frame)
+  end)
+  -- Log each new error, then rebuild the monitor on the next tick.
+  if not ok then
+    local line = "display: monitor " .. tostring(m.name) .. " failed: " .. tostring(err)
+    if line ~= D.monitorError then D.monitorError = line; (SO.error or print)(line) end
+    D.monitor, D.scanAt = nil, 0
+  else D.monitorError = nil end
 end
 
 D.tick = function(now)
@@ -1333,6 +1421,7 @@ return {
   tick = D.tick,
   screen = D.register,
   far = D.far,
+  identify = D.identify,
   palette = D.palette,
   terminal = D.terminal,
   monitorTouch = D.localTouch,
