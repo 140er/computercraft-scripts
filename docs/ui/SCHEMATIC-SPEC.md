@@ -395,15 +395,17 @@ FLEET.
   and `continuous on`; the active chip is plain and the other off. Continuous mode shows
   a branch-count stepper with `set-branches-` and `set-branches+`, one branch per tap,
   bounded from 1 to 4096. Row 2 shows muted `fuel ~N` for the configured branch budget
-  and shaft round trip. Room monitors draw a preview of the first ten branches and the
-  footprint (`40 × 64`) behind a rule, or the ore chips while the list is open. The ore
-  editor has coal, copper, iron, gold, redstone, lapis, diamond, quartz, nether_gold and
+  and shaft round trip. Room monitors draw READY checks and available turtles behind
+  a rule, or the ore chips while the list is open. The ore editor has coal, copper,
+  iron, gold, redstone, lapis, diamond, quartz, nether_gold and
   ancient_debris chips. Tapping a chip preserves the other selected ores; an empty filter
   starts with every supported ore selected. Narrow screens wrap the ore chips under the
   ores row. If the inline ore list would clip, SETUP uses a dedicated ore editor with
   BACK. All ten filters remain reachable at 29x12, including while an alert is visible.
-  Older saves without an ore filter use the empty filter. Turtle add or remove are text
-  commands only; adding a turtle needs its position.
+  Older saves without an ore filter use the empty filter. READY gives each available
+  turtle an `add` chip that sends `add <id>` and finds its position and facing through
+  GPS. Explicit `add <id> <x> <y> <z> <n|e|s|w>` is the fallback. Removing turtles stays
+  text-only.
 
 ## 20. Lumber
 
@@ -541,7 +543,7 @@ from the `detail` and `draft` lines of `tests/ui/other-scene.txt` (the turtle
 ## 26. AR goggles
 
 `so-mod-ar.lua` draws the `ar` screen and the goggles canvas; `schematic/ar.py` is the screen's
-twin. Fixtures `ar-M/W/L/P/S/XS`, from the models in `tests/ui/ra3-ar.lua`.
+twin. Fixtures `ar-M/W/L/P/S/XS/A/AS`, from the models in `tests/ui/ra3-ar.lua`.
 
 - **Header:** `AR GOGGLES` and the controller count at the right (`1 controller`, `2
   controllers`), the number alone when the words do not fit.
@@ -550,14 +552,23 @@ twin. Fixtures `ar-M/W/L/P/S/XS`, from the models in `tests/ui/ra3-ar.lua`.
   The whole row is the toggle, with the layer name as its id. Leaders are 55 cells wide at
   most. Screens of 16 rows or more keep a blank row between rows; under 7 rows the section
   goes.
+- **Alerts:** when the goggles show an alert, an `ALERTS i/n` section follows the layer
+  rows, directly after them at step 1 or after one blank row at step 2. The next row has
+  a coral `!` and white alert text. Both rows are one `alert:next` hit; a tap steps to the
+  next alert. The section and text appear only where both rows fit.
 - **HUD:** one hairline-ruled panel at GUI `(4,72)` on translucent navy `f` (alpha E0): cells
-  of 64 units for TURTLES, ALERTS and DISK (BROKEN while a chest is broken), muted caps labels,
+  of 64 units for TURTLES, ALERTS and DISK, muted caps labels,
   white values, coral when a turtle is lost, an alert is active or the disk is at 80% or more.
+  While a chest is broken, BROKEN is a fourth tile on its own row at y + 29 under
+  TURTLES, ALERTS and DISK.
   Dim `c` rules split the cells and close the panel. An alert is a flag above it: a coral `!`,
-  white text and a coral hairline. No filled colour bars, and no rectangles overlap.
+  white text and a hairline, coral for the first 5 s, then hair. The flag stays while the
+  alert is active. With more than one alert, a grey `i/n` sits at its right end. No filled
+  colour bars, and no rectangles overlap.
 - **World:** single strokes, each edge drawn once and off the block faces. A turtle is a twelve-edge box
   with a two-line upright chevron just outside the face it faces (a `>` from the side, a tick
   from the front), and its `#id` above it.
   The box is white, blue while its lease holds just its cell (one outline, no lease box), or
-  coral, amber or grey for trouble; the label takes the state colour. Larger lease outlines are blue boxes; drops are small white boxes (coral when broken) with the
-  kind's first letter.
+  coral, amber or grey for trouble; the label takes the state colour. Larger lease outlines
+  are blue boxes; drops are small white boxes (coral when broken) with `#n`, the DROP POINTS
+  row number. Disabled room points draw grey with no beam and do not count in BROKEN.
