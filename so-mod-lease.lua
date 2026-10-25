@@ -656,6 +656,13 @@ S.ackOutcome = function(id)
   if record.status == "open" or record.status == "recovering" then return false, "lease not terminal" end
   local row = S.row(record.turtleId)
   local hold = record.status == "expired" or record.hold or row.restored
+  if not hold and row.bootRecovery and record.frame and record.report and record.report.pose
+    and (record.owner == "mine" or record.owner == "lumber" or record.owner == "build") then
+    local cells = S.module("cells")
+    local pose = S.rules().toWorld(record.frame,record.report.pose)
+    local ok, err = cells.reserve(record.owner .. ":" .. record.turtleId,pose.x,pose.y,pose.z,pose.dim)
+    if not ok then return false, err or "restart standing cell unavailable" end
+  end
   local nextRecord = SO.store.copy(record)
   if hold then nextRecord.status = "recovering" end
   local ok, err = S.persist(nextRecord, not hold)
@@ -948,6 +955,11 @@ S.report = function(msg, reply)
     if not success then accepted, lease.hold = nil, true
     elseif lease.reconcile and lease.frame then lease.pose=S.rules().toWorld(lease.frame,facts.pose) end
   end
+  if lease.journal then
+    for _, result in ipairs(results) do
+      if result.err == "journal changed" then accepted, lease.hold = nil, true end
+    end
+  end
   if lease.recovery and not lease.boundary and (not lease.report.pose or lease.report.uncertain) then
     accepted, lease.hold = nil, true
   end
@@ -965,6 +977,7 @@ S.report = function(msg, reply)
   row.uncertain = lease.report.uncertain
   if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
+  if not accepted then results, allOk = nil, false end
   if lease.boundary then
     if not boundaryOK then row.boundaryHold, row.reconciled, results, allOk = true, false, nil, false
     else row.boundaryHold, row.reconciled = nil, true end
