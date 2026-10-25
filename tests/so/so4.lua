@@ -3,7 +3,7 @@ local harness = dofile("tests/so/harness.lua")
 local function boot(files)
   local net = harness.new()
   local machine = net.machine({ id = 1, capacity = 16000000 })
-  machine.install({ "so-mod-cells.lua", "so-store.lua" })
+  machine.install({ "so-mod-cells.lua", "so-store.lua", "so-mod-lease.lua", "so-plan.lua" })
   for path, bytes in pairs(files or {}) do machine.files[path] = bytes end
   local env = machine.env
   env.fs.list = function(dir)
@@ -212,8 +212,16 @@ return function(test, equal)
   end)
 
   test("cells.forget requires a fresh token bound to sender and owner", function()
-    local c, _, net = boot()
-    assert(c.reserve("gone", 0, 0, 0))
+    local c, m, net = boot()
+    m.files["so-server.cfg"] = harness.encode({worldEdits=true})
+    m.env.SO.pair = {key=function() return "key" end}
+    m.env.SO.proto = {build=function(_,t,body) return {t=t,body=body} end, encode=function(v) return v end}
+    m.env.rednet.send = function() return true end
+    local lease = m.env.dofile("so-mod-lease.lua") m.env.SO.mods.lease = lease
+    lease.handlers.hello({from=9,body={role="worker",dim="minecraft:overworld",
+      capabilities={setupFence=true,parkBatch=true},journal={id="before",pose={x=0,y=0,z=0,f=0}}}})
+    net.time = net.time+300000
+    assert(c.reserve("setup:9", 0, 0, 0))
     local function request(sender, body)
       local answer
       c.handlers["cells.forget"]({ from = sender, body = body }, function(kind, data)
@@ -221,21 +229,26 @@ return function(test, equal)
       end)
       return assert(answer)
     end
-    local first = request(10, { who = "gone" })
+    local first = request(10, { who = "setup:9" })
     assert(first.data.confirm ~= nil)
-    equal(c.owner(0, 0, 0), "gone")
-    equal(request(11, { who = "gone", confirm = first.data.confirm }).kind, "err")
+    equal(c.owner(0, 0, 0), "setup:9")
+    equal(request(11, { who = "setup:9", confirm = first.data.confirm }).kind, "err")
     equal(request(10, { who = "other", confirm = first.data.confirm }).kind, "err")
-    equal(c.owner(0, 0, 0), "gone")
-    local fresh = request(10, { who = "gone" }).data.confirm
+    equal(c.owner(0, 0, 0), "setup:9")
+    local fresh = request(10, { who = "setup:9" }).data.confirm
     net.time = net.time + 30001
-    equal(request(10, { who = "gone", confirm = fresh }).kind, "err")
-    equal(c.owner(0, 0, 0), "gone")
-    local token = request(10, { who = "gone" }).data.confirm
-    local done = request(10, { who = "gone", confirm = token })
+    equal(request(10, { who = "setup:9", confirm = fresh }).kind, "err")
+    equal(c.owner(0, 0, 0), "setup:9")
+    local token = request(10, { who = "setup:9" }).data.confirm
+    local done = request(10, { who = "setup:9", confirm = token })
     assert(done.kind ~= "err")
+    equal(done.data.status,"pending")
+    equal(c.owner(0,0,0),"setup:9")
+    lease.handlers["step.report"]({from=9,body={lease=done.data.lease,journal="after",pose={x=0,y=0,z=0,f=0},
+      results={{ok=true,data={dim="minecraft:overworld",x=1,y=0,z=0}}}}})
     assert(c.isFree(0, 0, 0))
-    equal(request(10, { who = "gone", confirm = token }).kind, "err")
+    equal(c.owner(1,0,0),"gps:9")
+    equal(request(10, { who = "setup:9", confirm = token }).kind, "err")
     equal(request(10, {}).kind, "err")
   end)
 

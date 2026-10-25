@@ -1,6 +1,6 @@
 local S = {
   reservations = {}, pendingReleases = {}, handoffs = {}, sections = {}, sizes = {}, cached = 0, dug = 0,
-  clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
+  bootAt = SO.now(), edits = {}, releases = {}, clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
   root = "so-data/cells/",
   bytes = {}, used = {}, versions = {}, total = 0, migrations = 0, threshold = 1000000, target = 650000,
   columns = {}, indexed = {}, stamps = {}, columnsVersion = 0, marks = 0, reservedVersion = 0, reservedCache = {},
@@ -551,27 +551,191 @@ S.emit = function()
   end
 end
 
+S.releaseReady = function(who)
+  if (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then return nil, "world edits disabled" end
+  local id = type(who) == "string" and tonumber(who:match("^[%a]+:(%d+)$"))
+  if not id or #S.list(who, 1) == 0 then return nil, "unknown holder" end
+  if S.pendingReleases[who] then return nil, "owner release unresolved" end
+  local lease = SO.mods.lease
+  if not lease or not lease.releaseReady then return nil, "lease unavailable" end
+  local contact, err = lease.releaseReady(id, S.bootAt)
+  if not contact then return nil, err end
+  return {id=id, contact=contact}
+end
+
+S.releaseRequest = function(who, actor, token)
+  if not S.whoValid(actor) then return nil, "actor" end
+  local ready, err = S.releaseReady(who)
+  if not ready then return nil, err end
+  local now, offer = SO.now(), S.confirmations[actor]
+  if token == nil then
+    S.serial = S.serial + 1
+    offer = {who=who, actor=actor, token=now..":"..S.serial, untilAt=now+30000,
+      reservations=S.reservations, contact=ready.contact}
+    S.confirmations[actor] = offer
+    return {status="confirm", token=offer.token, untilAt=offer.untilAt, who=who}
+  end
+  S.confirmations[actor] = nil
+  if not offer or offer.token ~= token or offer.who ~= who or now > offer.untilAt
+    or offer.reservations ~= S.reservations or offer.contact ~= ready.contact then return nil, "invalid confirmation" end
+  local attempt = {status="pending", who=who}
+  S.releases[who] = attempt
+  local holds = SO.store.copy(S.releaseHolds)
+  for key, held in pairs(S.reservations) do if held == who then holds[key] = held end end
+  local held, holdErr = S.releaseBox.save(holds)
+  if not held then attempt.status="held" return nil, holdErr end
+  S.releaseHolds = holds
+  local lid, reason = SO.mods.lease.releaseFence(ready.id, ready.contact, function(pose)
+    if not pose or S.reservations ~= offer.reservations or (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then
+      attempt.status="held" return false
+    end
+    local key = S.cell(pose.x,pose.y,pose.z,pose.dim)
+    local held = S.reservations[key]
+    local occupied = "gps:"..ready.id
+    if held and held ~= who and held ~= occupied then attempt.status="held" return false end
+    if S.policyDirty and not S.savePolicy(S.policy) then attempt.status="held" return false end
+    local pending = S.pendingReleases[occupied]
+    if pending then
+      pending[key] = nil
+      if next(pending) == nil then S.pendingReleases[occupied] = nil end
+    end
+    local copy, count = S.copyReservations(), 0
+    for _, owner in pairs(copy) do if owner == who then count = count+1 end end
+    copy[key] = occupied
+    local ok, saveErr = S.commit(copy)
+    if ok then
+      copy = S.copyReservations()
+      for cell, owner in pairs(copy) do if owner == who and cell ~= key then copy[cell] = nil end end
+      ok, saveErr = S.commit(copy)
+    end
+    attempt.status, attempt.error = ok and "released" or "held", saveErr
+    if not ok then return false end
+    S.pendingReleases[who], S.pendingReleases[occupied] = nil, nil
+    local remaining = SO.store.copy(S.releaseHolds)
+    for cell, owner in pairs(remaining) do if owner == who then remaining[cell] = nil end end
+    -- A failed cleanup may restore extra holds after restart. It cannot lose a route.
+    if S.releaseBox.save(remaining) then S.releaseHolds = remaining end
+    attempt.count = count
+    S.events[#S.events+1] = {who=who,count=count}
+    return true
+  end)
+  if not lid then attempt.status="held" return nil, reason end
+  attempt.lease = lid
+  return SO.store.copy(attempt)
+end
+
+S.releaseStatus = function(who) return SO.store.copy(S.releases[who]) end
+
 S.onForget = function(msg, reply)
   local body = msg.body
-  if type(body) ~= "table" or not S.whoValid(body.who) or not S.whoValid(msg.from) then
-    reply("err", { code = "bad", text = "bad owner" }) return
+  if type(body) ~= "table" or not S.whoValid(body.who) then
+    reply("err", {code="bad",text="bad owner"}) return
   end
-  local now, pending = SO.now(), S.confirmations[msg.from]
-  if body.confirm == nil then
-    S.serial = S.serial + 1
-    local token = tostring(now) .. ":" .. tostring(S.serial)
-    S.confirmations[msg.from] = { who = body.who, token = token, untilAt = now + 30000 }
-    reply("cells.forget", { confirm = token })
-    return
+  local result, err = S.releaseRequest(body.who, msg.from, body.confirm)
+  if not result then reply("err", {code="release",text=tostring(err)})
+  elseif result.status == "confirm" then reply("cells.forget", {confirm=result.token})
+  else reply("ack", {ok=true,who=body.who,status=result.status,lease=result.lease}) end
+end
+
+S.normalBoxes = function(boxes)
+  local value = {v=1,revision=0,boxes=SO.store.copy(boxes)}
+  if type(value.boxes) ~= "table" then return nil end
+  local plan = dofile("so-plan.lua")
+  for _, box in ipairs(value.boxes) do
+    if type(box) == "table" then
+      box.dim = plan.dimension(box.dim)
+      for _, axis in ipairs({"x","y","z"}) do
+        local a,b = box[axis.."1"],box[axis.."2"]
+        if type(a)=="number" and type(b)=="number" and a>b then box[axis.."1"],box[axis.."2"]=b,a end
+      end
+    end
   end
-  if not pending or pending.token ~= body.confirm or pending.who ~= body.who or now > pending.untilAt then
-    reply("err", { code = "confirm", text = "invalid confirmation" }) return
+  return S.protectedValid(value) and value.boxes or nil
+end
+
+S.keep = function(boxes)
+  if boxes == nil then return SO.store.copy(S.policy.keepBoxes or {}) end
+  if (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then return false, "world edits disabled" end
+  boxes = S.normalBoxes(boxes)
+  if not boxes then return false, "invalid keep boxes" end
+  local policy = SO.store.copy(S.policy)
+  policy.keepBoxes = boxes
+  return S.savePolicy(policy)
+end
+
+S.clearMarks = function(box, actor, token)
+  if (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then return nil, "world edits disabled" end
+  if not S.whoValid(actor) or type(box) ~= "table" then return nil, "selection" end
+  box = SO.store.copy(box) box.id = "selection"
+  local boxes = S.normalBoxes({box})
+  if not boxes then return nil, "selection" end
+  box = boxes[1]
+  local paths = {}
+  for x=math.floor(box.x1/16),math.floor(box.x2/16) do
+    for y=math.floor(box.y1/16),math.floor(box.y2/16) do
+      for z=math.floor(box.z1/16),math.floor(box.z2/16) do
+        if #paths == 64 then return nil, "selection exceeds 64 sections" end
+        paths[#paths+1] = S.root..S.dimension(box.dim).."/"..string.format("%.0f_%.0f_%.0f",x+0,y+0,z+0)
+      end
+    end
   end
-  S.confirmations[msg.from] = nil
-  local ok, count = S.forgetOwner(body.who)
-  S.emit()
-  if ok then reply("ack", { ok = true, who = body.who, count = count })
-  else reply("err", { code = "store", text = tostring(count) }) end
+  local protected = S.protection(true)
+  if not protected then return nil, "unresolved recovery" end
+  for _, path in ipairs(paths) do if protected(path) then return nil, "work or recovery intersects selection" end end
+  local offer, now = S.edits[actor], SO.now()
+  if not token then
+    S.serial = S.serial+1
+    S.edits[actor] = {token=now..":marks:"..S.serial,untilAt=now+30000,box=box,
+      marks=S.marks,reservations=S.reservations}
+    return {status="confirm",token=S.edits[actor].token,sections=#paths,box=SO.store.copy(box)}
+  end
+  S.edits[actor] = nil
+  if not offer or offer.token ~= token or now > offer.untilAt or offer.marks ~= S.marks
+    or offer.reservations ~= S.reservations then return nil, "invalid confirmation" end
+  for k,v in pairs(box) do if offer.box[k] ~= v then return nil, "selection changed" end end
+  local result, changed = {status="cleared",saved=0,total=#paths,marks=0}, {}
+  for _, path in ipairs(paths) do
+    local exists = fs.exists(path) or fs.exists(path..".bak") or fs.exists(path..".tmp")
+    if exists then
+      local section, err = S.section(path)
+      if not section then result.error=err break end
+      local value, removed = SO.store.copy(section.value), 0
+      local stamp = S.stamps[path]
+      local sx,sy,sz = path:match("/(%-?%d+)_(%-?%d+)_(%-?%d+)$")
+      for z=math.max(box.z1,tonumber(sz)*16),math.min(box.z2,tonumber(sz)*16+15) do
+        for y=math.max(box.y1,tonumber(sy)*16),math.min(box.y2,tonumber(sy)*16+15) do
+          for x=math.max(box.x1,tonumber(sx)*16),math.min(box.x2,tonumber(sx)*16+15) do
+            local index=x%16+16*(y%16)+256*(z%16)
+            if S.bit(value.bits,index) then value.bits=S.bit(value.bits,index,false) removed=removed+1 end
+          end
+        end
+      end
+      if removed > 0 then
+        local reservations = S.reservations
+        local current = S.protection(true)
+        if not current or current(path) or S.reservations ~= reservations or S.stamps[path] ~= stamp
+          or (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then
+          result.error="selection became protected or changed" break
+        end
+        local ok
+        ok, err = section.box.save(value)
+        if not ok then result.error, result.uncertain = err, path break end
+        S.sizes[path], S.dug = S.sizes[path]-removed, S.dug-removed
+        if section.migrating then S.migrations = S.migrations-1 end
+        S.sections[path], S.cached = nil, S.cached-1
+        S.measure(path)
+        S.changed(path)
+        if S.sizes[path] == 0 then S.index(path,false) end
+        changed[path] = true
+        result.saved, result.marks = result.saved+1, result.marks+removed
+      end
+    end
+    S.pause()
+  end
+  if result.error then result.status="partial" end
+  local mine = SO.mods.mine
+  if next(changed) and mine and mine.forgetDug then mine.forgetDug(changed) end
+  return result
 end
 
 S.policyValid = function(value)
@@ -580,6 +744,7 @@ S.policyValid = function(value)
   if value.pressureAfter ~= nil and (type(value.pressureAfter) ~= "number" or value.pressureAfter ~= value.pressureAfter
     or value.pressureAfter < 0 or value.pressureAfter >= math.huge) then return false end
   if value.serial ~= nil and (type(value.serial) ~= "number" or value.serial < 0 or value.serial % 1 ~= 0) then return false end
+  if value.keepBoxes ~= nil and not S.protectedValid({v=1,revision=0,boxes=value.keepBoxes}) then return false end
   local function point(p)
     if type(p) ~= "table" or type(p.dim) ~= "string" then return false end
     for _, axis in ipairs({ "x", "y", "z" }) do
@@ -607,8 +772,8 @@ S.rememberWorker = function(id, pose, dug)
   S.policyDirty = true
 end
 
-S.protection = function()
-  local boxes, reserved = {}, {}
+S.protection = function(marksOnly)
+  local boxes, reserved = marksOnly and {} or SO.store.copy(S.policy.keepBoxes or {}), {}
   local function protect(dim, value, margin)
     local bounds
     local function visit(v)
@@ -637,6 +802,13 @@ S.protection = function()
     if not path then return nil end
     reserved[path] = true
     S.pause()
+  end
+  if marksOnly then
+    for key in pairs(S.releaseHolds) do
+      local path = key:match("^(.*):%d+$")
+      if not path then return nil end
+      reserved[path] = true
+    end
   end
   for _, worker in pairs(S.policy.workers) do
     protect(worker.pose.dim, worker.pose, 48)
@@ -806,6 +978,9 @@ S.tick = function(now)
   for sender, pending in pairs(S.confirmations) do
     if (now or SO.now()) > pending.untilAt then S.confirmations[sender] = nil end
   end
+  for actor, offer in pairs(S.edits) do
+    if now > offer.untilAt then S.edits[actor] = nil end
+  end
   local state = SO.mods.state
   if not S.view and type(state) == "table" then
     local view = state.view
@@ -826,6 +1001,11 @@ S.loading = true
 fs.makeDir(S.root)
 S.box = SO.store.store(S.root .. "res", S.resValid)
 S.reservations = S.box.value or {}
+S.releaseBox = SO.store.store(S.root .. "release-holds", S.resValid)
+S.releaseHolds = S.releaseBox.value or {}
+for key, who in pairs(S.releaseHolds) do
+  if S.reservations[key] == nil then S.reservations[key] = who end
+end
 S.protectionEnabled = SO.store.read and (SO.store.read("so-server.cfg") or {}).protectedAreas == true
 local protectionOK, protectionBox = pcall(SO.store.store, S.root .. "protected", S.protectedValid, 32768)
 S.protectedBox = protectionOK and protectionBox or nil
@@ -840,6 +1020,7 @@ for _, suffix in ipairs({"", ".bak", ".tmp"}) do
 end
 for _, dim in ipairs(fs.list(S.root)) do
   if dim ~= "res" and dim ~= "res.tmp" and dim ~= "res.bak"
+    and dim ~= "release-holds" and dim ~= "release-holds.tmp" and dim ~= "release-holds.bak"
     and dim ~= "protected" and dim ~= "protected.tmp" and dim ~= "protected.bak" then
     local directory = S.root .. dim
     if not fs.isDir or fs.isDir(directory) then
@@ -861,6 +1042,7 @@ S.loading = false
 return {
   name = "cells", handlers = { ["cells.forget"] = S.onForget }, tick = S.tick,
   prepareHandoff = S.prepareHandoff, handoff = S.handoff, reserve = S.reserve, reserveMany = S.reserveMany, release = S.release,
+  releaseRequest = S.releaseRequest, releaseStatus = S.releaseStatus, clearMarks = S.clearMarks, keep = S.keep,
   releaseOwner = S.releaseOwner, forgetOwner = S.forgetOwner, owner = S.owner, holder = S.holder,
   isFree = function(x, y, z, dim) return S.owner(x, y, z, dim) == nil end,
   retirement = S.retirement, decideRetirement = S.decideRetirement, rememberWorker = S.rememberWorker,

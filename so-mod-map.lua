@@ -862,6 +862,14 @@ M.callout = function(v, s, pick)
     end
     local silent = held and M.silence(s, held.who)
     if silent then rows[#rows+1] = {"text", {{0, silent, "8"}}} end
+    v.releaseWho = held and held.who or nil
+    if held and M.config and M.config.worldEdits == true then
+      local outcome = M.call("cells", "releaseStatus", held.who)
+      local text = outcome and outcome.status == "pending" and "WAIT GPS"
+        or outcome and outcome.status == "held" and "HELD" or v.releaseError
+      if text then rows[#rows+1] = {"text", {{0,text,"8"}}} end
+      rows[#rows+1] = {"chip", v.releaseToken and v.releaseOwner == held.who and "RELEASE?" or "RELEASE", "map-release"}
+    end
     return {"3", pick.x, pick.z, rows}
   end
 end
@@ -1044,6 +1052,7 @@ M.render = function(w, h, session, tries)
   v.mw, v.mh, v.L, v.h = L.mw, L.mh, L, h
   local key = M.prepare(v, s)
   local p = v.pick or {}
+  v.releaseWho = nil
   local got = v.pick and M.callout(v, s, v.pick)
   local detail = {}
   for _, row in ipairs(got and got[4] or {}) do
@@ -1175,7 +1184,21 @@ M.input = function(event)
   local g, surface = s.g, M.surface(s)
   local drop = type(id) == "string" and id:match("^map%-drop:(.+)$")
   v.extra = nil
-  if id == "map-broken" or id == "map-focus" or drop then M.focusBroken(v, s, drop)
+  if id == "map-release" then
+    if not M.config or M.config.worldEdits ~= true or not v.releaseWho or not v.frame then return end
+    local drawn = false
+    local y = event.y and event.y-math.max(0,(event.session.h or v.h)-v.h)
+    for _, b in ipairs(v.frame.buttons or {}) do
+      if b.id == id and event.x and y and event.x >= b.x and event.x < b.x+b.w
+        and y >= b.y and y < b.y+(b.h or 1) then drawn=true break end
+    end
+    if not drawn then return end
+    local token = v.releaseOwner == v.releaseWho and v.releaseToken or nil
+    local result, err = M.call("cells", "releaseRequest", v.releaseWho,
+      event.from or event.session.id or "local", token)
+    v.releaseOwner, v.releaseToken, v.releaseError = v.releaseWho, result and result.token, err
+    v.fkey = nil
+  elseif id == "map-broken" or id == "map-focus" or drop then M.focusBroken(v, s, drop)
   elseif id == "map-dim" and M.config and M.config.remoteDimensions == true then
     v.dim = M.nextDim[v.dim or s.dim] or "minecraft:overworld"
     v.fit, v.pick, v.colsKey = true, nil, nil
