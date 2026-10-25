@@ -21,6 +21,7 @@ from checks.model import Blocked, Result, Verdict
 
 ROOT = Path(__file__).resolve().parents[2]
 MAPPING = (
+    (r"^(?:worker|install)\.lua$", ("C16",)),
     (r"(?:so-mod-mine|so-mine-plan|so-mod-lease)", ("C5", "C7", "C8", "C10")),
     (r"(?:^|/)(?:display|so-mod-display|so-ui|screens)(?:[./-]|$)", ("C3", "C4")),
     (r"so-mod-ar", ("C13",)),
@@ -221,6 +222,8 @@ def main(argv=None):
     parser.add_argument("--sha", default="origin/server-only", help="Build for explicit --checks")
     parser.add_argument("--worlds", type=int, default=2)
     parser.add_argument("--tick-rate", type=float, default=20)
+    parser.add_argument("--c16-fake-remaining", type=int, choices=range(3), default=0,
+                        help="C16 HTTP refusal response's remaining quota, default 0")
     parser.add_argument("--load-wait-timeout", type=int, default=300, metavar="SECONDS",
                         help="Wait up to SECONDS for load1 below 8 at each admission, default 300")
     parser.add_argument("--output", type=Path)
@@ -292,6 +295,7 @@ def main(argv=None):
                             if check in finished: continue
                         ctx = Context(runtime, world, {}, output/check, commit, rates[check])
                         ctx.load_wait_timeout = args.load_wait_timeout
+                        ctx.c16_fake_remaining = args.c16_fake_remaining
                         ctx.collect = args.collect_photos.resolve() if args.collect_photos and check in ("C3", "C13") else None
                         if check == "C3" and "C1" in selected:
                             def linked_install():
