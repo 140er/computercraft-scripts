@@ -15,7 +15,7 @@ local M = { planes = {}, keys = {}, columns = {}, layouts = {}, aux = {}, serial
   pan = {["map-n"]={0,-1},["map-e"]={1,0},["map-s"]={0,1},["map-w"]={-1,0}},
   prefer = {"r","l","ur","dr","ul","dl","u","d"}, east = {"ur","dr","r","ul","dl","l"}, along = {"r","l","ur","dr"},
   drop = {"r","l","d","dr","dl","u","ur","ul"}, farm = {"u","ur","r"},
-  compass = "\24N", hex = {}, bitsOf = {}, scenes = {},
+  compass = "\24N", hex = {}, bitsOf = {}, scenes = {}, trails = {}, trailVersion = 0, trailCursor = 0,
   -- The dimension chip (remoteDimensions only): its label and the next dimension.
   dimLabel = {["minecraft:overworld"]="OVER",["minecraft:the_nether"]="NETH",["minecraft:the_end"]="END"},
   nextDim = {["minecraft:overworld"]="minecraft:the_nether",["minecraft:the_nether"]="minecraft:the_end",
@@ -98,6 +98,7 @@ M.gather = function(now, pick)
     jobs[tostring(row.id or id)] = {pose=row.pose, dim=row.dim or lumber.dim,
       state=row.state == "lumber" and (M.phases[row.phase] or "working") or row.state}
   end
+  M.workers = jobs
   for id, row in pairs(jobs) do
     local machine = machines[id] or machines[tonumber(id)] or {}
     local p = row.pose or machine.pose
@@ -156,6 +157,37 @@ M.gather = function(now, pick)
   M.version = M.version or 0
   M.scenes[dim] = s
   return s
+end
+-- Refresh one worker per tick. History returns its newest 20 pose events in one page.
+M.readTrail = function()
+  local ids = {}
+  for id in pairs(M.workers or {}) do ids[#ids+1] = id end
+  for id in pairs(M.trails) do
+    if not M.workers[id] then M.trails[id] = nil M.trailVersion = M.trailVersion + 1 end
+  end
+  table.sort(ids)
+  if #ids == 0 then M.trailCursor = 0 return end
+  local state = SO.mods.state
+  if not (state and state.history and type(state.history.page) == "function") then return end
+  M.trailCursor = M.trailCursor % #ids + 1
+  local id = ids[M.trailCursor]
+  local page = state.history.page({reverse=true, kind="pose", id=tonumber(id) or id, count=20})
+  local poses, sig = {}, {}
+  for i, ev in ipairs(page.entries) do
+    if i > 20 then break end
+    local p = ev.data
+    if type(p) == "table" and tostring(p.id) == id and type(p.x) == "number"
+        and type(p.y) == "number" and type(p.z) == "number" then
+      local dim = M.dim(p.dim)
+      poses[#poses+1] = {dim=dim, x=p.x, y=p.y, z=p.z}
+      sig[#sig+1] = table.concat({ev.seq, dim, p.x, p.y, p.z}, ",")
+    end
+  end
+  sig = table.concat(sig, ";")
+  if not M.trails[id] or M.trails[id].sig ~= sig then
+    M.trails[id] = {poses=poses, sig=sig}
+    M.trailVersion = M.trailVersion + 1
+  end
 end
 -- The scene a view shows: its own dimension with remoteDimensions on, else the server's.
 M.selected = function(v)
@@ -558,6 +590,15 @@ M.draw = function(C, v, s, ox, oy, pick, dropLabel)
   for i, c in pairs(v.base) do
     C.put(ox + c[1], oy + c[2], c[3], c[4])
     occ[i] = "line"
+  end
+  -- Trails do not affect label placement. Markers, labels and callouts draw over them.
+  for _, trail in pairs(M.trails) do
+    for _, p in ipairs(trail.poses) do
+      if p.dim == s.dim and M.near(p, v.level) then
+        local cx, cy = M.cellOf(v, p.x, p.z)
+        if cx then C.put(ox + cx, oy + cy, U.g.dot, "8") end
+      end
+    end
   end
   local farmLabel
   if M.farmOn(s, v.level) then
@@ -969,7 +1010,7 @@ M.render = function(w, h, session, tries)
       for _, part in ipairs(row[2]) do detail[#detail+1] = part[2] end
     else detail[#detail+1] = row[2] .. ":" .. row[3] end
   end
-  local fkey = table.concat({key, w, h, s.markers, table.concat(detail, ";"), tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
+  local fkey = table.concat({key, w, h, s.markers, M.trailVersion, table.concat(detail, ";"), tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
   if v.frame and v.fkey == fkey then return v.frame end
   local C = U.canvas(w, h)
   v.taken = M.draw(C, v, s, L.mx, L.my, v.pick)
@@ -1113,6 +1154,7 @@ return {name="map",handlers={},render=M.render,input=M.input,thumb=M.thumb,crop=
     if M.config.remoteDimensions == true then
       for _, dim in pairs(M.dimensions) do if dim ~= M.scene.dim then M.gather(now, dim) end end
     end
+    M.readTrail()
     M.revalidate()
   end
 end}

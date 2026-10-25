@@ -206,7 +206,150 @@ local function compass(frame, w, v)
   end
 end
 
+local function trailSetup(two)
+  local s = setup()
+  s.mine, s.lumber, s.scene.drops = {}, {}, {}
+  local m = s.machine
+  m.files["so-server.cfg"] = H.encode({remoteDimensions=true})
+  m.install({"so-log.lua", "so-mod-state.lua"})
+  local state = m.env.dofile("so-mod-state.lua")
+  m.env.SO.mods.state = state
+  state.emit("machine", {id=8, role="worker", pose={x=0,y=64,z=0,facing=1}})
+  if two then
+    state.emit("machine", {id=9, role="worker", pose={x=5,y=64,z=2,facing=0}})
+    s.scene.drops = {{id=1,kind="ore",dim=0,x=-5,y=64,z=0}}
+  end
+  s.pageCalls = {}
+  local page = state.history.page
+  state.history.page = function(q)
+    s.pageCalls[#s.pageCalls+1] = q
+    return page(q)
+  end
+  s.pose = function(id, x, y, z, dim)
+    assert(state.emit("pose", {id=id,x=x,y=y,z=z,dim=dim or "minecraft:overworld",facing=1}))
+  end
+  s.reloadMap()
+  return s, state
+end
+
 return function(test,equal)
+  test("map trail asserts every cell and stays under the worker glyph at 26x20", function()
+    local s = trailSetup()
+    for x = -5, -1 do s.pose(8,x,64,-3) end
+    s.pose(8,3,64,-3,"minecraft:the_nether")
+    s.pose(8,4,70,-3)
+    s.pose(8,5,63,-3)
+    s.pose(8,1000,64,-3)
+    s.pose(8,0,64,0)
+    local session = {map={fit=false,sx=1,sz=1,cx=0,cz=0,level=64}}
+    local before = picture(s.settle(26,20,session),26,20)
+    equal(#s.pageCalls,0,"render does not read history")
+    s.step()
+    equal(#s.pageCalls,1)
+    equal(s.pageCalls[1],{reverse=true,kind="pose",id=8,count=20})
+    local frame = s.screen.render(26,20,session)
+    local out, v = picture(frame,26,20), session.map
+    local dots = {}
+    for _, x in ipairs({-5,-4,-3,-2,-1,5}) do
+      local cx, cy = at(v,x,-3)
+      dots[cy*26+cx] = true
+    end
+    for y = 1, 20 do for x = 1, 26 do
+      local got, want = out.cells[y][x], before.cells[y][x]
+      if dots[y*26+x] then equal(got,{U.g.dot,"8","f"},"trail cell "..x..","..y)
+      elseif want[1] == " " then
+        equal(got[1],want[1],"blank cell "..x..","..y)
+        equal(got[3],want[3],"blank background "..x..","..y)
+      else equal(got,want,"unchanged cell "..x..","..y) end
+    end end
+    equal(cell(out,v,0,0)[1],U.g.right,"worker glyph covers its latest pose")
+    s.step()
+    equal(s.screen.render(26,20,session),frame,"unchanged history keeps the cached frame")
+    equal(#s.pageCalls,2,"one page on each active tick")
+    session.map.dim = "minecraft:the_nether"
+    out = picture(s.screen.render(26,20,session),26,20)
+    equal(cell(out,v,3,-3)[1],U.g.dot,"trail follows its event dimension")
+    equal(cell(out,v,-5,-3)[1]," ","overworld trail is absent in the Nether")
+    equal(#s.pageCalls,2,"dimension renders do not read history")
+  end)
+
+  test("map trail keeps only the newest 20 poses and refreshes a stationary worker", function()
+    local s, state = trailSetup()
+    s.mine.turtles = {["8"]={pose={x=0,y=64,z=0,facing=1}}}
+    for x = -10, 10 do s.pose(8,x,64,-4) end
+    local session = {map={fit=false,sx=1,sz=1,cx=0,cz=0,level=64}}
+    s.settle(26,20,session) s.step()
+    local out, v = picture(s.screen.render(26,20,session),26,20), session.map
+    equal(cell(out,v,-10,-4)[1]," ","the 21st oldest pose is absent")
+    for x = -9, 10 do equal(cell(out,v,x,-4)[1],U.g.dot,"retained pose "..x) end
+    s.pose(8,-10,64,-3)
+    s.step()
+    out = picture(s.screen.render(26,20,session),26,20)
+    equal(cell(out,v,-9,-4)[1]," ","the oldest dot leaves the cached frame")
+    equal(cell(out,v,-10,-3)[1],U.g.dot,"new history invalidates the frame")
+    -- Poses age out by count, even when their game time is old.
+    s.net.advance(3600)
+    s.screen.render(26,20,session) s.step()
+    out = picture(s.screen.render(26,20,session),26,20)
+    equal(cell(out,v,-10,-3)[1],U.g.dot)
+    state.get = function() return {} end
+    s.mine.turtles = {}
+    local calls = #s.pageCalls
+    s.step()
+    out = picture(s.screen.render(26,20,session),26,20)
+    equal(cell(out,v,-10,-3)[1]," ","removed workers leave no trail")
+    equal(#s.pageCalls,calls,"no history reads without workers")
+  end)
+
+  for _, size in ipairs({{26,20},{57,24},{100,38},{164,81}}) do
+    local w, h = size[1], size[2]
+    test("map trail stays below worker and chest labels and callouts at "..w.."x"..h, function()
+      for _, pick in ipairs({false,{k="turtle",id="8"},{k="drop",id="1"}}) do
+        local s = trailSetup(true)
+        local session = {map={fit=false,sx=1,sz=1,cx=0,cz=0,level=64,pick=pick or nil}}
+        local before = picture(s.settle(w,h,session),w,h)
+        local v, targets, blanks = session.map, {}, {}
+        for cy = 0, v.mh-1 do for cx = 0, v.mw-1 do
+          local c = before.cells[v.L.my+cy][v.L.mx+cx]
+          if c[1]:match("%w") then targets[#targets+1] = {cx,cy}
+          elseif v.box and cx > v.box[1] and cx < v.box[1]+v.box[3]-1
+              and cy > v.box[2] and cy < v.box[2]+v.box[4]-1 and c[1] == " " then
+            blanks[#blanks+1] = {cx,cy}
+          end
+        end end
+        if not pick then
+          local text = table.concat(before.picture().text,"\n")
+          for _, label in ipairs({"8 idle","9 idle","ore"}) do assert(text:find(label,1,true),text) end
+          assert(#targets <= 20,"the fixture covers every label character")
+        end
+        for i = 1, math.min(20,#targets) do
+          local p = targets[i]
+          s.pose(8,v.left+p[1],64,v.top+p[2])
+        end
+        for i = 1, math.min(20,#blanks) do
+          local p = blanks[i]
+          s.pose(9,v.left+p[1],64,v.top+p[2])
+        end
+        -- Keep the fixture's marker poses fixed while the historical paths change.
+        s.machine.env.SO.mods.state.get = function()
+          return {['8']={role="worker",pose={x=0,y=64,z=0,facing=1}},
+            ['9']={role="worker",pose={x=5,y=64,z=2,facing=0}}}
+        end
+        s.step() s.step()
+        equal(#s.pageCalls,2,"two workers share one page per tick across three dimensions")
+        equal(s.pageCalls[1].id,8) equal(s.pageCalls[2].id,9)
+        local out = picture(s.screen.render(w,h,session),w,h)
+        for y = 1, h do for x = 1, w do
+          local c = before.cells[y][x]
+          local cx, cy = x-v.L.mx, y-v.L.my
+          local inBox = v.box and cx >= v.box[1] and cx < v.box[1]+v.box[3]
+            and cy >= v.box[2] and cy < v.box[2]+v.box[4]
+          if c[1] ~= " " or inBox then equal(out.cells[y][x],c,"label or callout at "..x..","..y) end
+        end end
+      end
+    end)
+  end
+
   for _, view in ipairs(loadScene().views) do
     local w, h = view.w, view.h
     test("map fixture "..view.name.." draws the scene from real dug marks", function()
@@ -802,7 +945,18 @@ return function(test,equal)
     local s=setup()
     -- A dense mine: 40 branches dug side by side.
     for k = 1, 40 do for x = 121, 184 do assert(s.cells.markDug(x, -58, -341 - 2 * k)) end end
-    s.step()
+    s.machine.install({"so-log.lua", "so-mod-state.lua"})
+    local state = s.machine.env.dofile("so-mod-state.lua")
+    s.machine.env.SO.mods.state.history = state.history
+    local workers = 0
+    for id in pairs(s.machines) do
+      workers = workers + 1
+      for i = 1, 20 do
+        state.emit("pose", {id=tonumber(id),x=121+(i*7+workers)%64,y=-58,z=-342-i*3})
+      end
+    end
+    s.screen.render(164,81,{})
+    for _ = 1, workers do s.step() end
     for _, view in ipairs({{164,81,{}}, {164,81,{map={level="all",fit=false,sx=1,sz=1,cx=150,cz=-380}}}, {100,38,{}}, {57,24,{}}}) do
       local w, h, session = view[1], view[2], view[3]
       s.settle(w,h,session)
