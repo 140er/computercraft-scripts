@@ -5,7 +5,17 @@ D.valid = function(v)
     and type(v.ore) == "number" and type(v.oreByName) == "table"
     and type(v.logs) == "number" and type(v.recent) == "table"
 end
-D.box = SO.store.store("so-data/daily", D.valid)
+local opened, box = pcall(SO.store.store, "so-data/daily", D.valid)
+if not opened and tostring(box):find("no valid generation", 1, true) then
+  for _, suffix in ipairs({ "", ".tmp", ".bak" }) do
+    local path = "so-data/daily" .. suffix
+    if fs.exists(path) then fs.delete(path) end
+  end
+  opened, box = pcall(SO.store.store, "so-data/daily", D.valid)
+  if opened then (SO.error or print)("so-daily: unreadable totals reset") end
+end
+if not opened then error(box, 0) end
+D.box = box
 D.value = D.box.value or { date = "", cursor = 0, ore = 0, oreByName = {}, logs = 0, recent = {} }
 D.lastSave = SO.now()
 D.recent = function(now)
