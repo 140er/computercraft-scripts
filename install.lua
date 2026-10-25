@@ -93,6 +93,11 @@ local function choose()
   end
 end
 local function position()
+  local config = {}
+  if fs.exists("/so-server.cfg") then
+    config = textutils.unserialize(readFile("/so-server.cfg"))
+    assert(type(config) == "table", "Bad so-server.cfg; refusing to replace saved settings")
+  end
   local function sane(x, y, z)
     return type(x) == "number" and type(y) == "number" and type(z) == "number"
       and x == x and y == y and z == z
@@ -128,7 +133,8 @@ local function position()
     print("Save this? (Enter / n)")
     local answer = read()
     if answer == "" then
-      return textutils.serialize({ pos = { dim = dim, x = x, y = y, z = z } })
+      config.pos = { dim = dim, x = x, y = y, z = z }
+      return textutils.serialize(config)
     end
     x, y, z = nil, nil, nil
   end
@@ -137,9 +143,9 @@ local function fetch(url)
   local response, err, failed = http.get(url, nil, true)
   local h = response or failed
   if not h then error(tostring(err) .. " (not found may mean a private repository)", 0) end
-  local code = h.getResponseCode()
-  local bytes = h.readAll()
+  local ok, code, bytes = pcall(function() return h.getResponseCode(), h.readAll() end)
   h.close()
+  if not ok then error(code, 0) end
   if code ~= 200 or not bytes or #bytes == 0 then
     error("HTTP " .. tostring(code) .. " (not found may mean a private repository)", 0)
   end
@@ -171,7 +177,7 @@ local function gitRevision()
     end
   end
 end
-local function revision()
+local function revision(allowSaved)
   local ok, sha = pcall(function()
     local body = fetch("https://api.github.com/repos/140er/computercraft-scripts/branches/server-only")
     local branch = textutils.unserializeJSON(body)
@@ -180,18 +186,24 @@ local function revision()
   if ok and validRevision(sha) then return sha end
   ok, sha = pcall(gitRevision)
   if ok and validRevision(sha) then return sha end
-  if fs.exists("/.so-revision") then
+  if allowSaved ~= false and fs.exists("/.so-revision") then
     sha = readFile("/.so-revision"):match("^%s*(.-)%s*$")
     if validRevision(sha) then
       print("Commit lookup unavailable. Using saved commit " .. sha)
       return sha
     end
   end
-  error("Cannot resolve server-only commit and no valid saved commit exists", 0)
+  error("Cannot resolve server-only commit" .. (allowSaved == false and "" or " and no valid saved commit exists"), 0)
 end
 local function download(path, sha)
   print(path)
-  local bytes = fetch(BASE .. sha .. "/" .. path)
+  local ok, bytes
+  for attempt = 1, 3 do
+    ok, bytes = pcall(fetch, BASE .. sha .. "/" .. path)
+    if ok then break end
+    if attempt < 3 then print("Retrying " .. path .. " (" .. (attempt + 1) .. "/3)") end
+  end
+  if not ok then error(bytes, 0) end
   if path:match("%.lua$") then
     local fn, why = load(bytes, "@" .. path, "t", _ENV)
     if not fn then error(path .. ": " .. tostring(why), 0) end
@@ -338,7 +350,26 @@ local function enrollToken(text)
   return id .. "-" .. rest:sub(1, 4) .. "-" .. rest:sub(5, 8) .. "-" .. rest:sub(9, 12) .. "-" .. rest:sub(13, 16)
 end
 local function main(command, handoff)
-  if type(handoff) ~= "table" then handoff = nil end
+  local requestedRevision
+  if type(handoff) ~= "table" then
+    requestedRevision, handoff = handoff, nil
+    if validRevision(command) then
+      assert(requestedRevision == nil, "Supply only one commit SHA")
+      requestedRevision, command = command, nil
+    end
+    assert(requestedRevision == nil or ((command == nil or command == "update") and validRevision(requestedRevision)),
+      "Expected a full 40-character commit SHA")
+    assert(command == nil or command == "update" or command == "rollback" or command == "reset"
+      or command == "recover" or command == "check" or enrollToken(command),
+      "Use install [sha], install update [sha], install check, install rollback or install reset")
+    if command == "check" then
+      local sha = revision(false)
+      local saved = fs.exists("/.so-revision") and readFile("/.so-revision"):match("^%s*(.-)%s*$")
+      if saved == sha then print("Current " .. sha)
+      else print("Update available: " .. installedRevision() .. " to " .. sha) end
+      return
+    end
+  end
   if not handoff then recover()
   else
     assert(validRevision(handoff.revision) and type(handoff.previous) == "table", "Bad installer handoff")
@@ -400,7 +431,7 @@ local function main(command, handoff)
   if role == "server" and not updating and not handoff then config = position() end
   if not handoff then
     local ok, err = pcall(function()
-      local sha = revision()
+      local sha = requestedRevision or revision()
       local previous = previousFiles(role)
       download("install.lua", sha)
       local nextInstaller = assert(load(readFile(NEW .. "/install.lua"), "@install.lua", "t", _ENV))("prepare")
