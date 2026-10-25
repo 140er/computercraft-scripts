@@ -87,7 +87,7 @@ def main():
                    "tick_times_ms": [11000, 11001], "prefix_sharing": True,
                    "restart_event_permutations": 5040, "restart_events_per_trace": 7,
                    "restart_batch_sizes": [1, 16], "restart_traces": 10080,
-                   "save_failure_traces": 10, "recovery_traces": 8, "parallel_processes": 4,
+                   "save_failure_traces": 10, "recovery_traces": 8, "journal_recovery_traces": 3, "parallel_processes": 4,
                    "subprocess_budget_seconds": 55},
         "mutations": [],
     }
@@ -107,18 +107,18 @@ def main():
     partitions = [f"partition:{foreign}:{size}:{grace}"
                   for foreign in ("wrong-id", "wrong-sender", "malformed")
                   for size in (1, 16) for grace in (11000, 11001)]
-    partitions += ["restarts:1", "restarts:16", "failures", "recovery"]
+    partitions += ["restarts:1", "restarts:16", "failures", "recovery", "journal-recovery"]
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         baselines = list(executor.map(lambda part: run(args.source.resolve(), part), partitions))
     output = "".join(result.stdout + result.stderr for result in baselines)
     baseline_code = next((result.returncode for result in baselines if result.returncode), 0)
     totals = re.findall(r"PASS traces=(\d+) comparisons=(\d+)", output)
-    expected_traces = 40320 * 12 + 5040 * 2 + 10 + 8
+    expected_traces = 40320 * 12 + 5040 * 2 + 10 + 8 + 3
     if not baseline_code and (len(totals) != len(partitions) or sum(int(t[0]) for t in totals) != expected_traces):
         raise SystemExit("verification did not enumerate every bounded trace")
     summary = (f"PASS traces={sum(int(t[0]) for t in totals)} "
                f"comparisons={sum(int(t[1]) for t in totals)}; "
-               "all legacy schedules, two restarts, acknowledgements, save failures and forget recovery\n")
+               "all legacy schedules, two restarts, acknowledgements, save failures and journal/forget recovery\n")
     evidence["baseline"] = {"exit_code": baseline_code, "output": output, "summary": summary}
     print(output if baseline_code else summary, end="")
     if baseline_code:

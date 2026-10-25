@@ -599,7 +599,7 @@ S.validLeases = function(value)
       n = n+1
     end
     if n ~= #record.steps or record.status == "reported" and type(record.report) ~= "table" then return false end
-    for _,field in ipairs({"boundary","reconcile","hold","releaseRecovery","sendUncertain"}) do
+    for _,field in ipairs({"boundary","reconcile","hold","releaseRecovery","sendUncertain","recovery"}) do
       if record[field] ~= nil and type(record[field]) ~= "boolean" then return false end
     end
     if record.retryAt ~= nil and not S.number(record.retryAt) then return false end
@@ -661,6 +661,7 @@ S.ackOutcome = function(id)
   local ok, err = S.persist(nextRecord, not hold)
   if not ok then return false, err end
   row.record = hold and nextRecord or nil
+  if not hold then row.bootRecovery = nil end
   if hold and not row.releaseHold then row.boundaryHold = true end
   return true
 end
@@ -685,7 +686,8 @@ S.restore = function()
   S.seq = S.saved.seq
   for _, record in pairs(S.saved.records) do
     local row = S.row(record.turtleId)
-    row.record, row.lost, row.restored = SO.store.copy(record), true, true
+    -- Peer movement waits until every restored worker has saved its current pose.
+    row.record, row.lost, row.restored, row.bootRecovery = SO.store.copy(record), true, true, true
     row.worldFrame, row.releaseHold = record.frame, SO.store.copy(record.releaseHold)
     if record.status == "open" then row.open = row.record end
     if (record.status == "recovering" or record.hold) and not row.releaseHold then row.boundaryHold = true end
@@ -726,17 +728,28 @@ S.send = function(id, steps, opts)
   if opts.pose ~= nil and not S.position(opts.pose) then return nil, "pose" end
   if row.releaseHold and (not row.setupFence or not row.parkBatch or not row.pose or not row.journal
     or row.journal == "" or opts.journal and opts.journal ~= row.journal) then return nil, "recovery needs fenced worker" end
+  local fencedRecovery = recovery and row.setupFence and row.parkBatch
   if recovery then
     local observation = opts.recover == true
     for _, step in ipairs(steps) do
       if step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" and step.op ~= "gps" then observation = false end
     end
-    if not observation or not row.setupFence or not row.parkBatch or not row.pose or not row.journal then
+    if not observation or not row.pose or not row.journal
+      or not fencedRecovery and (S.safety or #steps ~= 1 or steps[1].op ~= "inspectDown") then
       return nil, "restart needs fenced observation"
     end
   end
+  local observation = true
+  for _, step in ipairs(steps) do
+    if step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" and step.op ~= "gps" then observation = false end
+  end
+  if not observation then
+    for _, peer in pairs(S.turtles) do
+      if peer.bootRecovery then return nil, "restart reconciliation pending" end
+    end
+  end
   local frame, from, expected, reconcile
-  if S.safety or recovery then
+  if S.safety or fencedRecovery then
     if not row.parkBatch or not row.setupFence or not row.journal or not row.pose then
       return nil, "boundary needs certain fenced worker"
     end
@@ -784,9 +797,12 @@ S.send = function(id, steps, opts)
   S.seq = S.seq + 1
   local lease = {
     id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
-    owner = opts.owner, intent = SO.store.copy(opts.intent), journal = opts.journal, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
+    owner = opts.owner, intent = SO.store.copy(opts.intent),
+    journal = opts.journal or row.setupFence and row.journal or nil,
+    frame = SO.store.copy(opts.frame), recovery = recovery or nil,
+    pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
-  if S.safety or recovery then
+  if S.safety or fencedRecovery then
     lease.journal, lease.frame, lease.from, lease.expected, lease.reconcile = row.journal, frame, from, expected, reconcile
     if frame then lease.pose = S.rules().toWorld(frame,expected) end
     lease.steps[1].park, lease.boundary = true, true
@@ -824,7 +840,8 @@ S.send = function(id, steps, opts)
     if recovery then S.saved.records[row.record.id] = SO.store.copy(row.record) end
     return nil, why
   end
-  row.open, row.record, row.restored = lease, lease, nil
+  row.open, row.record, row.restored, row.restartProof = lease, lease, nil, nil
+  if lease.frame then row.worldFrame = SO.store.copy(lease.frame) end
   local ok, sent = pcall(rednet.send, id, wire, "so")
   if not ok or sent == false then lease.sendUncertain = true end
   return lease.id
@@ -874,7 +891,7 @@ S.forget = function(id, key)
   if record then
     local ok, err = S.persist(record, true)
     if not ok then return false, err end
-    row.open, row.record, row.restored = nil, nil, nil
+    row.open, row.record, row.restored, row.bootRecovery = nil, nil, nil, nil
   end
   row.probe, row.anchor = nil, nil
   row.uncertain, row.lost = true, true
@@ -931,9 +948,12 @@ S.report = function(msg, reply)
     if not success then accepted, lease.hold = nil, true
     elseif lease.reconcile and lease.frame then lease.pose=S.rules().toWorld(lease.frame,facts.pose) end
   end
+  if lease.recovery and not lease.boundary and (not lease.report.pose or lease.report.uncertain) then
+    accepted, lease.hold = nil, true
+  end
   lease.status, lease.results = "reported", SO.store.copy(accepted)
   if not S.persist(lease) then return end
-  row.open, row.record = nil, lease
+  row.open, row.record, row.restartProof = nil, lease, nil
   S.tools(row, body.tools)
   if type(body.capabilities) == "table" then
     row.parkBatch, row.setupFence = body.capabilities.parkBatch == true, body.capabilities.setupFence == true
@@ -947,6 +967,10 @@ S.report = function(msg, reply)
   S.journalSeen(row, lease.report.pose, lease.report.journal)
   if lease.boundary then
     if not boundaryOK then row.boundaryHold, row.reconciled, results, allOk = true, false, nil, false
+    else row.boundaryHold, row.reconciled = nil, true end
+  end
+  if lease.recovery and not lease.boundary then
+    if lease.hold then results, allOk = nil, false
     else row.boundaryHold, row.reconciled = nil, true end
   end
   if lease.releaseRecovery and not S.releaseRecovered(row,lease,results,priorContact) then
@@ -1061,6 +1085,12 @@ S.hello = function(msg)
         or journal.recovery.journal ~= row.anchor.body.journal) then row.uncertain = true return end
       row.anchor = nil
       S.journalSeen(row, journal.pose, journal.id)
+      -- A changed journal makes every delayed copy of this fenced batch inert.
+      if row.restored and row.open and row.open.journal and row.setupFence and row.parkBatch
+        and type(journal.id) == "string" and journal.id ~= row.open.journal
+        and not journal.pending and S.journalPose(journal.pose) then
+        row.restartProof = true
+      end
     end
   end
   S.fix(row, msg.body.gps, row.pose, row.journal)
@@ -1089,11 +1119,11 @@ S.tick = function(now)
       S.send(id,{{op="gps",park=true}},{owner="leaseRecovery",recover=true,ms=15000,pose=record.pose,frame=record.frame})
     end
     local lease = row.open
-    if lease and now > lease.expires + 10000 then
+    if lease and (now > lease.expires + 10000 or row.restartProof) then
       lease = SO.store.copy(lease)
       lease.status = "expired"
       if S.persist(lease) then
-        row.open, row.record = nil, lease
+        row.open, row.record, row.restartProof = nil, lease, nil
         if lease.boundary then row.boundaryHold, row.reconciled = true, false end
         if lease.releaseRecovery then row.boundaryHold, row.reconciled = nil, false end
         row.last = {status="expired", ok=false, at=now}
