@@ -83,7 +83,7 @@ end
 local function stateFixture()
   local net = H.new()
   local m = net.machine({id=1, directories=true})
-  m.install({"so-store.lua", "so-log.lua", "so-mod-state.lua"})
+  m.install({"so-store.lua", "so-log.lua", "so-errors.lua", "so-mod-state.lua"})
   m.env.SO = {mods={}, now=function() return net.time end, breathe=function() end,
     store=m.env.dofile("so-store.lua")}
   return m.env.dofile("so-mod-state.lua"), m, net
@@ -97,6 +97,123 @@ local function fill(m, ratio)
 end
 
 return function(test)
+  test("error summary groups alternating repeats with counts and first and last times", function()
+    local _, m, net = stateFixture()
+    local function open()
+      return m.env.dofile("so-errors.lua").open(m.env.SO.store, function() return net.time end)
+    end
+    local errors = open()
+    assert(#errors.summary() == 0)
+    for i, text in ipairs({"alpha", "beta", "alpha", "beta", "alpha"}) do
+      net.time = i * 10
+      assert(errors.record(text))
+    end
+    local files = {}
+    for path, text in pairs(m.files) do files[path] = text end
+    local function check(log)
+      local groups = log.summary()
+      assert(#groups == 2)
+      assert(groups[1].text == "alpha" and groups[1].count == 3 and groups[1].first == 10 and groups[1].last == 50)
+      assert(groups[2].text == "beta" and groups[2].count == 2 and groups[2].first == 20 and groups[2].last == 40)
+      groups[1].count, groups[1].text = 999, "changed"
+      assert(log.summary()[1].count == 3 and log.entries()[1].text == "alpha")
+      assert(#log.entries() == 5)
+    end
+    check(errors)
+    assert(errors.status().pending)
+    for path, text in pairs(m.files) do assert(files[path] == text, "summary wrote " .. path) end
+    for path, text in pairs(files) do assert(m.files[path] == text, "summary removed " .. path) end
+    net.time = 30010
+    assert(errors.flush())
+    check(open())
+  end)
+  test("error summary counts only entries still retained in the ring", function()
+    local _, m, net = stateFixture()
+    local errors = m.env.dofile("so-errors.lua").open(m.env.SO.store, function() return net.time end)
+    for i = 1, 130 do net.time = i assert(errors.record("repeat")) end
+    local groups = errors.summary()
+    assert(#groups == 1 and groups[1].count == 128 and groups[1].first == 3 and groups[1].last == 130)
+    assert(errors.status().count == 128)
+  end)
+  test("retained log range survives pruning and restart including fallback segments", function()
+    local net = H.new()
+    local m = net.machine({id=1, directories=true})
+    m.install({"so-store.lua", "so-log.lua"})
+    local store = m.env.dofile("so-store.lua")
+    local function open() return m.env.dofile("so-log.lua").open(store) end
+    local function bounds(log, first, last)
+      local status = log.status()
+      assert(status.oldestSeq == first and status.oldestAt == 1000 + first)
+      assert(status.newestSeq == last and status.newestAt == 1000 + last)
+    end
+    local log = open()
+    assert(log.status().oldestSeq == nil and log.status().oldestAt == nil)
+    assert(log.status().newestSeq == nil and log.status().newestAt == nil)
+    for i = 1, 26 do
+      assert(log.append({kind="range", at=1000+i, data=string.rep("x", 50000)}))
+      if i == 22 then
+        bounds(log, 1, 22)
+        assert(log.checkpoint({values={}, machines={}}))
+        bounds(log, 1, 22)
+      end
+    end
+    bounds(log, 1, 26)
+    assert(log.checkpoint({values={}, machines={}}))
+    local previous = store.store("so-data/snap/000001", function() return true end).value.first
+    local latest = store.store("so-data/snap/000002", function() return true end).value.first
+    assert(previous > 1 and latest > previous)
+    assert(not m.files["so-data/log/000001"])
+    bounds(log, previous, 26)
+    local status = log.status()
+    status.oldestSeq = 999
+    bounds(log, previous, 26)
+    log = open()
+    assert(log.events()[1].seq == latest)
+    bounds(log, previous, 26)
+    assert(log.checkpoint({values={}, machines={}}))
+    bounds(log, latest, 26)
+    bounds(open(), latest, 26)
+  end)
+  test("state diagnostics expose retained sequence and UTC time bounds", function()
+    local s, _, net = stateFixture()
+    assert(s.diagnostics().oldestSeq == nil and s.diagnostics().newestSeq == nil)
+    assert(s.emit("range", 1))
+    net.time = net.time + 1234
+    assert(s.emit("range", 2))
+    local entries, status = s.history.page({}).entries, s.diagnostics()
+    assert(status.oldestSeq == entries[1].seq and status.oldestAt == entries[1].at)
+    assert(status.newestSeq == entries[2].seq and status.newestAt == entries[2].at)
+  end)
+  test("disk warning starts at exactly 70% and job refusal starts at exactly 80%", function()
+    for _, store in ipairs({{"log", "so-data/log/ballast"}, {"cells", "so-data/cells/ballast"}}) do
+      local s, m = stateFixture()
+      m.capacity = 1000000
+      m.files[store[2]] = string.rep("x", 600000)
+      for _, used in ipairs({699999, 700000, 720000, 799999, 800000, 820000, 849999, 850000}) do
+        fill(m, used / m.capacity)
+        s.tick()
+        local disk, alert = s.disk(), s.get("disk.alert")
+        assert(disk.used == used and disk.pressure == (used >= 850000))
+        assert((alert ~= nil) == (used >= 700000))
+        assert((#disk.alerts > 0) == (used >= 800000))
+        if disk.pressure then
+          assert(alert.text == "DISK pressure", alert.text)
+        elseif alert then
+          assert(alert.text == string.format("DISK %.0f%%: %s 0.6 MB", used / 10000, store[1]), alert.text)
+        end
+        local ok, reason = s.canStart()
+        assert(ok == (used < 800000))
+        if not ok then
+          assert(reason == string.format("disk %.0f%%: %s 0.6 MB", used / 10000, store[1]), reason)
+        end
+        assert(s.job({name="threshold"}) == (used < 800000))
+        assert(s.canWork(), "disk warning blocked recovery work")
+      end
+      fill(m, 0.699999)
+      s.tick()
+      assert(s.get("disk.alert") == nil and #s.disk().alerts == 0 and s.canStart())
+    end
+  end)
   test("disk refusal names the largest measured store", function()
     for _, store in ipairs({{"log", "so-data/log/ballast"}, {"cells", "so-data/cells/ballast"}}) do
       local s, m = stateFixture()
@@ -273,9 +390,15 @@ return function(test)
           assert(not s.server.env.SO.mods.state.canStart())
           assert(not s.server.env.SO.mods.state.job({name="blocked"}))
         end
-        local capture = assert(io.open("tests/evidence/disk-guard/" .. role .. "-" .. size[1] .. "x" .. size[2] .. ".txt", "w"))
-        for y=1,size[2] do capture:write((s.client.screen[y] or ""):gsub("%s+$", ""), "\n") end
-        capture:close()
+        local opened, capture, reason = pcall(io.open,
+          "tests/evidence/disk-guard/" .. role .. "-" .. size[1] .. "x" .. size[2] .. ".txt", "w")
+        if opened then
+          assert(capture, reason)
+          for y=1,size[2] do capture:write((s.client.screen[y] or ""):gsub("%s+$", ""), "\n") end
+          capture:close()
+        else
+          assert(capture == "part tests cannot write host files", capture)
+        end
         fill(0.79)
         assert(s.server.env.SO.mods.state.canStart())
         s.typeText("start")

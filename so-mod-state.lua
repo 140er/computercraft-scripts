@@ -81,11 +81,20 @@ H.disk = function(rescanned)
   return info
 end
 
+H.diskName = function(disk)
+  local largest, bytes = "log", 0
+  for _, name in ipairs({"log", "snapshots", "cells", "jobs", "keys", "other"}) do
+    if (disk.stores and disk.stores[name] or 0) > bytes then largest, bytes = name, disk.stores[name] end
+  end
+  return string.format("disk %.0f%%: %s %.1f MB", disk.ratio * 100, largest, bytes / 1000000)
+end
+
 H.diskAlert = function(S)
   local disk = H.disk()
-  S.values["disk.alert"] = (disk.pressure or disk.error or disk.pending > 0) and {
+  S.values["disk.alert"] = (disk.ratio >= 0.7 or disk.pressure or disk.error or disk.pending > 0) and {
     text = disk.pending > 0 and ("DISK " .. disk.pending .. " events pending")
-      or disk.error and "DISK event refused" or disk.capacity == 0 and "DISK size unknown" or "DISK pressure",
+      or disk.error and "DISK event refused" or disk.capacity == 0 and "DISK size unknown"
+      or disk.pressure and "DISK pressure" or H.diskName(disk):gsub("^disk", "DISK"),
     error = disk.error,
   } or nil
 end
@@ -303,11 +312,7 @@ local function canStart()
   if not disk.accepting then
     if disk.capacity == 0 then return false, "disk size unknown" end
     if H.stores then
-      local largest, bytes = "log", 0
-      for _, name in ipairs({"log", "snapshots", "cells", "jobs", "keys", "other"}) do
-        if (disk.stores and disk.stores[name] or 0) > bytes then largest, bytes = name, disk.stores[name] end
-      end
-      return false, string.format("disk %.0f%%: %s %.1f MB", disk.ratio * 100, largest, bytes / 1000000)
+      return false, H.diskName(disk)
     end
     return false, "disk >=80%; free space"
   end
