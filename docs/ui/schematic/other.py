@@ -418,17 +418,21 @@ def stock(inv):
 MISSING = object()
 
 
-def build(w, h, title, setup=False, pick=None, inv=MISSING, material=None):
+def build(w, h, title, setup=False, pick=None, inv=MISSING, material=None, job=None,
+          feedback=None, pose_setup=False):
     """so-mod-build's render: tabs job and setup; START and STOP on the last row of both. The setup
     material chip opens a paged picker of the reported items (pick is its page). Under 24 columns
     the bar has no tabs and only the job tab draws."""
     cv = Canvas(w, h, title)
     j = dict(SCENE["build"])
+    j.update(job or {})
     j["inv"] = j.get("inv", []) if inv is MISSING else inv
     if material:
         j["material"] = material
     gap, lw = (1 if h >= 16 else 0), min(w - 2, 40)
-    state = j.get("blocked") or ("running" if j.get("running") else "stopped")
+    returning = j.get("completion", {}).get("phase") == "returning"
+    state = "hold" if j.get("legacyHold") else j.get("blocked") or \
+        ("COMPLETE" if j.get("complete") else "RETURNING" if returning else "running" if j.get("running") else "stopped")
     fg = tone(state)
     if j.get("blocked") and fg != "e":
         fg = "1"
@@ -445,8 +449,9 @@ def build(w, h, title, setup=False, pick=None, inv=MISSING, material=None):
     else:
         role_bar(cv, "BUILD", ["job", "setup"], ["job", "setup"], 1 if setup else 0)
     y = 2 + gap
-    if j.get("alert"):
-        y += flag_lines(cv, 2, y, w - 2, j["alert"], None, 2) + gap
+    message = feedback or j.get("alert") or j.get("legacyHold")
+    if message:
+        y += flag_lines(cv, 2, y, w - 2, message, None, 2) + gap
     if setup and pick:
         items = stock(j["inv"])
         section(cv, 2, y, lw, "MATERIAL")
@@ -480,8 +485,9 @@ def build(w, h, title, setup=False, pick=None, inv=MISSING, material=None):
                 x = chip(cv, x, y, name, "shape " + name, "plain" if name == shape else "off") + 1
         else:
             chip(cv, cx, y, shape, "shape-next")
-        rows = [("from", frm, None), ("to", to, None), ("material", stuff, "material-pick"),
-                ("turtle", t and "#%d" % t["id"], None), ("home", j.get("home") and pose_text(j["home"]), None)]
+        rows = [("from", frm, "from-here" if pose_setup else None), ("to", to, "to-here" if pose_setup else None),
+                ("material", stuff, "material-pick"), ("turtle", t and "#%d" % t["id"], None),
+                ("home", j.get("home") and pose_text(j["home"]), "home-here" if pose_setup else None)]
         for i, (label, value, bid) in enumerate(rows):
             ry = y + (i + 1) * (2 if h >= 16 else 1)
             if ry < h - gap:
@@ -499,6 +505,8 @@ def build(w, h, title, setup=False, pick=None, inv=MISSING, material=None):
         else:
             cv.put(2, y, cut(state, lw), fg)
         progress(cv, 2, y + 1, max(1, lw - 1 - len(frac)), done, total)
+        if j.get("complete"):
+            cv.put(2 + lw - len(frac), y + 1, frac, "0")
         # build.budget(): remaining is an upper bound; carried is unknown before the first report.
         remaining = max(0, total - j.get("cursor", 1) + 1)
         carried = None if j["inv"] is None else \
@@ -525,6 +533,36 @@ def build(w, h, title, setup=False, pick=None, inv=MISSING, material=None):
 
 def _build(w, h, title, setup=False, **options):
     return lambda: build(w, h, title, setup, **options)
+
+
+BUILD_RETURN_MODES = ("off", "on", "home", "returning", "stopped", "fuel", "path", "reservation", "uncertain",
+                      "complete", "configure", "remove", "missing-home")
+
+
+def build_return_case(w, h, mode):
+    job = dict(blocked=None, alert=None, running=False, returnHome=mode != "off")
+    feedback = None
+    if mode in ("returning", "stopped", "fuel", "path", "reservation", "uncertain", "complete", "configure", "remove"):
+        job.update(cursor=cells(SCENE["build"]["area"], "walls") + 1,
+                   completion=dict(phase="returning"), running=mode != "stopped")
+    holds = {"fuel": "out of fuel for return", "path": "path blocked; clear route", "reservation": "cells held",
+             "uncertain": "boundary unconfirmed; reservations held"}
+    if mode in holds:
+        job.update(blocked="pose_uncertain" if mode == "uncertain" else mode, alert=holds[mode])
+    if mode == "complete":
+        job.update(complete=True, running=False, completion=dict(phase="complete"),
+                   turtle=dict(id=8, pose=SCENE["build"]["home"]))
+    if mode == "configure":
+        job["running"] = False
+        feedback = "finish return before configuring"
+    if mode == "remove":
+        feedback = "finish return before removing worker"
+    if mode == "missing-home":
+        job.update(home=None, returnHome=False)
+        feedback = "set builder home before return-on"
+    return build(w, h, "Builder return %s at %dx%d" % (mode, w, h),
+                 setup=mode in ("off", "on", "home", "missing-home"), job=job,
+                 feedback=feedback, pose_setup=mode == "home")
 
 
 # ---------------------------------------------------------------- health
@@ -1067,6 +1105,10 @@ FIXTURES = [
     ("turtlepose-P", _pose(26, 20, "Pose editor for an uncertain turtle at 26x20")),
     ("turtlepose-S", _pose(29, 12, "Pose editor for an uncertain turtle at 29x12")),
 ]
+for _w, _h in ((26, 20), (29, 12)):
+    for _mode in BUILD_RETURN_MODES:
+        FIXTURES.append(("buildreturn-%s-%dx%d" % (_mode, _w, _h),
+                         lambda w=_w, h=_h, mode=_mode: build_return_case(w, h, mode)))
 # tests/ui/w2screens.lua checks these against the generator.
 FIXTURES += [("turtlepose-M", _pose(57, 24, "Pose editor for an uncertain turtle, room monitor 57x24")),
              ("turtlepark-P", _parked(26, 20, "Parked turtle detail with worker park at 26x20"))]

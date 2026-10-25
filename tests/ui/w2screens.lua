@@ -94,7 +94,109 @@ local function leader(text,label,value)
   end
   return false
 end
+
+local BUILD_RETURN_MODES={'off','on','home','returning','stopped','fuel','path','reservation','uncertain',
+  'complete','configure','remove','missing-home'}
+local function buildReturn(mode)
+  local dim='minecraft:overworld'
+  local home={dim=dim,x=12,y=64,z=-5,facing=1}
+  local job={dim=dim,shape='walls',blueprint={dim=dim,shape='walls',x1=10,y1=64,z1=-5,x2=20,y2=66,z2=5},
+    material='minecraft:cobblestone',cursor=38,phase='check',running=false,returnHome=mode~='off',fuel=840,
+    turtle={id=8,pose={dim=dim,x=12,y=67,z=-5,facing=1}},home=home,inv={}}
+  if mode=='returning' or mode=='stopped' or mode=='fuel' or mode=='path' or mode=='reservation' or mode=='uncertain'
+    or mode=='complete' or mode=='configure' or mode=='remove' then
+    job.cursor,job.running,job.completion=121,mode~='stopped',{phase='returning',target=home}
+  end
+  local holds={fuel='out of fuel for return',path='path blocked; clear route',reservation='cells held',
+    uncertain='boundary unconfirmed; reservations held'}
+  if holds[mode] then job.blocked,job.alert=mode=='uncertain' and 'pose_uncertain' or mode,holds[mode] end
+  if mode=='complete' then
+    job.complete,job.running,job.completion.phase,job.turtle.pose=true,false,'complete',home
+  end
+  if mode=='configure' then job.running=false end
+  if mode=='missing-home' then job.home,job.returnHome=nil,false end
+  local s={job=job,open='lease-8',session={buildSetup=mode=='off' or mode=='on' or mode=='home' or mode=='missing-home'}}
+  local env=setmetatable({SO={now=function() return 100000 end,breathe=function() end,mods={},
+    store={copy=dofile('so-store.lua').copy,read=function() return {jobPoseSetup=mode=='home'} end,
+      store=function() return {value=job,save=function() return true end} end}}},{__index=_G})
+  env.SO.mods.state={emit=function() return true end}
+  env.SO.mods.lease={status=function() return {open=s.open} end,onReport=function() end}
+  env.SO.mods.display={screen=function(_,render,input) s.render,s.input=render,input end}
+  s.mod=assert(loadfile('so-mod-build.lua','t',env))()
+  s.mod.tick()
+  if mode=='configure' or mode=='missing-home' then
+    s.open=nil
+    s.input({text=mode=='configure' and 'return off' or 'return on',session=s.session})
+  elseif mode=='remove' then s.input({text='remove 8',session=s.session}) end
+  return s
+end
+
 return function(test,equal)
+  for _,size in ipairs({{26,20},{29,12}}) do
+    local w,h=size[1],size[2]
+    for _,mode in ipairs(BUILD_RETURN_MODES) do
+      test('B4-UB builder return '..mode..' matches Lua at '..w..'x'..h,function()
+        local s=buildReturn(mode)
+        local frame=s.render(w,h,s.session)
+        local out,text=capture(frame,w,h)
+        local diff=R.diff('tests/ui/fixtures/buildreturn-'..mode..'-'..w..'x'..h..'.txt',out)
+        assert(#diff==0,table.concat(diff,'\n'))
+        local ids={}
+        for _,b in ipairs(frame.buttons) do
+          ids[b.id]=true
+          local row=frame.rows[b.y].text..string.rep(' ',w)
+          assert(row:sub(b.x,b.x+b.w-1):find(b.label,1,true),'hidden label '..b.id)
+          assert(b.id=='tab:job' or b.id=='tab:setup' or b.id=='shape-next' or b.id=='material-pick'
+            or b.id=='start' or b.id=='stop' or mode=='home' and
+              (b.id=='from-here' or b.id=='to-here' or b.id=='home-here'),'invented control '..b.id)
+        end
+        assert(ids.start and ids.stop and ids['tab:job'] and ids['tab:setup'])
+        if mode=='home' then assert(ids['home-here'] and ids['from-here'] and ids['to-here']) end
+        if mode=='returning' or mode=='stopped' then assert(text:find('RETURNING',1,true),text) end
+        if mode=='complete' then
+          assert(text:find('COMPLETE',1,true) and text:find('120/120',1,true),text)
+          assert(leader(text,'need','0') and leader(text,'position','12,64,-5 E'),text)
+        end
+        if mode=='configure' or mode=='remove' then assert(s.job.completion.phase=='returning' and s.job.returnHome) end
+        if mode=='missing-home' then assert(not s.job.returnHome) end
+        assert(#dofile('so-proto.lua').ser(frame)<16384,'oversized builder frame')
+      end)
+    end
+    test('B4-UB return opt-in has no rendered toggle at '..w..'x'..h,function()
+      local off,on=buildReturn('off'),buildReturn('on')
+      assert(not off.job.returnHome and on.job.returnHome)
+      local a,b=off.render(w,h,off.session),on.render(w,h,on.session)
+      equal(a.rows,b.rows) equal(a.buttons,b.buttons)
+      on.open=nil on.input({text='return off',session=on.session})
+      assert(not on.job.returnHome,'typed opt-out did not save')
+    end)
+  end
+  test('B4-UB generator reproduces every builder return fixture',function()
+    local started,pipe=pcall(io.popen,'pwd')
+    local root=started and pipe and pipe:read('*l')
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1,1)~='/' or not os.execute('python3 -V > /dev/null 2>&1') then
+      return dofile('tests/skips.lua').record('B4-UB generator','needs host processes, a POSIX shell and python3')
+    end
+    local function read(path) local f=assert(io.open(path,'rb')) local text=f:read('*a') f:close() return text end
+    local dir=os.tmpname()
+    os.remove(dir)
+    assert(os.execute("mkdir -p '"..dir.."'"))
+    local names={}
+    for _,size in ipairs({'26x20','29x12'}) do
+      for _,mode in ipairs(BUILD_RETURN_MODES) do names[#names+1]='buildreturn-'..mode..'-'..size end
+    end
+    local ok=os.execute("python3 -I '"..root.."/docs/ui/schematic/screens.py' --fixtures '"..dir.."' "..table.concat(names,' ')..' > /dev/null')
+    local mismatches={}
+    if ok then
+      for _,name in ipairs(names) do
+        if read(dir..'/'..name..'.txt')~=read('tests/ui/fixtures/'..name..'.txt') then mismatches[#mismatches+1]=name end
+      end
+    end
+    assert(os.execute("rm -r '"..dir.."'"))
+    assert(ok,'builder return generator failed')
+    equal(mismatches,{})
+  end)
   test('G8a branch progress follows every axis and clamps',function()
     local dirs={[0]={0,-1},{1,0},{0,1},{-1,0}}
     for facing,d in pairs(dirs) do

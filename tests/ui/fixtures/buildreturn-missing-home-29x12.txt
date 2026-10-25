@@ -1,0 +1,37 @@
+29x12 Builder return missing-home at 29x12
+ BUILD   job   setup  -----  
+ ! set builder home before   
+   return-on                 
+ shape     walls             
+ from     10,64,-5           
+ to       20,66,5            
+ material  cobblestone       
+ turtle   #8                 
+ home     -                  
+                             
+                             
+     START         STOP      
+0000000088888000000000ccccc00
+0e000000000000000000000000000
+00000000000000000000000000000
+08888800000000000000000000000
+08888000000000000000000000000
+08800000000000000000000000000
+08888888800000000000000000000
+08888880000000000000000000000
+08888000008000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+09999999999999088888888888880
+ffffffffffffff7777777ffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+ffffffffff7777777ffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+ffffffffff7777777777777ffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777777f7777777777777f

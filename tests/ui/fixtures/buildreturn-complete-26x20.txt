@@ -1,0 +1,61 @@
+26x20 Builder return complete at 26x20
+ BUILD   job   setup  --  
+                          
+ WALLS -------- COMPLETE  
+ |||||||||||||||| 120/120 
+                          
+ material ··· cobblestone 
+ need ················· 0 
+ carried ·············· 0 
+ turtle ·············· #8 
+ position ···· 12,64,-5 E 
+ fuel ··············· 840 
+ from ·········· 10,64,-5 
+ to ············· 20,66,5 
+                          
+                          
+                          
+                          
+                          
+                          
+    START       STOP      
+0000000000000088888880cc00
+00000000000000000000000000
+0888880cccccccc0dddddddd00
+03333333333333333000000000
+00000000000000000000000000
+0888888880ccc0000000000000
+088880ccccccccccccccccc000
+088888880cccccccccccccc000
+08888880cccccccccccccc0000
+0888888880cccc000000000000
+088880ccccccccccccccc00000
+088880cccccccccc0000000000
+0880ccccccccccccc000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999999999908888888888800
+ffffffff77777fffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff
