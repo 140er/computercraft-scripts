@@ -372,11 +372,7 @@ S.run = function()
     "Old turtles must run install update before pairing again. " ..
     "Update pockets and wall displays too. Saved pairings keep working. Updated clients use pair2 only.") end
   if retireLegacyPair then builtin.pair = nil end
-  local enrollConfigCached = true
   local function enrollEnabled()
-    if not enrollConfigCached then
-      config, enrollConfigCached = readConfig(), true
-    end
     return type(config) == "table" and config.enroll == true
   end
   local updates = {}
@@ -510,7 +506,7 @@ S.run = function()
       end)
       if h then pcall(h.close) end
       if not ok then return nil, tostring(err) end
-      config, enrollConfigCached = merged, true
+      config = merged
       exposeConfig(config)
       if not enabled then pair.enrollClose() end
       return true
@@ -729,12 +725,12 @@ S.run = function()
   end
   local timer, ticked
   local function tick()
-    enrollConfigCached = false
     if view.mode == "code" and not view.codeError and not pair.pending() then showPrompt() end
     local began, now = os.clock(), SO.now()
     local wall = os.epoch("utc")
     local health = SO.health
-    exposeConfig(readConfig())
+    config = readConfig()
+    exposeConfig(config)
     for id, row in pairs(health.refused.senders) do
       if row.bucket ~= math.floor(now / health.refused.windowMs) then health.refused.senders[id] = nil end
     end
