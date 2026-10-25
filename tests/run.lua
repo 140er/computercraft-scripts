@@ -848,7 +848,7 @@ if failed > 0 then os.exit(1) end
 
 
 test("B4-A KEEP preserves sealing eligibility independently of the selected IDs", function()
-  local mine = dofile("so-mine-plan.lua")
+  local mine = assert(loadfile("so-mine-plan.lua"))()
   local item = {slot=1,name="minecraft:cobblestone",count=64}
   assert(mine.sealable(item))
   equal(mine.cleanup({item},false,nil,{item.name}),{})
