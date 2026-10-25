@@ -19,6 +19,8 @@ local D = {
   details = {},
   alertVersions = {},
   alertSequence = 0,
+  modelRev = 0,
+  thumbSizes = {},
 }
 
 D.now = function() return SO.now() end
@@ -287,7 +289,8 @@ D.idFrame = function(w, h, id, title)
   return C.frame()
 end
 
-D.compose = function(role, w, h, session)
+-- With revSent, returns nil instead when the picture is unchanged since that rev, before fitting it.
+D.compose = function(role, w, h, session, revSent)
   local banner = D.retirement(w)
   local offset = banner and #banner.rows or 0
   local contentH = math.max(1, h - offset)
@@ -352,6 +355,7 @@ D.compose = function(role, w, h, session)
     slot.rev = slot.rev + 1
     slot.sig = sig
   end
+  if revSent and slot.rev == revSent then return end
   local fitted = D.fit({ rows = rows, buttons = buttons }, w, h)
   fitted.palette = picture.palette
   fitted.rev = slot.rev
@@ -373,19 +377,46 @@ D.visibleInput = function(session, role, id)
   return session and session.inputRole==role and session.inputIds and session.inputIds[id]==true
 end
 
+-- What a plain status frame depends on, or nil while it can change by itself: a takeover, an
+-- identify, a turtle or a page open, or an unseen alert the 30 s gate would let through.
+D.stamp = function(session, role, now)
+  local screen = D.screens.status
+  if not U or role ~= "status" or not screen or screen.render ~= D.statusRender or not D.model then return end
+  if session.visit or session.turtle or session.identify or not session.alertSeen
+    or now < (session.alertUntil or 0) then return end
+  if not session.alertAt or now - session.alertAt >= 30000 then
+    for _, alert in ipairs(D.model.alerts) do if not session.alertSeen[alert.key] then return end end
+  end
+  local cells, banner = SO.mods.cells, ""
+  local notice = cells and type(cells.retirement) == "function" and cells.retirement()
+  if notice then
+    local ok, text = pcall(SO.proto.ser, notice)
+    banner = ok and text or "?"
+  end
+  return table.concat({ session.w, session.h, D.modelRev, tostring(session.alertList), banner }, "|")
+end
+
+-- Sends a frame when the picture changed, and repeats the last one every D.gap as the heartbeat.
+-- An unchanged status display is not composed at all, and other roles skip the fit.
 D.sendFrame = function(id, now, force)
   local session = D.sessions[id]
   if not session or not session.w or not session.h then return end
   local key = SO.pair.key(id)
   if not key then return end
   local role = D.drawn(id)
-  if U and (role == "status" or role == "pocket") then D.model = D.gather() end
-  local body = D.compose(role, session.w, session.h, session)
-  body.scale = D.saved.far[tostring(id)] and 1 or 0.5
+  local scale = D.saved.far[tostring(id)] and 1 or 0.5
+  local beat = now - session.sent >= D.gap
+  local last = not force and session.roleSent == role and session.scaleSent == scale and session.bodySent
+  local stamp = not force and D.stamp(session, role, now) or nil
+  local body
+  if last and stamp and stamp == session.stampSent then body = last
+  else
+    if force and U and (role == "status" or role == "pocket") then D.model = D.gather() end
+    body = D.compose(role, session.w, session.h, session, last and session.revSent)
+    if body then body.scale = scale else body = last end
+  end
+  if body == last and not beat then return end
   local slot = (session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
-  local due = force or (now - session.sent >= D.gap) or session.roleSent ~= body.role
-    or not slot or session.revSent ~= slot.rev
-  if not due then return end
   local msg = SO.proto.build(key, "view.frame", body)
   local wire = SO.proto.encode(msg)
   while not wire do
@@ -397,8 +428,7 @@ D.sendFrame = function(id, now, force)
   if type(wire) ~= "table" then return end
   if rednet.send(id, wire, "so") == false then return end
   D.rememberFrame(session,body)
-  session.sent = now
-  session.roleSent = body.role
+  session.sent, session.roleSent, session.scaleSent, session.bodySent, session.stampSent = now, body.role, scale, body, stamp
   if slot then session.revSent = slot.rev end
 end
 
@@ -463,15 +493,18 @@ end
 
 -- The newest alert sequence, after numbering the alerts standing now: a session opened
 -- between gathers, or before the first one after boot, still knows them as old.
+-- The first numbering after boot also sets bootSequence: alerts up to it stood through a restart.
 D.since = function()
   if SO.mods.state then
     local view = D.stateView()
     for _, key in ipairs(D.alertKeys(view)) do D.alertVersion(key, view.values[key]) end
+    D.bootSequence = D.bootSequence or D.alertSequence
   end
   return D.alertSequence
 end
 
 D.gather = function()
+  if not D.bootSequence then D.since() end
   local model = { time = U and U.clock(os.epoch("utc")).hm or "",
     alerts = {}, log = {}, tiles = {}, oreShort = "no source", terminalSubs = {} }
   local state, lease, drops = SO.mods.state, SO.mods.lease, SO.mods.drops
@@ -606,7 +639,7 @@ D.turtles = function(model, machines, mine, wood)
       local t = { id = tonumber(id) or id, order = job[1], facing = pose.facing, state = word, tone = U.tone(word),
         where = job[1] == 1 and "farm" or row.lane and "lane" or row.branch and "b" .. (row.branch + 1) or "-",
         x = pose.x, y = pose.y, z = pose.z, fuel = machine.fuel, ore = row.ores or 0,
-        ago = math.max(0, now - (machine.seen or now)), lost = status.lost and true or false }
+        ago = D.ago(now - (machine.seen or now)), lost = status.lost and true or false }
       list[#list + 1] = t
       if job[1] == 0 then
         workers = workers + 1
@@ -629,6 +662,13 @@ D.turtles = function(model, machines, mine, wood)
 end
 
 -- Route A status facts beside the tiles (docs/server-only/PROTOCOL.md#display).
+-- Ages in whole 10 s: every age and age colour the screens draw changes on a 10 s step, so the
+-- model, and with it every status frame, stays the same between those steps.
+D.ago = function(ms)
+  ms = math.max(0, ms)
+  return ms == math.huge and ms or ms - ms % 10000
+end
+
 D.facts = function(model, machines, points, today, capacity, free)
   local now, mine, wood = D.now(), D.call("mine", "mapView"), D.call("lumber", "mapView")
   local started = type(SO.terminal) == "table" and SO.terminal.started
@@ -679,7 +719,7 @@ D.facts = function(model, machines, points, today, capacity, free)
     local session = D.sessions[row.id]
     if row.size ~= "-" then
       model.displays[#model.displays + 1] = { id = row.id, role = row.role, size = row.size,
-        ago = session and session.sent and math.max(0, now - session.sent) or 0 }
+        ago = session and session.sent and D.ago(now - session.sent) or 0 }
     end
   end
   model.events = {}
@@ -694,7 +734,40 @@ D.facts = function(model, machines, points, today, capacity, free)
     end
   end
   local map = SO.mods.map
-  model.thumb = type(map) == "table" and type(map.thumb) == "function" and map.thumb or nil
+  model.thumb = type(map) == "table" and type(map.thumb) == "function" and D.thumb or nil
+end
+
+-- The map thumbnail, drawn by the map module; each size a status frame draws it at is kept
+-- so the tick can sign the thumbnail at those sizes.
+D.thumb = function(C, x, y, w, h)
+  local key = w .. "x" .. h
+  if not D.thumbSizes[key] then
+    local count = 0
+    for _ in pairs(D.thumbSizes) do count = count + 1 end
+    if count >= 8 then D.thumbSizes = {} end
+    D.thumbSizes[key] = { w, h }
+  end
+  return SO.mods.map.thumb(C, x, y, w, h)
+end
+
+-- The status model's signature: its data, which leaves out the thumbnail function, and the
+-- thumbnail itself at every size drawn so far. Drawing it here also keeps the map gathering
+-- while unchanged status displays are not composed. Nil when it cannot be signed.
+D.modelSignature = function(model)
+  local data = {}
+  for k, v in pairs(model) do if type(v) ~= "function" then data[k] = v end end
+  local ok, text = pcall(SO.proto.ser, data)
+  if not ok then return end
+  local parts, map = { text }, SO.mods.map
+  if model.thumb and type(map) == "table" and type(map.thumb) == "function" then
+    for key, size in pairs(D.thumbSizes) do
+      local C = U.canvas(size[1], size[2])
+      local drawn = pcall(map.thumb, C, 1, 1, size[1], size[2])
+      parts[#parts + 1] = key .. "=" .. (drawn and D.sig(C.frame().rows, {}) or "!")
+    end
+  end
+  table.sort(parts)
+  return table.concat(parts, "|")
 end
 
 D.legacyStatus = function()
@@ -749,24 +822,50 @@ D.statusRender = function(w, h)
   return U.status(D.model or { tiles = {}, time = "" }, w, h)
 end
 
+-- In-memory snoozes: one end time per key, span ms after set; a restart forgets them all.
+-- The takeover SNOOZE uses it per session; health's lost rows (P1-4) reuse it per turtle id.
+D.snoozer = function(span)
+  local ends, snooze = {}, {}
+  snooze.set = function(key, now)
+    for k, at in pairs(ends) do if now >= at then ends[k] = nil end end
+    ends[key] = now + span
+  end
+  -- True and the ms left while key is snoozed.
+  snooze.on = function(key, now)
+    local at = ends[key]
+    if at and now >= at then ends[key], at = nil, nil end
+    return at ~= nil, at and at - now
+  end
+  snooze.clear = function(key) ends[key] = nil end
+  return snooze
+end
+D.snoozes = D.snoozer(300000)
+
 -- Shows each new alert once, oldest first, at most every 30 s, for five seconds or until a tap.
 -- An alert counts as seen only once shown. On a session's first sight, the alerts standing
--- before it opened are seen already. Cleared alerts leave alertSeen, so it stays bounded.
+-- before it opened are seen already, except that the newest one standing through a server
+-- restart takes over once. Alerts raised while the session is snoozed count as seen.
+-- Cleared alerts leave alertSeen, so it stays bounded.
 D.takeover = function(session, model, w, h, now)
-  local first, seen, live = not session.alertSeen, session.alertSeen or {}, {}
+  local first, seen, live, look = not session.alertSeen, session.alertSeen or {}, {}, nil
   for _, alert in ipairs(model.alerts) do
     live[alert.key] = true
-    if first and alert.sequence <= (session.since or 0) then seen[alert.key] = true end
+    if first and alert.sequence <= (session.since or 0) then
+      seen[alert.key] = true
+      if alert.sequence <= (D.bootSequence or 0) then look = alert end
+    end
   end
   for key in pairs(seen) do if not live[key] then seen[key] = nil end end
   session.alertSeen = seen
-  if not session.alertAt or now - session.alertAt >= 30000 then
+  if D.snoozes.on(session, now) then
+    for key in pairs(live) do seen[key] = true end
+  elseif not session.alertAt or now - session.alertAt >= 30000 then
     for _, alert in ipairs(model.alerts) do
-      if not seen[alert.key] then
-        seen[alert.key] = true
-        session.alertAt, session.alertUntil, session.takeover = now, now + 5000, alert
-        break
-      end
+      if not seen[alert.key] then look = alert; break end
+    end
+    if look then
+      seen[look.key] = true
+      session.alertAt, session.alertUntil, session.takeover = now, now + 5000, look
     end
   end
   if session.takeover and now < (session.alertUntil or 0) then
@@ -819,7 +918,8 @@ end
 
 -- Coral frame and title chip, the subject's position and the detail, a map crop around the subject
 -- from map.crop, and a coral tick row counting down the time left.
--- The #id chip opens its turtle; a tap anywhere else dismisses it. docs/ui/schematic/system.py alert is the twin.
+-- The #id chip opens its turtle, SNOOZE mutes takeovers on this display for five minutes, and a tap
+-- anywhere else dismisses it. docs/ui/schematic/system.py alert is the twin.
 D.alertFrame = function(model, a, w, h, left)
   local C, s = U.canvas(w, h), D.subject(model, a)
   C.box(1, 1, w, h, "e")
@@ -858,7 +958,8 @@ D.alertFrame = function(model, a, w, h, left)
   end
   if left and h >= 8 then C.ticks(mx, h - 2, iw, U.filled(iw, left, 5000), "e") end
   C.hit("dismiss", 1, 1, w, h)
-  -- Clients take the last button drawn, so the chip goes after the dismiss hit.
+  -- Clients take the last button drawn, so SNOOZE and the chip go after the dismiss hit.
+  if h >= 6 and iw >= 8 then C.chip(mx + iw - 8, h - 1, "SNOOZE", "snooze") end
   if s and s.id ~= nil then C.hit("turtle:" .. s.id, mx, chipY, #label, 1) end
   return C.frame()
 end
@@ -986,6 +1087,7 @@ D.handle = function(role, session, event, now)
   if role == "status" or role == "pocket" then
     if now < (session.alertUntil or 0) then
       session.alertUntil = 0
+      if event.id == "snooze" then D.snoozes.set(session, now); return end
       -- The takeover's #id chip opens its turtle; any other tap dismisses it.
       local target = Turtle and type(event.id) == "string" and event.id:match("^turtle:(%d+)$")
       if target and session.takeover and tostring(session.takeover.id) == target then
@@ -1372,7 +1474,12 @@ end
 
 D.tick = function(now)
   if Turtle then D.gatherTurtles() end
-  if U then D.model = D.gather() end
+  if U then
+    D.model = D.gather()
+    -- The status frames' only input; a new revision makes every status display compose again.
+    local text = D.modelSignature(D.model)
+    if not text or text ~= D.modelSig then D.modelRev, D.modelSig = D.modelRev + 1, text end
+  end
   D.localTick(now)
   D.drawTerminal(now)
   for id, session in pairs(D.sessions) do
@@ -1423,7 +1530,10 @@ return {
     ["view.get"] = D.once,
     input = D.onInput,
   },
-  forget = function(id) D.sessions[id] = nil end,
+  forget = function(id)
+    if D.sessions[id] then D.snoozes.clear(D.sessions[id]) end
+    D.sessions[id] = nil
+  end,
   tick = D.tick,
   screen = D.register,
   far = D.far,
@@ -1435,4 +1545,5 @@ return {
   command = D.command,
   drawTerminal = D.drawTerminal,
   statusModel = function() return D.model end,
+  snoozer = D.snoozer,
 }

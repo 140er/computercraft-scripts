@@ -7,7 +7,7 @@
 |             |
 |             |
 | |||||||···· |
-|             |
+|     SNOOZE  |
 +-------------+
 eeeeeeeeeeeeeee
 e0000000000000e
@@ -27,5 +27,5 @@ fffffffffffffff
 fffffffffffffff
 fffffffffffffff
 fffffffffffffff
-fffffffffffffff
+fffff77777777ff
 fffffffffffffff

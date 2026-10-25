@@ -9,8 +9,8 @@ local function boot(values, opts)
   m.install({"so-store.lua", "so-ui.lua", "so-mod-display.lua"})
   local s = { clock = 0, errors = {}, values = values, m = m }
   m.env.SO = { now = function() return s.clock end,
-    mods = { state = { view = function() return { values = s.values } end, get = function() return {} end },
-      drops = opts.drops },
+    mods = { state = { view = function() return { values = s.values } end, get = function(key) return key == "machines" and opts.machines or {} end },
+      drops = opts.drops, map = opts.map },
     store = m.env.dofile("so-store.lua"), pair = { key = function() return "key" end },
     proto = { ser = H.encode, build = function(_, _, body) return body end, encode = opts.encode or function(body) return body end },
     error = function(line) s.errors[#s.errors + 1] = line end }
@@ -61,16 +61,19 @@ return function(test, equal)
     assert((s.takeover() or ""):find("BETA", 1, true), "B takes over at 30 s")
   end)
 
-  test("standing alerts do not take over after a restart, new ones still do", function()
-    local s = boot({ ["mine.alert"] = { text = "standing hold" } })
+  test("a restart raises the newest standing alert once, and new ones after the gate", function()
+    local s = boot({ ["mine.alert"] = { text = "standing hold" }, ["lumber.alert"] = { text = "standing saplings" } })
     s.open()
     s.at(1000)
-    equal(s.takeover(), nil, "a standing alert must not take over")
+    local first = s.takeover() or ""
+    assert(first:find("STANDING", 1, true), "one standing alert takes over after the restart")
     s.at(6000)
     equal(s.takeover(), nil)
-    s.values["lumber.alert"] = { text = "out of saplings" }
-    s.at(7000)
-    assert((s.takeover() or ""):find("OUT OF SAPLINGS", 1, true), "a new alert takes over")
+    s.at(32000)
+    equal(s.takeover(), nil, "the other standing alert stays seen")
+    s.values["shop.alert"] = { text = "out of sand" }
+    s.at(33000)
+    assert((s.takeover() or ""):find("OUT OF SAND", 1, true), "a new alert takes over")
   end)
 
   test("a display opened between gathers knows the alert raised since as standing", function()
@@ -188,5 +191,129 @@ return function(test, equal)
     s.open()
     s.at(1000)
     for _, tile in ipairs(s.d.statusModel().tiles) do assert(tile.label ~= "PAIR") end
+  end)
+
+  local function tap(s, id, button)
+    s.d.handlers.input({ from = id or 2, body = { id = button, x = 1, y = 1 } })
+  end
+  local function has(s, id, button)
+    for _, b in ipairs(s.frame(id).buttons or {}) do if b.id == button then return true end end
+    return false
+  end
+
+  test("SNOOZE mutes takeovers on that display alone for five minutes", function()
+    local s = boot({})
+    s.open()
+    s.open("status", 39, 13, 3)
+    s.at(0)
+    s.values["a.alert"] = { text = "alpha" }
+    s.at(1000)
+    assert(has(s, 2, "snooze"), "the takeover draws SNOOZE")
+    tap(s, 2, "snooze")
+    equal(s.takeover(2), nil, "SNOOZE ends the takeover")
+    s.values["b.alert"] = { text = "beta" }
+    s.at(40000)
+    equal(s.takeover(2), nil, "the snoozed display stays on status")
+    assert((s.takeover(3) or ""):find("BETA", 1, true), "the other display still takes over")
+    local count
+    for _, tile in ipairs(s.d.statusModel().tiles) do if tile.label == "ALERTS" then count = tile.value end end
+    equal(count, "2", "the alert count stays")
+    s.at(300000)
+    equal(s.takeover(2), nil)
+    s.values["c.alert"] = { text = "gamma" }
+    s.at(302000)
+    assert((s.takeover(2) or ""):find("GAMMA", 1, true), "a new alert takes over once the snooze ends")
+    s.at(340000)
+    equal(s.takeover(2), nil, "an alert raised during the snooze does not take over later")
+  end)
+
+  test("the snooze helper keeps one end time per key in memory", function()
+    local s = boot({})
+    local snooze = s.d.snoozer(300000)
+    equal(snooze.on("t5", 0), false)
+    snooze.set("t5", 1000)
+    local on, left = snooze.on("t5", 2000)
+    equal(on, true); equal(left, 299000)
+    equal(snooze.on("t6", 2000), false, "one key at a time")
+    equal(snooze.on("t5", 301000), false, "it ends after the span")
+    snooze.set("t5", 400000)
+    snooze.clear("t5")
+    equal(snooze.on("t5", 400001), false, "clear ends it at once")
+  end)
+
+  -- SO.proto.ser calls in one tick: compose serialises each row and the signature.
+  local function idleCost(role, displays, render)
+    local s = boot({})
+    if render then s.d.screen(role == "drops" and "generic" or role, render, function() end) end
+    for i = 1, displays do s.open(role, 39, 13, 10 + i) end
+    for t = 1, 6 do s.at(t * 1000) end
+    local calls, ser = 0, s.m.env.SO.proto.ser
+    s.m.env.SO.proto.ser = function(v) calls = calls + 1; return ser(v) end
+    s.at(6500)
+    s.m.env.SO.proto.ser = ser
+    return calls, s
+  end
+
+  test("an unchanged status display is not composed again", function()
+    equal(idleCost("status", 6), idleCost("status", 1), "the tick cost does not grow with idle displays")
+  end)
+
+  test("an unchanged page only signs its picture", function()
+    local page = function()
+      return { rows = { { text = "one" }, { text = "two" }, { text = "three" } }, buttons = {} }
+    end
+    equal(idleCost("drops", 6, page) - idleCost("drops", 1, page), 5, "one signature per display")
+  end)
+
+  test("an idle status display still beats every 4 s and a change sends on the next tick", function()
+    local machines = {}
+    local s = boot({}, { machines = machines })
+    for i = 1, 3 do s.open("status", 39, 13, 10 + i) end
+    s.at(1000)
+    local before = #s.m.sent
+    for t = 2, 9 do s.at(t * 1000) end
+    equal(#s.m.sent - before, 6, "two heartbeats per display in 8 s")
+    local rev = s.frame(11).rev
+    machines[7] = { role = "worker" }
+    before = #s.m.sent
+    s.at(9500)
+    equal(#s.m.sent - before, 3, "every display gets the change at once")
+    assert(s.frame(11).rev > rev, "the new frame has a new rev")
+  end)
+
+  -- A map module whose thumbnail draws one letter, so a test can change what it shows.
+  local function fakeMap()
+    local map = { mark = "a" }
+    map.thumb = function(C, x, y) C.put(x, y, map.mark, "0"); return true end
+    return map
+  end
+
+  test("with the map loaded an unchanged status wall is not composed again", function()
+    local function cost(displays)
+      local s = boot({}, { map = fakeMap() })
+      for i = 1, displays do s.open("status", 100, 38, 10 + i) end
+      for t = 1, 6 do s.at(t * 1000) end
+      local calls, ser = 0, s.m.env.SO.proto.ser
+      s.m.env.SO.proto.ser = function(v) calls = calls + 1; return ser(v) end
+      s.at(6500)
+      s.m.env.SO.proto.ser = ser
+      return calls
+    end
+    equal(cost(6), cost(1), "the tick cost does not grow with idle walls")
+  end)
+
+  test("a map thumbnail change sends to every status wall on the next tick", function()
+    local map = fakeMap()
+    local s = boot({}, { map = map })
+    for i = 1, 3 do s.open("status", 100, 38, 10 + i) end
+    for t = 1, 6 do s.at(t * 1000) end
+    assert(s.text(11):find("a", 1, true))
+    local rev = s.frame(11).rev
+    map.mark = "Q"
+    local before = #s.m.sent
+    s.at(6500)
+    equal(#s.m.sent - before, 3, "every wall gets the new thumbnail at once")
+    assert(s.frame(11).rev > rev, "the new frame has a new rev")
+    assert(s.text(11):find("Q", 1, true), "the frame shows the new thumbnail")
   end)
 end

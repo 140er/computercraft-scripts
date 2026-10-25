@@ -53,8 +53,8 @@ def crop(cv, x, y, w, h, focus):
 
 def alert(m, a, w, h, left=None, mapped=True, title="Alert takeover"):
     """Coral frame and title chip, the subject's position, the detail, a map crop around the subject
-    and a coral tick row counting the takeover down. The #id chip opens its turtle; a tap anywhere
-    else dismisses it."""
+    and a coral tick row counting the takeover down. The #id chip opens its turtle, SNOOZE mutes
+    takeovers on this display for five minutes, and a tap anywhere else dismisses it."""
     cv = Canvas(w, h, title)
     box(cv, 1, 1, w, h, "e")
     mx = 5 if w >= 40 else 3
@@ -93,7 +93,9 @@ def alert(m, a, w, h, left=None, mapped=True, title="Alert takeover"):
     if left is not None and h >= 8:
         ticks(cv, mx, h - 2, iw, filled(iw, left, TAKEOVER), "e")
     cv.hit("dismiss", 1, 1, w, h)
-    # Clients take the last button drawn, so the chip goes after the dismiss hit.
+    # Clients take the last button drawn, so SNOOZE and the chip go after the dismiss hit.
+    if h >= 6 and iw >= 8:
+        chip(cv, mx + iw - 8, h - 1, "SNOOZE", "snooze")
     if s and s.get("id") is not None:
         cv.hit("turtle:%d" % s["id"], mx, chip_y, len(label), 1)
     return cv
