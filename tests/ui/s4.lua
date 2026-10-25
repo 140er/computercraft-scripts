@@ -87,7 +87,8 @@ local function client(w, h)
     if path == 'so-pair.lua' then return { open = function() end, key = function() return 'key' end } end
     if path == 'so-store.lua' then return { store = function() return {} end } end
     if path == 'so-proto.lua' then return { build = function() return {} end, encode = function(m) return m end,
-      decode = function(m) return m end, macOk = function() return true end } end
+      decode = function(m) return m end, macOk = function() return true end,
+      since = function() end, fresh = function() return true end } end
     error(path)
   end
   local code = read('display.lua'):gsub('C.loop%(%)%s*$', 'return C')
