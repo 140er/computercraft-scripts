@@ -508,6 +508,8 @@ return function(test, equal)
     t.tap(a, 'fix')
     equal(t.saves, 1)
     t.tap(a, 'remove')
+    equal(#list(), 5)
+    t.tap(a, 'remove')
     equal({ #list(), t.saves, t.mod.list()[3].id }, { 4, 2, list()[3].id })
     for _, p in ipairs(list()) do assert(p.id ~= third, 'removed the selected point') end
     -- The plan marks every chest as a one-cell target for the same selection.
@@ -613,9 +615,10 @@ return function(test, equal)
         end
       end
     end
-    -- A second REMOVE before the next frame does nothing; typed add keeps its old reply.
+    -- REMOVE takes two taps, and a third only arms the next selection; typed add keeps its old reply.
     local d, a = drops(), { id = 7 }
     t = d.render(57, 24, a)
+    d.tap(a, 'remove')
     d.tap(a, 'remove')
     d.tap(a, 'remove')
     equal(#d.mod.list(), 4)
@@ -675,12 +678,12 @@ return function(test, equal)
     local d, a = drops(), { id = 7 }
     d.tap(a, 'new')
     d.tap(a, 'room-point')
-    equal({ d.S.draft.kind, d.S.draft.room, d.S.message }, { 'junk', nil, 'room needs ore or wood' })
+    equal({ d.S.views[7].draft.kind, d.S.views[7].draft.room, d.S.message }, { 'junk', nil, 'room needs ore or wood' })
     d.tap(a, 'kind')
     d.tap(a, 'room-point')
-    equal({ d.S.draft.kind, d.S.draft.room }, { 'wood', true })
+    equal({ d.S.views[7].draft.kind, d.S.views[7].draft.room }, { 'wood', true })
     d.tap(a, 'kind')
-    equal(d.S.draft.room, nil)
+    equal(d.S.views[7].draft.room, nil)
     d.tap(a, 'room-sink')
     equal({ d.S.roomSink, d.saves, d.stored.roomSink }, { true, 1, true })
     assert(ids(d.render(57, 24, a))['from:12'])
@@ -691,7 +694,7 @@ return function(test, equal)
     local setup = ids(d.render(57, 24, a))
     assert(setup['scan:12'] and setup['candidate:1'] and setup.list)
     d.tap(a, 'candidate:1')
-    equal({ d.S.draft.x, d.S.draft.y, d.S.draft.z, d.S.draft.side }, { 121, 64, -340, 'down' })
+    equal({ d.S.views[7].draft.x, d.S.views[7].draft.y, d.S.views[7].draft.z, d.S.views[7].draft.side }, { 121, 64, -340, 'down' })
     assert(capture(d.render(57, 24, a), 57, 24).picture().text[1]:find('ADD DROP POINT', 1, true))
   end)
 
@@ -699,9 +702,9 @@ return function(test, equal)
     -- A typed add of a kind without room drops the draft's room mark.
     local d, a = drops(), { id = 7 }
     d.tap(a, 'new')
-    d.S.draft.kind = 'ore'
+    d.S.views[7].draft.kind = 'ore'
     d.tap(a, 'room-point')
-    equal(d.S.draft.room, true)
+    equal(d.S.views[7].draft.room, true)
     d.type(a, 'add fuel 1 2 3')
     equal(d.S.message, 'point added')
     equal(d.mod.list()[#d.mod.list()].room, nil)

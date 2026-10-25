@@ -1,0 +1,31 @@
+15x10 REMOVE 2 armed, smallest monitor
+ DROPS  ---- 5 
+               
+ 1  ore      · 
+ 2  fuel     • 
+ 3  junk     × 
+ 4  wood     · 
+ 5  storage  · 
+               
+ ! 3 junk brok 
+ EDI CON ADD   
+00000000cccc080
+000000000000000
+000088800000080
+0000000000000d0
+0e00eeee00000e0
+000000000000080
+000000000000080
+000000000000000
+0e0000000000000
+00000eee0000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+77777777777777f
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777f777f777fff

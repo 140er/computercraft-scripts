@@ -799,7 +799,7 @@ def lumber(m, w, h, setup=False, title=""):
 
 # ================================================================ drop points
 
-def drops_model(selected=None, editing=False, testing=False):
+def drops_model(selected=None, editing=False, testing=False, edit=False, confirm=False):
     """What so-mod-drops' gather builds: the points in list order, the selection, the plan's context,
     the unassigned turtles and the chests their scans found."""
     points = []
@@ -813,12 +813,17 @@ def drops_model(selected=None, editing=False, testing=False):
     if selected is None:
         selected = next((p["id"] for p in points if p["broken"]), points[0]["id"] if points else None)
     g, a = S["g"], S["area"]
-    return dict(points=points, selected=selected, page=1, editing=editing, testing=testing, message=None,
+    sel = next((p for p in points if p["id"] == selected), None)
+    draft = dict(dim=0, x=126, y=64, z=-337, side="front", kind="ore")
+    if edit and sel:
+        draft = dict(dim=sel["dim"], x=sel["x"], y=sel["y"], z=sel["z"], side=sel["side"], kind=sel["kind"])
+    return dict(points=points, selected=selected, page=1, editing=editing or edit, testing=testing, message=None,
+                edit=sel["n"] if edit and sel else None, confirm="remove:" + selected if confirm and sel else None,
                 roomSink=False, turtles=[int(a) for a, _ in EXTRA.get("candidate", [])], start=0, compass=None, task=None, failed=None,
                 found=[dict(x=int(x), y=int(y), z=int(z), side=sd) for x, y, z, sd in EXTRA.get("found", [])],
                 server=dict(x=S["server"][0], z=S["server"][2]), shaft=dict(x=g["x"], z=g["z"]),
                 area=dict(x1=a["x1"], z1=a["z1"], x2=a["x2"], z2=a["z2"]),
-                draft=dict(dim=0, x=126, y=64, z=-337, side="front", kind="ore"))
+                draft=draft)
 
 
 SX = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64]
@@ -913,7 +918,7 @@ def drop_pages(n, cap):
 
 
 OK_TEXT = {"chest found", "scan complete", "setup released", "scanning", "testing chest", "confirming release",
-           "room saved", "point added"}
+           "room saved", "point added", "point saved"}
 
 
 def drops_list(cv, m):
@@ -973,13 +978,16 @@ def drops_list(cv, m):
     # SCAN opens chest setup from 24 columns; narrow rows shorten REMOVE before they cut it.
     n, gap = (4 if w >= 24 else 3), (2 if room else 1)
     bw = (w - 2 - gap * (n - 1)) // n
-    fix, rem = "FIX" + tag, "REMOVE" + tag
+    # EDIT takes FIX's place while the selection is not broken; an armed REMOVE reads CONFIRM.
+    first = "EDIT" if sel and not sel["broken"] else "FIX"
+    fix, rem = first + tag, "REMOVE" + tag
     if len(rem) > bw:
-        fix, rem = "FIX", "REMOVE"
+        fix, rem = first, "REMOVE"
     if n == 4 and len(rem) > bw:
         rem = "DEL"
-    items = [(fix, "fix", "primary" if sel and sel["broken"] else "muted"),
-             (rem, "remove", "stop" if sel else "muted"), ("ADD", "new", "plain")]
+    armed = sel and m.get("confirm") == "remove:" + sel["id"]
+    items = [(fix, "fix", ("primary" if sel["broken"] else "plain") if sel else "muted"),
+             ("CONFIRM", "remove", "stop") if armed else (rem, "remove", "stop" if sel else "muted"), ("ADD", "new", "plain")]
     if n == 4:
         items.append(("SCAN", "testing", "plain"))
     actions(cv, ya, items, gap)
@@ -993,7 +1001,7 @@ def drops_editor(cv, m):
     w, h = cv.w, cv.h
     room = w >= 52 and h >= 22
     ya = last_row(h, room)
-    bar(cv, "ADD DROP POINT", [], None, "", "8")
+    bar(cv, "EDIT POINT %d" % m["edit"] if m.get("edit") else "ADD DROP POINT", [], None, "", "8")
     d = m["draft"]
     step = 2 if h >= 19 else 1
     vx, vw = (13, 8) if w >= 36 else (8, 6)
@@ -1031,7 +1039,8 @@ def drops_editor(cv, m):
             cv.put(2, ya - 1, msg, "d")
         else:
             flag(cv, 2, ya - 1, w - 2, msg)
-    actions(cv, ya, [("ADD", "add", "primary"), ("BACK", "list", "plain")], 3 if room else 1)
+    actions(cv, ya, [("SAVE", "save", "primary") if m.get("edit") else ("ADD", "add", "primary"), ("BACK", "list", "plain")],
+            3 if room else 1)
     if room:
         rx = vx + vw + 13
         bottom = drop_plan(cv, m, rx + 2, 3, min(w - rx - 2, 48), min(ya - 4, 32), d)
@@ -1147,6 +1156,11 @@ def _drops(w, h, title, editing=False, testing=False):
     return lambda: drops(drops_model(editing=editing, testing=testing), w, h, title)
 
 
+def dropsel(w, h, title, edit=False, confirm=False):
+    """Point 2 (fuel, verified) selected: EDIT open on it, or REMOVE armed."""
+    return lambda: drops(drops_model(selected=drops_model()["points"][1]["id"], edit=edit, confirm=confirm), w, h, title)
+
+
 FIXTURES = [
     ("mining-M", _mining(57, 24, "Mining, room monitor 57x24")),
     ("mining-W", _mining(100, 38, "Mining, wall 100x38")),
@@ -1178,4 +1192,11 @@ FIXTURES = [
     ("dropsadd-XS", _drops(15, 10, "Add a drop point, smallest monitor", True)),
     ("dropssetup-M", _drops(57, 24, "Chest setup, room monitor 57x24", testing=True)),
     ("dropssetup-P", _drops(26, 20, "Chest setup at 26x20", testing=True)),
+]
+# tests/ui/ui2d.lua checks these against so-mod-drops.lua (tests/ui/s3.lua counts only the "_" builders).
+FIXTURES += [
+    ("dropsedit-M", dropsel(57, 24, "Edit drop point 2, room monitor 57x24", edit=True)),
+    ("dropsedit-P", dropsel(26, 20, "Edit drop point 2 at 26x20", edit=True)),
+    ("dropsremove-P", dropsel(26, 20, "REMOVE 2 armed at 26x20", confirm=True)),
+    ("dropsremove-XS", dropsel(15, 10, "REMOVE 2 armed, smallest monitor", confirm=True)),
 ]
