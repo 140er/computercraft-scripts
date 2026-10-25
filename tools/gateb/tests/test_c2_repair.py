@@ -85,6 +85,12 @@ class MockWorld:
                 s["step"] += 1
             if self.defect == "touch-key":
                 s["stores"]["so-keys"] += "x"
+            if self.defect == "touch-digits":
+                s["digits"] += 1
+            if self.defect == "touch-server":
+                s["server"] = s.get("server", 1) + 1
+            if self.defect == "touch-readonly":
+                s.update(step=2, readonly=False)
             return
         if s.get("readonly"):
             s["readonly"] = False
@@ -162,14 +168,15 @@ class RepairTests(unittest.TestCase):
         self.assertIn('"digits": 3', saved)
 
     def test_failure_findings_from_mocked_world(self):
-        for defect in ("server-key", "reboot-key", "frame"):
+        for defect in ("server-key", "reboot-key", "frame", "touch-step", "touch-key",
+                       "touch-digits", "touch-server", "touch-readonly"):
             with self.subTest(defect=defect):
                 self.assertEqual(self.drive(MockWorld(defect)).status, "fail")
         with self.assertRaises(Blocked):
             self.drive(MockWorld("old-peer"))
 
     def test_wall_attacks_detect_step_key_digit_and_server_changes(self):
-        for defect in ("touch-step", "touch-key"):
+        for defect in ("touch-step", "touch-key", "touch-digits", "touch-server"):
             ctx = MockWorld(defect)
             ctx.states["wall"].update(phase="stale", step=3)
             self.assertFalse(repair.wall_attack(ctx, "candidate")["stable"])

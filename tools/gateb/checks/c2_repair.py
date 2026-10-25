@@ -144,7 +144,9 @@ def wall_attack(ctx, label):
     fields = ("server", "peers", "stores", "digits")
     stable = all(before.get(k) == after.get(k) for k in fields)
     # Read-only taps may close/reopen the view; local repair must keep its exact phase.
-    if label != "readonly":
+    if label == "readonly":
+        stable = stable and (not after.get("step") or after.get("step") == 1 and after.get("readonly") is True)
+    else:
         stable = stable and before.get("step") == after.get("step") and not after.get("readonly")
     return ctx.record(f"C2R-wall-{label}-attack.json", {"before": before, "after": after, "stable": stable})
 
@@ -198,6 +200,8 @@ def run(ctx):
             raise Blocked("C2 repair needs a physical monitor")
         event(ctx, "wall", "monitor_touch", next(iter(monitors)), 1, 1)
         d["attacks"]["readonly"] = wall_attack(ctx, "readonly")
+        if not d["attacks"]["readonly"]["stable"]:
+            return evaluate(ctx.record("C2R-observations.json", d))
         # Close the read-only view before starting terminal-authorized repair.
         if snapshot(ctx, "wall").get("step"):
             event(ctx, "wall", "char", "x")
@@ -214,6 +218,8 @@ def run(ctx):
                 capture(ctx, name, label)
                 if name == "wall":
                     d["attacks"][label] = wall_attack(ctx, label)
+                    if not d["attacks"][label]["stable"]:
+                        return evaluate(ctx.record("C2R-observations.json", d))
                 if step < 4:
                     event(ctx, name, "key", 257, False)
             row = d["clients"][name]
@@ -225,6 +231,8 @@ def run(ctx):
                 event(ctx, name, "char", digit)
                 if name == "wall" and index == 2:
                     d["attacks"]["partial-code"] = wall_attack(ctx, "partial-code")
+                    if not d["attacks"]["partial-code"]["stable"]:
+                        return evaluate(ctx.record("C2R-observations.json", d))
             row["success"] = ready(ctx, name, lambda s: repaired(s, new, old), f"{name} REPAIR did not succeed")
             row["server_fingerprint"] = ctx.lua("probe", f'''local k=SO.pair.key({ctx.computer(name)})
               return k and SO.proto.hex(SO.proto.sha256(k)):sub(1,16)''')
