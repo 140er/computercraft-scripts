@@ -22,7 +22,7 @@ def literals(code):
 
 
 def graph(root):
-    files = {p.relative_to(root).as_posix() for directory in ('tests', 'lib')
+    files = {p.relative_to(root).as_posix() for directory in ('tests', 'lib', 'docs')
              for p in (root / directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts}
     files.update(p.name for p in root.glob('*.lua'))
     edges = {}
@@ -43,6 +43,11 @@ def graph(root):
                 module = prefix + value.replace('.', '/') + '.lua'
                 if module in files:
                     deps.add(module)
+        # Computed data paths such as 'tests/ui/fixtures/status-' .. size .. '.txt'
+        # read the siblings that start with the literal stem.
+        for stem in values:
+            if '/' in stem and not stem.startswith('/') and not stem.endswith('/') and stem not in files:
+                deps.update(f for f in files if f.startswith(stem) and '/' not in f[len(stem):])
         for prefix in values:
             if prefix.endswith('/') and not prefix.startswith('/'):
                 for value in values:
