@@ -479,23 +479,26 @@ S.savedCanvas = function(c, state, w, h)
   if not data then back() return end
   local list
   for _, row in ipairs(data.entries) do if row.id == page then list = row end end
+  -- Too short for a full row and the footer: close up the blank rows, list pager beside the name.
+  local step = draft and 2 or w < 24 and 4 or 3
+  local tight = h < (draft and 12 or step+8)
   if draft then
     if draft.row then
-      local row = draft.value.items[draft.row]
-      c.put(2,5,row.item:sub(1,w-2),"0")
-      c.leader(2,7,w-2,"requested",tostring(row.count))
-      U.stepper(c,2,9,row.count,"saved2:count",2)
-      c.chip(2,h-2,"REMOVE","saved2:remove")
+      local row, g = draft.value.items[draft.row], h < 12 and 1 or 2
+      c.put(2,3+g,row.item:sub(1,w-2),"0")
+      c.leader(2,3+2*g,w-2,"requested",tostring(row.count))
+      U.stepper(c,2,3+3*g,row.count,"saved2:count",2)
+      c.chip(2,h-g,"REMOVE","saved2:remove")
       c.chip(2,h,"DONE","saved2:done")
       back()
       return
     end
-    if h < 12 then c.chip(2,4,"NAME","saved2:name") c.put(9,4,draft.value.name:sub(1,w-9),"0")
+    if tight then c.chip(2,4,"NAME","saved2:name") c.put(9,4,draft.value.name:sub(1,w-9),"0")
     else c.chip(2,5,"NAME","saved2:name") c.put(2,6,draft.value.name:sub(1,w-2),"0") end
     list = draft.value
-  elseif list then c.put(2,4,list.name:sub(1,w-2),"0") end
+  elseif list then c.put(2,4,list.name:sub(1,tight and #list.items > 1 and w-10 or w-2),"0") end
   if list then
-    local top, step = draft and (h < 12 and 5 or 8) or 6, draft and 2 or w < 24 and 4 or 3
+    local top = tight and 5 or draft and 8 or 6
     local per = math.max(1,math.min(4,math.floor((h-2-top)/step)))
     local pages = math.max(1,math.ceil(#list.items/per))
     state.listPage = math.max(1,math.min(state.listPage or 1,pages))
@@ -518,7 +521,10 @@ S.savedCanvas = function(c, state, w, h)
         end
       end
     end
-    if pages > 1 then
+    if pages > 1 and tight and not draft then
+      c.chip(w-7,4,U.g.left,"saved2:prev")
+      c.chip(w-3,4,U.g.right,"saved2:next")
+    elseif pages > 1 then
       c.chip(2,h-2,U.g.left,"saved2:prev")
       c.put(6,h-2,state.listPage.."/"..pages,"8")
       c.chip(10,h-2,U.g.right,"saved2:next")
