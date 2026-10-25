@@ -130,6 +130,9 @@ def self_test(doc):
         bad(lambda d, k=key, v=value: d["screens"][0]["fixtures"][0].update({k: v}))
     bad(lambda d: d["screens"][0]["fixtures"].pop())
     bad(lambda d: d["screens"][0]["fixtures"].append(copy.deepcopy(d["screens"][0]["fixtures"][0])))
+    for ident in ("status-alerts", "pocket-worker"):
+        bad(lambda d, ident=ident: d.update(screens=[s for s in d["screens"] if s["id"] != ident]))
+    bad(lambda d: next(s for s in d["screens"] if s["id"] == "terminal-code")["widths"].remove(42))
     for candidate in trials:
         try:
             validate(candidate)
@@ -181,6 +184,11 @@ def main():
                 out.writelines("".join(cc.BACK.get(c[0], chr(c[0])) for c in row) + "\n" for row in cv.cells)
                 for layer in (1, 2):
                     out.writelines("".join(c[layer] for c in row) + "\n" for row in cv.cells)
+                controls = [b for b in cv.buttons if b["x"] <= w and b["y"] <= h and b["x"] + b["w"] > 1 and b["y"] + b["h"] > 1]
+                disabled = sorted(getattr(cv, "disabled", set()) - {b["id"] for b in controls})
+                out.write("controls %d budget %d disabled %d\n" % (len(controls), A.options(ident, state, w, h), len(disabled)))
+                out.writelines(b["id"] + "\n" for b in controls)
+                out.writelines(bid + "\n" for bid in disabled)
                 count += 1
         need(count > 0, "no size cases selected")
         if args.prepare:

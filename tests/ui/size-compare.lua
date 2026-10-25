@@ -1,6 +1,7 @@
 local R = dofile('tests/ui/render.lua')
 local S = dofile('tests/ui/scene.lua')
 local A = dofile('tests/ui/size-adapters.lua')
+local Actions=dofile('tests/ui/size-actions.lua')
 return function(path)
 local previous
 local input = assert(io.open(path, 'rb'))
@@ -22,17 +23,22 @@ for header in input:lines() do
   for _,layer in ipairs({'text','fg','bg'}) do
     for y=1,h do expected[layer][y]=assert(input:read('*l'),'truncated comparison case') end
   end
+  local controls,budget,off=assert(input:read('*l')):match('^controls (%d+) budget (%d+) disabled (%d+)$')
+  local required={}
+  for _=1,assert(tonumber(controls),'missing required controls') do required[assert(input:read('*l'))]=true end
+  local disabled={}
+  for _=1,assert(tonumber(off),'missing disabled controls') do disabled[assert(input:read('*l'))]=true end
   if previous~=id then print('size-render: checking '..id) io.stdout:flush() previous=id end
   local name=id..'/'..state..'/'..ws..'x'..hs
   local ok,err=pcall(function()
-    local frame=assert(A.render(id,state,w,h),'adapter returned no frame')
+    local frame,handler,session=A.render(id,state,w,h,{budget=tonumber(budget)})
+    assert(frame,'adapter returned no frame')
     assert(#frame.rows==h,'row count')
     for _,b in ipairs(frame.buttons or {}) do
       assert(b.x>=1 and b.y>=1 and b.w>0 and (b.h or 1)>0 and b.x+b.w-1<=w and b.y+(b.h or 1)-1<=h,'button bounds '..b.id)
     end
-    local owners, targets, reachable = {}, {}, {}
+    local owners, reachable = {}, {}
     for _,b in ipairs(frame.buttons or {}) do
-      targets[b.id]=true
       for y=b.y,b.y+(b.h or 1)-1 do
         owners[y]=owners[y] or {}
         for x=b.x,b.x+b.w-1 do
@@ -45,23 +51,17 @@ for header in input:lines() do
     for y,row in pairs(owners) do
       for x,bid in pairs(row) do
         if not reachable[bid] then
-          local calls=0
-          router.D.monitor={name='coverage',frame=frame}
-          router.D.localDraw=function(_,event)
-            calls=calls+1
-            assert(event.id==bid,'tap reached a different action')
-          end
-          router.D.localTouch('coverage',x,y)
-          assert(calls==1,'one tap must dispatch one action')
+          Actions.tap(frame,handler,session,A.context,router,bid,x,y,disabled[bid])
           reachable[bid]=true
         end
       end
     end
-    for bid in pairs(targets) do assert(reachable[bid],'unreachable action '..bid) end
+    Actions.required(frame,required,reachable)
     local diff=R.diff(expected,S.capture(frame,w,h))
     assert(#diff==0,table.concat(diff,'\n'))
   end)
   count=count+1
+  if count%500==0 then print("size-render: "..count.." cases checked") io.stdout:flush() end
   if not ok then
     failed=failed+1
     local group=id..'/'..state

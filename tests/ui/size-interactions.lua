@@ -1,5 +1,4 @@
 local S = dofile('tests/ui/scene.lua')
-local R = dofile('tests/ui/render.lua')
 local boot = S.private(dofile('tests/ui/ra3-ar.lua'), 'boot')
 local inventory = S.private(dofile('tests/ui/inventory.lua'), 'setup')
 local sample = S.private(dofile('tests/ui/inventory.lua'), 'sample')
@@ -47,31 +46,97 @@ return function(test, equal)
       equal(s.saves,saves) equal(s.sent[2],sent)
     end
   end)
-  test('UB-28 local input height and compact frame fallback retain the expected cells', function()
+  test('UB-28 local input keeps fullH and legacy height distinct', function()
     local s=S.new()
-    local U=dofile('so-ui.lua')
     for _,size in ipairs(sizes) do
       local w,h=size[1],size[2]
-      s.d.handlers.hello({from=91,body={w=w,h=h-1,fullH=h,keyboard=true}})
-      local session=s.D.sessions[91]
-      equal(session.h,h)
-      s.D.model=s.D.gather()
-      local frame=s.D.compose('status',w,h,session)
-      equal(#frame.rows,h)
-      local diff=R.diff(S.capture(U.status(s.D.gather(),w,h),w,h).picture(),S.capture(frame,w,h))
-      equal(diff,{})
+      for _,full in ipairs({true,false}) do
+        s.d.handlers.hello({from=91,body={w=w,h=h-1,fullH=full and h or nil,keyboard=true}})
+        equal(s.D.sessions[91].h,full and h or h-1)
+      end
     end
-    local model=s.D.gather()
-    model.turtles={}
-    for i=1,40 do model.turtles[i]={id=i,state='mining',where='b10',x=184,y=-58,z=-369,fuel=412,ore=10,ago=1000} end
-    model.events={}
-    for i=1,30 do model.events[i]={time='21:14',text='a long lane wait after returning from the mining branch',tone='1'} end
-    s.D.model=model
-    s.D.budget=#s.env.SO.proto.ser(s.D.fit(U.status(model,164,81),164,81))-1
-    local frame=s.D.statusFrame({alertSeen={}},164,81,s.now)
-    model.tight=true
-    local expected=U.status(model,164,81)
-    equal(R.diff(S.capture(expected,164,81).picture(),S.capture(frame,164,81)),{})
-    assert(#s.env.SO.proto.ser(s.D.fit(frame,164,81))<16384,'compact frame budget')
   end)
+  test('UB-28 contracts reject missing controls, a no-op and a doubled real action', function()
+    local A=dofile('tests/ui/size-adapters.lua')
+    local actions=dofile('tests/ui/size-actions.lua')
+    local frame,input,session=A.render('ar','scene',37,17)
+    local button
+    for _,b in ipairs(frame.buttons) do if b.id=='turtles' then button=b end end
+    assert(button,'required layer control')
+    for _,broken in ipairs({function() end,function(e) input(e) input(e) end}) do
+      local ok=pcall(actions.tap,frame,broken,session,A.context,S.new(),'turtles',button.x,button.y)
+      assert(not ok,'interaction contract accepted a broken handler')
+    end
+    actions.tap(frame,input,session,A.context,S.new(),'turtles',button.x,button.y)
+    for i,b in ipairs(frame.buttons) do if b.id=='turtles' then table.remove(frame.buttons,i) break end end
+    local ok,err=pcall(actions.required,frame,{turtles=true},{turtles=true})
+    assert(not ok and tostring(err):find('missing required control turtles',1,true),'required inventory accepted a missing layer control')
+  end)
+  test('UB-28 turtle PARK requires one real mining command', function()
+    local A=dofile('tests/ui/size-adapters.lua')
+    local actions=dofile('tests/ui/size-actions.lua')
+    for _,size in ipairs(sizes) do
+      A.reset()
+      local frame,input,session=A.render('turtle','scene',size[1],size[2])
+      local context=A.context
+      local screen=context.d.screen('mining')
+      local original=screen.input
+      local park
+      for _,b in ipairs(frame.buttons) do if b.id=='turtle-park' then park=b end end
+      assert(park,'required PARK control')
+      for _,broken in ipairs({function() end,function(e) original(e) original(e) end}) do
+        screen.input=broken
+        local ok=pcall(actions.tap,frame,input,session,context,S.new(),'turtle-park',park.x,park.y)
+        assert(not ok,'PARK accepted a missing or duplicate command')
+      end
+      screen.input=original
+      actions.tap(frame,input,session,context,S.new(),'turtle-park',park.x,park.y)
+    end
+  end)
+
+  test('UB-28 enabled NEXT rejects a no-op or a double page advance', function()
+    local A=dofile('tests/ui/size-adapters.lua')
+    local actions=dofile('tests/ui/size-actions.lua')
+    local frame,input,session=A.render('errors-detail','scene',15,10)
+    local context=A.context
+    local function nextButton(f)
+      for _,b in ipairs(f.buttons) do if b.id=='next' then return b end end
+    end
+    local button=assert(nextButton(frame),'required enabled NEXT')
+    for _,broken in ipairs({function() end,function(e) input(e) input(e) end}) do
+      local ok=pcall(actions.tap,frame,broken,session,context,S.new(),'next',button.x,button.y)
+      assert(not ok,'enabled NEXT accepted no advance or two advances')
+    end
+    actions.tap(frame,input,session,context,S.new(),'next',button.x,button.y)
+    local view=session.visibility.errors
+    for _=1,100 do
+      if not view.errorNext then break end
+      input({id='next',session=session})
+      frame=context.screens.errors.render(15,10,session)
+    end
+    assert(not view.errorNext,'error detail paging did not terminate')
+    button=assert(nextButton(frame),'required muted NEXT beside PREV')
+    actions.tap(frame,input,session,context,S.new(),'next',button.x,button.y,true)
+    local ok=pcall(actions.tap,frame,function() view.errorPage=view.errorPage+1 end,session,context,S.new(),'next',button.x,button.y,true)
+    assert(not ok,'muted NEXT accepted a page advance')
+  end)
+
+  test('UB-28 builder and pocket pagers require exactly one page advance', function()
+    local A=dofile('tests/ui/size-adapters.lua')
+    local actions=dofile('tests/ui/size-actions.lua')
+    for _,case in ipairs({{'build-picker',29,12},{'pocket-shop',15,10}}) do
+      A.reset()
+      local frame,input,session=A.render(case[1],'scene',case[2],case[3])
+      local context=A.context
+      local button
+      for _,b in ipairs(frame.buttons) do if b.id=='next' then button=b end end
+      assert(button,'required enabled NEXT for '..case[1])
+      for _,broken in ipairs({function() end,function(e) input(e) input(e) end}) do
+        local ok=pcall(actions.tap,frame,broken,session,context,S.new(),'next',button.x,button.y)
+        assert(not ok,case[1]..' accepted no advance or two advances')
+      end
+      actions.tap(frame,input,session,context,S.new(),'next',button.x,button.y)
+    end
+  end)
+
 end

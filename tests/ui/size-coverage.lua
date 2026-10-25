@@ -3,6 +3,8 @@ local dependencies = {
   'tests/ui/size-coverage.py',
   'tests/ui/size-render.lua',
   'tests/ui/size-compare.lua',
+  'tests/ui/size-actions.lua',
+  'tests/ui/size-scene.txt',
   'tests/evidence/ui-size-coverage.txt',
   'tests/ui/size-adapters.lua',
   'docs/ui/schematic/ar.py',

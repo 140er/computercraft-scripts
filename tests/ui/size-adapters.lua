@@ -18,13 +18,82 @@ local SAVED = helpers('tests/so/shop.lua','savedShop')
 local PANEL = helpers('tests/ui/panel.lua','bare scene')
 local A, cache = {}, {}
 
-A.render = function(id, state, w, h)
+local function statusServer()
+  local t=S.new()
+  t.generic=J.drops()
+  for i,point in ipairs(t.generic.S.points) do point.id=tostring(i) end
+  t.d.screen('generic',t.generic.render,t.generic.input)
+  t.seedMachines=t.env.SO.mods.state.get()
+  return t
+end
+
+local function statusModel(t,m)
+  local rows={}
+  for k,v in pairs(t.seedMachines) do rows[k]=v end
+  for _,row in ipairs(m.turtles or {}) do rows[tostring(row.id)]={role='worker',pose={x=row.x,y=row.y,z=row.z},seen=t.now} end
+  t.env.SO.mods.state.get=function() return rows end
+end
+
+local function sizeScene()
+  local file=assert(io.open('tests/ui/size-scene.txt','rb'))
+  local data={}
+  for line in file:lines() do local k,v=line:match('^(%S+) (.+)$') data[k]=v end
+  file:close()
+  return data
+end
+local COVERAGE=sizeScene()
+
+A.render = function(id, state, w, h, options)
+  A.context=nil
   local key=id..'/'..state
   local function once(make)
     if not cache[key] then cache[key]=make() end
+    A.context=cache[key]
     return cache[key]
   end
-  if id=='panel' or id=='panel-alerts' or id=='panel-pair' or (id=='pocket-fleet' or id=='pocket-jobs' or id=='pocket-shop' or id=='pocket-alerts') or id=='pocket-pair' then
+  if id=='status-alerts' then
+    local t=once(S.new)
+    local alerts={}
+    if state=='scene' then alerts={{text='ore chest full',detail='drop point #3'},{text='out of saplings'},{text='#4 lease expired, lane released'}}
+    elseif state~='empty' then for i=1,7 do alerts[i]={text='alert '..i} end end
+    for i,a in ipairs(alerts) do a.key,a.sequence='coverage-'..i,i end
+    t.D.model=t.D.gather() t.D.model.alerts=alerts
+    local session={id=7,w=w,h=h,alertSeen={},alertUntil=0,alertList=state=='next' and 1 or 0}
+    for _,a in ipairs(alerts) do session.alertSeen[a.key]=true end
+    return t.D.statusFrame(session,w,h,t.now),function(e) t.D.handle('status',session,e,t.now) end,session
+  elseif id=='status-local' or id=='status-fallback' then
+    local t=once(statusServer)
+    local localId=tonumber(COVERAGE['local-display']:match('^%d+'))
+    assert(t.now==tonumber(COVERAGE.clock),'shared scene clock')
+    local session={id=localId,w=w,h=h}
+    t.env.SO.mods.state.get=function() return t.seedMachines end
+    t.D.model=t.D.gather()
+    if id=='status-local' then
+      t.D.sessions[localId]=nil
+      t.d.handlers.hello({from=localId,body={w=w,h=math.max(1,h-1),fullH=state=='full' and h or nil,keyboard=true}})
+      session=t.D.sessions[localId]
+      assert(session.sent==tonumber(COVERAGE['local-display']:match(' (%d+)$')),'shared display send timestamp')
+      t.D.model=t.D.gather()
+      assert(session.h==(state=='full' and h or math.max(1,h-1)),'local input accepted height')
+      t.D.budget=1000000
+    else
+      local data=COVERAGE
+      local word,where,x,y,z,fuel,ore,ago=data.turtle:match('^(%S+) (%S+) (%S+) (%S+) (%S+) (%S+) (%S+) (%S+)$')
+      t.D.model.turtles={}
+      for i=1,tonumber(data.turtles) do t.D.model.turtles[i]={id=i,state=word,where=where,x=tonumber(x),y=tonumber(y),z=tonumber(z),fuel=tonumber(fuel),ore=tonumber(ore),ago=tonumber(ago)} end
+      local time,text=data.event:match('^(%S+) (.+)$')
+      t.D.model.events={}
+      for i=1,tonumber(data.events) do t.D.model.events[i]={time=time,text=text,tone='1'} end
+      t.D.budget=assert(options,'Python wire threshold required').budget
+      local bytes=#t.env.SO.proto.ser(t.D.fit(U.status(t.D.model,w,h),w,h))
+      assert(bytes==options.budget-({below=-1,at=0,above=1})[state],'independent wire byte count: '..bytes..' vs '..(options.budget-({below=-1,at=0,above=1})[state]))
+    end
+    statusModel(t,t.D.model)
+    local frame=t.D.compose('status',w,session.h,session)
+    if id=='status-fallback' and state=='below' and w*h>4000 then assert(#t.env.SO.proto.ser(frame)<16384,'compact frame must fit the wire limit') end
+    if #frame.rows<h then frame.rows[h]={text='',fg='0',bg='f'} end
+    return frame,function(e) t.D.handle('status',session,e,t.now) end,session
+  elseif id=='panel'  or id=='panel-alerts' or id=='panel-pair' or (id=='pocket-fleet' or id=='pocket-jobs' or id=='pocket-shop' or id=='pocket-alerts') or id=='pocket-pair' then
     local t=once(function()
       local b=S.new({panel=true,shop=true,facts=true,alert=id=='panel-alerts' or id=='pocket-alerts'})
       b.env.SO.mods.health=id=='panel' and {count=function() return PANEL.scene().needs end} or nil
@@ -47,22 +116,35 @@ A.render = function(id, state, w, h)
     end
     if id=='panel-alerts' and state=='empty' then S.private(t.d.screen('panel').render,'P').alerts={} end
     local role=id:match('^pocket') and 'pocket' or 'panel'
-    return t.d.screen(role).render(w,h,session),t.d.screen(role).input,session
-  elseif id=='panel-paired' or id=='pocket-paired' or id=='panel-enroll' or id=='pocket-enroll' or id=='panel-worker' then
+    session.w,session.h=w,h
+    local input=t.d.screen(role).input
+    return t.d.screen(role).render(w,h,session),function(e)
+      if e.id=='disk' or e.id:match('^turtle:') then t.D.handle(role,session,e,t.now) else input(e) end
+    end,session
+  elseif id=='panel-paired' or id=='pocket-paired' or id=='panel-enroll' or id=='pocket-enroll' or id=='panel-worker' or id=='pocket-worker' then
     local b=once(function()
       local screens,session,env=PANEL.bare(PANEL.scene(),true)
-      return {screens=screens,session=session,env=env}
+      local b={screens=screens,session=session,env=env,effects={}}
+      env.SO.forgetDevice=function(id,from) b.effects[#b.effects+1]={'forget',id,from} return true end
+      for _,method in ipairs({'extend','close','decide'}) do
+        env.SO.enroll[method]=function(...) b.effects[#b.effects+1]={method,...} return true end
+      end
+      return b
     end)
     local page=id:match('paired') and 'paired' or id:match('enroll') and 'enroll' or 'worker'
     local session=b.session(page,w)
     session.panel.pairedPage=state=='next' and 1 or 0
-    if state=='confirm' then session.panel.confirm={id=PANEL.scene().confirm,token='1',expires=50015000,key='key'} end
+    if state=='confirm' then
+      session.panel.confirm={id=PANEL.scene().confirm,token='1',expires=50015000,key='key'}
+      U.confirm(session.panel.confirm,'forget:'..PANEL.scene().confirm..':1',50000000,15000)
+    end
     if page=='worker' then
       b.env.SO.health={config={workerSettings=true}}
       b.env.SO.mods.lease={status=function() return {workerSettings=state~='missing',settingsControl=true,
         settings=state~='missing' and {dim='minecraft:overworld',autoToolSwap=false} or nil,
         settingsPending=state=='pending',open=state=='busy' and 'lease' or nil,
-        settingsError=state=='error' and 'settings refused' or nil} end}
+        settingsError=state=='error' and 'settings refused' or nil} end,
+        settings=function(id,changes) b.effects[#b.effects+1]={'settings',id,changes} return 'request' end}
       session.panel.worker=4
     end
     local role=id:match('^pocket') and 'pocket' or 'panel'
@@ -82,9 +164,10 @@ A.render = function(id, state, w, h)
       if state=='draft' or state=='row' then b.tap(session,'saved2:edit:1:supplies') end
       if state=='row' then b.tap(session,'saved2:row:1') end
     end
-    return b.frame(session,'pocket',w,h)
+    return b.frame(session,'pocket',w,h),b.screens.pocket.input,session
   elseif id == 'status' then
-    local s = once(S.new)
+    local s = once(statusServer)
+    s.env.SO.mods.state.get=function() return s.seedMachines end
     local m = s.D.gather()
     if state == 'missing' then m.mining,m.lumber,m.today,m.disk=nil,nil,nil,nil
     elseif state == 'empty' then m.turtles, m.flags, m.events = {}, {}, {}
@@ -97,27 +180,59 @@ A.render = function(id, state, w, h)
       m.turtles=rows
     end
     m.tight=state=='tight'
-    return U.status(m,w,h)
+    local session={id=7,w=w,h=h}
+    s.D.model=m
+    statusModel(s,m)
+    return U.status(m,w,h),function(e) s.D.handle('status',session,e,s.now) end,session
   elseif id:match('^mining') or id:match('^lumber') then
     local mine=id:match('^mining')
     local t = once(function() return mine and J.mining({empty=state=='empty'}) or J.lumber() end)
     local session={id=7}
     if id:find('-',1,true) then t.tap(session,'tab:setup') end
     if id=='mining-ores' then t.tap(session,'ores-edit') end
-    return t.render(w,h,session), t.input, session
+    if not t.router then
+      t.router=S.new()
+      local role=mine and 'mining' or 'lumber'
+      t.router.d.screen(role,t.render,t.input)
+      local get=t.router.env.SO.mods.state.get
+      t.router.env.SO.mods.state.get=function()
+        local rows=get()
+        for key,row in pairs(t.job.turtles or {}) do rows[tostring(key)]={role='worker',pose=row.pose} end
+        if t.job.turtle then rows[tostring(t.job.turtle.id)]={role='worker',pose=t.job.turtle.pose} end
+        return rows
+      end
+    end
+    session.w,session.h=w,h
+    return t.render(w,h,session),function(e)
+      if e.id:match('^turtle:') then t.router.D.handle(mine and 'mining' or 'lumber',session,e,0) else t.input(e) end
+    end,session
   elseif id=='map' then
     local t=once(MAP.setup)
     local session={}
     if state~='scene' then session.map={fit=false,sx=1,sz=1,cx=184,cz=-369,level=-58,
       pick=state=='selection' and {k='turtle',id='6'} or nil} end
-    return t.settle(w,h,session)
+    local frame=t.settle(w,h,session)
+    session.w,session.h=w,h
+    local D=S.private(t.display.handlers.hello,'D')
+    return frame,function(e) D.handle('map',session,e,t.machine.env.SO.now()) end,session
   elseif id=='ar-focus' then
     local t=once(AR.boot)
     local items={{id='ar-all',text='ALL',on=false}}
     for _,n in ipairs({3,7,12,40}) do items[#items+1]={id='ar-turtle:'..n,text='turtle #'..n,on=n==12} end
     for n=1,8 do items[#items+1]={id='ar-drop:p'..n,text='drop #'..n,on=false} end
     if state=='empty' then items={} end
-    return t.A.pickLayout({count=2,picker={page=state=='next' and 2 or 1,items=items}},w,h)
+    t.A.follow,t.A.remote=true,true
+    t.A.targets=function()
+      local out={}
+      for _,item in ipairs(items) do
+        local n=item.id:match('^ar%-turtle:(%d+)$')
+        local drop=item.id:match('^ar%-drop:(.+)$')
+        if n or drop then out[#out+1]={kind=n and 'turtle' or 'drop',key=n and tonumber(n) or drop} end
+      end
+      return out
+    end
+    local session={arPicker={page=state=='next' and 2 or 1}}
+    return t.A.pickLayout({count=2,picker={page=session.arPicker.page,items=items}},w,h),t.screens.ar.input,session
   elseif id=='drops-dimension' or id=='drops-preview' or id=='drops-saved' then
     local t,session=once(J.drops),{id=7}
     t.S.views={}
@@ -137,6 +252,7 @@ A.render = function(id, state, w, h)
           t.coverageRead=true
         end
       end
+      env.SO.mods.lease.status=function() return {} end
       env.SO.mods.lease.world=function() return {dim='minecraft:overworld',x=118,y=64,z=-336} end
       t.tap(session,'testing')
       if id=='drops-preview' then t.tap(session,'turtle:12') end
@@ -144,8 +260,9 @@ A.render = function(id, state, w, h)
     return t.render(w,h,session),t.input,session
   elseif id=='ar-follow' then
     local t=once(AR.boot)
+    t.A.follow,t.A.remote=true,true
     return t.A.layout({count=1,layers={turtles=true,leases=true,drops=true,alerts=true},
-      follow={focus='#12',missing=state=='missing',dims='world'}},w,h)
+      follow={focus='#12',missing=state=='missing',dims='world'}},w,h),t.screens.ar.input,{}
   elseif id=='attention-lost' then
     local t=once(function()
       return HEALTH.health(nil,function(_,env)
@@ -158,19 +275,24 @@ A.render = function(id, state, w, h)
     local session={}
     t.render('attention',w,h,session)
     if state=='detail' then t.input('attention',session,'item:lost/12') end
-    return t.render('attention',w,h,session)
+    return t.render('attention',w,h,session),t.screens.attention.input,session
   elseif id=='health-diagnostics' then
     local t=once(function() local b=HEALTH.health() HEALTH.diagnosticFacts(b) return b end)
     local session={}
     t.render('health',w,h,session)
     if state=='next' then t.input('health',session,'next') end
-    return t.render('health',w,h,session)
+    return t.render('health',w,h,session),t.screens.health.input,session
   elseif id=='drops-queue' or id=='drops-tools' then
     local t,session=once(J.drops),{id=7}
     t.S.views={}
     t.S.queueEnabled=function() return true end
     t.S.enabled=function() return true end
     t.S.queue=id=='drops-queue' and {completed=2,total=3,state=state,current={id='ore-west'}} or nil
+    if id=='drops-tools' then
+      local env=S.private(t.mod.tick,'_ENV')
+      env.SO.mods.lease.world=function() return nil,'no fresh GPS' end
+      env.SO.mods.lease.status=function() return {} end
+    end
     t.S.task=id=='drops-tools' and state=='release' and {id=12} or nil
     t.S.compass=state=='facing' and {id=12} or nil
     if state=='facing' then t.S.queue.state='stopped' end
@@ -192,7 +314,7 @@ A.render = function(id, state, w, h)
     return t.render(w,h,session),t.input,session
   elseif id=='build-return' then
     local t=once(function() return W.buildReturn(state) end)
-    return t.render(w,h,t.session)
+    return t.render(w,h,t.session),t.input,t.session
   elseif id:match('^build') then
     local t=once(function() return O.build({inv=state=='empty' and {} or nil,noReport=state=='missing'}) end)
     local session={buildSetup=id~='build'}
@@ -205,7 +327,7 @@ A.render = function(id, state, w, h)
     local session={}
     t.render('errors',w,h,session) t.input('errors',session,'error:1')
     if state=='next' then t.render('errors',w,h,session) t.input('errors',session,'next') end
-    return t.render('errors',w,h,session)
+    return t.render('errors',w,h,session),t.screens.errors.input,session
   elseif id=='events-history' then
     local t=once(function() return HEALTH.health(HEALTH.history().state) end)
     local session={}
@@ -217,9 +339,10 @@ A.render = function(id, state, w, h)
       local frame=t.render('events',w,h,session)
       for _,b in ipairs(frame.buttons) do if b.id:match('^event:') then t.input('events',session,b.id) break end end
     end
-    return t.render('events',w,h,session)
+    return t.render('events',w,h,session),t.screens.events.input,session
   elseif id=='errors-clear' then
     local t=once(function() return CLEAR.clearFixture(state=='empty' and 0 or 1) end)
+    S.private(t.screens.errors.input,'H').clearAttempt=0
     local session={}
     t.render(session,w,h)
     if state=='confirm' then t.input(session,'error-clear')
@@ -227,7 +350,7 @@ A.render = function(id, state, w, h)
       t.input(session,'error:1')
       if state=='next' then t.render(session,w,h) t.input(session,'next') end
     end
-    return t.render(session,w,h)
+    return t.render(session,w,h),t.screens.errors.input,session
   elseif id=='health'  or id=='attention' or id=='events' or id=='alerts' or id=='errors' or id=='events-picker' then
     local t,session=once(O.health),{}
     local role=id=='events-picker' and 'events' or id
@@ -240,7 +363,23 @@ A.render = function(id, state, w, h)
     if state=='error' then row.error=string.rep('storage write failed ',8) end
     if state=='confirm' then sel.confirm='remove' end
     if id=='turtle-pose' then sel.draft,row.uncertain=scene.draft,true end
-    return U.turtle.render(w,h,sel,row,scene.detail.now)
+    local t=once(function()
+      local b=S.new()
+      b.mine,b.commands=J.mining(),{}
+      b.d.screen('mining',b.mine.render,function(e)
+        b.commands[#b.commands+1]=e.text
+        return b.mine.input(e)
+      end)
+      return b
+    end)
+    local session={id=7,w=w,h=h,turtle=sel}
+    t.now=scene.detail.now
+    t.D.model=t.D.gather()
+    t.env.SO.mods.state.get=function() return {[sel.id]={role='worker',seen=row.seen}} end
+    t.env.SO.mods.mine.turtleView=function() return {[sel.id]=row} end
+    t.env.SO.mods.lease.status=function() return {open=row.lease,uncertain=row.uncertain} end
+    t.D.details={[sel.id]=row}
+    return U.turtle.render(w,h,sel,row,scene.detail.now),function(e) t.D.handle('status',session,e,t.now) end,session
   elseif id=='inventory' then
     local t=once(function() return INV.setup(w,h,{turtleInventory=true}) end)
     local scene=O.scene()
@@ -250,7 +389,11 @@ A.render = function(id, state, w, h)
     if state=='stale' then model.stale=true end
     local now=state=='stale' and INV.SCENE.later or INV.SCENE.at
     model.at=INV.SCENE.at
-    return U.turtle.inventory(w,h,{inventoryPage=state=='next' and 2 or 1},model,now)
+    local session={id=7,w=w,h=h,turtle={id='2',page='inventory',inventoryPage=state=='next' and 2 or 1}}
+    t.D.invOn=true
+    t.D.invModel=function() return model end
+    t.D.model=t.D.gather()
+    return U.turtle.inventory(w,h,session.turtle,model,now),function(e) t.D.handle('status',session,e,t.now) end,session
   elseif id=='shop-saved' then
     local t=once(function()
       local b=SAVED.savedShop(nil,true)
@@ -270,7 +413,7 @@ A.render = function(id, state, w, h)
       if state=='list' or state=='draft' then t.tap(session,'saved2:open:1:supplies','shop') end
       if state=='draft' then t.tap(session,'saved2:edit:1:supplies','shop') end
     end
-    return t.frame(session,'shop',w,h)
+    return t.frame(session,'shop',w,h),t.screens.shop.input,session
   elseif id:match('^shop') then
     local t,session=once(SH.loaded),{id=2}
     t.S.views={}
@@ -289,7 +432,8 @@ A.render = function(id, state, w, h)
     local layers={turtles=true,leases=true,drops=true,alerts=true}
     local model={count=state=='empty' and 0 or 2,layers=layers,
       alert=state=='error' and {text=string.rep('storage write failed ',8),i=1,n=2} or nil}
-    return t.A.layout(model,w,h)
+    if model.alert then t.A.active={{key='first'},{key='second'}} t.A.shown=t.A.active[1] end
+    return t.A.layout(model,w,h),t.screens.ar.input,{}
   elseif id:match('^terminal') then
     local t=once(S.new)
     local mode=id=='terminal' and 'normal' or id:sub(10)=='roles' and 'role' or id:sub(10)
@@ -307,8 +451,9 @@ A.render = function(id, state, w, h)
     t.now=50000000
     local session={alertSeen={}}
     t.frame(session,w,h) t.now=t.now+2000
-    return t.frame(session,w,h)
+    return t.frame(session,w,h),function(e) t.D.handle('status',session,e,t.now) end,session
   end
   error('unknown Lua adapter '..id)
 end
+A.reset=function() cache={} end
 return A
