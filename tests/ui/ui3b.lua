@@ -302,12 +302,59 @@ return function(test,equal)
     s.env.SO.mods.state={view=function() return {values=values} end}
     s.panel.tick(0);s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,'alerts')
     local text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')
-    assert(text:find('fault 1',1,true));assert(text:find('fault 15',1,true));assert(not text:find('fault 16',1,true))
+    -- Each alert is its wrapped rows and a blank row, as on the pocket: eight one-line alerts a page.
+    assert(text:find('fault 1',1,true));assert(text:find('fault 8',1,true));assert(not text:find('fault 9',1,true))
+    assert(text:find('1/4',1,true))
     s.tap(2,'alert-next');text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')
-    assert(text:find('fault 16',1,true));assert(text:find('fault 30',1,true))
+    assert(text:find('fault 9',1,true));assert(text:find('fault 16',1,true));assert(not text:find('fault 17',1,true))
     s.tap(2,'alert-prev');assert(capture(s.frame(2),26,20).picture().text[4]:find('fault 1',1,true))
     s.tap(2,'panel-back');s.tap(2,'pair');s.tap(2,'panel-back')
     assert(capture(s.frame(2),26,20).picture().text[3]:find('MINING',1,true))
+  end)
+  test('UI3b panel ALERTS wraps a long alert to two rows like the pocket',function()
+    local s=setup()
+    local long='fuel chest at drop point seven is empty and the lumber turtle cannot refuel; '
+      ..'fill the chest or move the drop point, then start lumber again from the panel'
+    equal(#long>=150,true)
+    s.env.SO.mods.state={view=function() return {values={['lumber.alert']={text=long},['mine.alert']={text='ore chest full'}}} end}
+    s.panel.tick(0);s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,'alerts')
+    local rows=capture(s.frame(2),26,20).picture().text
+    equal(rows[4]:sub(2,3),'! ');equal(rows[5]:sub(2,3),'  ')
+    assert(rows[4]:find('fuel chest at drop',1,true),rows[4])
+    assert(rows[5]:find('seven is empty',1,true),rows[5])
+    equal(rows[6]:match('^%s*$')~=nil,true)
+    assert(rows[7]:find('! ore chest full',1,true),rows[7])
+    for _,size in ipairs({{57,24},{29,12},{15,10}}) do
+      local out=capture(s.frame(2,size[1],size[2]),size[1],size[2]).picture().text
+      assert(table.concat(out,'\n'):find('fuel chest',1,true),'alert drawn at '..size[1]..'x'..size[2])
+    end
+  end)
+  -- UB-8: the keyboard panel names the item its chips order, with the stock, and the last order's reply.
+  test('UI3b keyboard panel shows the best match and stock by the chips, then the order reply',function()
+    local s=setup();local sends={}
+    s.env.rednet.send=function(id,body) sends[#sends+1]={id=id,body=body} end
+    s.env.rednet.broadcast=function() end
+    local shop=assert(loadfile('so-mod-shop.lua','t',s.env))()
+    s.env.SO.mods.shop=shop;shop.tick(0)
+    shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:raw_gold']=4}})
+    s.panel.tick(0);s.frame(2);assert(s.display.assign(2,'panel'))
+    local function rows() return capture(s.frame(2),26,20).picture() end
+    local function row(p,pattern) for y,text in ipairs(p.text) do if text:find(pattern) then return y,text end end end
+    s.tap(2,nil,'iron')
+    local p=rows();local y,text=row(p,'IRON INGOT')
+    assert(y and text:find('1240',1,true),'best match and stock')
+    local chips;for _,b in ipairs(s.frame(2).buttons) do if b.id=='order:16' then chips=b.y end end
+    equal(chips,y+1)
+    s.tap(2,nil,'gold');p=rows();y=row(p,'RAW GOLD');assert(y and p.fg[y]:find('1',1,true),'low stock is amber')
+    s.tap(2,nil,'nothing');assert(row(rows(),'no match'))
+    s.tap(2,nil,'iron');s.tap(2,'order:16')
+    equal(sends[#sends].body.text,'minecraft:iron_ingot')
+    p=rows();y=row(p,'16 IRON INGOT sent');assert(y,'sent line');equal(p.fg[y]:sub(2,2),'d')
+    shop.listen.roomsorter(9,{rid=sends[#sends].body.rid,'Not in storage: iron ingot'})
+    p=rows();y=row(p,'16 IRON INGOT failed');assert(y,'failed line');equal(p.fg[y]:sub(2,2),'e')
+    assert(p.text[y+1]:find('Not in storage: iron',1,true),p.text[y+1])
+    s.tap(2,'order:64');shop.listen.roomsorter(9,{rid=sends[#sends].body.rid,'Delivered 64 Iron Ingot'})
+    assert(row(rows(),'64 IRON INGOT delivered'))
   end)
   test('UI3b partial installs without the kit show the display id until assigned',function()
     local s=setup();s.env.fs={exists=function() return false end}

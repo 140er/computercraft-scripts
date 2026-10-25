@@ -228,7 +228,8 @@ def count_fg(n):
     return "8" if n == 0 else "1" if n < 10 else "0"
 
 
-def shop(m, w=26, h=20, search=None, sent=None, selected=None):
+def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None):
+    """sent is the last order's line and colour; reply is the shop's reply under it."""
     cv = Canvas(w, h, "Pocket SHOP quick order")
     tabs(cv, "shop", len(m["flags"]) > 0)
     search = SYS["search"] if search is None else search
@@ -252,12 +253,19 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None):
         cv.hit("pick:" + item["name"], 2, y, w - 2, 1)
         y += 1
         if item is shown:
-            cw = (w - 4) // 3
+            cw, half = (w - 4) // 3, (w - 3) // 2
             for i, n in enumerate((1, 16, 64)):
                 chip(cv, 2 + i * (cw + 1), y, str(n), "order:%d:%s" % (n, item["name"]), "plain", cw)
-            y += 2
+            chip(cv, 2, y + 1, "STACK", "order:stack:" + item["name"], "plain", half)
+            if item["count"] > 0:
+                chip(cv, 3 + half, y + 1, "ALL", "order:all:" + item["name"], "plain", half)
+            else:
+                dead(cv, 3 + half, y + 1, "ALL", half)
+            y += 3
     if sent:
         cv.put(2, h - 1, sent[0][:w - 2], sent[1])
+    if reply:
+        cv.put(2, h, reply[:w - 2], "8")
     return cv
 
 

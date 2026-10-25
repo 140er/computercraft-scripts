@@ -5,6 +5,7 @@
  ------------------------ 
  IRON INGOT ········ 1240 
     1      16      64     
+    STACK        ALL      
                           
  IRON ORE ··········· 312 
  RAW IRON ············ 48 
@@ -13,7 +14,6 @@
  IRON DOOR ············ 3 
  IRON PICKAXE ········· 1 
  IRON BARS ············ 0 
-                          
                           
                           
                           
@@ -26,6 +26,7 @@
 000000000000cccccccc000000
 00000000000000000000000000
 00000000000000000000000000
+00000000000000000000000000
 0000000000ccccccccccc00000
 0000000000cccccccccccc0000
 000000000000cccccccccc0000
@@ -33,7 +34,6 @@
 00000000000cccccccccccc010
 00000000000000ccccccccc010
 00000000000cccccccccccc080
-00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
@@ -45,7 +45,7 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 77777777777777777777777777
 f7777777f7777777f7777777ff
-ffffffffffffffffffffffffff
+f77777777777f77777777777ff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

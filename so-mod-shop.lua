@@ -358,16 +358,24 @@ S.best = function(search)
   return nil
 end
 
--- One order of 1, 16 or 64 for the best match. Returns the item sent, or nil and a reason.
--- Changes no display's screen state.
-S.order = function(search, count)
-  if count ~= 1 and count ~= 16 and count ~= 64 then return nil, "bad count" end
+-- One order for the best match: 1, 16, 64, "stack" (its stack size) or "all" (its stock). Returns the
+-- item and count sent, or nil and a reason. Changes no display's screen state; a given view gets the
+-- order status and reply the way a shop display's view does.
+S.order = function(search, count, view)
   local name, stock = S.best(search)
+  if count == "stack" or count == "all" then
+    if not name then return nil, "no match" end
+    count = count == "stack" and S.stackOf(name, S.kind(name)) or stock
+  elseif count ~= 1 and count ~= 16 and count ~= 64 then return nil, "bad count" end
   if not name then return nil, "no match" end
   if stock <= 0 then return nil, "out of stock" end
   local rid, err = S.request("order", name, count)
   if not rid then return nil, err end
-  return name
+  if type(view) == "table" then
+    S.pending[rid].view = view
+    view.order, view.orderDetail, view.orderRid = "Order: sent " .. count, nil, rid
+  end
+  return name, count
 end
 
 S.legacy = function(_w, _h, clientId)

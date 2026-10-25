@@ -4,11 +4,6 @@
  turtles ·· 4 ok · 1 lost 
                           
  MINING -------- running  
- |||||||··· 7/10          
- busy ··············· 2/4 
- lane ················ ▼4 
- min fuel ········ 412 #6 
-                          
     START        STOP     
                           
  LUMBER -------- running  
@@ -16,7 +11,12 @@
                           
  SHOP ------------------  
  > iron_                  
+ IRON INGOT ········ 1240 
     1      16      64     
+                          
+                          
+                          
+                          
                           
   ALERTS   PAIR           
 00000000ccccccccccc0888880
@@ -24,11 +24,6 @@
 088888880cc00000000eeeeee0
 00000000000000000000000000
 08888880cccccccc0ddddddd00
-03333333888000000000000000
-088880ccccccccccccccc00000
-088880cccccccccccccccc0bb0
-0888888880cccccccc01111110
-00000000000000000000000000
 08888888888800eeeeeeeeeee0
 00000000000000000000000000
 08888880cccccccc0ddddddd00
@@ -36,14 +31,14 @@
 00000000000000000000000000
 088880cccccccccccccccccc00
 08000009000000000000000000
+088888888880cccccccc000000
 00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -53,9 +48,14 @@ f77777777777ff77777777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 f77777777777ff77777777777f
+ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 f7777777f7777777f7777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 f77777777f777777ffffffffff
