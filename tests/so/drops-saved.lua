@@ -207,4 +207,51 @@ return function(test, equal)
     equal(mod.list(),{})
   end)
 
+  test("P-U4-8 usable revalidates cached ids without commands or writes", function()
+    local t=boot()
+    assert(t.mod.add(point()))
+    local cached=t.mod.list()[1]
+    local before,rev,events=H.encode(t.machine.files),t.S.rev,t.events
+    equal({t.mod.usable(cached.id)},{true})
+    equal({t.mod.usable("missing")},{false,"missing"})
+    equal({t.mod.usable(nil)},{false,"missing"})
+    equal({H.encode(t.machine.files),t.S.rev,t.events,t.sent},{before,rev,events,0})
+    t=boot(t.machine.files,true)
+    t.tap("suspend:ore")
+    equal(cached.suspended,nil)
+    equal({t.mod.usable(cached.id)},{false,"suspended"})
+    for _=1,3 do assert(t.mod.note("ore")) end
+    equal({t.mod.usable(cached.id)},{false,"suspended"})
+    t.tap("resume:ore")
+    equal({t.mod.usable(cached.id)},{false,"broken"})
+    assert(t.mod.fix("ore"))
+    equal({t.mod.usable(cached.id)},{true})
+    assert(t.mod.remove("ore"))
+    equal({t.mod.usable(cached.id)},{false,"missing"})
+    equal(t.sent,0)
+  end)
+
+  test("P-U4-8 usable preserves saved suspension with the flag off and after a failed resume", function()
+    local t=boot(nil,true)
+    assert(t.mod.add(point("saplings","storage")))
+    t.tap("suspend:saplings")
+    t=boot(t.machine.files,false)
+    equal({t.mod.usable("saplings")},{false,"suspended"})
+    t.tap("resume:saplings")
+    equal({t.mod.usable("saplings")},{false,"suspended"})
+    t=boot(t.machine.files,true)
+    local before,rev=H.encode(t.machine.files),t.S.rev
+    t.S.box.save=function() return false,"disk full" end
+    t.tap("resume:saplings")
+    equal({t.mod.usable("saplings")},{false,"suspended"})
+    equal({H.encode(t.machine.files),t.S.rev,t.sent},{before,rev,0})
+  end)
+
+  test("P-U4-8 usable refuses unreadable saved generations", function()
+    local t=boot({["so-drops"]=generation({v=3,points={point()}},2),
+      ["so-drops.bak"]=generation({points={point()}})},false)
+    equal({t.mod.usable("ore")},{false,"unreadable"})
+    equal(t.sent,0)
+  end)
+
 end

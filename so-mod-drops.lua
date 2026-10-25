@@ -136,6 +136,16 @@ S.find = function(id)
   end
 end
 
+S.usable = function(id)
+  if S.blocked then return false, "unreadable" end
+  local idx = S.find(id)
+  local p = idx and S.points[idx]
+  if not p then return false, "missing" end
+  if p.suspended then return false, "suspended" end
+  if p.fails >= S.strikes then return false, "broken" end
+  return true
+end
+
 S.same = function(p, point)
   return p.dim == point.dim and p.x == point.x and p.y == point.y and p.z == point.z
     and p.side == point.side and p.kind == point.kind and (p.room or false) == (point.room or false)
@@ -1538,6 +1548,7 @@ return {
   end,
   pick = S.pick,
   choose = S.choose,
+  usable = S.usable,
   steps = S.steps,
   add = S.add,
   remove = S.remove,
