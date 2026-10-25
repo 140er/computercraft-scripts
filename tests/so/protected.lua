@@ -37,12 +37,97 @@ function F.setup(config, files)
     s.pose = actual or p
     s.serial = s.serial+1
     s.lease.handlers["step.report"]({from=2,body={lease=q.lease,results=results,
-      pose={x=s.pose.x,y=s.pose.y,z=s.pose.z,f=s.pose.facing},journal="j"..s.serial,fuel=100,inv={}}})
+      pose={x=s.pose.x,y=s.pose.y,z=s.pose.z,f=s.pose.facing},journal="j"..s.serial,fuel=s.reportFuel or 100,inv=s.reportInv or {}}})
     return q
   end
   return s
 end
 function F.run(test,equal)
+  test("lease delivers ordinary operation failures without a lost boundary",function()
+    for _,op in ipairs({"drop","dropUp","dropDown","suck","suckUp","suckDown","refuel","place","placeUp","placeDown","dig","digUp","digDown"}) do
+      local s=F.setup()
+      local received
+      s.lease.onReport("mine",function(_,_,results) received=results end)
+      assert(s.lease.send(2,{{op=op}},{owner="mine",pose=s.pose}))
+      s.report({{ok=false,err="operation failed"}})
+      equal(received,{{ok=false,err="operation failed"}},op)
+      equal(s.lease.status(2).boundaryHold,nil,op)
+      assert(s.lease.send(2,{{op="forward"}},{owner="mine",pose=P.apply(s.pose,"forward")}))
+    end
+  end)
+  test("protection activation checks each reservation holder once",function()
+    local s=F.setup()
+    for x=1,20 do assert(s.cells.reserve("mine:3",x,0,0,dim)) end
+    local calls=0
+    s.lease.peek=function() calls=calls+1 return {reconciled=true,pose=s.pose,journal="j"} end
+    assert(s.cells.protect({}))
+    equal(calls,1)
+  end)
+  test("mining fluid seal planner refuses a protected box edge",function()
+    local s=F.setup()
+    local M=dofile("so-mine-plan.lua")
+    local goal={dim=dim,x=1,y=0,z=0,facing=1}
+    local job={dim=dim,home={x=0,y=0,z=0,facing=1},bottom=-2,length=4,mode="fast"}
+    local action=M.next(job,{pose=s.pose,goal=goal},function() return {name="minecraft:water",level=0} end,
+      {{slot=1,name="minecraft:cobblestone",count=1}},100)
+    equal(action.kind,"seal") equal(action.steps[2].op,"place")
+    assert(s.cells.protect({s.box("edge",1,1)}))
+    local check=s.lease.assess(2,s.pose,action.steps,{owner="mine"})
+    equal(check.reason,"protected") equal(check.first,2) equal(check.cell.x,1)
+    local lid,why=s.lease.send(2,action.steps,{owner="mine",pose=s.pose})
+    equal(lid,nil) equal(why,"protected") equal(#s.sent,0)
+  end)
+  for _,kind in ipairs({"material","fuel","refuel","place"}) do
+    test("builder handles failed "..kind.." operations with protection enabled",function()
+      local f=dofile("tests/so/build-fixture.lua")({protectedAreas=true,builderFuelTrips=kind=="fuel" or kind=="refuel"})
+      if kind=="fuel" then f.setPose({dim=dim,x=-3,y=1,z=0,facing=1}) end
+      f.configure("floor",1,1,1)
+      if kind=="fuel" then
+        f.fuel=2 f.fuelChest=f.chest
+      elseif kind=="refuel" then
+        f.fuel=1 f.fuelChest=f.chest
+        f.inventory[1]={name="minecraft:coal",count=1} f.refuelError=true
+      elseif kind=="place" then
+        f.inventory[1]={name="minecraft:stone",count=32} f.placeError=true
+      end
+      f.world["-3,0,0"].stock=0
+      f.tick() f.report() f.input("start")
+      for _=1,120 do
+        f.tick() if f.queued() then f.report() end
+        local j=f.job()
+        if j.blocked then
+          local alerts={material="out of material",fuel="fuel chest empty",refuel="fuel item rejected",place="placement failed"}
+          equal(j.alert,alerts[kind])
+          if kind=="material" or kind=="fuel" then
+            equal(j.retryAt,f.now+10000) equal(j.service.stage,"check")
+          end
+          assert(j.blocked~="pose_uncertain")
+          return
+        end
+      end
+      error("builder never reached its normal failure handler")
+    end)
+  end
+  test("builder planner refuses placement at a protected box edge",function()
+    local f=dofile("tests/so/build-fixture.lua")({protectedAreas=true})
+    f.configure("floor",1,1,1) f.inventory[1]={name="minecraft:stone",count=32}
+    f.tick() f.report() f.input("start")
+    for _=1,100 do
+      f.tick()
+      local q=f.queued()
+      if q then
+        local inspect=q.steps[#q.steps].op=="inspectDown" and not q.opts.recover
+        f.report()
+        if inspect and f.job().phase=="place" then
+          f.protected={["0,0,0"]=true}
+          f.tick()
+          equal(f.queued(),nil) equal(f.job().alert,"protected") equal(f.count(),0)
+          return
+        end
+      end
+    end
+    error("builder did not reach placement")
+  end)
   test("builder completes a protected-area boundary route with acknowledged storage travel",function()
     local f=dofile("tests/so/build-fixture.lua")({protectedAreas=true})
     f.configure("floor",2,1,1) f.tick() f.report() f.input("start") f.run()
@@ -119,10 +204,10 @@ function F.run(test,equal)
       end)
     end
   end
-  test("protected boxes refuse every move and dig target and ordinary work from inside",function()
-    for _, op in ipairs({"forward","back","up","down","dig","digUp","digDown"}) do
+  test("protected boxes refuse every move dig place and drop target and ordinary work from inside",function()
+    for _, op in ipairs({"forward","back","up","down","dig","digUp","digDown","place","placeUp","placeDown","drop","dropUp","dropDown"}) do
       local s=F.setup()
-      local target=P.digs[op] and P.apply(s.pose,({dig="forward",digUp="up",digDown="down"})[op]) or P.apply(s.pose,op)
+      local target=P.target(s.pose,op)
       assert(s.cells.protect({s.box("build",target.x,target.x,target.y,target.y,target.z,target.z)}))
       local check=s.lease.assess(2,s.pose,{{op=op}},{owner="mine"})
       equal(check.reason,"protected") equal(check.first,1)
@@ -259,8 +344,10 @@ function F.run(test,equal)
     assert(s.cells.markDug(1,0,0,dim))
     equal(select(2,s.lease.exitRequest(2,{{op="dig"},{op="forward"}},7)),"exit moves and turns only")
     equal(select(2,s.lease.exitRequest(2,{{op="suck"},{op="forward"}},7)),"exit moves and turns only")
-    s.fuel=0 s.hello()
-    equal(select(2,s.lease.exitRequest(2,steps,7)),"exit fuel unknown or insufficient")
+    for _,fuel in ipairs({0,-1}) do
+      s.fuel=fuel s.hello()
+      equal(select(2,s.lease.exitRequest(2,steps,7)),"exit fuel unknown or insufficient")
+    end
   end)
 end
 return F

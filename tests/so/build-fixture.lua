@@ -29,7 +29,10 @@ local function fixture(config)
     boundaries=function() return config.protectedAreas == true end,
     assess=function(_,from,steps)
       f.assessments=(f.assessments or 0)+1
-      return P.assess(from,steps,{admit=function() return not f.assessmentError,f.assessmentError end})
+      return P.assess(from,steps,{admit=function(_,_,to)
+        local protected=f.protected and f.protected[key(to)]
+        return not (f.assessmentError or protected),protected and "protected" or f.assessmentError
+      end})
     end,
     locate=function(id,dim,done)
       f.located={id=id,dim=dim}
@@ -104,7 +107,7 @@ local function fixture(config)
         local at={x=pose.x,y=pose.y-1,z=pose.z}
         assert(f.held[key(at)]=="build:"..q.turtleId,"placement was not reserved")
         local block=inv[selected]
-        result.ok=not f.world[key(at)] and block and block.count>0 or false
+        result.ok=not f.placeError and not f.world[key(at)] and block and block.count>0 or false
         if result.ok then
           f.world[key(at)]=block.name block.count=block.count-1
           f.placed[key(at)]=(f.placed[key(at)] or 0)+1
@@ -112,7 +115,7 @@ local function fixture(config)
       elseif step.op=="refuel" then
         local block=inv[selected]
         local value=block and P.fuelValue(block.name) or 0
-        result.ok=value>0
+        result.ok=value>0 and not f.refuelError
         if result.ok then
           local n=math.min(block.count,step.n or block.count)
           if f.fuel~="unlimited" then f.fuel=f.fuel+n*value end

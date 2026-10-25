@@ -64,6 +64,55 @@ local function setupFixture(oldSave)
   return s
 end
 function S.run(test, equal)
+  for _,kind in ipairs({"ore","fuel"}) do
+    test("mining handles a "..(kind=="ore" and "full unload" or "empty fuel").." chest with protection enabled",function()
+      local s=dofile("tests/so/protected.lua").setup()
+      s.m.install({"so-mod-mine.lua","so-mine-plan.lua"})
+      local SO=s.m.env.SO
+      local pose=SO.store.copy(s.pose)
+      local inv=kind=="ore" and {{slot=1,name="minecraft:diamond",count=64}} or {}
+      local row={pose=pose,anchor=SO.store.copy(pose),frame={dim=pose.dim,ox=0,oy=0,oz=0,rot=0},
+        inv=inv,fuel=100,state="mining",branch=0,index=2}
+      local point={id=kind,dim=0,x=0,y=-1,z=0,side="down"}
+      row.trip={kind=kind,stage="out",stand=pose,back=SO.store.copy(pose),shared=true,
+        path={pose},reserve=2000,point=point}
+      local job={homeSet=true,home={x=0,y=0,z=0,facing=0},dim=pose.dim,bottom=-2,length=4,
+        branches=1,mode="fast",ores={},turtles={["2"]=row},progress={nextBranch=1,done=0},running=true}
+      row.route=M.route(job,0)
+      assert(SO.store.store("so-data/mine/job",function() return true end).save(job))
+      SO.mods.state={emit=function() return true end,canStart=function() return true end}
+      SO.mods.display={screen=function() end}
+      SO.mods.drops={list=function() return {} end,steps=function()
+        return {{op="inspectDown"},{op="dropDown"}}
+      end}
+      local empty=0
+      SO.mods.shop={fuelEmpty=function() empty=empty+1 return true end}
+      s.reportInv=inv
+      local mine=s.m.env.dofile("so-mod-mine.lua") SO.mods.mine=mine
+      mine.tick() s.report({{ok=false,err="No block to inspect"}})
+      local op=kind=="ore" and "dropDown" or "suckDown"
+      for attempt=1,3 do
+        mine.tick()
+        local q=s.sent[#s.sent].body
+        equal(q.steps[#q.steps].op,op)
+        local results={}
+        for i,step in ipairs(q.steps) do
+          results[i]=step.op==op and {ok=false,err=kind=="ore" and "No space for items" or "No items to take"}
+            or step.op=="inspectDown" and {ok=true,data={name="minecraft:chest"}} or {ok=true}
+        end
+        s.report(results)
+        local saved=SO.store.read("so-data/mine/job").value.turtles["2"]
+        equal(saved.recover,false)
+        equal(saved.dropRetry.tries,attempt)
+        equal(s.lease.status(2).boundaryHold,nil)
+        if kind=="fuel" or attempt==3 then
+          equal(saved.state,"hold") equal(saved.dropRetry.after,60000)
+          if kind=="fuel" then equal(empty,1) else equal(saved.dropRetry.alerted,true) end
+          return
+        end
+      end
+    end)
+  end
   for _, supply in ipairs({false,true}) do
     for _, failure in ipairs({"move","turn"}) do
       test("mining "..(supply and "supply trip" or "work route").." holds after a failed "..failure.." boundary",function()

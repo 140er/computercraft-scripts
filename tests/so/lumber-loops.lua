@@ -46,6 +46,42 @@ local function controls(s, config)
 end
 
 return function(test, equal)
+  for _,kind in ipairs({"fuel suck","sapling place"}) do
+    test("lumber handles failed "..kind.." with protection enabled",function()
+      local P=dofile("so-plan.lua")
+      local plant=kind=="sapling place"
+      local s=setup(plant and "plantPlace" or "scan",1000,
+        plant and {{slot=1,name="minecraft:oak_sapling",count=1}} or {})
+      s.mods.lease.boundaries=function() return true end
+      s.mods.lease.assess=function(_,from,steps) return P.assess(from,steps) end
+      s.row.target={dim=s.job.dim,x=0,y=2,z=0,index=1}
+      s.job.spots["0,0"]={kind="minecraft:oak_log"}
+      if not plant then s.row.service={kind="fuel",stage="take",resume="scan",
+        point={id="fuel",dim=0,x=0,y=1,z=0,side="down"},back=copy(s.row.turtle.pose)} end
+      s.tick(1)
+      local q=assert(s.queued())
+      equal(q.steps[#q.steps].op,plant and "placeDown" or "suckDown")
+      s.report(false,{{ok=true},{ok=false,err=plant and "Cannot place block here" or "No items to take"}})
+      equal(s.row.recover,false)
+      if plant then
+        equal(s.row.target,nil) equal(s.row.phase,"scan") equal(s.job.spots["0,0"].plantedAt,nil)
+      else
+        equal(s.row.blocked,"fuel") assert(s.row.alert:find("empty",1,true),s.row.alert)
+      end
+    end)
+  end
+  test("lumber sapling planner refuses placement at a protected box edge",function()
+    local P=dofile("so-plan.lua")
+    local s=setup("plantPlace",1000,{{slot=1,name="minecraft:oak_sapling",count=1}})
+    s.mods.lease.boundaries=function() return true end
+    s.mods.lease.assess=function(_,from,steps)
+      return P.assess(from,steps,{admit=function(_,_,to) return to.y~=1,"protected" end})
+    end
+    s.row.target={dim=s.job.dim,x=0,y=2,z=0,index=1}
+    s.job.spots["0,0"]={kind="minecraft:oak_log"}
+    s.tick(1)
+    equal(s.queued(),nil) equal(s.row.blocked,"hold") equal(s.row.alert,"protected")
+  end)
   for _, supply in ipairs({false,true}) do
     for _,failure in ipairs({"move","turn"}) do
       test("lumber "..(supply and "supply trip" or "work route").." holds after a failed "..failure.." boundary",function()

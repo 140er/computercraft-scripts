@@ -248,11 +248,15 @@ end
 S.protectionReady = function()
   local lease = SO.mods.lease
   if not lease or not lease.protectionReady or not lease.protectionReady() then return false, "reconcile leases first" end
+  local checked = {}
   for _, who in pairs(S.reservations) do
-    local id = type(who) == "string" and tonumber(who:match(":(%d+)$"))
-    local row = id and lease.peek(id)
-    if not row or row.open or row.uncertain or row.boundaryHold or row.lost or not row.pose or not row.journal or not row.reconciled then
-      return false, "reconcile reservations first"
+    if not checked[who] then
+      checked[who] = true
+      local id = type(who) == "string" and tonumber(who:match(":(%d+)$"))
+      local row = id and lease.peek(id)
+      if not row or row.open or row.uncertain or row.boundaryHold or row.lost or not row.pose or not row.journal or not row.reconciled then
+        return false, "reconcile reservations first"
+      end
     end
   end
   return true
@@ -286,9 +290,16 @@ S.protect = function(boxes)
   return true
 end
 
-S.assessment = function(who, exit)
+S.assessment = function(who, exit, targets)
   local reservations, protection = {}, SO.store.copy(S.protectedState)
-  for key, holder in pairs(S.reservations) do reservations[key] = holder end
+  if targets then
+    for _, p in ipairs(targets) do
+      local key = S.cell(p.x,p.y,p.z,p.dim)
+      reservations[key] = S.reservations[key]
+    end
+  else
+    for key, holder in pairs(S.reservations) do reservations[key] = holder end
+  end
   local blocked = S.protectionEnabled and (S.protectionError or not S.protectionActive and "reconcile protection first")
   return {
     admit = function(from, op, to)
@@ -314,8 +325,9 @@ S.assessment = function(who, exit)
 end
 
 S.admit = function(who, from, op, to)
-  if not ({forward=true,back=true,up=true,down=true,dig=true,digUp=true,digDown=true})[op] then return true end
-  return S.assessment(who).admit(from, op, to)
+  if not ({forward=true,back=true,up=true,down=true,dig=true,digUp=true,digDown=true,
+    place=true,placeUp=true,placeDown=true,drop=true,dropUp=true,dropDown=true})[op] then return true end
+  return S.assessment(who,nil,{to}).admit(from, op, to)
 end
 
 S.release = function(who, x, y, z, dim)

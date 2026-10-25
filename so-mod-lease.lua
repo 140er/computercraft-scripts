@@ -361,7 +361,15 @@ S.assess = function(id, from, steps, opts)
   opts = opts or {}
   local cells, row = S.module("cells"), S.turtles[id]
   if not cells or not cells.assessment then return {ok=false,reason="cells unavailable"} end
-  local checks = cells.assessment(opts.who or (opts.owner or "lease") .. ":" .. id, opts.exit)
+  local valid = S.rules().assess(from,{})
+  if not valid.ok then return valid end
+  local targets, at = {}, from
+  for _, step in ipairs(steps) do
+    local target = S.rules().target(at,step.op)
+    if target then targets[#targets+1] = target end
+    at = S.rules().apply(at,step.op)
+  end
+  local checks = cells.assessment(opts.who or (opts.owner or "lease") .. ":" .. id, opts.exit, targets)
   if not opts.clear then checks.clear = nil end
   checks.limit = S.pos and (not from or from.dim == "minecraft:overworld") and ((row and row.range or 16) + 8) or nil
   checks.range = function(p) return S.inRange(id, p), S.distance(p), checks.limit end
@@ -406,7 +414,7 @@ S.exitPlan = function(id, from, steps)
     route.steps[#route.steps+1] = {op=step.op}
   end
   if moves > 16 or next(P.membership(at,protection.boxes)) then return nil, "exit must end outside within 16 moves" end
-  if row.fuel ~= "unlimited" and (type(row.fuel) ~= "number" or row.fuel >= 0 and row.fuel < moves) then
+  if row.fuel ~= "unlimited" and (not S.number(row.fuel) or row.fuel < 0 or row.fuel < moves) then
     return nil, "exit fuel unknown or insufficient"
   end
   route.departed, route.at, route.next = {}, from, 1
@@ -505,7 +513,7 @@ S.send = function(id, steps, opts)
     if #prefix.steps ~= #steps then return nil, "acknowledged boundary required" end
     local motion, observation = false, true
     for _, step in ipairs(steps) do
-      if S.rules().moves[step.op] or S.rules().turns[step.op] or S.rules().digs[step.op] then motion = true end
+      if S.rules().moves[step.op] or S.rules().turns[step.op] or S.rules().writes[step.op] then motion = true end
       if step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" and step.op ~= "gps" then observation = false end
     end
     reconcile = opts.recover == true and observation
@@ -667,7 +675,7 @@ S.report = function(msg, reply)
     local before = lease.expected and {dim="journal",x=lease.expected.x,y=lease.expected.y,z=lease.expected.z,facing=lease.expected.f}
     local success = certain and (lease.reconcile or S.rules().samePose(before, actual))
     for i, step in ipairs(lease.steps) do
-      if not results[i].ok and not step.op:match("^inspect") then success = false end
+      if (S.rules().moves[step.op] or S.rules().turns[step.op]) and not results[i].ok then success = false end
       if results[i].err == "journal changed" then success = false end
     end
     if not success then row.boundaryHold, row.reconciled, results, allOk = true, false, nil, false

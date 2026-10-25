@@ -463,7 +463,7 @@ S.send = function(steps, action, cells, recover, ms, route)
   if boundary then
     local prefix = P.boundary({from=j.turtle.pose,steps=steps})
     if #prefix.rest > 0 or route then
-      route = route or {steps=steps,pose=j.turtle.pose,action=action,results={}}
+      route = route or {steps=steps,pose=j.turtle.pose,action=action,results={},recover=recover,ms=ms}
       route.rest = prefix.rest
     end
     steps = prefix.steps
@@ -725,7 +725,7 @@ S.report = function(id, turtleId, results, lease)
     local route = pending.route
     for _, result in ipairs(results) do route.results[#route.results+1] = result end
     if #route.rest > 0 then
-      if not S.send(route.rest,route.action,nil,false,nil,route) then
+      if not S.send(route.rest,route.action,nil,route.recover,route.ms,route) then
         j.recover, j.blocked = true, "hold"
         S.suspendService()
         S.alert("route held; reservations retained")

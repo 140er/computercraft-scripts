@@ -30,4 +30,27 @@ return function(test,equal)
       equal(P.confirm(from,prefix.steps,{{ok=false},{ok=true}},actual),false)
     end
   end)
+  test("ordinary operation failures confirm the acknowledged pose boundary",function()
+    for _,op in ipairs({"drop","suck","refuel","place","dig"}) do
+      assert(P.confirm(from,{{op=op}},{{ok=false}},from),op)
+      local actual=P.apply(from,"forward")
+      assert(P.confirm(from,{{op=op},{op="forward"}},{{ok=false},{ok=true}},actual),op)
+      equal(P.confirm(from,{{op=op},{op="forward"}},{{ok=false},{ok=false}},from),false)
+    end
+  end)
+  test("range clipping retains boundary metadata and trims nested part poses",function()
+    local part=P.path(from,{dim=from.dim,x=3,y=0,z=0,facing=1})
+    part.first=1
+    local action={kind="batch",from=from,boundary=true,steps={{op="forward"}},
+      cells=part.cells,pose=part.pose,actions={part}}
+    local out=assert(P.rangeBatch({inRange=function(_,p) return p.x<=1 end},2,action))
+    equal(out.boundary,true) equal(out.from,from)
+    equal(#out.steps,1) equal(#out.actions[1].steps,1)
+    equal(out.pose,P.apply(from,"forward")) equal(out.actions[1].pose,out.pose)
+    for _,p in ipairs(out.cells) do assert(p.x<=1) end
+    equal(#part.steps,3) equal(part.pose.x,3)
+    local boundary=P.boundary({from=from,steps=part.steps,actions={part}})
+    equal(boundary.actions[1].pose,boundary.pose)
+  end)
+
 end
