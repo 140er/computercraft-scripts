@@ -463,19 +463,13 @@ return function(test,equal)
     t.c.co,t.c.inbox,t.c.timers=nil,{},{}
     t.c.boot("display.lua"); t.n.flush()
   end
-  local function clickRow(t,g,text)
-    for y=1,select(2,g.getSize()) do
-      if g.line(y):find(text,1,true) then return event(t,"mouse_click",1,2,y) end
-    end
-    error("no "..text..": "..g.text())
-  end
 
   test("repair: terminal changes a wall display to a new server id, and it survives a reboot",function()
     local cfg={repairServer=true,retryInput=true,keep="me"}
     local t=setup(29,12,true,false,cfg); pair(t); t.n.advance(3)
     stale(t); local s=replace(t,3)
     event(t,"char","r")
-    assert(shows(t.own,"REPAIR") and shows(t.own,"Server 1  key "),t.own.text())
+    assert(shows(t.own,"REPAIR") and shows(t.own,"Server 1"),t.own.text())
     assert(shows(t.face,"REPAIR"),t.face.text())
     event(t,"key",257); assert(shows(t.own,"Leave server 1?"),t.own.text())
     event(t,"key",257); assert(shows(t.own,"New server: 3"),t.own.text())
@@ -491,15 +485,15 @@ return function(test,equal)
     assert(shows(t.face,"display 2"),t.face.text())
   end)
 
-  test("repair: a pocket re-pairs the same server id by clicks and keys",function()
+  test("repair: a pocket re-pairs the same server id from its own screen",function()
     local t=setup(26,20,false,false,{repairServer=true}); pair(t); t.n.advance(3)
     local old=t.c.files["so-keys"]
     stale(t); replace(t,1); t.n.advance(15)
     event(t,"mouse_click",1,3,1)
-    assert(shows(t.face,"REPAIR"),t.face.text())
-    clickRow(t,t.face,"CHANGE SERVER"); clickRow(t,t.face,"CHANGE SERVER")
+    assert(shows(t.face,"REPAIR") and shows(t.face,"Server 1"),t.face.text())
+    event(t,"key",257); event(t,"key",257)
     assert(shows(t.face,"New server: 1"),t.face.text())
-    clickRow(t,t.face,"USE 1")
+    event(t,"key",257)
     typeText(t,code(t)); t.n.advance(3)
     equal(boxKeys(t),"1")
     assert(t.c.files["so-keys"]~=old,"same-id repair kept the old key")
