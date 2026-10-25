@@ -32,8 +32,8 @@ def model():
     mine.sort(key=lambda r: r["id"])
     turtles = mine + wood
     flags = [dict(text="#%d lost" % t["id"], detail="%d,%d,%d · %s" % (t["x"], t["y"], t["z"], age(t["ago"], True)),
-                  short=age(t["ago"])) for t in turtles if t["lost"]]
-    flags += [dict(text="drop %d %s broken" % (d["id"], d["kind"]), brief="drop %d broken" % d["id"])
+                  short=age(t["ago"]), hit="turtle:%d" % t["id"]) for t in turtles if t["lost"]]
+    flags += [dict(text="drop %d %s broken" % (d["id"], d["kind"]), brief="drop %d broken" % d["id"], hit="broken")
               for d in S["drops"] if d["broken"]]
     ready = sum(1 for sp in S["spots"] if sp["ready"])
     m = st["mining"]
@@ -81,6 +81,7 @@ def turtle(cv, x, y, t, w, pos=None, pfg="8", cut=0):
     else:
         cv.put(x + 5, y, t["state"][:max(0, w - 11)], state_fg(t["tone"]))
         cv.put(x + w - 4, y, t["where"][:4], "8")
+    cv.hit("turtle:%s" % t["id"], x, y, w, 1)
 
 
 def at(t, full=False):
@@ -157,8 +158,11 @@ def flags(cv, y, w, m, n, short=False, x=2):
     if len(fl) > n and n > 0:
         extra = "+%d" % (len(fl) - n)
         cv.put(w - len(extra), y + n - 1, extra, "8")
-    if shown and m.get("alerts"):
-        cv.hit("alerts", x, y, room, len(shown))
+    # Lost turtles open the turtle and broken drops the drop list; the other rows open ALERTS.
+    for i, f in enumerate(shown):
+        hit = f.get("hit") or ("alerts" if m.get("alerts") else None)
+        if hit:
+            cv.hit(hit, x, y + i, room, 1)
     return len(shown)
 
 

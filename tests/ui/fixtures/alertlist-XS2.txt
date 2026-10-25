@@ -1,0 +1,31 @@
+15x10 Status ALERTS, smallest monitor, page 2
+ ALERTS  - 2/2 
+               
+ ! alert 1     
+               
+               
+               
+               
+               
+               
+  BACK   ◄   ► 
+000000000c0eee0
+000000000000000
+0e0000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777777f777f777

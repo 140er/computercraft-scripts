@@ -294,7 +294,7 @@ return function(test, equal)
     assert(not find(s.view(7), 'dismiss'), 'a tap dismisses it')
     s.tap(7, 'alerts')
     local opened = s.view(7)
-    assert(find(opened, 'dismiss'), 'tapping the alert rows opens the newest')
+    assert(find(opened, 'alerts-back'), 'tapping the alert rows opens the ALERTS list')
     for _, line in ipairs(text(opened, 57, 24)) do assert(not line:find('|||', 1, true), 'no countdown once opened') end
   end)
 
