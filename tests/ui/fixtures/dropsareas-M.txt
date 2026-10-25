@@ -1,0 +1,73 @@
+57x24 Protected and keep boxes at 57x24
+ AREAS  -----------------------------------------------  
+ OVW 110,64,-340                                         
+     126,80,-330                                         
+  x1   110                                         -  +  
+                                                         
+ PROTECTED 2 ------------------------------------------  
+ p1 OVW 100,60,-350                             remove   
+ p2 NTH -20,40,10                               remove   
+ KEEP 1 -----------------------------------------------  
+ k1 OVW 140,-60,-380                            remove   
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+  PROTECT   KEEP   CLEAR MARKS                     BACK  
+00000000ccccccccccccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+0888888888880cccccccccccccccccccccccccccccccccccccccccc00
+00000000000000000000000000000000000000000000000eeeeeeee00
+00000000000000000000000000000000000000000000000eeeeeeee00
+08888880ccccccccccccccccccccccccccccccccccccccccccccccc00
+00000000000000000000000000000000000000000000000eeeeeeee00
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+099999999909999990eeeeeeeeeeeee00000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777ffffffffffffffffffffffffffffffffffffffffffff777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffff77777777ff
+fffffffffffffffffffffffffffffffffffffffffffffff77777777ff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffff77777777ff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f777777777f777777f7777777777777fffffffffffffffffff777777f

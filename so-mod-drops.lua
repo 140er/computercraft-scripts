@@ -1144,6 +1144,8 @@ S.context = function()
   if type(cfg) == "table" and type(cfg.pos) == "table" and S.whole(cfg.pos.x) and S.whole(cfg.pos.z) then
     ctx.server = { x = cfg.pos.x, z = cfg.pos.z }
   end
+  ctx.protectedAreas = type(cfg) == "table" and cfg.protectedAreas == true
+  ctx.worldEdits = type(cfg) == "table" and cfg.worldEdits == true
   local mine, wood = S.call("mine", "mapView"), S.call("lumber", "mapView")
   local home = mine and mine.homeSet ~= false and mine.home
   if type(home) == "table" and S.dirs[home.facing] then
@@ -1186,7 +1188,52 @@ S.gather = function(view)
     failed = S.task and S.task.failed,
     server = ctx.server, shaft = ctx.shaft, area = ctx.area,
     dim = view.dim, dims = view.dim ~= nil or multi,
-    turtle = chosen and view.turtle or nil, preview = chosen and view.testing and S.preview(view) or nil }
+    turtle = chosen and view.turtle or nil, preview = chosen and view.testing and S.preview(view) or nil,
+    areaTools = ctx.protectedAreas or ctx.worldEdits, kept = ctx.worldEdits and S.kept() or {},
+    areas = view.areas and view.testing and (ctx.protectedAreas or ctx.worldEdits) and S.areaModel(view, ctx) or nil }
+end
+-- Setup routes kept without a task, as after a restart: { id, count, status } from the cells
+-- module's cached reservation lists. RELEASE goes through cells.releaseRequest.
+S.kept = function()
+  local cells, counts, out = SO.mods.cells, {}, {}
+  if type(cells) ~= "table" or type(cells.reserved) ~= "function" then return out end
+  for dim in pairs(S.dimOf) do
+    for _, cell in ipairs(cells.reserved(dim) or {}) do
+      local id = type(cell.who) == "string" and tonumber(cell.who:match("^setup:(%d+)$"))
+      if id and not (S.task and S.task.id == id) and not (S.releasing and S.releasing.id == id) then counts[id] = (counts[id] or 0) + 1 end
+    end
+  end
+  for id, count in pairs(counts) do
+    local status = cells.releaseStatus and cells.releaseStatus("setup:" .. id)
+    out[#out + 1] = { id = id, count = count, status = status and status.status }
+  end
+  table.sort(out, function(a, b) return a.id < b.id end)
+  return out
+end
+S.dimNames = { "minecraft:overworld", "minecraft:the_nether", "minecraft:the_end" }
+S.dimShort = { ["minecraft:overworld"] = "OVW", ["minecraft:the_nether"] = "NTH", ["minecraft:the_end"] = "END" }
+S.boxFields = { "dim", "x1", "y1", "z1", "x2", "y2", "z2" }
+-- This display's box draft; it starts on the selected point.
+S.boxOf = function(view)
+  if view.box then return view.box end
+  local idx, d = S.find(S.selectedPoint(view) or ""), { dim = "minecraft:overworld", x = 0, y = 64, z = 0 }
+  if idx then
+    local p = S.points[idx]
+    for name, n in pairs(S.dimOf) do if n == p.dim then d.dim = name end end
+    d.x, d.y, d.z = p.x, p.y, p.z
+  end
+  view.box = { dim = d.dim, x1 = d.x, y1 = d.y, z1 = d.z, x2 = d.x, y2 = d.y, z2 = d.z }
+  return view.box
+end
+S.areaModel = function(view, ctx)
+  local cells, protect, keep = SO.mods.cells, {}, {}
+  if type(cells) == "table" then
+    local state = ctx.protectedAreas and cells.protected and cells.protected()
+    protect = state and state.boxes or {}
+    keep = ctx.worldEdits and cells.keep and cells.keep() or {}
+  end
+  return { box = SO.store.copy(S.boxOf(view)), field = view.boxField or 1, from = view.areaFrom or 0,
+    protect = ctx.protectedAreas and protect or nil, keep = ctx.worldEdits and keep or nil }
 end
 S.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
 -- The chests around home, one block per cell when they fit, labelled by number; the server, the
@@ -1374,7 +1421,8 @@ end
 -- asks for it first.
 S.okText = { ["chest found"] = true, ["scan complete"] = true, ["setup released"] = true, ["scanning"] = true,
   ["testing chest"] = true, ["confirming release"] = true, ["room saved"] = true, ["point added"] = true,
-  ["point saved"] = true, ["point suspended"] = true, ["point resumed"] = true, ["found cleared"] = true }
+  ["point saved"] = true, ["point suspended"] = true, ["point resumed"] = true, ["found cleared"] = true,
+  ["area protected"] = true, ["area removed"] = true, ["marks kept"] = true, ["keep removed"] = true, ["marks cleared"] = true }
 S.queueSetup = function(C, m)
   local w, q = C.w, m.queue
   C.bar(w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
@@ -1419,12 +1467,13 @@ S.setup = function(C, m)
   C.bar(m.queueEnabled and "" or w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
   if m.queueEnabled then C.chip(2, 1, "QUEUE", "queue-tools", "plain") end
   for _, p in ipairs(m.points) do if p.id == m.selected then sel = p end end
-  if m.savedSetup or m.queueEnabled then
+  if m.savedSetup or m.queueEnabled or m.areaTools then
     local controls = { { "TEST", "test", sel and "primary" or "muted" },
       { "FIX", "fix", sel and sel.broken and "primary" or "muted" } }
     if sel and m.savedSetup then controls[#controls+1] = { sel.suspended and "RESUME" or "SUSPEND",
       (sel.suspended and "resume:" or "suspend:") .. sel.id, "plain" } end
     if m.savedSetup and #m.found > 0 then controls[#controls+1] = U.confirmChip(m, "clear-found", "CLEAR FOUND", "clear-found", "stop") end
+    if m.areaTools then controls[#controls+1] = { "AREAS", "areas", "plain" } end
     ya = U.controlRows(C, controls, { "BACK", "list", "plain" })
     stop = ya - 2
   end
@@ -1465,6 +1514,7 @@ S.setup = function(C, m)
     for _, id in ipairs(m.turtles) do items[#items + 1] = { "TURTLES", id } listed = listed or id == m.task end
     if m.task and not listed then items[#items + 1] = { "TURTLES", m.task } end
     if #items == 0 then items[1] = { "TURTLES" } end
+    for _, kept in ipairs(m.kept) do items[#items + 1] = { "KEPT", kept.id, nil, kept } end
     for i, p in ipairs(m.found) do items[#items + 1] = { "FOUND", i, p } end
     local k = m.from % #items + 1
     while k <= #items and y <= stop do
@@ -1480,7 +1530,17 @@ S.setup = function(C, m)
         C.hit("from-next", 2, y, w - 2, 1)
         break
       end
-      if it[3] then
+      if it[4] then
+        -- A kept route: its cells, WAIT GPS while the fenced release runs, HELD when it failed.
+        local kept = it[4]
+        local word = kept.status == "pending" and " WAIT GPS" or kept.status == "held" and " HELD" or ""
+        C.put(2, y, U.g.bullet, kept.status == "held" and "e" or "8")
+        C.put(4, y, ("#" .. kept.id .. " " .. kept.count .. word):sub(1, math.max(0, w - 13)), "0")
+        if kept.status ~= "pending" then
+          local c = U.confirmChip(m, "kept:" .. kept.id, "release", "kept:" .. kept.id, "stop")
+          C.chip(w - 9, y, c[1], c[2], c[3])
+        end
+      elseif it[3] then
         C.put(2, y, U.g.bullet, "0")
         C.put(4, y, (S.at(it[3]) .. " " .. it[3].side):sub(1, math.max(0, w - 10)), "0")
         C.chip(w - 5, y, m.savedSetup and "ADD" or "add", "candidate:" .. it[2], "plain")
@@ -1497,8 +1557,56 @@ S.setup = function(C, m)
   end
   if m.message and S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
   elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
-  if not m.savedSetup and not m.queueEnabled then U.actions(C, ya, { { "TEST", "test", sel and "primary" or "muted" }, { "FIX", "fix", sel and sel.broken and "primary" or "muted" },
+  if not m.savedSetup and not m.queueEnabled and not m.areaTools then U.actions(C, ya, { { "TEST", "test", sel and "primary" or "muted" }, { "FIX", "fix", sel and sel.broken and "primary" or "muted" },
     { "BACK", "list", "plain" } }, room and 2 or 1) end
+end
+-- Protected and keep boxes: a box draft (dimension and two corners, one field stepped at a time),
+-- the saved boxes with a two-tap remove, and PROTECT, KEEP and CLEAR MARKS for the draft. Each
+-- part shows only while its flag is on; the cells module checks every change again.
+S.areaPage = function(C, m)
+  local w, a = C.w, m.areas
+  local b = a.box
+  C.bar("AREAS", {}, nil, "", "8")
+  C.put(2, 2, (S.dimShort[b.dim] .. " " .. b.x1 .. "," .. b.y1 .. "," .. b.z1):sub(1, w - 2), "0")
+  C.put(6, 3, (b.x2 .. "," .. b.y2 .. "," .. b.z2):sub(1, math.max(0, w - 6)), "0")
+  local field = S.boxFields[a.field]
+  C.chip(2, 4, field, "area-field", "plain", 5)
+  local value = field == "dim" and S.dimShort[b.dim] or tostring(b[field])
+  C.put(8, 4, value:sub(1, math.max(0, w - 15)), "0")
+  C.chip(w - 6, 4, "-", "area-")
+  C.chip(w - 3, 4, "+", "area+")
+  local controls = {}
+  if a.protect then controls[#controls + 1] = { "PROTECT", "area-protect", "primary" } end
+  if a.keep then
+    controls[#controls + 1] = { "KEEP", "area-keep", "primary" }
+    controls[#controls + 1] = U.confirmChip(m, "clear-marks", "CLEAR MARKS", "clear-marks", "stop")
+  end
+  local ya = U.controlRows(C, controls, { "BACK", "areas-back", "plain" })
+  local items = {}
+  for _, box in ipairs(a.protect or {}) do items[#items + 1] = { "PROTECTED", box, "unprotect:" } end
+  for _, box in ipairs(a.keep or {}) do items[#items + 1] = { "KEEP", box, "unkeep:" } end
+  local y, stop, section = 6, ya - 2, nil
+  local k = #items > 0 and a.from % #items + 1 or 1
+  if #items > stop - 6 then C.chip(w - 3, 1, "+", "area-next", "plain") end
+  while k <= #items and y <= stop do
+    local it = items[k]
+    if it[1] ~= section then
+      if y + 1 > stop then break end
+      section = it[1]
+      C.section(2, y, w - 2, section .. " " .. #(section == "KEEP" and a.keep or a.protect))
+      y = y + 1
+    end
+    local box = it[2]
+    local corner = box.x1 .. "," .. box.y1 .. "," .. box.z1
+    local text = box.id .. " " .. S.dimShort[box.dim] .. " " .. corner
+    if #text > w - 12 then text = box.id .. " " .. corner end
+    C.put(2, y, text:sub(1, math.max(0, w - 12)), "0")
+    local c = U.confirmChip(m, it[3] .. box.id, "remove", it[3] .. box.id, "stop")
+    C.chip(w - 9, y, c[1], c[2], c[3])
+    y, k = y + 1, k + 1
+  end
+  if m.message and S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
+  elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
 end
 S.editor = function(C, m)
   local w, h = C.w, C.h
@@ -1547,7 +1655,8 @@ S.editor = function(C, m)
 end
 S.layout = function(model, w, h)
   local C = U.canvas(w, h)
-  if model.editing then S.editor(C, model) elseif model.testing then S.setup(C, model) else S.list(C, model) end
+  if model.editing then S.editor(C, model) elseif model.areas then S.areaPage(C, model)
+  elseif model.testing then S.setup(C, model) else S.list(C, model) end
   return C.frame()
 end
 S.listSize = function(points, w, h)
@@ -1593,7 +1702,12 @@ S.input = function(ev)
   -- names the point, so a selection that moved on arms again instead of removing.
   local removing = ev.id == "remove" and S.selectedPoint(view) or type(ev.id) == "string" and ev.id:match("^remove:(.+)$")
   local clearing = ev.id == "clear-found"
-  local confirmed = S.confirm(view, removing and "remove:" .. removing or clearing and "clear-found" or nil, now)
+  -- Kept routes, saved boxes and CLEAR MARKS arm the same way.
+  local armed = type(ev.id) == "string" and (ev.id:match("^kept:%d+$") or ev.id:match("^unprotect:.+$")
+    or ev.id:match("^unkeep:.+$") or ev.id == "clear-marks") and ev.id
+  local confirmed = S.confirm(view, removing and "remove:" .. removing or clearing and "clear-found" or armed or nil, now)
+  if armed then return S.areaEdit(view, ev, armed, confirmed, now) end
+  if ev.id == "areas" or type(ev.id) == "string" and ev.id:match("^area") then return S.areaInput(view, ev.id) end
   if clearing then
     if confirmed then
       local ok, err = S.clearFound()
@@ -1673,6 +1787,7 @@ S.input = function(ev)
   -- BACK and CANCEL drop an unanswered FACING prompt.
   if ev.id == "facing-cancel" then S.compass = nil return end
   if ev.id == "list" then
+    view.areas = nil
     if not view.editing then S.compass = nil end
     view.editing, view.testing, view.found = false, view.editing and view.found or false, nil return
   end
@@ -1757,6 +1872,76 @@ S.input = function(ev)
   if not step then return end
   d[step[1]] = d[step[1]] + step[2]
   view.drafted = true
+end
+
+-- AREAS paging and the box draft. A page whose flags are both off does not open.
+S.areaInput = function(view, id)
+  local cfg = SO.store.read("so-server.cfg") or {}
+  if cfg.protectedAreas ~= true and cfg.worldEdits ~= true then view.areas = nil return end
+  if id == "areas" then view.areas, view.testing, view.editing = true, true, false S.boxOf(view) return end
+  if not view.areas then return end
+  if id == "areas-back" then view.areas = nil return end
+  if id == "area-next" then view.areaFrom = (view.areaFrom or 0) + 1 return end
+  if id == "area-field" then view.boxField = (view.boxField or 1) % #S.boxFields + 1 return end
+  local b, field = S.boxOf(view), S.boxFields[view.boxField or 1]
+  local step = id == "area+" and 1 or id == "area-" and -1
+  if step and field == "dim" then
+    local at = 1
+    for i, name in ipairs(S.dimNames) do if name == b.dim then at = i end end
+    b.dim = S.dimNames[(at - 1 + step) % #S.dimNames + 1]
+  elseif step then b[field] = b[field] + step
+  elseif id == "area-protect" or id == "area-keep" then
+    local cells, protect = SO.mods.cells, id == "area-protect"
+    if protect and cfg.protectedAreas ~= true or not protect and cfg.worldEdits ~= true then return end
+    if type(cells) ~= "table" or not cells.protect then S.message = "cells unavailable" return end
+    local boxes = protect and (cells.protected() or {}).boxes or not protect and cells.keep()
+    if type(boxes) ~= "table" then S.message = "cells unavailable" return end
+    local used, n = {}, 1
+    for _, box in ipairs(boxes) do used[box.id] = true end
+    while used[(protect and "p" or "k") .. n] do n = n + 1 end
+    local box = SO.store.copy(b)
+    box.id = (protect and "p" or "k") .. n
+    boxes[#boxes + 1] = box
+    local ok, err
+    if protect then ok, err = cells.protect(boxes) else ok, err = cells.keep(boxes) end
+    S.message = ok and (protect and "area protected" or "marks kept") or tostring(err)
+  end
+end
+-- Two-tap changes the cells module confirms as well: kept-route RELEASE and CLEAR MARKS take its
+-- token on the first tap and send it on the second; removing a saved box needs only the second tap.
+S.areaEdit = function(view, ev, key, confirmed, now)
+  local cfg, cells = SO.store.read("so-server.cfg") or {}, SO.mods.cells
+  local actor = "drops:" .. tostring(S.key(ev.session, ev.from) or 0)
+  local kept = tonumber(key:match("^kept:(%d+)$"))
+  local unprotect, unkeep = key:match("^unprotect:(.+)$"), key:match("^unkeep:(.+)$")
+  if (unprotect and cfg.protectedAreas ~= true or not unprotect and cfg.worldEdits ~= true)
+    or type(cells) ~= "table" or not cells.protect then view.confirm = nil return end
+  if unprotect or unkeep then
+    if not confirmed or not view.areas then return end
+    local boxes, left = unprotect and (cells.protected() or {}).boxes or not unprotect and cells.keep(), {}
+    for _, box in ipairs(type(boxes) == "table" and boxes or {}) do
+      if box.id ~= (unprotect or unkeep) then left[#left + 1] = box end
+    end
+    local ok, err
+    if unprotect then ok, err = cells.protect(left) else ok, err = cells.keep(left) end
+    S.message = ok and (unprotect and "area removed" or "keep removed") or tostring(err)
+    return
+  end
+  if kept and not view.testing or not kept and not view.areas then view.confirm = nil return end
+  local token = confirmed and view.cellsToken and view.cellsToken.key == key and view.cellsToken.token or nil
+  local result, err
+  if kept then result, err = cells.releaseRequest("setup:" .. kept, actor, token)
+  else result, err = cells.clearMarks(S.boxOf(view), actor, token) end
+  view.cellsToken = nil
+  if not result then view.confirm = nil S.message = tostring(err) return end
+  if result.status == "confirm" then
+    view.confirm, view.confirmAt, view.cellsToken = key, now, { key = key, token = result.token }
+    S.message = not kept and result.sections .. " sections" or nil
+  elseif kept then S.message = "confirming release"
+  else
+    S.message = result.status == "cleared" and "marks cleared"
+      or "cleared " .. result.saved .. "/" .. result.total .. ": " .. tostring(result.error)
+  end
 end
 
 S.tick = function()

@@ -1,0 +1,73 @@
+57x24 Kept setup routes at 57x24
+ CHEST SETUP  -----------------------------------------  
+                                                         
+ point 3 junk 123,64,-337 front                          
+                                                         
+ TURTLES ----------------------------------------------  
+ • #12                                             scan  
+ KEPT -------------------------------------------------  
+ • #9 6 WAIT GPS                                         
+ • #14 3 HELD                                   release  
+ • #21 11                                       release  
+ FOUND ------------------------------------------------  
+ • 121,64,-340 down                                 add  
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+  TEST   FIX   AREAS                               BACK  
+00000000000000ccccccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+0888880eeeeeeeeeeeeeeeeeeeeeeee00000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccccccccccccccccccccc00
+0d0000000000000000000000000000000000000000000000009999990
+088880ccccccccccccccccccccccccccccccccccccccccccccccccc00
+080000000000000000000000000000000000000000000000000000000
+0e000000000000000000000000000000000000000000000eeeeeeeee0
+08000000000000000000000000000000000000000000000eeeeeeeee0
+0888880cccccccccccccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+099999909999900000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffff777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffff777777777f
+fffffffffffffffffffffffffffffffffffffffffffffff777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff77777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f777777f77777f7777777fffffffffffffffffffffffffffff777777f
