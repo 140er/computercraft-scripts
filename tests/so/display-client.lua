@@ -417,4 +417,205 @@ return function(test,equal)
     event(t,"key",257)
     equal(last(t,"input").body.text,"scan 3"..string.rep("z",58))
   end)
+
+  -- B1-U: REPAIR after a server replacement (repairServer in so-display.cfg).
+  local function boxKeys(t)
+    local raw=t.c.files["so-keys"]
+    local box=raw and t.c.env.textutils.unserialize(raw)
+    local ids={}
+    for id in pairs(box and box.value and box.value.keys or {}) do ids[#ids+1]=tonumber(id) end
+    table.sort(ids)
+    return table.concat(ids,",")
+  end
+  -- The old server is gone (stale(t) stopped it); a new one starts with this id.
+  local function replace(t,id)
+    t.n.hosts.so=nil
+    if id==t.s.id then
+      t.s.co,t.s.inbox,t.s.timers=nil,{},{}
+      for path in pairs(t.s.files) do if path:match("^so%-keys") then t.s.files[path]=nil end end
+      t.s.boot("so-server.lua"); t.n.flush()
+      return t.s
+    end
+    local s=t.n.machine({id=id,modem=true}); install(s,true)
+    local send=s.env.rednet.send
+    s.env.rednet.send=function(to,payload,protocol)
+      if to~=t.c.id then return send(to,payload,protocol) end
+      s.sent[#s.sent+1]={id=to,payload=payload,protocol=protocol}
+      t.c.env.os.queueEvent("modem_message","back",t.c.id,s.id,
+        {nRecipient=t.c.id,nSender=s.id,message=payload,sProtocol=protocol},1)
+      return true
+    end
+    s.boot("so-server.lua"); t.n.flush()
+    return s
+  end
+  local function codeOn(t,s)
+    s.env.os.queueEvent("key",25,false); t.n.flush()
+    for i=#s.log,1,-1 do local c=s.log[i]:match("Pair code: (%d+)") if c then return c end end
+    error("no invitation")
+  end
+  local function shows(g,text) return g.text():find(text,1,true)~=nil end
+  local function sentTo(log,kind)
+    local ids={}
+    for _,e in ipairs(log) do if e.t==kind then ids[e.id]=true end end
+    return ids
+  end
+  local function reboot(t)
+    t.c.co,t.c.inbox,t.c.timers=nil,{},{}
+    t.c.boot("display.lua"); t.n.flush()
+  end
+  local function clickRow(t,g,text)
+    for y=1,select(2,g.getSize()) do
+      if g.line(y):find(text,1,true) then return event(t,"mouse_click",1,2,y) end
+    end
+    error("no "..text..": "..g.text())
+  end
+
+  test("repair: terminal changes a wall display to a new server id, and it survives a reboot",function()
+    local cfg={repairServer=true,retryInput=true,keep="me"}
+    local t=setup(29,12,true,false,cfg); pair(t); t.n.advance(3)
+    stale(t); local s=replace(t,3)
+    event(t,"char","r")
+    assert(shows(t.own,"REPAIR") and shows(t.own,"Server 1  key "),t.own.text())
+    assert(shows(t.face,"REPAIR"),t.face.text())
+    event(t,"key",257); assert(shows(t.own,"Leave server 1?"),t.own.text())
+    event(t,"key",257); assert(shows(t.own,"New server: 3"),t.own.text())
+    event(t,"key",257); assert(shows(t.own,"Code:"),t.own.text())
+    local log=stamp(t)
+    typeText(t,codeOn(t,s)); t.n.advance(3)
+    equal(boxKeys(t),"3")
+    assert(shows(t.face,"display 2"),t.face.text())
+    assert(sentTo(log,"hello")[3] and not sentTo(log,"hello")[1])
+    equal(t.c.files["so-display.cfg"],H.encode(cfg),"repair changed so-display.cfg")
+    log=stamp(t); reboot(t); t.n.advance(3)
+    assert(sentTo(log,"hello")[3] and not sentTo(log,"hello")[1],"reboot did not use the new key")
+    assert(shows(t.face,"display 2"),t.face.text())
+  end)
+
+  test("repair: a pocket re-pairs the same server id by clicks and keys",function()
+    local t=setup(26,20,false,false,{repairServer=true}); pair(t); t.n.advance(3)
+    local old=t.c.files["so-keys"]
+    stale(t); replace(t,1); t.n.advance(15)
+    event(t,"mouse_click",1,3,1)
+    assert(shows(t.face,"REPAIR"),t.face.text())
+    clickRow(t,t.face,"CHANGE SERVER"); clickRow(t,t.face,"CHANGE SERVER")
+    assert(shows(t.face,"New server: 1"),t.face.text())
+    clickRow(t,t.face,"USE 1")
+    typeText(t,code(t)); t.n.advance(3)
+    equal(boxKeys(t),"1")
+    assert(t.c.files["so-keys"]~=old,"same-id repair kept the old key")
+    assert(shows(t.face,"display 2"),t.face.text())
+    local log=stamp(t); reboot(t); t.n.advance(3)
+    assert(sentTo(log,"hello")[1]); assert(shows(t.face,"display 2"),t.face.text())
+  end)
+
+  test("repair: monitor_touch in every phase never changes the server or so-keys",function()
+    local t=setup(29,12,true,false,{repairServer=true,retryInput=true}); pair(t); t.n.advance(3)
+    local old=t.c.files["so-keys"]
+    stale(t); local s=replace(t,3)
+    local log=stamp(t)
+    local function taps()
+      for y=1,12 do for x=1,29,3 do event(t,"monitor_touch","right",x,y) end end
+      t.n.advance(0.5)
+      equal(t.c.files["so-keys"],old)
+      equal(sentTo(log,"pair2")[3],nil,"a tap started pairing")
+    end
+    taps()
+    event(t,"monitor_touch","right",2,1)
+    assert(shows(t.face,"Server 1"),t.face.text())
+    assert(not shows(t.face,"CHANGE SERVER") and not shows(t.face,"CANCEL"),t.face.text())
+    for _=1,3 do event(t,"monitor_touch","right",2,3) end
+    event(t,"char","r"); taps()
+    assert(not shows(t.own,"Leave server"),t.own.text())
+    event(t,"char","r"); assert(shows(t.own,"CHANGE SERVER"),t.own.text()); taps()
+    assert(shows(t.own,"CHANGE SERVER") and not shows(t.own,"Leave server"),t.own.text())
+    event(t,"key",257); taps(); assert(shows(t.own,"Leave server 1?"),t.own.text())
+    event(t,"key",257); taps(); assert(shows(t.own,"New server: 3"),t.own.text())
+    event(t,"key",257); typeText(t,"123"); taps()
+    assert(shows(t.own,"Code: 123"),t.own.text())
+    equal(sentTo(log,"hello")[3],nil,"hello went to the candidate before pairing")
+    local good=codeOn(t,s); local bad=good=="000000" and "111111" or "000000"
+    typeText(t,bad:sub(4)); t.n.advance(15)
+    assert(shows(t.own,"Pair failed"),t.own.text())
+    log=stamp(t); taps()
+    equal(t.c.files["so-keys"],old)
+    equal(boxKeys(t),"1")
+    event(t,"char","x"); t.n.advance(3)
+    assert(not shows(t.own,"REPAIR"),t.own.text())
+    log=stamp(t); t.n.advance(40)
+    assert(sentTo(log,"hello")[1] and not sentTo(log,"hello")[3],"cancel did not resume the old server")
+  end)
+
+  for _,cfg in ipairs({false,{},{repairServer=false}}) do
+    test("repair off ("..(cfg and "key "..tostring(cfg.repairServer) or "no file").."): today's old-key prompt stays",function()
+      local t=setup(29,12,true,false,cfg or nil); pair(t); t.n.advance(3)
+      local old=t.c.files["so-keys"]
+      stale(t); replace(t,1); t.n.advance(45)
+      assert(shows(t.face,"Old key kept"),t.face.text())
+      event(t,"char","r"); event(t,"mouse_click",1,2,1); event(t,"monitor_touch","right",2,1)
+      assert(not shows(t.face,"REPAIR") and not shows(t.own,"REPAIR"),t.own.text())
+      equal(t.c.files["so-keys"],old)
+      typeText(t,code(t)); t.n.advance(2)
+      assert(t.c.files["so-keys"]~=old,"old-key prompt did not re-pair")
+      assert(not shows(t.face,"Old key kept"),t.face.text())
+    end)
+  end
+
+  test("repair: forged hints and frames during REPAIR change nothing",function()
+    local cfg={repairServer=true}
+    local t=setup(29,12,true,false,cfg); pair(t); t.n.advance(3)
+    local old=t.c.files["so-keys"]
+    stale(t); replace(t,3)
+    event(t,"rednet_message",77,{t="pair.required",from=77},"so")
+    event(t,"rednet_message",3,{t="pair.required",from=3},"so")
+    assert(not shows(t.own,"REPAIR") and not shows(t.face,"Old key kept"),t.face.text())
+    event(t,"char","r"); event(t,"key",257); event(t,"key",257)
+    assert(shows(t.own,"New server: 3"),t.own.text())
+    for _,id in ipairs({1,3,77}) do
+      event(t,"rednet_message",id,{t="pair.required",from=id},"so")
+      event(t,"rednet_message",id,{t="view.frame",body={rows={{text="forged"}},buttons={}}},"so")
+    end
+    assert(shows(t.own,"New server: 3") and not shows(t.face,"forged"),t.face.text())
+    equal(t.c.files["so-keys"],old)
+    equal(t.c.files["so-display.cfg"],H.encode(cfg))
+  end)
+
+  for _,failure in ipairs({"open","rename"}) do
+    test("repair: a failed key save ("..failure..") keeps the old key, then a reboot still uses it",function()
+      local t=setup(29,12,true,false,{repairServer=true}); pair(t); t.n.advance(3)
+      local old=t.c.files["so-keys"]
+      stale(t); local s=replace(t,3)
+      event(t,"char","r"); event(t,"key",257); event(t,"key",257); event(t,"key",257)
+      local fs=t.c.env.fs
+      local open,move=fs.open,fs.move
+      fs.open=function(path,mode)
+        if failure=="open" and path=="so-keys.tmp" and mode=="w" then return nil end
+        return open(path,mode)
+      end
+      fs.move=function(from,to)
+        if failure=="rename" and from=="so-keys.tmp" then error("rename failed") end
+        return move(from,to)
+      end
+      typeText(t,codeOn(t,s)); t.n.advance(3)
+      fs.open,fs.move=open,move
+      assert(shows(t.own,"Pair failed"),t.own.text())
+      if failure=="open" then equal(t.c.files["so-keys"],old) end
+      local log=stamp(t); event(t,"char","x"); t.n.advance(5)
+      assert(sentTo(log,"hello")[1] and not sentTo(log,"hello")[3],"cancel left the old server")
+      log=stamp(t); reboot(t); t.n.advance(5)
+      assert(sentTo(log,"hello")[1] and not sentTo(log,"hello")[3],"reboot left the old server")
+    end)
+  end
+
+  test("repair: an abandoned server change resumes the old server after two minutes",function()
+    local t=setup(29,12,true,false,{repairServer=true}); pair(t); t.n.advance(3)
+    local old=t.c.files["so-keys"]
+    stale(t); replace(t,3)
+    event(t,"char","r"); event(t,"key",257); event(t,"key",257)
+    local log=stamp(t); t.n.advance(100)
+    equal(next(sentTo(log,"hello")),nil,"sent hello during the change")
+    t.n.advance(60)
+    assert(not shows(t.own,"REPAIR"),t.own.text())
+    assert(sentTo(log,"hello")[1] and not sentTo(log,"hello")[3])
+    equal(t.c.files["so-keys"],old)
+  end)
 end

@@ -29,6 +29,12 @@ C.now = function() return math.floor(os.clock() * 1000 + 0.5) end
 local cfg = C.store.read and C.store.read("so-display.cfg")
 C.retryInput = type(cfg) == "table" and cfg.retryInput == true
 
+-- repairServer (so-display.cfg, default off) is read each time REPAIR would open.
+C.repairOn = function()
+  local cfg = C.store.read and C.store.read("so-display.cfg")
+  return type(cfg) == "table" and cfg.repairServer == true
+end
+
 C.pair = dofile("so-pair.lua")
 C.pair.open(C.proto, C.store, C.now)
 
@@ -158,6 +164,7 @@ end
 C.clipDraw = function()
   local out = C.out
   if not out then return end
+  if C.fix then return C.drawFix() end
   if out.clear then out.clear() end
   local n = #C.rows
   if n > C.viewH then n = C.viewH end
@@ -288,6 +295,7 @@ C.markStale = function()
 end
 
 C.drawPair = function()
+  if C.fix then return C.drawFix() end
   local draw = function(out)
     if not out then return end
     local w, h = out.getSize()
@@ -313,6 +321,17 @@ C.drawPair = function()
 end
 
 C.retry = function()
+  -- REPAIR left alone for two minutes resumes the old server; it never picks a new one.
+  if C.fix and C.now() - C.fix.at >= 120000 then
+    local old = C.fix.old
+    C.closeFix()
+    if old then return end
+  end
+  -- During a server change nothing is sent to the old server.
+  if C.fix and C.fix.old then
+    C.arm(5)
+    return
+  end
   -- Every keyed retry, in any phase, waits out the shared 2 s limit.
   if C.server and C.pair.key(C.server) and C.retryWait() > 0 then
     C.arm(C.retryWait() / 1000)
@@ -330,7 +349,7 @@ C.retry = function()
     C.sendSub()
     C.lastRetry = C.now()
     -- Still stale: the picture is already there, only its row changes.
-    if C.repair then C.drawPair() elseif was == "stale" then C.drawStale() else C.clipDraw() end
+    if C.fix then C.drawFix() elseif C.repair then C.drawPair() elseif was == "stale" then C.drawStale() else C.clipDraw() end
   else
     C.phase = "pairing"
     C.drawPair()
@@ -377,17 +396,172 @@ C.join = function()
   end
 end
 
+-- REPAIR: change the saved server after a replacement. Only the computer's own input
+-- (key, char, paste, mouse_click; a pocket's too) moves it on. monitor_touch is public:
+-- it only opens or closes the read-only view, so a wall tap never changes trust.
+C.drawFix = function()
+  local f = C.fix
+  local id = f.old or C.server
+  local lines = { { "REPAIR" } }
+  if f.step == "info" then
+    local text = "Server " .. tostring(id)
+    for _, row in ipairs(C.pair.list()) do
+      if row.id == id then text = text .. "  key " .. row.fingerprint end
+    end
+    lines[2] = { text }
+    if not f.view then lines[3] = { "[Enter] CHANGE SERVER", "go" } end
+  elseif f.step == "confirm" then
+    lines[2] = { "Leave server " .. tostring(id) .. "?" }
+    lines[3] = { "[Enter] CHANGE SERVER", "go" }
+  elseif f.step == "candidate" then
+    lines[2] = { "New server: " .. f.cand }
+    lines[3] = { f.cand ~= "" and "[Enter] USE " .. f.cand or "", "go" }
+  else
+    lines[2] = { "Server " .. f.cand }
+    lines[3] = { f.err or "" }
+    lines[4] = { "Code: " .. f.digits }
+  end
+  if not f.view then lines[#lines + 1] = { "[X] CANCEL", "cancel" } end
+  local draw = function(out, keep)
+    local w, h = out.getSize()
+    if out.clear then out.clear() end
+    for y, line in ipairs(lines) do
+      if y > h then break end
+      out.setCursorPos(1, y)
+      out.write(line[1]:sub(1, w))
+      if keep then keep[y] = line[2] end
+    end
+  end
+  f.rows = {}
+  if C.out ~= term then draw(C.out) end
+  draw(term, f.rows)
+end
+
+C.closeFix = function()
+  local f = C.fix
+  C.fix = nil
+  -- The wall's own terminal keeps REPAIR text until it is cleared.
+  if C.out ~= term and term.clear then term.clear() end
+  if f.old then C.server = f.old end
+  if C.phase == "pairing" then C.drawPair() else C.clipDraw() end
+  if f.old then C.retry() end
+end
+
+C.fixJoin = function()
+  local f = C.fix
+  f.err = "Pairing..."
+  C.drawFix()
+  local id = tonumber(f.cand)
+  local ok, reason = C.pair.join(f.digits, id, { replace = f.old })
+  if not ok then
+    -- so-pair keeps the old key on disk and in memory; CANCEL resumes the old server.
+    f.err = "Pair failed: " .. tostring(reason or "unknown")
+    f.at = C.now()
+    return C.drawFix()
+  end
+  C.fix, C.server, C.repair, C.digits, C.pairError, C.attempt = nil, id, nil, "", nil, 0
+  C.rows, C.buttons, C.phase = {}, {}, "pairing"
+  if C.out ~= term and term.clear then term.clear() end
+  C.clipDraw()
+  C.retry()
+end
+
+-- Returns true when REPAIR used the event.
+C.fixInput = function(ev, a, _, c)
+  local f = C.fix
+  local keyed = C.server and C.pair.key(C.server)
+  if ev == "monitor_touch" then
+    if f then
+      if f.view then C.closeFix() end
+      return true
+    end
+    -- A tap on the top row opens the read-only view; the tap may still retry.
+    if c == 1 and keyed and C.repairOn() then
+      C.fix = { step = "info", view = true, at = C.now() }
+      C.drawFix()
+    end
+    return false
+  end
+  if not f then
+    local open = ev == "char" and (a == "r" or a == "R") or ev == "mouse_click" and c == 1
+    if not (open and keyed and C.repairOn()) then return false end
+    C.fix = { step = "info", at = C.now() }
+    C.drawFix()
+    return true
+  end
+  f.at = C.now()
+  if f.view then
+    -- The computer's own input takes over a view opened from the wall.
+    f.view = nil
+    C.drawFix()
+    return true
+  end
+  local act
+  if ev == "mouse_click" then act = f.rows[c]
+  elseif ev == "key" and (a == 257 or a == 28) then act = "go"
+  elseif ev == "key" and (a == 259 or a == 14) then act = "back"
+  elseif ev == "char" and (a == "x" or a == "X") then act = "cancel"
+  elseif (ev == "char" or ev == "paste") and type(a) == "string" then
+    act = a:gsub("%s", ""):match("^%d+$") and "digits"
+  end
+  if act == "cancel" then
+    C.closeFix()
+    return true
+  end
+  if act == "go" and f.step == "info" then
+    f.step = "confirm"
+  elseif act == "go" and f.step == "confirm" then
+    -- Discovery only suggests a candidate; the operator confirms it and the code proves it.
+    f.old, C.server = C.server, nil
+    f.step, f.cand = "candidate", ""
+    local ids = { rednet.lookup("so", "server") }
+    for _, id in ipairs(ids) do
+      if type(id) == "number" and id ~= f.old then
+        f.cand = tostring(id)
+        break
+      end
+    end
+    if f.cand == "" and ids[1] == f.old then f.cand = tostring(f.old) end
+  elseif act == "go" and f.step == "candidate" and f.cand ~= "" then
+    f.step, f.digits, f.err = "code", "", nil
+  elseif act == "go" and f.step == "code" and #f.digits == 6 then
+    C.fixJoin()
+    return true
+  elseif act == "back" and f.step == "candidate" then
+    f.cand = f.cand:sub(1, -2)
+  elseif act == "back" and f.step == "code" then
+    f.digits = f.digits:sub(1, -2)
+  elseif act == "digits" and f.step == "candidate" then
+    f.cand = (f.cand .. a:gsub("%s", "")):sub(1, 9)
+  elseif act == "digits" and f.step == "code" then
+    -- Like pairing: a seventh digit starts a new code, an over-long paste is ignored.
+    local p = a:gsub("%s", "")
+    if #p <= 6 then
+      f.digits = #f.digits + #p <= 6 and f.digits .. p or p
+      if #f.digits == 6 then
+        C.fixJoin()
+        return true
+      end
+    end
+  end
+  C.drawFix()
+  return true
+end
+
 C.loop = function()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == C.repaint then
       C.repaint = nil
-      if C.phase == "stale" then
+      if C.phase == "stale" and not C.fix then
         C.drawStale()
         C.repaint = os.startTimer(1)
       end
     elseif ev == "timer" and a == C.timer then
       if C.phase == "live" then C.markStale() else C.retry() end
+    elseif C.phase ~= "live" and (ev == "key" or ev == "char" or ev == "paste"
+      or ev == "mouse_click" or ev == "monitor_touch") and C.fixInput(ev, a, b, c) then
+      -- REPAIR took the input.
     elseif C.phase == "stale" and C.retryInput
       and (ev == "key" or ev == "char" or ev == "monitor_touch" or ev == "mouse_click") then
       -- A retry only re-sends hello to the saved server; it never changes C.server or keys.
@@ -400,7 +574,11 @@ C.loop = function()
       end
       local msg = C.proto.decode(b)
       local key = C.pair.key(C.server)
-      if msg and msg.t == "view.frame" and key and C.proto.macOk(key, msg) then C.onFrame(msg) end
+      if msg and msg.t == "view.frame" and key and C.proto.macOk(key, msg) then
+        -- A read-only REPAIR view gives way to the picture; an operator's REPAIR does not.
+        if C.fix and C.fix.view then C.fix = nil end
+        if not C.fix then C.onFrame(msg) end
+      end
     elseif ev == "char" and C.phase == "pairing" and type(a) == "string" and a:match("^%d$") then
       -- A failed code stays for Backspace; a seventh digit starts a new code.
       C.digits = #C.digits < 6 and C.digits .. a or a
