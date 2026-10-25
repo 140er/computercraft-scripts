@@ -29,6 +29,78 @@ function M.read(path)
   if parsed then return value, bytes end
 end
 
+local function configCounter(n, minimum)
+  return type(n) == "number" and n >= minimum and n % 1 == 0 and n < 2^53
+end
+
+local function validConfig(v)
+  if type(v) ~= "table" then return false end
+  if v.settingsSeq ~= nil and not configCounter(v.settingsSeq, 0) then return false end
+  for _, field in ipairs({"autoToolSwap", "settingsControl", "configRecovery"}) do
+    if v[field] ~= nil and type(v[field]) ~= "boolean" then return false end
+  end
+  if v.dim ~= nil and v.dim ~= "minecraft:overworld" and v.dim ~= "minecraft:the_nether"
+    and v.dim ~= "minecraft:the_end" then return false end
+  local r = v.settingsRemote
+  return r == nil or type(r) == "table" and configCounter(r.server, 0) and configCounter(r.n, 1)
+end
+
+local function writeConfig(path, value)
+  local text = textutils.serialize(value, {compact=true})
+  local h = assert(fs.open(path, "w"), "config open failed")
+  local ok, err = pcall(function() h.write(text) h.close() end)
+  if not ok then pcall(h.close) error(err, 0) end
+  local checked, bytes = M.read(path)
+  assert(bytes == text and validConfig(checked), "config verification failed")
+end
+
+function M.readConfig(path, onRecovery)
+  local picked, value, present, primary
+  for _, file in ipairs({path, path .. ".tmp", path .. ".bak"}) do
+    present = present or fs.exists(file)
+    local ok, candidate = pcall(M.read, file)
+    if ok and validConfig(candidate) then
+      if file == path then primary = true end
+      if not value or (candidate.settingsSeq or 0) > (value.settingsSeq or 0) then
+        picked, value = file, candidate
+      end
+    end
+  end
+  if not value then
+    return nil, {hold=present == true, absent=not present, error=present and "config unreadable" or nil}
+  end
+  local hold = not primary or value.configRecovery == true
+  local ok, err = pcall(function()
+    if not primary and not value.configRecovery then
+      value.configRecovery = true
+      writeConfig(picked, value)
+    end
+    if hold and onRecovery then assert(onRecovery() ~= false, "config recovery journal save failed") end
+    if picked ~= path then
+      if fs.exists(path) then fs.delete(path) end
+      fs.move(picked, path)
+    end
+  end)
+  if not ok then return nil, {hold=true, error=tostring(err)} end
+  return value, {hold=hold}
+end
+
+function M.saveConfig(path, value)
+  local current, state = M.readConfig(path)
+  if not current and not state.absent then return false, state.error end
+  local ok, err = pcall(function()
+    assert(validConfig(value), "invalid config")
+    local free = fs.getFreeSpace(path)
+    local text = textutils.serialize(value, {compact=true})
+    assert(type(free) ~= "number" or free >= #text + 8192, "disk full")
+    writeConfig(path .. ".tmp", value)
+    if fs.exists(path .. ".bak") then fs.delete(path .. ".bak") end
+    if fs.exists(path) then fs.move(path, path .. ".bak") end
+    fs.move(path .. ".tmp", path)
+  end)
+  return ok, err
+end
+
 function M.store(path, valid, limit)
   assert(type(valid) == "function", "valid")
   local budget = limit or 900000

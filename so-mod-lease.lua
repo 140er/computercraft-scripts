@@ -227,6 +227,76 @@ S.module = function(name)
   return type(SO.mods) == "table" and SO.mods[name] or nil
 end
 
+S.assigned = function(id)
+  for _, name in ipairs({"mine", "lumber", "build"}) do
+    local mod = S.module(name)
+    if mod and mod.assigned and mod.assigned(id) then return true end
+  end
+  local drops = S.module("drops")
+  return drops and drops.busy and drops.busy(id) or false
+end
+
+S.settingsValue = function(value)
+  if type(value) ~= "table" or not S.number(value.seq) or value.seq < 0
+    or value.seq % 1 ~= 0 or value.seq >= 2^53 or type(value.autoToolSwap) ~= "boolean" then return nil end
+  if value.dim ~= nil and value.dim ~= "minecraft:overworld" and value.dim ~= "minecraft:the_nether"
+    and value.dim ~= "minecraft:the_end" then return nil end
+  if value.remoteN ~= nil and (not S.number(value.remoteN) or value.remoteN <= 0
+    or value.remoteN % 1 ~= 0 or value.remoteN >= 2^53) then return nil end
+  return {seq=value.seq, dim=value.dim, autoToolSwap=value.autoToolSwap, remoteN=value.remoteN}
+end
+
+S.settingsSeen = function(row, value)
+  local confirmed = S.settingsValue(value)
+  if not confirmed then return end
+  if row.settings and confirmed.seq <= row.settings.seq then return end
+  row.settings = confirmed
+  if row.settingsControl then row.dim, row.autoToolSwap = confirmed.dim, confirmed.autoToolSwap end
+  row.settingsN = math.max(row.settingsN or 0, confirmed.remoteN or 0)
+  if row.settingsPending and confirmed.seq > row.settingsPending.seq then row.settingsPending = nil end
+end
+
+S.settings = function(id, changes)
+  local config = SO.store.read("so-server.cfg")
+  if type(config) ~= "table" or config.workerSettings ~= true then return nil, "settings disabled" end
+  local row, key = S.turtles[id], SO.pair.key(id)
+  if not row or not key or not row.workerSettings or not row.settings then return nil, "update required" end
+  if row.settingsKey ~= key then return nil, "wait for hello" end
+  if not row.settingsControl then return nil, "settings disabled" end
+  if row.settingsPending then return nil, "settings pending" end
+  if row.open or row.uncertain or row.anchor or row.lost or S.assigned(id) then return nil, "worker busy" end
+  if type(changes) ~= "table" then return nil, "invalid settings" end
+  for field in pairs(changes) do
+    if field ~= "dim" and field ~= "autoToolSwap" then return nil, "invalid settings" end
+  end
+  local value = SO.store.copy(changes)
+  value.seq = 0
+  if value.autoToolSwap == nil then value.autoToolSwap = false end
+  if not S.settingsValue(value) or changes.dim == nil and changes.autoToolSwap == nil then return nil, "invalid settings" end
+  local body = SO.store.copy(changes)
+  body.n = (row.settingsN or 0) + 1
+  if body.n >= 2^53 then return nil, "settings counter exhausted" end
+  row.settingsN = body.n
+  local msg = SO.proto.build(key, "worker.settings", body)
+  local wire = SO.proto.encode(msg)
+  if not wire then return nil, "settings encode failed" end
+  row.settingsPending = {rid=msg.rid, n=body.n, seq=row.settings.seq, key=key, untilAt=SO.now()+15000}
+  local ok, sent = pcall(rednet.send, id, wire, "so")
+  if not ok or sent == false then row.settingsPending=nil return nil, "send" end
+  row.settingsError = nil
+  return msg.rid
+end
+
+S.settingsReply = function(msg)
+  local row = S.turtles[msg.from]
+  local pending, body = row and row.settingsPending, msg.body
+  if not pending or type(body) ~= "table" or body.command ~= "worker.settings"
+    or pending.key ~= SO.pair.key(msg.from) or msg.rid ~= pending.rid or body.n ~= pending.n then return end
+  row.settingsPending = nil
+  if msg.t == "ack" then S.settingsSeen(row, body.settings)
+  elseif body.code == "settings" then row.settingsError = body.text end
+end
+
 S.emit = function(kind, body)
   local state = S.module("state")
   if type(state) == "table" and type(state.emit) == "function" then state.emit(kind, body) end
@@ -353,6 +423,9 @@ S.snapshot = function(row)
   if not row then return nil end
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
     last = SO.store.copy(row.last), tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
+    settings = SO.store.copy(row.settings), workerSettings = row.workerSettings, settingsControl = row.settingsControl,
+    settingsPending = row.settingsPending and {rid=row.settingsPending.rid,n=row.settingsPending.n} or nil,
+    settingsError = row.settingsError,
     fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
@@ -385,6 +458,7 @@ S.forget = function(id, key)
   row.open, row.probe, row.anchor = nil, nil, nil
   row.uncertain, row.lost = true, true
   row.pose, row.poseAt = nil, nil
+  row.settings, row.settingsPending, row.settingsKey, row.settingsN = nil, nil, nil, nil
 end
 
 S.inRange = function(id, pos)
@@ -463,11 +537,13 @@ end
 
 S.describe = function(id, job, reason)
   local row = S.row(id)
+  if job == "" and (row.open or S.assigned(id)) then return end
   local text = job.."/"..reason
   if row.description == text and SO.now()-(row.describedAt or 0)<30000 then return end
   local key = SO.pair.key(id)
   if not key then return end
-  local wire = SO.proto.encode(SO.proto.build(key,"worker.status",{job=job,reason=reason}))
+  local wire = SO.proto.encode(SO.proto.build(key,"worker.status",{job=job,reason=reason,
+    idleRid=job == "" and row.helloRid or nil}))
   if wire then rednet.send(id,wire,"so"); row.description, row.describedAt = text, SO.now() end
 end
 
@@ -488,6 +564,16 @@ end
 
 S.hello = function(msg)
   local row = S.row(msg.from)
+  local key = SO.pair.key(msg.from)
+  if row.settingsKey ~= key then
+    row.settings, row.settingsPending, row.settingsN = nil, nil, nil
+    row.settingsKey = key
+  end
+  row.workerSettings = type(msg.body.capabilities) == "table" and msg.body.capabilities.workerSettings == true
+  row.settingsControl = msg.body.settingsControl == true
+  if row.workerSettings then S.settingsSeen(row, msg.body.settings) end
+  if row.helloRid ~= msg.rid then row.description = nil end
+  row.helloRid = msg.rid
   row.lost = false
   row.seen = SO.now()
   row.fuel = (S.number(msg.body.fuel) or msg.body.fuel == "unlimited") and msg.body.fuel or nil
@@ -495,6 +581,7 @@ S.hello = function(msg)
   row.autoToolSwap = type(msg.body.capabilities) == "table" and msg.body.capabilities.autoToolSwap == true
   row.dimensionSafety = type(msg.body.capabilities) == "table" and msg.body.capabilities.dimensionSafety == true
   row.dim = msg.body.dim
+  if row.settingsControl and row.settings then row.dim, row.autoToolSwap = row.settings.dim, row.settings.autoToolSwap end
   row.worker = msg.body.role == "turtle" or msg.body.role == "worker"
   row.setupFence = type(msg.body.capabilities) == "table" and msg.body.capabilities.setupFence == true
   row.parkBatch = type(msg.body.capabilities) == "table" and msg.body.capabilities.parkBatch == true
@@ -523,6 +610,9 @@ S.tick = function(now)
   now = now or SO.now()
   local count = 0
   for id, row in pairs(S.turtles) do
+    if row.settingsPending and now >= row.settingsPending.untilAt then
+      row.settingsPending, row.settingsError = nil, "settings timed out"
+    end
     if row.anchor and now >= row.anchor.after then S.anchorSend(id, row) end
     local lease = row.open
     if lease and now > lease.expires + 10000 then
@@ -541,6 +631,9 @@ S.tick = function(now)
         }))
         if wire then pcall(rednet.send, lease.turtleId, wire, "so") end
       end
+    end
+    if row.worker and row.workerSettings and row.settingsControl and row.helloRid and not row.open and not S.assigned(id) then
+      S.describe(id, "", "")
     end
     count = count + 1
     if count % 64 == 0 then SO.breathe() end
@@ -610,6 +703,8 @@ return {
     ["step.report"] = S.report,
     beacon = S.beacon,
     hello = S.hello,
+    ack = S.settingsReply,
+    err = S.settingsReply,
     ["history.page"] = function(msg, reply)
       local state = S.module("state")
       if type(state) == "table" and type(state.history) == "table" and type(state.history.page) == "function" then
@@ -630,6 +725,7 @@ return {
   status = S.status,
   peek = S.peek,
   describe = S.describe,
+  settings = S.settings,
   ensureTool = S.ensureTool,
   cancelPark = S.cancelPark,
   forget = S.forget,

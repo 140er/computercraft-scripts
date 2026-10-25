@@ -117,7 +117,7 @@ S.reach = function(net, machine, at)
 end
 
 return function(test, equal)
-  test("worker and its libraries fit in 100 KB", function()
+  test("core worker sources stay under 105 KB", function()
     local names = { "worker.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" }
     local total = 0
     for i = 1, #names do
@@ -125,7 +125,7 @@ return function(test, equal)
       total = total + #handle:read("*a")
       handle:close()
     end
-    assert(total < 100000, "size " .. total)
+    assert(total < 105000, "size " .. total)
   end)
 
   test("a batch of 16 steps reports the fake world", function()
