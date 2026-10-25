@@ -3,6 +3,7 @@ import ctypes
 import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import socket
@@ -11,16 +12,30 @@ import sys
 import time
 
 
-class LoadAdmissionRefused(RuntimeError):
+class AdmissionRefused(RuntimeError):
+    pass
+
+
+class LoadAdmissionRefused(AdmissionRefused):
     pass
 
 
 def admit(required_kib, available_kib, load, additional_server, load_admitted=False):
     if available_kib < required_kib:
-        raise RuntimeError(f"Admission refused: available memory {available_kib/1048576:.2f} GiB; at least 3 GiB required")
+        raise AdmissionRefused(f"Admission refused: available memory {available_kib/1048576:.2f} GiB; at least 3 GiB required")
     if additional_server and (load>=8 and not load_admitted or available_kib<=8*1024*1024):
-        error = LoadAdmissionRefused if available_kib>8*1024*1024 else RuntimeError
+        error = LoadAdmissionRefused if available_kib>8*1024*1024 else AdmissionRefused
         raise error(f"Pool admission refused: load1={load:.2f} must be below 8; MemAvailable={available_kib/1048576:.2f} GiB must exceed 8 GiB")
+
+
+def admit_world(children, key):
+    match = re.match(r'slot-([AB])-', key)
+    if not match:
+        return
+    prefix = match.group(0)
+    active = [name for name in children if ':' not in name and name.startswith(prefix)]
+    if key not in children and len(active) >= 2:
+        raise AdmissionRefused(f"Gate B slot {match[1]} is busy: at most 2 worlds")
 
 
 def process_start_time(pid):
@@ -42,7 +57,7 @@ def call(home, request):
             data += part
         response = json.loads(data)
         if not response['ok']:
-            error = LoadAdmissionRefused if response.get('error_type') == 'LoadAdmissionRefused' else RuntimeError
+            error = {'LoadAdmissionRefused': LoadAdmissionRefused, 'AdmissionRefused': AdmissionRefused}.get(response.get('error_type'), RuntimeError)
             raise error(response['error'])
         return response['result']
 
@@ -110,10 +125,14 @@ def main(home, suite_lock):
                     key = q.get('key')
                     if q['op'] == 'status':
                         result = {k:p.pid for k,p in children.items()}
+                    elif q['op'] == 'capabilities':
+                        result = {'worlds_per_slot': 2}
                     elif q['op'] == 'start':
                         if key in children:
                             result = {'pid':children[key].pid, 'existing':True}
                         else:
+                            if q.get('server'):
+                                admit_world(children, key)
                             if q.get('memory_kib', 0):
                                 available = int(next(v.split()[1] for v in Path('/proc/meminfo').read_text().splitlines() if v.startswith('MemAvailable:')))
                                 admit(q['memory_kib'],available,os.getloadavg()[0],q.get('server') and any(':' not in child for child in children),q.get('load_admitted',False))

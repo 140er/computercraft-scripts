@@ -107,7 +107,7 @@ class LoadWaitTests(unittest.TestCase):
                  patch("checks.admission.time.sleep", side_effect=clock.sleep), \
                  patch.object(run, "admit", side_effect=lambda **kw: admit(proc, root, **kw)), \
                  patch.object(run, "Context", FakeContext), patch.object(run, "reserve_local_slot"), \
-                 patch.object(run, "runtime_class", return_value=lambda: SimpleNamespace(release_stopped_port=lambda world: None)), \
+                 patch.object(run, "runtime_class", return_value=lambda: SimpleNamespace(home=root / "runtime", release_stopped_port=lambda world: None)), \
                  patch.object(run, "resolve", return_value="a" * 40), \
                  patch.object(run, "load", return_value=SimpleNamespace(run=check, TITLE="Fixture")):
                 code = run.main(["--checks", "C5,C6", "--worlds", "1", "--output", temp,

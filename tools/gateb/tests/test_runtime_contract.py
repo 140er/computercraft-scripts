@@ -266,7 +266,7 @@ class ContractTests(unittest.TestCase):
                     ctx.linked_install()
                     raise Blocked("Missing reviewed pixels")
                 return Verdict("pass")
-        with tempfile.TemporaryDirectory() as temp, patch.object(run,"admit"), patch.object(run,"reserve_local_slot"), patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:SimpleNamespace(release_stopped_port=lambda name:None)), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
+        with tempfile.TemporaryDirectory() as temp, patch.object(run,"admit"), patch.object(run,"reserve_local_slot"), patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:SimpleNamespace(home=Path(temp)/"runtime",release_stopped_port=lambda name:None)), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
             code=run.main(["--checks","C1,C3,C5","--output",temp,"--worlds","2"])
             report=json.loads((Path(temp)/"report.json").read_text())
         self.assertEqual(code,1)

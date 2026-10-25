@@ -6,6 +6,7 @@ from contextlib import ExitStack
 from datetime import datetime, timezone
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -16,7 +17,7 @@ import uuid
 
 from checks import ACCELERATED, GROUPS, IDS, load
 from checks.context import Context, sanitize
-from checks.admission import admit, reserve_local_slot, record_load_wait
+from checks.admission import admit, reserve_local_slot, reserve_slot, visual_check, record_load_wait, Refused
 from checks.model import Blocked, Result, Verdict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -144,7 +145,7 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
             raise Blocked("Installed server has no SO.now tick-scaled clock; refusing speed-up")
         verdict = load(check).run(ctx)
     except Blocked as error:
-        verdict = Verdict("blocked", [str(error)])
+        verdict = Verdict("blocked", [str(error)], {"retryable": isinstance(error, Refused)})
     except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
         ctx.record("runtime-error.json", {"type": type(error).__name__, "message": str(error)})
         verdict = Verdict("blocked", [f"Runtime or evidence unavailable ({type(error).__name__}); see runtime-error.json"])
@@ -201,6 +202,8 @@ def execute_repeated(ctx, check, runtime_dir, reset=True):
     durations = [result.wall_seconds for result in attempts]
     status = "fail" if "fail" in statuses else "blocked" if "blocked" in statuses else "pass"
     metrics = {"load_wait_seconds": round(sum(r.metrics.get("load_wait_seconds", 0) for r in attempts), 3),
+               "retryable": any(r.metrics.get("retryable") for r in attempts)
+                            and all(r.status == "pass" or r.metrics.get("retryable") for r in attempts),
                "attempts": [result.to_dict() for result in attempts], "repeat_count": 3,
                "flaky": len(set(statuses)) > 1,
                "wall_seconds_min": min(durations), "wall_seconds_max": max(durations),
@@ -221,6 +224,7 @@ def main(argv=None):
     parser.add_argument("--checks", help="Comma-separated checks; unioned with changed-file selection")
     parser.add_argument("--sha", default="origin/server-only", help="Build for explicit --checks")
     parser.add_argument("--worlds", type=int, default=2)
+    parser.add_argument("--slot", choices=("A", "B"), default=os.environ.get("GATEB_SLOT", "A"))
     parser.add_argument("--tick-rate", type=float, default=20)
     parser.add_argument("--c16-fake-remaining", type=int, choices=range(3), default=0,
                         help="C16 HTTP refusal response's remaining quota, default 0")
@@ -232,9 +236,10 @@ def main(argv=None):
     parser.add_argument("--collect-photos", type=Path, metavar="DIR",
                         help="Write every C3 and C13 photo with its camera to DIR as unreviewed candidates; gives no visual credit")
     args = parser.parse_args(argv)
+    if args.slot not in ("A", "B"): parser.error("GATEB_SLOT must be A or B")
     if not args.full and not args.changed and not args.checks: parser.error("Specify --full, --changed, or --checks")
     if args.load_wait_timeout < 0: parser.error("--load-wait-timeout must be nonnegative")
-    if args.worlds < 1 or args.worlds > 4: parser.error("--worlds must be between 1 and 4")
+    if args.worlds < 1 or args.worlds > 2: parser.error("--worlds must be between 1 and 2 per slot")
     if not 1 <= args.tick_rate <= 200: parser.error("--tick-rate must be between 1 and 200")
     try:
         selected = set(IDS if args.full else ())
@@ -255,10 +260,10 @@ def main(argv=None):
         if any(rate != 20 for rate in rates.values()) and not tick_scaled(commit):
             parser.error("This build has no SO.now tick-scaled clock from codex/so-clock. Speed-up would shorten lease/retry coverage; use --tick-rate 20")
         if args.plan:
-            print(json.dumps({"commit": commit, "checks": selected, "tick_rates": rates, "worlds": args.worlds,
+            print(json.dumps({"commit": commit, "checks": selected, "tick_rates": rates, "worlds": args.worlds, "slot": args.slot,
                               "repeats": {c: 3 if c in ("C8", "C10") else 1 for c in selected}}, indent=2))
             return 0
-        output = args.output or Path.home() / "work/gateb-driver" / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + commit[:12])
+        output = args.output or Path.home() / "work/gateb-driver" / (f"slot-{args.slot}-" + datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + commit[:12] + "-" + uuid.uuid4().hex[:8])
         start = time.monotonic()
         if not selected:
             write_report(merge_results([], [], commit, 0), output)
@@ -266,13 +271,14 @@ def main(argv=None):
             return 0
         Runtime = runtime_class(args.runtime_dir.resolve())
         runtime = Runtime()
+        runtime.slot = args.slot
         cli = Context(runtime, "", {}, output, commit)
         cli.runtime_dir = args.runtime_dir.resolve()
         cli.load_wait_timeout = args.load_wait_timeout
         token = datetime.now().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:8]
         groups = [[c for c in checks if c in selected] for checks in GROUPS.values()]
         groups = [checks for checks in groups if checks]
-        prefix = f"driver-{token}"
+        prefix = f"slot-{args.slot}-driver-{token}"
         worlds = [f"{prefix}-{i+1}" for i in range(min(args.worlds, len(groups))) ]
         client_lock, group_lock = threading.Lock(), threading.Lock()
         results, created, finished = [], [], set()
@@ -280,6 +286,7 @@ def main(argv=None):
         try:
             admit(timeout=cli.load_wait_timeout, on_wait=lambda seconds: record_load_wait(cli, seconds))
             reservation.enter_context(reserve_local_slot())
+            reservation.enter_context(reserve_slot(runtime.home, args.slot))
             created.extend(worlds)
             resources = cli.cli("pool", "up", len(worlds), "--prefix", prefix, timeout=(180 + args.load_wait_timeout) * len(worlds))
             cli.record("pool-start.json", resources)
@@ -306,9 +313,14 @@ def main(argv=None):
                                     results.append(result)
                                     finished.add("C1")
                             ctx.linked_install = linked_install
-                        if check in ("C1", "C3", "C13"):
-                            with client_lock: result = execute(ctx, check, args.runtime_dir.resolve(), reset=not first)
-                        else: result = execute_repeated(ctx, check, args.runtime_dir.resolve(), reset=not first)
+                        with ExitStack() as check_locks:
+                            if check in ("C1", "C3", "C13"):
+                                check_locks.enter_context(client_lock)
+                            check_locks.enter_context(visual_check(runtime.home, check))
+                            if check in ("C1", "C3", "C13"):
+                                result = execute(ctx, check, args.runtime_dir.resolve(), reset=not first)
+                            else:
+                                result = execute_repeated(ctx, check, args.runtime_dir.resolve(), reset=not first)
                         first = False
                         with group_lock:
                             results.append(result)
@@ -325,19 +337,24 @@ def main(argv=None):
             raise
         finally:
             cleanup = []
-            for world in created:
-                cleanup.append(stop_owned(cli, world))
-            reservation.close()
+            try:
+                for world in created:
+                    cleanup.append(stop_owned(cli, world))
+            finally:
+                reservation.close()
             report = merge_results(results, selected, commit, time.monotonic()-start)
             report["cleanup"] = cleanup
+            report["slot"] = args.slot
             report["startup_load_wait_seconds"] = round(cli.load_wait_seconds, 3)
             report["pool_load_waits"] = cli.pool_load_waits
             write_report(report, output)
         print(f"Report {output / 'report.md'}", flush=True)
+        if any(r.metrics.get("retryable") for r in results) and all(r.status == "pass" or r.metrics.get("retryable") for r in results):
+            return 75
         return 0 if report["status"] == "pass" else 1
     except (Blocked, ValueError, OSError) as error:
         print(str(error), file=sys.stderr)
-        return 2
+        return 75 if isinstance(error, Refused) else 2
 
 
 if __name__ == "__main__":

@@ -9,6 +9,10 @@ import time
 from .model import Blocked
 
 
+class Refused(Blocked):
+    """Admission or ownership is busy; the driver may be retried."""
+
+
 def full_local_suite(locks, slots, command):
     pattern = r"\bFLOCK\s+\S+\s+\S+\s+(\d+)\s+([0-9a-f]+):([0-9a-f]+):(\d+)"
     for match in re.finditer(pattern, locks):
@@ -21,6 +25,8 @@ def full_local_suite(locks, slots, command):
         argv = command(int(pid))
         if any(arg == "--shards" or arg.startswith("--shards=") for arg in argv):
             return slot
+        if any(Path(arg).parts[-3:] == ("tools", "gateb", "run.py") for arg in argv[:2]):
+            continue
         if any(arg == "--part" or arg.startswith("--part=") for arg in argv):
             continue
         if slot == "test-suite.lock" and any(Path(arg).name == "keeper.py" for arg in argv):
@@ -45,7 +51,7 @@ def admit(proc=Path("/proc"), work=None, *, timeout=300, on_wait=None, check_loa
                 break
             remaining = timeout - (time.monotonic() - start)
             if remaining <= 0:
-                raise Blocked(f"Native run refused: load1={load:.2f} must be below 8")
+                raise Refused(f"Native run refused: load1={load:.2f} must be below 8")
             waited = True
             time.sleep(min(5, remaining))
     finally:
@@ -68,7 +74,7 @@ def admit(proc=Path("/proc"), work=None, *, timeout=300, on_wait=None, check_loa
     except OSError as error:
         raise Blocked("Cannot verify local test-suite admission from /proc/locks") from error
     if active:
-        raise Blocked(f"Native run refused: {active} is held by a full or unclassified local test run")
+        raise Refused(f"Native run refused: {active} is held by a full or unclassified local test run")
     return {"load1": load, "heavy_local_suite": False}
 
 
@@ -78,9 +84,37 @@ def reserve_local_slot(work=None):
     work.mkdir(parents=True, exist_ok=True)
     with (work / "test-suite-local-2.lock").open("a") as handle:
         try:
+            fcntl.flock(handle, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise Refused("Native run refused: a local suite acquired local-2 before reservation") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+@contextmanager
+def reserve_slot(home, slot):
+    path = Path(home) / "locks" / f"slot-{slot}.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as handle:
+        try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
-            raise Blocked("Native run refused: a local suite acquired local-2 before reservation") from error
+            raise Refused(f"Gate B slot {slot} is busy") from error
+        yield
+
+
+@contextmanager
+def visual_check(home, check):
+    home = Path(home)
+    home.mkdir(parents=True, exist_ok=True)
+    # A waiting writer holds the turn lock, preventing new readers from entering.
+    with (home / "visual-turn.lock").open("a") as turn, (home / "visual-exclusive.lock").open("a") as handle:
+        fcntl.flock(turn, fcntl.LOCK_EX)
+        mode = fcntl.LOCK_EX if check in ("C3", "C13") else fcntl.LOCK_SH
+        fcntl.flock(handle, mode)
+        fcntl.flock(turn, fcntl.LOCK_UN)
         try:
             yield
         finally:
