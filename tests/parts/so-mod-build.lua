@@ -105,8 +105,15 @@ return function(test,equal)
     local f=fixture() f.configure("floor",1,1,1) f.world["-3,0,0"].stock=0 start(f)
     for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked=="material" then break end end
     equal(f.alert,"out of material")
+    local cleared=false
+    local emit=f.mods.state.emit
+    f.mods.state.emit=function(kind,data)
+      if kind=="build.alert" and data==false then cleared=true end
+      return emit(kind,data)
+    end
     f.world["-3,0,0"].stock=64 f.now=f.now+10000 f.run()
-    equal(f.alert,false)
+    assert(cleared,"material alert was not cleared")
+    equal(f.alert,"build complete")
   end)
   test("builder setup state belongs to its display session",function()
     local f=fixture() local a,b={},{}

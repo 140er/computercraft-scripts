@@ -296,4 +296,29 @@ return function(test, equal)
     equal(a.t.pos.z,0); equal(#F.journal(a.t).moves,0)
     assert(#F.sent(a.t,"beacon")>=12)
   end)
+
+  test("B8-F build exports copied worker details and confirmed PARK RESUME REMOVE state",function()
+    local f=fixture("build",true)
+    f.input("park 2") f.tick() f.report()
+    local view=f.mods.build.turtleView()["2"]
+    equal(view.role,"build") equal(view.state,"parked") equal(view.paused,true) equal(view.parkConfirmed,true)
+    equal(view.total,3) equal(view.done,0) equal(view.fuel,4000)
+    view.pose.x=900 view.inv[1].count=1
+    equal(f.pose(2).x,8) equal(f.mods.build.turtleView()["2"].inv[1].count,64)
+    f.input("resume 2") equal(f.mods.build.turtleView()["2"].paused,nil)
+    f.input("remove 2") f.tick() f.report() f.tick() equal(f.mods.build.turtleView(),{})
+  end)
+  test("B8-F blocked parked lumber exports confirmation and renders RESUME",function()
+    local f=fixture("lumber",true)
+    f.input("park 2") f.tick() f.report()
+    f.row(2).blocked="path blocked"
+    local view=f.mods.lumber.turtleView()["2"]
+    equal(view.parkConfirmed,true) equal(view.paused,true) equal(view.state,"parked")
+    view.workerPark=true
+    local frame=dofile("so-ui.lua").turtle.render(26,20,{id="2"},view,f.now)
+    local found={}
+    for _,button in ipairs(frame.buttons) do found[button.id]=true end
+    assert(found["turtle-resume"] and found["turtle-remove"] and not found["turtle-park"])
+    view.pose.x=900 equal(f.pose(2).x,8)
+  end)
 end

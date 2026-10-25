@@ -29,6 +29,22 @@ end
 local function emit(kind, data) call("state", "emit", kind, data) end
 local function owner(id) return "mine:" .. id end
 local workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
+S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
+S.finish = function()
+  if not job.running or #(job.unfinished or {}) > 0 then return end
+  if job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then return end
+  local workers = 0
+  for _, row in pairs(job.turtles) do
+    if row.state ~= "done" or row.trip or row.returning or row.recover then return end
+    workers = workers + 1
+  end
+  if workers == 0 then return end
+  local announce = not job.complete
+  job.running, job.complete = false, true
+  if save() then
+    if announce then emit("mine.alert", {text="mining complete", done=job.progress.done or 0, workers=workers}) end
+  elseif announce then job.complete=nil end
+end
 local function skipped(cell)
   return cell and ((job.digFailures and job.digFailures[M.key(cell)] or 0) >= 3
     or job.skipped and job.skipped[M.key(cell)])
@@ -44,6 +60,7 @@ local function failedDig(id, row, cell, reason)
   end
 end
 local function claimBranch()
+  if not job.running then return nil end
   if job.unfinished and #job.unfinished > 0 then return table.remove(job.unfinished, 1), true end
   local branch = job.progress.nextBranch or 0
   if job.continuous and branch >= (job.branches or 8) then return nil end
@@ -428,7 +445,7 @@ local function report(_, id, results, lease)
       cursor = P.replay(cursor, action.steps or {}, results)
       if row.lane and M.inLane(job,cursor) then row.lane.entered=true end
       if action.kind == "workerPark" then row.parkConfirmed=true row.state="parked"
-      elseif action.kind == "recover" then row.recover, row.error = false, nil row.state = job.running and "mining" or "stopped"
+      elseif action.kind == "recover" then row.recover, row.error = false, nil row.state = (job.running or job.complete and row.route) and "mining" or "stopped"
       elseif action.kind == "inspect" or action.kind == "scan" then
         local result = results[#results]
         S.known[M.key(action.cell)] = result.ok and result.data or false
@@ -656,7 +673,9 @@ plan = function(id,row)
     else reservePose(id,row) park(id,row,false) end
     return
   end
-  if row.stopRoute or not job.running and row.route then clearRoute(row) save() end
+  local finishing = job.complete and row.route and row.counted == row.branch
+    and not row.returning and not row.trip and not row.resumeTrip
+  if row.stopRoute or not job.running and not finishing and row.route then clearRoute(row) save() end
   if type(mod("lease").ensureTool) == "function" then
     local equipped, reason = call("lease", "ensureTool", id, "pickaxe")
     if not equipped then
@@ -680,9 +699,32 @@ plan = function(id,row)
   if row.yield and yieldLane(id,row) then return end
   if not reservePose(id,row) then row.state = "waiting" park(id,row,false) return end
   if not P.inRange(mod("lease"),id,{row.pose}) then row.state,row.error="range","outside proven radio range" park(id,row,false) return end
-  if not job.running or row.state == "done" then row.state = row.state == "done" and "done" or "stopped" park(id,row,false) return end
+  if not job.running and finishing then
+    local last = row.route[#row.route]
+    local previousState, previousError = row.state, row.error
+    if not last or skipped(last) then row.state,row.error="hold","completed branch end unavailable"
+    elseif M.same(row.pose,last) then row.state="done"
+    else
+      row.goal=last
+      row.state="mining"
+      local action=M.next(job,row,lookup,row.inv,row.fuel)
+      if action.kind=="hold" then row.error=action.error row.state="hold" park(id,row,false)
+      elseif not send(id,row,action) then park(id,row,false) end
+      return
+    end
+    if row.state~=previousState or row.error~=previousError then save() end
+    park(id,row,false) return
+  end
+  if not job.running and not finishing or row.state == "done" then row.state = row.state == "done" and "done" or "stopped" park(id,row,false) return end
   if row.dropRetry and row.dropRetry.after and SO.now() < row.dropRetry.after then
     park(id,row,false) return
+  end
+  if row.dropRetry and row.trip and row.trip.stage ~= "back" then
+    local usable, reason = call("drops", "usable", row.trip.point.id)
+    if usable == false then
+      dropFailure(id,row,row.trip.kind,row.trip.point,reason)
+      save() park(id,row,false) return
+    end
   end
   row.inv = row.inv or {}
   local clean = M.cleanup(row.inv,false)
@@ -849,7 +891,7 @@ plan = function(id,row)
         if #S.trailOrder>64 then S.trailDone[table.remove(S.trailOrder,1)]=nil end
         emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done})
       end
-      if #(job.unfinished or {}) > 0 or job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then
+      if job.running and (#(job.unfinished or {}) > 0 or job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8)) then
         local branch=claimBranch()
         row.returning = {branch=branch,junction=returnJunction(row)}
         row.state = "mining"
@@ -904,7 +946,6 @@ local function readiness()
     if paired and status and not status.uncertain and not status.lost then added=true end
   end
   checks[#checks+1]={ok=added,text=added and "paired turtle ready" or "paired turtle missing"}
-  if #ids==0 then checks[#checks+1]={ok=false,text="fuel missing"} end
   for _,id in ipairs(ids) do
     local row=job.turtles[tostring(id)]
     local status=call("lease","status",id)
@@ -926,6 +967,17 @@ end
 -- and the layouts and writes their fixtures.
 local V = { ores = { "coal", "copper", "iron", "gold", "redstone", "lapis", "diamond", "quartz", "nether_gold", "ancient_debris" },
   tabs = { "overview", "setup" }, short = { "main", "setup" }, dirs = { [0] = { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } } }
+V.pose = function(v, cycle)
+  local ids = {}
+  for id, row in pairs(job.turtles) do
+    if not row.forgotten and SO.pair and SO.pair.key(tonumber(id)) then ids[#ids+1]=tonumber(id) end
+  end
+  table.sort(ids)
+  local index = cycle and #ids > 1 and 2 or 1
+  for i, id in ipairs(ids) do if id == v.poseId then index = cycle and i % #ids + 1 or i break end end
+  v.poseId = ids[index]
+  return v.poseId and job.turtles[tostring(v.poseId)]
+end
 V.oreOn = function(m, name)
   if #m.ores == 0 then return true end
   for _, ore in ipairs(m.ores) do if ore == name then return true end end
@@ -975,7 +1027,7 @@ V.gather = function()
   local started = total
   if job.continuous then total = math.max(total, job.branches or 8) end
   local today = call("daily", "today")
-  local m = { state = job.running and "running" or "stopped", alert = S.error, length = length, gap = gap,
+  local m = { state = job.complete and "complete" or job.running and "running" or "stopped", alert = S.error, length = length, gap = gap,
     bottom = bottom, done = job.progress.done or 0, total = total, extents = {}, turtles = {}, busy = 0,
     workers = 0, ore = today and today.ore, home = h, homeSet = job.homeSet ~= false, mode = job.mode, ores = job.ores,
     dim = job.dim, branches = job.branches or 8, continuous = job.continuous == true }
@@ -1252,7 +1304,8 @@ V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
   if y <= stop then
     local home = m.homeSet and (h.x .. "," .. h.y .. "," .. h.z .. " " .. ("nesw"):sub(h.facing + 1, h.facing + 1)) or "-"
     C.put(x, y, "home", "8")
-    C.put(vx, y, home:sub(1, right - vx + 1), m.homeSet and "0" or "8")
+    if S.poseSetup then C.chip(vx, y, home:sub(1, math.max(1, right - vx - 2)), "home-here", m.homeSet and "plain" or "off")
+    else C.put(vx, y, home:sub(1, right - vx + 1), m.homeSet and "0" or "8") end
   end
   y = y + step
   if y <= stop then
@@ -1302,11 +1355,14 @@ V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
   end
   y = y + step
   if y <= stop then
-    local ids = {}
-    for _, t in ipairs(m.turtles) do ids[#ids + 1] = "#" .. t.id end
-    local list = table.concat(ids, " ")
     C.put(x, y, "turtles", "8")
-    C.put(vx, y, list ~= "" and list:sub(1, right - vx + 1) or "-", "0")
+    if S.poseSetup then C.chip(vx, y, m.poseId and ("#" .. m.poseId) or "-", "pose-next", "plain")
+    else
+      local ids = {}
+      for _, t in ipairs(m.turtles) do ids[#ids + 1] = "#" .. t.id end
+      local list=table.concat(ids," ")
+      C.put(vx,y,list ~= "" and list:sub(1,right-vx+1) or "-","0")
+    end
   end
   return math.max(last, y)
 end
@@ -1416,6 +1472,19 @@ local function command(event)
     elseif id == "ores-edit" then v.ores = not v.ores return
     elseif id == "setup-next" then v.offset = (v.offset or 0) + 1 return
     elseif id == "workers-next" or id == "workers-prev" then v.workers = (v.workers or 0) + (id == "workers-next" and 1 or -1) return
+    elseif S.poseSetup and id == "pose-next" then V.pose(v,true) return
+    elseif S.poseSetup and id == "home-here" then
+      local row = V.pose(v)
+      local status = row and call("lease","status",v.poseId)
+      local p = row and row.pose
+      if not p or row.recover or not status or status.open or status.lost or status.uncertain then S.error="paired pose unavailable" return end
+      for _, key in ipairs({"x","y","z"}) do
+        local n=p[key]
+        if type(n) ~= "number" or n%1 ~= 0 or math.abs(n)>=30000000 then S.error="paired pose unavailable" return end
+      end
+      local facing = ({[0]="n","e","s","w"})[p.facing]
+      if not facing or p.dim ~= job.dim then S.error="paired pose unavailable" return end
+      event = {text=table.concat({"home",p.x,p.y,p.z,facing}," ")}
     elseif id:match("^here:%d+$") then event = { text = "add " .. id:match("%d+$") }
     elseif id == "fuel-auto" then
       local policy = call("shop","fuelConfig") or {}
@@ -1457,7 +1526,9 @@ local function command(event)
   if geometry then
     if job.running then S.error="stop mining before geometry changes" return end
     for _, row in pairs(job.turtles) do
-      if row.route or row.stopRoute then S.error="wait for mining routes to stop" return end
+      local finishedBudget = job.complete and row.state=="done" and not row.recover and not row.trip and not row.returning
+        and (cmd=="branches" or cmd=="continuous")
+      if row.stopRoute or row.route and not finishedBudget then S.error="wait for mining routes to stop" return end
     end
   end
   if cmd=="fuel" then
@@ -1519,11 +1590,13 @@ local function command(event)
     local claimed, claimErr = call("lease", "claimProbe", id, owner(id), pose)
     if claimed == false then S.error = claimErr return end
     S.error=nil
-    local previous = job.turtles[tostring(id)]
+    local previous, complete = job.turtles[tostring(id)], job.complete
     job.turtles[tostring(id)]={anchor=pose,pose=pose,state="recovering",recover=true,inv={}}
+    if not job.continuous or #(job.unfinished or {})>0 or (job.progress.nextBranch or 0)<(job.branches or 8) then job.complete=nil end
     if not reservePose(id,job.turtles[tostring(id)]) or not save() then
       S.error = S.error or job.turtles[tostring(id)].error
       job.turtles[tostring(id)] = previous
+      job.complete = complete
       return
     end
     local cleared, clearErr = call("lease", "clearProbe", id)
@@ -1587,6 +1660,7 @@ local function command(event)
     job.running=true
     for _,row in pairs(job.turtles) do row.safety=nil end
     if #(job.unfinished or {})>0 or job.continuous and (job.progress.nextBranch or 0)<(job.branches or 8) then
+      job.complete=nil
       for _,row in pairs(job.turtles) do if row.state=="done" then row.state="mining" end end
     end
   elseif cmd=="stop" then
@@ -1600,6 +1674,7 @@ local function command(event)
     end
   else S.error="invalid mining command" return end
   if geometry and cmd ~= "branches" and cmd ~= "continuous" then
+    job.complete=nil
     job.progress, job.unfinished, job.digFailures, job.skipped = {nextBranch=0,done=0}, {}, {}, {}
     S.known, S.trailDone, S.trailOrder = {}, {}, {}
     for id, row in pairs(job.turtles) do
@@ -1622,7 +1697,7 @@ local function input(event)
   end
 end
 local function legacyRender(w)
-  local rows={{text="        Mining " .. (job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
+  local rows={{text="        Mining " .. (job.complete and "COMPLETE" or job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
   if job.dim ~= "minecraft:overworld" then rows[#rows+1]={text=job.dim} end
   if S.error then rows[#rows+1]={text=S.error,fg="e"} end
   for id,row in pairs(job.turtles) do
@@ -1644,8 +1719,9 @@ local function render(w,h,session)
   if type(session) == "table" and session.id == nil and w == 120 and h == 18 then return V.probe(V.gather()) end
   local v = view(session)
   local m = V.gather()
+  if job.complete then m.state="COMPLETE" end
   m.workerPage, m.setupPage = v.workers, v.offset
-  if v.page == "setup" then V.setup(m) end
+  if v.page == "setup" then V.pose(v) m.poseId=v.poseId V.setup(m) end
   return V.layout(m, w, h, v.page == "setup", v.ores)
 end
 -- Job facts for other screens (the pocket's JOBS page); pure reads.
@@ -1778,4 +1854,5 @@ return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostr
   for id in pairs(job.turtles) do ids[#ids+1]=tonumber(id) end
   table.sort(ids,laneOrder)
   for _,id in ipairs(ids) do plan(id,job.turtles[tostring(id)]) end
+  S.finish()
 end}

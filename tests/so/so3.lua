@@ -647,11 +647,14 @@ return function(test,equal)
       if spec.coal > 0 then chest.inv[1]={name="minecraft:coal",count=spec.coal} end
       s.net.world["1,0,0"] = chest
       assert(s.server.env.SO.mods.drops.add({id="fuel",dim=0,x=1,y=0,z=0,side="front",kind="fuel"}))
-      local attempts, alerts = 0, 0
+      local attempts, alerts, completions = 0, 0, 0
       local suck = s.turtle.env.turtle.suck
       s.turtle.env.turtle.suck = function(n) attempts=attempts+1 return suck(n) end
-      s.server.env.SO.mods.state = {canStart=s.server.env.SO.mods.state.canStart,emit=function(name)
-        if name=="mine.alert" then alerts=alerts+1 end
+      s.server.env.SO.mods.state = {canStart=s.server.env.SO.mods.state.canStart,emit=function(name,data)
+        if name=="mine.alert" then
+          if data.text=="mining complete" then completions=completions+1 equal(data.done,1)
+          else alerts=alerts+1 end
+        end
       end}
       s.input("start") run(s,100)
       local row = persisted(s).turtles["2"]
@@ -660,7 +663,7 @@ return function(test,equal)
         equal(row.state,"done")
         equal(row.dropRetry,nil)
         equal(attempts,2)
-        equal(alerts,0)
+        equal(alerts,0) equal(completions,1)
         assert(s.turtle.fuel > 64 and s.turtle.fuel < 2000)
         equal(s.turtle.pos,{x=3,y=-2,z=-5})
       else

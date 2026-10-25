@@ -26,6 +26,61 @@ local function job(server)
   return server.env.SO.store.read("so-data/mine/job").value.turtles["2"]
 end
 
+
+local function copy(v)
+  if type(v) ~= "table" then return v end
+  local out={} for k,x in pairs(v) do out[k]=copy(x) end return out
+end
+local function text(frame)
+  local out={} for _,row in ipairs(frame.rows) do out[#out+1]=row.text end
+  return table.concat(out,"\n")
+end
+local function buttons(frame)
+  local out={} for _,b in ipairs(frame.buttons) do out[b.id]=b end return out
+end
+local function miner(config)
+  local f={now=1000,events={},calls={},status={},saveOK=true}
+  local j={homeSet=true,home={x=0,y=0,z=0,facing=0},bottom=-2,length=4,dim="minecraft:overworld",
+    mode="fast",ores={},turtles={},running=false,progress={nextBranch=0,done=0}}
+  f.job=j
+  local input,render,report
+  local env=setmetatable({SO={now=function() return f.now end,breathe=function() end,
+    pair={key=function() return "paired" end},store={copy=copy,read=function() return config or {} end,
+      store=function() return {value=j,save=function() return f.saveOK,"disk full" end} end},mods={}}},{__index=_G})
+  local mods=env.SO.mods
+  mods.state={canStart=function() return true end,emit=function(kind,data) f.events[#f.events+1]={kind=kind,data=copy(data)} end}
+  mods.drops={list=function() return {{id="ore",dim=0,x=0,y=0,z=0,kind="ore"},
+    {id="fuel",dim=0,x=1,y=0,z=0,kind="fuel"}} end}
+  mods.cells={reserve=function() return true end,reserveMany=function() return true end,releaseOwner=function() return true end}
+  mods.lease={status=function(id) return f.status[id] or {} end,inRange=function() return true end,
+    onReport=function(_,fn) report=fn end,send=function(id,steps,opts)
+      f.calls[#f.calls+1]={id=id,steps=copy(steps),opts=opts} return #f.calls end}
+  mods.display={screen=function(_,r,i) render,input=r,i end}
+  f.restart=function()
+    f.mod=assert(loadfile("so-mod-mine.lua","t",env))() f.mod.tick()
+  end
+  f.restart()
+  f.mods=mods
+  f.input=function(value,session) input(type(value)=="table" and value or {text=value,session=session}) end
+  f.render=function(w,h,session) return render(w,h,session) end
+  f.row=function(id)
+    local pose={dim=j.dim,x=10,y=-2,z=-5,facing=1}
+    local row={pose=pose,anchor=copy(pose),frame={dim=j.dim,ox=0,oy=0,oz=0,rot=0},
+      inv={},fuel=4000,state="mining",branch=id-2,route={copy(pose)},index=2}
+    j.turtles[tostring(id)]=row
+    return row
+  end
+  f.report=function(id,results,facts) report("report",id,results,{report=facts}) end
+  f.recover=function(id)
+    local row=j.turtles[tostring(id)]
+    local p=row.pose
+    local q=f.calls[#f.calls]
+    report(q.id or #f.calls,id,{{ok=false,err="No block to inspect"}},
+      {report={pose={x=p.x,y=p.y,z=p.z,f=p.facing},fuel=4000,inv={}}})
+  end
+  return f
+end
+
 return function(test, equal)
   test("mine-done-return: a finished miner recovered away from its branch end returns there", function()
     local net = H.new()
@@ -77,5 +132,172 @@ return function(test, equal)
     equal(row.state, "done")
     equal({ row.pose.x, row.pose.y, row.pose.z }, { 3, -2, -5 })
     equal(server.env.SO.mods.cells.owner(3, -2, -5), "mine:2")
+  end)
+
+  test("S4-12 mining has no fuel missing row without turtles",function()
+    local f=miner()
+    f.input("start")
+    local message=f.events[#f.events].data.text
+    assert(message:find("paired turtle missing",1,true))
+    assert(not message:find("fuel missing",1,true))
+    f.row(2).fuel=0 f.input("start")
+    assert(f.events[#f.events].data.text:find("fuel missing #2",1,true))
+  end)
+  test("S4-10 mining home chip copies the selected paired pose through command validation",function()
+    local f=miner({jobPoseSetup=true}) local a,b={id=10},{id=11}
+    f.row(2) local row=f.row(3) f.input("stop") row.pose={dim=f.job.dim,x=7,y=12,z=-3,facing=2}
+    f.input({id="setup",session=a}) f.input({id="pose-next",session=a})
+    assert(buttons(f.render(26,20,a))["home-here"])
+    f.input({id="home-here",session=a}) equal(f.job.home,{x=7,y=12,z=-3,facing=2})
+    f.input({id="home-here",session=b}) equal(f.job.home,{x=10,y=-2,z=-5,facing=1})
+    local old=copy(f.job.home)
+    f.status[2]={uncertain=true} f.input({id="home-here",session=b}) equal(f.job.home,old)
+    f.status[2]={} f.job.running=true f.input({id="home-here",session=b}) equal(f.job.home,old)
+  end)
+  test("S4-10 mining pose controls default off and UB-29 branch controls clamp the budget",function()
+    local f=miner() f.input({id="setup"})
+    assert(not buttons(f.render(57,24))["home-here"])
+    f.input({id="home-here"}) equal(f.job.home,{x=0,y=0,z=0,facing=0})
+    f.input({id="continuous"})
+    local b=buttons(f.render(57,24)) assert(b["set-branches+"] and b["set-branches-"])
+    f.input("branches 4096") f.input({id="set-branches+"}) equal(f.job.branches,4096)
+    f.input("branches 1") f.input({id="set-branches-"}) equal(f.job.branches,1)
+  end)
+  test("P4-3 mining stops at COMPLETE and emits one counted alert for all workers",function()
+    local f=miner() f.row(2) f.row(3)
+    f.job.running=true f.job.progress.nextBranch=2
+    f.mod.tick() equal(f.job.running,false) equal(f.job.progress.done,2)
+    equal(f.mod.facts().state,"complete") assert(text(f.render(26,20)):find("COMPLETE",1,true))
+    for _=1,3 do f.mod.tick() end
+    local alerts=0
+    for _,event in ipairs(f.events) do
+      if event.kind=="mine.alert" then alerts=alerts+1 equal(event.data.done,2) equal(event.data.workers,2) end
+    end
+    equal(alerts,1)
+  end)
+  test("P4-3 mining waits for unfinished rows and branch budget then START resumes extra branches",function()
+    local f=miner() local row=f.row(2) local other=f.row(3)
+    f.job.running=true f.status[3]={open=123}
+    f.mod.tick() equal(row.state,"done") equal(f.job.running,true)
+    f.status[3]={} f.mod.tick() equal(f.job.running,false)
+    f.input("branches 3") equal(f.job.branches,3) f.input("start")
+    equal(f.job.complete,nil) equal(f.job.running,true)
+    assert(row.state=="mining" and other.state=="mining")
+    local empty=miner() empty.job.running=true empty.mod.tick() equal(empty.job.running,true)
+  end)
+  for _,reason in ipairs({"suspended","missing","broken","unreadable"}) do
+    test("B8-F mining holds a cached drop retry that is "..reason,function()
+      local f=miner() local row=f.row(2) f.job.running=true
+      row.trip={kind="fuel",stage="out",point={id="fuel",x=10,y=-3,z=-5,side="down"},stand=copy(row.pose),back=copy(row.pose)}
+      row.dropRetry={key="fuel:empty",tries=3,after=f.now+100}
+      local checks=0
+      f.mods.drops.usable=function(id) equal(id,"fuel") checks=checks+1 return false,reason end
+      f.mod.tick() equal(checks,0)
+      f.now=f.now+100 f.mod.tick() equal(checks,1) equal(row.state,"hold")
+      assert(row.error:find(reason,1,true)) equal(row.trip.stage,"out")
+      for _,q in ipairs(f.calls) do equal(q.steps,{{op="inspectDown"}}) end
+      f.status[2]={open=123} f.now=f.now+60000 f.mod.tick() equal(checks,1)
+    end)
+  end
+  test("B8-F mining permits an accepted retry and completes a committed return after suspension",function()
+    local f=miner() local row=f.row(2) f.job.running=true
+    row.trip={kind="fuel",stage="out",point={id="fuel",x=10,y=-3,z=-5,side="down"},stand=copy(row.pose),back=copy(row.pose)}
+    row.dropRetry={key="fuel:empty",tries=3,after=f.now}
+    f.mods.drops.usable=function() return true end
+    f.mod.tick() equal(f.calls[1].steps[3].op,"suckDown")
+    row.trip.stage="back"
+    f.mods.drops.usable=function() error("committed return revalidated") end
+    f.mod.tick() equal(row.trip,nil)
+  end)
+
+  test("S4-10 build corner and home chips copy the paired pose with session-local first corners",function()
+    local f=dofile("tests/so/build-fixture.lua")({jobPoseSetup=true})
+    f.configure("floor",1,1,1) f.tick() f.report()
+    local a,b={},{}
+    f.press("setup",a) assert(buttons(f.render(26,20,a))["from-here"])
+    f.press("from-here",a)
+    f.press("to-here",b) equal(f.job().blueprint.x1,0)
+    f.press("to-here",a)
+    equal(f.job().blueprint,{dim="minecraft:overworld",shape="floor",x1=-2,x2=-2,y1=3,y2=3,z1=0,z2=0})
+    f.press("home-here",a) equal(f.job().home,f.job().turtle.pose)
+    local old=f.job().blueprint f.uncertain=true f.press("to-here",a) equal(f.job().blueprint,old)
+    local off=dofile("tests/so/build-fixture.lua")() off.press("setup")
+    assert(not buttons(off.render(26,20))["from-here"])
+  end)
+  test("P4-3 build renders COMPLETE 25/25 and emits one alert across ticks START and reload",function()
+    local f=dofile("tests/so/build-fixture.lua")()
+    local raised=0 local emit=f.mods.state.emit
+    f.mods.state.emit=function(kind,data)
+      if kind=="build.alert" and data and data.text=="build complete" then raised=raised+1 equal(data.done,25) equal(data.total,25) end
+      return emit(kind,data)
+    end
+    f.configure("floor",5,1,5) f.tick() f.report() f.input("start") f.run()
+    equal(f.count(),25) equal(f.job().running,false) equal(raised,1)
+    local frame=text(f.render(26,20)) assert(frame:find("COMPLETE",1,true))
+    assert(frame:find("25/25",1,true))
+    equal(f.mod().budget().remaining,0)
+    for _=1,3 do f.tick() end
+    f.input("start") f.restart() if f.queued() then f.report() end f.tick()
+    equal(raised,1) equal(f.job().running,false)
+  end)
+
+  for _,displaced in ipairs({false,true}) do
+    test("review P1 mining budget growth and restart without START only returns to the completed end "..tostring(displaced),function()
+      local f=miner() local row=f.row(2)
+      f.job.continuous,f.job.branches,f.job.running=true,1,true
+      f.job.progress.nextBranch=1
+      f.mod.tick() equal(f.job.complete,true) equal(f.job.running,false)
+      f.input("branches 2") equal(f.job.branches,2)
+      local endpoint=copy(row.pose)
+      if displaced then row.pose.x=row.pose.x-1 end
+      local atRestart=copy(row.pose)
+      f.restart() f.recover(2)
+      local first=#f.calls+1
+      f.mod.tick()
+      equal(f.job.running,false) equal(f.job.progress.nextBranch,1)
+      equal(row.branch,0) equal(row.returning,nil)
+      if displaced then
+        equal(row.goal,endpoint)
+        row.pose=copy(endpoint)
+        row.parkUntil=nil
+        f.mod.tick()
+      end
+      for _=1,3 do f.mod.tick() end
+      equal(row.state,"done") equal(row.returning,nil) equal(f.job.progress.nextBranch,1)
+      equal(f.job.progress.done,1) equal(row.pose,endpoint)
+      for i=first,#f.calls do
+        local pose=copy(atRestart)
+        for _,step in ipairs(f.calls[i].steps) do
+          assert(step.op~="dig" and step.op~="digUp" and step.op~="digDown")
+          pose=dofile("so-plan.lua").apply(pose,step.op)
+          assert(pose.x<=endpoint.x and pose.x>=atRestart.x)
+          equal(pose.y,endpoint.y) equal(pose.z,endpoint.z)
+        end
+      end
+    end)
+  end
+  test("review P2 adding a worker after single-mode completion clears COMPLETE and announces the next completion",function()
+    local f=miner() f.row(2)
+    f.job.running=true f.job.progress.nextBranch=1
+    f.mod.tick() equal(f.job.complete,true)
+    f.input("add 3 12 -2 -5 e") equal(f.job.complete,nil)
+    local added=f.job.turtles["3"] assert(added and added.recover)
+    f.recover(3) f.input("start") equal(f.mod.facts().state,"running")
+    assert(not text(f.render(26,20)):find("COMPLETE",1,true))
+    local last=copy(added.pose) last.x=last.x+1
+    added.route={copy(added.pose),last} added.branch=1 added.index=2
+    f.job.progress.nextBranch=2
+    f.mod.tick() equal(f.job.running,true)
+    added.pose=last f.mod.tick()
+    equal(f.job.running,false) equal(f.job.complete,true) equal(f.job.progress.done,2)
+    local notices=0
+    for _,event in ipairs(f.events) do if event.kind=="mine.alert" and event.data and event.data.text=="mining complete" then notices=notices+1 end end
+    equal(notices,2)
+  end)
+  test("review P2 a failed assignment save retains the completion marker",function()
+    local f=miner() f.row(2)
+    f.job.running=true f.job.progress.nextBranch=1 f.mod.tick()
+    f.saveOK=false f.input("add 3 12 -2 -5 e")
+    equal(f.job.complete,true) equal(f.job.turtles["3"],nil)
   end)
 end

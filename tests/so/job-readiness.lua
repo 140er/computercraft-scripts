@@ -21,7 +21,7 @@ return function(test,equal)
   test("mining start lists exact missing items and accepts a complete paired job",function()
     local s=fixture("mine")
     s.input("start")
-    equal(s.events[#s.events].data.missing,{"home not set","no ore chest set","no fuel chest set","paired turtle missing","fuel missing"})
+    equal(s.events[#s.events].data.missing,{"home not set","no ore chest set","no fuel chest set","paired turtle missing"})
     assert(not s.job.running)
     s.input("home 0 0 0 n")
     s.points[1]={id="ore",dim=0,x=1,y=0,z=0,kind="ore",broken=true}
@@ -43,7 +43,7 @@ return function(test,equal)
   end)
   test("lumber start lists exact missing items and accepts a complete paired job",function()
     local s=fixture("lumber") s.input("start")
-    equal(s.job.alert,"area not set; ground not set; no wood chest set; no fuel chest set; no saplings chest set; paired turtle missing; fuel missing")
+    equal(s.job.alert,"area not set; ground not set; no wood chest set; no fuel chest set; no saplings chest set; paired turtle missing")
     assert(not s.job.running)
     s.job.area={x1=0,x2=2,z1=0,z2=2} s.job.ground=0
     s.points[1]={id="wood",dim=0,x=-1,y=0,z=0,kind="wood"}
@@ -106,10 +106,11 @@ return function(test,equal)
         frame=s.render(unpack(size))
       end
       local text=table.concat(all,"\n")
-      for _,missing in ipairs(kind=="mine" and {"home not set","no ore chest set","no fuel chest set","paired turtle missing","fuel missing"}
-          or {"area not set","ground not set","no wood chest set","no fuel chest set","no saplings chest set","paired turtle missing","fuel missing"}) do
+      for _,missing in ipairs(kind=="mine" and {"home not set","no ore chest set","no fuel chest set","paired turtle missing"}
+          or {"area not set","ground not set","no wood chest set","no fuel chest set","no saplings chest set","paired turtle missing"}) do
         assert(text:find(missing,1,true),missing)
       end
+      assert(not text:find("fuel missing",1,true),"fuel warning without a turtle")
       assert(not text:find("home 0,0,0",1,true))
       assert(text:find("READY",1,true),"no READY list")
       for _,b in ipairs(frame.buttons) do

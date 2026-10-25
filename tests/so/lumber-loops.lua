@@ -27,6 +27,24 @@ local function realDrops(s)
   s.env.SO.store.store = store
 end
 
+
+local function copy(v)
+  if type(v) ~= 'table' then return v end
+  local out={} for k,x in pairs(v) do out[k]=copy(x) end return out
+end
+local function controls(s, config)
+  s.env.SO.store.copy=copy
+  s.env.SO.store.read=function() return config or {} end
+  s.mods.display.screen=function(_,render,input)
+    s.draw=render
+    s.press=function(id,session) input({id=id,session=session}) end
+    s.input=function(text) input({text=text}) end
+  end
+  local mod=assert(loadfile('so-mod-lumber.lua','t',s.env))()
+  s.tick=mod.tick s.mod=mod s.tick(0) s.report(false)
+  return s
+end
+
 return function(test, equal)
   test('lumber SCAN is off by default and rejects the command without resetting a round', function()
     local s = scanner()
@@ -367,4 +385,145 @@ return function(test, equal)
     assert(s.row.service and s.row.service.kind == 'wood')
   end)
 
+
+  test('S4-12 lumber has no fuel missing row without turtles',function()
+    local s=setup('waiting')
+    s.job.turtles={} s.job.running=false s.input('start')
+    local message=s.events[#s.events].data.text
+    assert(message:find('paired turtle missing',1,true))
+    assert(not message:find('fuel missing',1,true))
+  end)
+  test('S4-10 lumber corner chips use paired poses and keep drafts per display',function()
+    local s=controls(setup('waiting'),{jobPoseSetup=true})
+    local a,b={id=10},{id=11}
+    s.job.running=false
+    s.press('setup',a)
+    local found={}
+    for _,button in ipairs(s.draw(26,20,a).buttons) do found[button.id]=true end
+    assert(found['from-here'] and found['to-here'])
+    s.press('from-here',a)
+    local original=copy(s.job.area)
+    s.row.turtle.pose={dim=s.job.dim,x=2,y=2,z=1,facing=1}
+    s.press('to-here',b) equal(s.job.area,original)
+    s.press('to-here',a) equal(s.job.area,{x1=0,x2=2,z1=0,z2=1}) equal(s.job.ground,1)
+    s.row.turtle.pose.x=500 s.press('to-here',a)
+    equal(s.job.area,{x1=0,x2=2,z1=0,z2=1})
+    s.row.turtle.pose.x=3
+    s.mods.lease.status=function() return {uncertain=true} end
+    s.press('to-here',a) equal(s.job.area,{x1=0,x2=2,z1=0,z2=1})
+    local off=controls(setup('waiting')) off.press('setup')
+    for _,button in ipairs(off.draw(26,20).buttons) do assert(button.id~='from-here' and button.id~='to-here') end
+  end)
+  for _,reason in ipairs({'suspended','missing','broken','unreadable'}) do
+    test('B8-F lumber keeps an automatic fuel retry held when its cached point is '..reason,function()
+      local s=setup('waiting',0)
+      s.row.tree=nil s.job.nextRound=600000
+      s.row.blocked,s.row.fuelRetry='fuel',60000
+      s.row.service={kind='fuel',stage='take',point={id='fuel',x=0,y=1,z=0,side='down'}}
+      s.mods.shop={fuelConfig=function() return {auto=true} end}
+      local checks=0
+      s.mods.drops.usable=function(id) equal(id,'fuel') checks=checks+1 return false,reason end
+      s.tick(59999) equal(checks,0)
+      if s.queued() then s.report(false) end
+      s.tick(60000) equal(checks,1) equal(s.row.blocked,'fuel') equal(s.row.service.stage,'take')
+      assert(s.row.alert:find(reason,1,true)) equal(s.queued(),nil)
+      s.tick(60001) equal(checks,1)
+    end)
+    test('B8-F lumber refuses an initial sapling service whose registered point is '..reason,function()
+      local s=setup('plant')
+      local point={id='saplings',dim=0,x=251,y=1,z=0,side='down',kind='storage'}
+      s.mods.drops.list=function() return {point} end
+      s.mods.drops.add=function() error('registered saplings should be reused') end
+      s.mods.drops.usable=function(id) equal(id,'saplings') return false,reason end
+      s.tick(1) equal(s.row.blocked,'hold') equal(s.row.service,nil) equal(s.queued(),nil)
+      assert(s.row.alert:find(reason,1,true))
+    end)
+    for _,hasId in ipairs({false,true}) do
+      test('B8-F lumber rejects '..reason..' saplings before a new restored attempt with ID '..tostring(hasId),function()
+        local s=setup('plant')
+        local point={id='saplings',dim=0,x=251,y=1,z=0,side='down',kind='storage'}
+        s.mods.drops.list=function() return {point} end s.mods.drops.add=function() return true end
+        s.mods.drops.usable=function(id) equal(id,'saplings') return false,reason end
+        s.row.service={kind='saplings',stage='check',point={id=hasId and 'saplings' or nil,x=251,y=1,z=0,side='down'}}
+        s.tick(1) equal(s.row.blocked,'hold') equal(s.queued(),nil)
+        assert(s.row.alert:find(reason,1,true))
+      end)
+    end
+  end
+  test('B8-F lumber accepts usable saplings and does not interrupt a committed transfer or its return',function()
+    local s=setup('plant')
+    local checks=0
+    s.mods.drops.usable=function() checks=checks+1 return true end
+    local back=copy(s.row.turtle.pose)
+    s.row.service={kind='saplings',stage='take',back=back,resume='plant',point={id='saplings',x=0,y=1,z=0,side='down'}}
+    s.tick(1) local q=s.queued() assert(q and q.steps[2].op=='suckDown') equal(checks,1)
+    s.mods.drops.usable=function() error('committed command or return revalidated') end
+    s.tick(2) equal(s.queued(),q)
+    s.row.inv={{slot=1,name='minecraft:oak_sapling',count=1}} s.report(false)
+    s.row.service.stage='return' s.tick(3) equal(s.row.service,nil)
+  end)
+
+  test('B8-F lumber restarts a usable automatic fuel retry after backoff',function()
+    local s=setup('waiting',0)
+    s.row.tree=nil s.job.nextRound=600000
+    s.row.blocked,s.row.fuelRetry='fuel',60000
+    s.row.service={kind='fuel',stage='take',point={id='fuel',x=0,y=1,z=0,side='down'}}
+    s.mods.shop={fuelConfig=function() return {auto=true} end}
+    local checks=0
+    s.mods.drops.usable=function(id) equal(id,'fuel') checks=checks+1 return true end
+    s.tick(60000) equal(checks,2) equal(s.row.blocked,nil) equal(s.row.fuelRetry,nil)
+    equal(s.row.service.stage,'check') assert(s.queued())
+    equal(s.queued().steps[1].op,'inspectDown')
+  end)
+
+  for _,reason in ipairs({'suspended','missing','broken','unreadable'}) do
+    for _,resume in ipairs({'reload','START'}) do
+      test('review P1 lumber '..resume..' cannot resume a failed fuel take when its point is '..reason,function()
+        local s=setup('waiting',0)
+        s.row.tree=nil s.job.nextRound=600000
+        local point={id='fuel',dim=0,x=0,y=1,z=0,side='down',kind='any'}
+        local usable=true
+        s.mods.drops.list=function() return {point} end
+        s.mods.drops.usable=function(id) equal(id,'fuel') return usable,reason end
+        s.mods.shop={fuelConfig=function() return {auto=true} end}
+        s.job.saplings={x=point.x,y=point.y,z=point.z,side=point.side}
+        s.row.service={kind='fuel',stage='take',point=point,back=copy(s.row.turtle.pose),resume='waiting'}
+        s.tick(1) assert(s.queued() and s.queued().steps[2].op=='suckDown')
+        s.report(true)
+        equal(s.row.blocked,'fuel') equal(s.row.service.stage,'take')
+        s.row.fuel=1000
+        usable=false
+        local sent={}
+        local send=s.mods.lease.send
+        s.mods.lease.send=function(id,steps,opts)
+          sent[#sent+1]=copy(steps) return send(id,steps,opts)
+        end
+        if resume=='reload' then
+          s.tick=assert(loadfile('so-mod-lumber.lua','t',s.env))().tick
+        else s.input('start') equal(s.job.running,true) end
+        s.tick(2) assert(s.row.pending and s.row.pending.action=='recover')
+        s.report(false) equal(s.row.blocked,nil) equal(s.row.service.stage,'take')
+        s.tick(3)
+        equal(s.row.blocked,'fuel') assert(s.row.alert:find(reason,1,true))
+        equal(s.row.service.stage,'take')
+        for _,steps in ipairs(sent) do for _,step in ipairs(steps) do assert(step.op~='suck' and step.op~='suckDown') end end
+      end)
+    end
+  end
+  test('review P1 fuel commands already committed finish and refuel before returning from a suspended point',function()
+    local s=setup('waiting',0)
+    s.row.tree=nil s.job.nextRound=600000
+    local back=copy(s.row.turtle.pose)
+    s.row.service={kind='fuel',stage='take',point={id='fuel',x=0,y=1,z=0,side='down'},back=back,resume='waiting'}
+    s.mods.drops.usable=function() return true end
+    s.tick(1) local q=s.queued() assert(q and q.steps[2].op=='suckDown')
+    s.mods.drops.usable=function() error('committed pickup or safe return was checked') end
+    s.tick(2) equal(s.queued(),q)
+    s.row.inv={{slot=1,name='minecraft:coal',count=1}} s.report(false)
+    equal(s.row.service.stage,'refuel')
+    s.tick(3) equal(s.queued().steps[2].op,'refuel')
+    s.row.inv={} s.row.fuel=1000 s.report(false)
+    equal(s.row.service.stage,'return')
+    s.tick(4) equal(s.row.service,nil)
+  end)
 end
