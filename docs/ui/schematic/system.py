@@ -297,3 +297,11 @@ def terminal(m, view, w=51, h=19, title="Server terminal"):
     else:
         hints(cv, 2, h, [("P", "pair"), ("R", "roles"), ("L", "log")])
     return cv
+
+
+# tests/so/display-server.lua checks these against so-mod-display.lua and this generator.
+FIXTURES = [
+    ("alertlist-M", lambda: alert_list(ALERTS, 57, 24, title="Status ALERTS, room monitor 57x24")),
+    ("alertlist-XS", lambda: alert_list(ALERTS_XS, 15, 10, title="Status ALERTS, smallest monitor, 7 alerts")),
+    ("alertlist-XS2", lambda: alert_list(ALERTS_XS, 15, 10, 1, "Status ALERTS, smallest monitor, page 2")),
+]

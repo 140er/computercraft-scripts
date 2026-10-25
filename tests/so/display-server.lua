@@ -276,4 +276,30 @@ return function(test, equal)
     s.at(1300)
     assert(s.text():find("STATUS", 1, true), s.text())
   end)
+
+  test("P-U3-13: the schematic generator reproduces the ALERTS list fixtures", function()
+    local started, pipe = pcall(io.popen, "pwd")
+    local root = started and pipe and pipe:read("*l")
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1, 1) ~= "/" or not os.execute("python3 -V > /dev/null 2>&1") then
+      return dofile("tests/skips.lua").record("display-server generator", "needs host processes, a POSIX shell and python3")
+    end
+    local function read(path)
+      local f = assert(io.open(path, "rb"))
+      local data = f:read("*a")
+      f:close()
+      return data
+    end
+    local dir = os.tmpname()
+    os.remove(dir)
+    assert(os.execute("mkdir -p '" .. dir .. "'"))
+    assert(os.execute("python3 -I '" .. root .. "/docs/ui/schematic/screens.py' --fixtures '" .. dir .. "' > /dev/null"))
+    local count = 0
+    for name in read(root .. "/docs/ui/schematic/system.py"):gmatch('\n    %("(alertlist[%w%-]*)", ') do
+      equal(read(dir .. "/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
+      count = count + 1
+    end
+    equal(count, 3)
+    assert(os.execute("rm -r '" .. dir .. "'"))
+  end)
 end
