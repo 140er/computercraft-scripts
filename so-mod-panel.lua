@@ -252,10 +252,11 @@ P.ago = function(ms)
 end
 
 -- The shared fuel policy from shop.fuelConfig() as a value and its colour (read-only; MINING setup
--- changes it), or nil while fuel auto has never been set up. A value wider than room reads "alert".
+-- changes it), or nil while fuel auto has never been set up or the shop fails. A value wider than room
+-- reads "alert".
 P.fuel = function(shop, room)
-  local policy = shop and type(shop.fuelConfig) == "function" and shop.fuelConfig()
-  if type(policy) ~= "table" or not (policy.auto or policy.output or policy.waiting or policy.alert) then return nil end
+  local ok,policy = pcall(function() return shop and type(shop.fuelConfig) == "function" and shop.fuelConfig() end)
+  if not ok or type(policy) ~= "table" or not (policy.auto or policy.output or policy.waiting or policy.alert) then return nil end
   local waiting,alert = policy.waiting,policy.auto and type(policy.alert) == "table" and tostring(policy.alert.reason or "")
   if type(waiting) == "table" and type(waiting.at) == "number" then
     local age = P.now()-waiting.at
