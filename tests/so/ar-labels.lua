@@ -105,6 +105,9 @@ return function(test,equal)
     local a=F.setup(nil,{"so-mod-state.lua","so-log.lua","so-mod-lease.lua","so-ui.lua",
       "so-mod-display.lua","so-mod-ar.lua"})
     local mods=a.s.env.SO.mods
+    for _,owner in ipairs({"mine","lumber"}) do
+      mods.lease.onReport(owner,function(id) assert(mods.lease.ackOutcome(id)) end)
+    end
     local workers={[2]=a.t}
     for id=3,5 do
       assert(a.s.env.SO.pair.remember(id,string.rep("a",64)))

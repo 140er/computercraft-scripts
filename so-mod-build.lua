@@ -110,6 +110,7 @@ local function publish()
   end
 end
 local function save()
+  if S.reconciling then return true end
   if j.complete and j.blocked=="save" then j.blocked,j.alert=nil,nil end
   local announce = j.complete and not j.announced
   if announce then j.announced=true end
@@ -242,7 +243,8 @@ local function send(steps, action, recover)
   if action=="place" then j.placement={cursor=j.cursor,material=j.material} end
   if not save() then return false end
   local id
-  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at,frame=j.turtle.frame,journal=returning and stat.journal or nil})
+  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at,frame=j.turtle.frame,journal=returning and stat.journal or nil,
+    intent={action=action,steps=steps,pose=start,boundary=boundary and not recover,returning=returning,journal=returning and stat.journal or nil}})
   if not id then
     j.intent = nil
     if action=="place" then j.placement=nil end
@@ -489,7 +491,7 @@ local function report(id, turtleId, results, lease)
       j.service.stage = "take"
     else alert((j.service.kind or "storage").." chest missing", "storage_missing") end
     local drops = module("drops")
-    if drops.note then drops.note(j.service.point.id,last.ok and last.data and last.data.name or nil) end
+    if drops.note then drops.note(j.service.point.id,last.ok and last.data and last.data.name or nil,id) end
   elseif action == "refuel" then
     local target=S.targets and S.targets[j.cursor]
     local required=S.fuelTrips and target and fuelNeed(target) or 1
@@ -831,6 +833,28 @@ local function render(w,h,session)
   U.actions(C,h,{{"START","start",j.running and "muted" or "primary"},{"STOP","stop",j.running and "stop" or "muted"}})
   return C.frame()
 end
+S.reconcile = function(record)
+  local lease = module("lease")
+  record = record or lease.outcome and lease.outcome(j.turtle.id)
+  if not record or record.owner ~= "build" then return false end
+  local receipt = record.id .. ":" .. record.status
+  if j.leaseReceipt ~= receipt then
+    S.pending = SO.store.copy(record.intent) or {action="recover",steps=record.steps,pose=j.turtle.pose}
+    S.pending.id = record.id
+    S.recover = false
+    S.reconciling = true
+    report(record.id,j.turtle.id,record.results,record)
+    S.reconciling = nil
+    j.leaseReceipt = receipt
+  end
+  if save() then lease.ackOutcome(record.id) end
+  return true
+end
+S.report = function(id,turtleId,results,record)
+  if not j.turtle or j.turtle.forgotten or j.turtle.id ~= turtleId then return end
+  if module("lease").outcome then S.reconcile(record)
+  else report(id,turtleId,results,record) end
+end
 local function tick()
   if j.complete and not j.announced and not save() then return end
   if S.pauseCleared then
@@ -840,13 +864,14 @@ local function tick()
   publish()
   local lease,display=module("lease"),module("display")
   if not S.wired and display.screen then display.screen("build",render,input) S.wired=true end
-  if not S.callback and lease.onReport then lease.onReport("build",report) S.callback=true end
+  if not S.callback and lease.onReport then lease.onReport("build",S.report) S.callback=true end
   local mine=module("mine")
   S.mine=mine.mapView and mine.mapView() or nil
   if not j.turtle or j.turtle.forgotten or not lease.status or not S.callback then return end
   S.targets=S.targets or (j.blueprint and expand(j.blueprint))
   local other=assigned(j.turtle.id)
   if other then j.running=false alert("turtle assigned to " .. other, "assignment_conflict") return end
+  if S.reconcile() then return end
   local stat=lease.status(j.turtle.id)
   if stat.uncertain then j.turtle.parkConfirmed=nil alert("pose uncertain; re-add turtle","pose_uncertain") return end
   if S.pending or stat.open then return end

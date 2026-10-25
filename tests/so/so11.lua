@@ -705,7 +705,7 @@ S.runBusy = function(rate)
     end
     local seconds=1
     if g.killAt and not g.bootAt then seconds=math.min(seconds,(g.killAt+120000-n.time)/1000) end
-    if g.bootAt then seconds=math.min(seconds,(g.bootAt+240000-n.time)/1000) end
+    if g.bootAt then seconds=math.min(seconds,(g.bootAt+(240+(g.recoveryWindow or 0))*1000-n.time)/1000) end
     n.advance(seconds)
     if second%60==0 then
       local read=g.server.env.SO.store.read
@@ -723,6 +723,16 @@ S.runBusy = function(rate)
       end
       for id in pairs(g.displays) do record(4,g.stale[id],"display "..id.." never stale during outage") end
       g.bootAt=n.time g.server=n.boot(server)
+      g.recoveryAfter, g.recoveryWindow = {}, 0
+      local saved=g.server.env.SO.store.read("so-data/cells/leases")
+      for _,lease in pairs(saved and saved.value.records or {}) do
+        if lease.status=="open" then
+          local delay=math.max(0,(lease.expires+10001-g.server.env.SO.now())/1000)
+          g.recoveryAfter[lease.turtleId]=delay
+          g.recoveryWindow=math.max(g.recoveryWindow,delay)
+          record(3,g.server.env.SO.mods.lease.status(lease.turtleId).open==lease.id,"open lease restored before planner dispatch")
+        end
+      end
       n.flush()
       local after=snapshot(g.before.cells)
       for _, field in ipairs({"values","machines","cells","reservations","drops","roles","mine","lumber"}) do
@@ -747,12 +757,16 @@ S.runBusy = function(rate)
     end
     if g.bootAt and n.time-g.bootAt>=5000 then
       for id in pairs(g.workers) do
-        record(3,g.recover[id]~=nil and g.recover[id]<=5,"worker "..id.." recovery park within 5s")
+        if n.time-g.bootAt>=((g.recoveryAfter[id] or 0)+5)*1000 then
+          record(3,g.recover[id]~=nil and g.recover[id]<=(g.recoveryAfter[id] or 0)+5,"worker "..id.." recovery park within 5s of restored deadline")
+        end
       end
     end
     if g.bootAt and n.time-g.bootAt>=60000 then
       for id in pairs(g.workers) do
-        record(3,not g.workLeft[id] or g.resumed[id]~=nil and g.resumed[id]<=60,"worker "..id.." unfinished work resumes within 60s")
+        if n.time-g.bootAt>=((g.recoveryAfter[id] or 0)+60)*1000 then
+          record(3,not g.workLeft[id] or g.resumed[id]~=nil and g.resumed[id]<=(g.recoveryAfter[id] or 0)+60,"worker "..id.." unfinished work resumes within 60s of restored deadline")
+        end
       end
     end
     if g.bootAt and n.time-g.bootAt>=30000 then
@@ -765,13 +779,13 @@ S.runBusy = function(rate)
       for _,wait in ipairs(machine.waits or {}) do record(7,false,wait) end
     end
     checkCells()
-    if g.bootAt and n.time-g.bootAt>=240000 then break end
+    if g.bootAt and n.time-g.bootAt>=(240+(g.recoveryWindow or 0))*1000 then break end
   end
   record(7,g.killAt~=nil,"server never crashed")
   record(7,g.bootAt~=nil,"server never rebooted")
   for id in pairs(g.workers) do
-    record(3,g.recover[id]~=nil and g.recover[id]<=5,"worker "..id.." recovery park within 5s")
-    record(3,type(g.resumed[id])=="number" and g.resumed[id]<=60,"worker "..id.." unfinished work resumes within 60s")
+    record(3,g.recover[id]~=nil and g.recover[id]<=(g.recoveryAfter[id] or 0)+5,"worker "..id.." recovery park within 5s of restored deadline")
+    record(3,type(g.resumed[id])=="number" and g.resumed[id]<=(g.recoveryAfter[id] or 0)+60,"worker "..id.." unfinished work resumes within 60s of restored deadline")
   end
   for id in pairs(g.displays) do record(4,g.pictures[id]~=nil and g.pictures[id]<=30,"display "..id.." recovered within 30s") end
   record(4,picture(g.displays[5]):find("iron_ingot",1,true)~=nil,"shop stock restored")
@@ -845,8 +859,8 @@ end
 S.recoveryRetry = function()
   local n=H.new()
   local m=n.machine({id=1,modem=true})
-  m.install({"so-mod-lease.lua","so-proto.lua"})
-  m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={},store={read=function() end,copy=S.copy},pair={key=function() return string.rep("ab",32) end}}
+  m.install({"so-mod-lease.lua","so-proto.lua","so-store.lua"})
+  m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={},store=m.env.dofile("so-store.lua"),pair={key=function() return string.rep("ab",32) end}}
   m.env.SO.proto=m.env.dofile("so-proto.lua")
   local lease=m.env.dofile("so-mod-lease.lua")
   local id=assert(lease.send(2,{{op="inspectDown"}},{recover=true}))

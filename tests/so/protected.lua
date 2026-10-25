@@ -38,6 +38,10 @@ function F.setup(config, files)
     s.serial = s.serial+1
     s.lease.handlers["step.report"]({from=2,body={lease=q.lease,results=results,
       pose={x=s.pose.x,y=s.pose.y,z=s.pose.z,f=s.pose.facing},journal="j"..s.serial,fuel=s.reportFuel or 100,inv=s.reportInv or {}}})
+    if not s.manualOutcome then
+      local outcome=s.lease.outcome(2)
+      if outcome then assert(s.lease.ackOutcome(outcome.id)) end
+    end
     return q
   end
   return s
@@ -311,6 +315,9 @@ function F.run(test,equal)
     local restarted=F.setup(nil,s.m.files)
     equal(#restarted.sent,0)
     equal(restarted.cells.owner(2,0,0,dim),"gps:2")
+    equal(restarted.lease.status(2).open,s.sent[1].body.lease)
+    equal(restarted.lease.send(2,{{op="inspectDown"}},{recover=true}),nil)
+    restarted.now=70001 restarted.lease.tick(restarted.now)
     assert(restarted.lease.send(2,{{op="inspectDown"}},{recover=true}))
     restarted.report({{ok=false,err="No block to inspect"}})
     restarted.cells.tick(0)

@@ -1,4 +1,4 @@
-local S = { turtles = {}, callbacks = {}, seq = 0 }
+local S = { turtles = {}, callbacks = {}, seq = 0, owners = {mine=true,lumber=true,build=true,setup=true} }
 S.rules = function()
   if not S.plan then S.plan=dofile("so-plan.lua") end
   return S.plan
@@ -78,6 +78,7 @@ end
 
 S.world = function(id, dim)
   local row = S.row(id)
+  if S.persistenceError or row.record and not row.open then return nil, "lease recovery required" end
   if not SO.pair.key(id) then return nil, "turtle not paired" end
   if row.uncertain or row.anchor or row.boundaryHold then return nil, "pose uncertain; use explicit add" end
   if row.lost then return nil, "turtle lost; wait for hello" end
@@ -112,7 +113,7 @@ S.candidates = function()
     end
     local drops=S.module("drops")
     if drops and drops.busy and drops.busy(id) then assigned=true end
-    if row.worker and SO.pair.key(id) and not assigned and not row.open and not row.probeOwner then out[#out + 1] = id end
+    if row.worker and SO.pair.key(id) and not assigned and not row.record and not S.persistenceError and not row.open and not row.probeOwner then out[#out + 1] = id end
   end
   table.sort(out)
   return out
@@ -148,10 +149,17 @@ S.locate = function(id, dim, done)
   if not lid then row.probe = nil S.clearProbe(id) done(nil, reason) end
 end
 
+S.probeBlocked = function(row)
+  local record = row.record
+  return S.persistenceError or record and (row.restored or record.status ~= "reported" or record.hold or not record.report
+    or not record.report.pose or record.report.uncertain)
+end
+
 S.claimProbe = function(id, owner, pose)
   local cells = S.module("cells")
   local from = "gps:" .. id
   if not cells or not cells.list or #cells.list(from,1) == 0 then return true end
+  if S.probeBlocked(S.row(id)) then return false, "lease recovery required" end
   if owner == "setup:" .. id then
     return cells.prepareHandoff(from, owner, pose.x, pose.y, pose.z, pose.dim)
   end
@@ -167,6 +175,7 @@ S.clearProbe = function(id)
   local held = row.probeOwner or cells and cells.list and #cells.list(owner,1) > 0
   if not held then return true end
   if row.open then return false, "GPS probe has open lease" end
+  if S.probeBlocked(row) then return false, "GPS probe recovery required" end
   local ok, err = cells.releaseOwner(owner)
   if ok == false then return false, err end
   row.probeOwner = nil
@@ -266,7 +275,7 @@ S.settings = function(id, changes)
   if row.settingsKey ~= key then return nil, "wait for hello" end
   if not row.settingsControl then return nil, "settings disabled" end
   if row.settingsPending then return nil, "settings pending" end
-  if row.open or row.uncertain or row.anchor or row.lost or row.releaseLock or row.releaseHold or S.assigned(id) then return nil, "worker busy" end
+  if row.record or S.persistenceError or row.open or row.uncertain or row.anchor or row.lost or row.releaseLock or row.releaseHold or S.assigned(id) then return nil, "worker busy" end
   if type(changes) ~= "table" then return nil, "invalid settings" end
   for field in pairs(changes) do
     if field ~= "dim" and field ~= "autoToolSwap" then return nil, "invalid settings" end
@@ -323,6 +332,7 @@ S.anchorSend = function(id, row)
 end
 
 S.reanchor = function(id, pose)
+  if S.persistenceError then return nil, S.persistenceError end
   local row = S.row(id)
   if not row.uncertain or type(row.journal) ~= "string" then return nil, "pose not uncertain" end
   if not S.position(pose) or type(pose.facing) ~= "number" or pose.facing % 1 ~= 0
@@ -333,8 +343,13 @@ S.reanchor = function(id, pose)
   if not ok then row.anchor = nil return nil, err or "send" end
   row.worldFrame, row.reconciled = nil, false
   local lease = row.open
-  row.open = nil
-  if lease then lease.status = "reanchored" S.notify(lease, nil) end
+  if lease then
+    lease = SO.store.copy(lease)
+    lease.status = "expired"
+    if not S.persist(lease) then return nil, "lease save failed" end
+    row.open, row.record = nil, lease
+    S.notify(lease, nil)
+  end
   return true
 end
 
@@ -377,8 +392,9 @@ S.assess = function(id, from, steps, opts)
 end
 
 S.protectionReady = function()
+  if S.persistenceError then return false end
   for _, row in pairs(S.turtles) do
-    if row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock then return false end
+    if row.record or row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock then return false end
   end
   return true
 end
@@ -470,7 +486,9 @@ S.exitReported = function(lease, row, results)
   local protection = S.module("cells").protected()
   local membership = P.membership(route.at,protection.boxes)
   for box in pairs(route.start) do if not membership[box] then route.departed[box] = true end end
-  if route.next <= #route.steps then S.exitNext(lease.turtleId,row)
+  if route.next <= #route.steps then
+    if not S.ackOutcome(lease.id) then row.exitRoute=nil return end
+    S.exitNext(lease.turtleId,row)
   else
     row.exitRoute = nil
     local cells = S.module("cells")
@@ -485,7 +503,7 @@ end
 S.releaseReady = function(id, bootAt)
   local row = S.turtles[id]
   if not row or not row.worker or not SO.pair.key(id) then return nil, "unknown worker" end
-  if row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock or row.releaseHold
+  if row.record or S.persistenceError or row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock or row.releaseHold
     or row.probe or row.exitRoute or row.settingsPending or row.last and row.last.status == "expired"
     or S.assigned(id) then return nil, "worker has work or unresolved lease" end
   if not row.parkBatch or not row.setupFence or not row.pose or type(row.journal) ~= "string"
@@ -562,8 +580,125 @@ S.releaseRecovered = function(row, lease, results, priorContact)
   return true
 end
 
+S.validLeases = function(value)
+  if type(value) ~= "table" or value.v ~= 1 or type(value.records) ~= "table"
+    or not S.number(value.seq) or value.seq < 0 or value.seq % 1 ~= 0 or value.seq >= 2^53 then return false end
+  local count, workers = 0, {}
+  for id, record in pairs(value.records) do
+    if type(record) ~= "table" or type(id) ~= "string" or #id > 128 or record.id ~= id
+      or not S.number(record.turtleId) or record.turtleId < 0 or record.turtleId % 1 ~= 0
+      or workers[record.turtleId] or type(record.steps) ~= "table" or #record.steps < 1 or #record.steps > 16
+      or not S.number(record.expires) or record.owner ~= nil and type(record.owner) ~= "string"
+      or record.journal ~= nil and type(record.journal) ~= "string"
+      or record.pose ~= nil and not S.position(record.pose)
+      or not ({open=true,reported=true,expired=true,recovering=true,cancelled=true})[record.status] then return false end
+    local n = 0
+    for i, step in pairs(record.steps) do
+      if type(i) ~= "number" or i%1 ~= 0 or i < 1 or i > #record.steps
+        or type(step) ~= "table" or type(step.op) ~= "string" then return false end
+      n = n+1
+    end
+    if n ~= #record.steps or record.status == "reported" and type(record.report) ~= "table" then return false end
+    for _,field in ipairs({"boundary","reconcile","hold","releaseRecovery","sendUncertain"}) do
+      if record[field] ~= nil and type(record[field]) ~= "boolean" then return false end
+    end
+    if record.retryAt ~= nil and not S.number(record.retryAt) then return false end
+    if record.releaseHold ~= nil and (type(record.releaseHold) ~= "table"
+      or record.releaseHold.worldPose ~= nil and not S.position(record.releaseHold.worldPose)) then return false end
+    if record.frame and (type(record.frame) ~= "table" or not S.number(record.frame.ox)
+      or not S.number(record.frame.oy) or not S.number(record.frame.oz) or not S.number(record.frame.rot)
+      or record.frame.rot%1 ~= 0 or record.frame.rot < 0 or record.frame.rot > 3) then return false end
+    if record.expected and not S.journalPose(record.expected) or record.from and not S.position(record.from)
+      or record.intent ~= nil and type(record.intent) ~= "table" then return false end
+    if record.report then
+      local report = record.report
+      if type(report) ~= "table" or report.pose ~= nil and not S.journalPose(report.pose)
+        or report.journal ~= nil and type(report.journal) ~= "string"
+        or report.uncertain ~= nil and type(report.uncertain) ~= "boolean" then return false end
+    end
+    if record.results then
+      if type(record.results) ~= "table" or #record.results ~= #record.steps then return false end
+      local results = 0
+      for i, result in pairs(record.results) do
+        if type(i) ~= "number" or i%1 ~= 0 or i < 1 or i > #record.steps
+          or type(result) ~= "table" or type(result.ok) ~= "boolean" then return false end
+        results = results+1
+      end
+      if results ~= #record.steps then return false end
+    end
+    workers[record.turtleId], count = true, count+1
+    if count > 256 then return false end
+  end
+  return true
+end
+
+S.persist = function(record, remove)
+  if S.persistenceError then return false, S.persistenceError end
+  local value = SO.store.copy(S.saved)
+  value.seq = S.seq
+  value.records[record.id] = not remove and SO.store.copy(record) or nil
+  local ok, err = S.box.save(value)
+  if not ok then return false, err or "lease save failed" end
+  S.saved = value
+  return true
+end
+
+S.outcome = function(id)
+  local row = S.turtles[id]
+  local record = row and row.record
+  if record and record.status ~= "open" and record.status ~= "recovering" then return SO.store.copy(record) end
+end
+
+S.ackOutcome = function(id)
+  if S.persistenceError then return false, S.persistenceError end
+  local record = S.saved.records[id]
+  if not record then return true end
+  if record.status == "open" or record.status == "recovering" then return false, "lease not terminal" end
+  local row = S.row(record.turtleId)
+  local hold = record.status == "expired" or record.hold or row.restored
+  local nextRecord = SO.store.copy(record)
+  if hold then nextRecord.status = "recovering" end
+  local ok, err = S.persist(nextRecord, not hold)
+  if not ok then return false, err end
+  row.record = hold and nextRecord or nil
+  if hold and not row.releaseHold then row.boundaryHold = true end
+  return true
+end
+
+S.restore = function()
+  if type(fs) == "table" and type(fs.exists) == "function" then
+    for _, path in ipairs({"so-data/cells/leases","so-data/cells/leases.tmp","so-data/cells/leases.bak"}) do
+      if fs.exists(path) then
+        local ok, generation = pcall(SO.store.read,path)
+        if not ok or type(generation) ~= "table" or generation.schema ~= 1
+          or not S.number(generation.generation) or generation.generation <= 0 or generation.generation%1 ~= 0
+          or not S.validLeases(generation.value) then
+          if path == "so-data/cells/leases.tmp" then fs.delete(path)
+          else S.persistenceError = "lease state unreadable" return end
+        end
+      end
+    end
+  end
+  local ok, box = pcall(SO.store.store, "so-data/cells/leases", S.validLeases, 900000)
+  if not ok then S.persistenceError = "lease state unreadable" return end
+  S.box, S.saved = box, box.value or {v=1,seq=0,records={}}
+  S.seq = S.saved.seq
+  for _, record in pairs(S.saved.records) do
+    local row = S.row(record.turtleId)
+    row.record, row.lost, row.restored = SO.store.copy(record), true, true
+    row.worldFrame, row.releaseHold = record.frame, SO.store.copy(record.releaseHold)
+    if record.status == "open" then row.open = row.record end
+    if (record.status == "recovering" or record.hold) and not row.releaseHold then row.boundaryHold = true end
+    if record.report then
+      row.uncertain = record.report.uncertain
+      S.journalSeen(row,record.report.pose,record.report.journal)
+    end
+  end
+end
+
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
+  if S.persistenceError then return nil, S.persistenceError end
   local row = S.row(id)
   if row.releaseLock and not (type(opts)=="table" and opts.release == row.releaseLock) then return nil, "release pending reconciliation" end
   if row.releaseHold and not (type(opts)=="table" and opts.recover == true and type(steps)=="table"
@@ -571,6 +706,8 @@ S.send = function(id, steps, opts)
   if row.uncertain or row.anchor then return nil, "pose uncertain" end
   if row.lost and not (type(opts) == "table" and opts.recover == true) then return nil, "lost" end
   if row.open then return nil, "busy" end
+  local recovery = row.record and row.record.status == "recovering"
+  if row.record and not row.open and not recovery then return nil, "lease outcome pending" end
   if type(steps) ~= "table" or #steps < 1 or #steps > 16 then return nil, "steps" end
   local count = 0
   for key, step in pairs(steps) do
@@ -589,8 +726,17 @@ S.send = function(id, steps, opts)
   if opts.pose ~= nil and not S.position(opts.pose) then return nil, "pose" end
   if row.releaseHold and (not row.setupFence or not row.parkBatch or not row.pose or not row.journal
     or row.journal == "" or opts.journal and opts.journal ~= row.journal) then return nil, "recovery needs fenced worker" end
+  if recovery then
+    local observation = opts.recover == true
+    for _, step in ipairs(steps) do
+      if step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" and step.op ~= "gps" then observation = false end
+    end
+    if not observation or not row.setupFence or not row.parkBatch or not row.pose or not row.journal then
+      return nil, "restart needs fenced observation"
+    end
+  end
   local frame, from, expected, reconcile
-  if S.safety then
+  if S.safety or recovery then
     if not row.parkBatch or not row.setupFence or not row.journal or not row.pose then
       return nil, "boundary needs certain fenced worker"
     end
@@ -638,13 +784,16 @@ S.send = function(id, steps, opts)
   S.seq = S.seq + 1
   local lease = {
     id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
-    owner = opts.owner, journal = opts.journal, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
+    owner = opts.owner, intent = SO.store.copy(opts.intent), journal = opts.journal, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
-  if S.safety then
+  if S.safety or recovery then
     lease.journal, lease.frame, lease.from, lease.expected, lease.reconcile = row.journal, frame, from, expected, reconcile
     if frame then lease.pose = S.rules().toWorld(frame,expected) end
     lease.steps[1].park, lease.boundary = true, true
     row.worldFrame = frame
+  end
+  if row.releaseLock or row.releaseHold then
+    lease.hold, lease.releaseHold = true, {worldPose=S.copyPose(opts.pose) or S.copyPose(row.releaseHold and row.releaseHold.worldPose)}
   end
   if row.releaseHold then
     lease.releaseRecovery, lease.releaseContact, lease.releaseDim = true, row.contact or 0, row.dim
@@ -669,15 +818,21 @@ S.send = function(id, steps, opts)
   end
   local wire, err = S.encodeLease(key, lease)
   if not wire then return nil, err end
-  row.open = lease
+  if recovery then S.saved.records[row.record.id] = nil end
+  local saved, why = S.persist(lease)
+  if not saved then
+    if recovery then S.saved.records[row.record.id] = SO.store.copy(row.record) end
+    return nil, why
+  end
+  row.open, row.record, row.restored = lease, lease, nil
   local ok, sent = pcall(rednet.send, id, wire, "so")
-  if not ok or sent == false then row.open = nil return nil, "send" end
+  if not ok or sent == false then lease.sendUncertain = true end
   return lease.id
 end
 
 S.snapshot = function(row)
   if not row then return nil end
-  return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
+  return { persistenceError = S.persistenceError, recovering = row.record ~= nil, outcome = row.record and row.record.status ~= "open" and row.record.status ~= "recovering" and row.record.id or nil, open = row.open and row.open.id or nil, lost = row.lost or row.record and (row.record.status == "expired" or row.record.status == "recovering") or false, range = row.range, seen = row.seen,
     last = SO.store.copy(row.last), tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
     settings = SO.store.copy(row.settings), workerSettings = row.workerSettings, settingsControl = row.settingsControl,
     settingsPending = row.settingsPending and {rid=row.settingsPending.rid,n=row.settingsPending.n} or nil,
@@ -697,9 +852,11 @@ S.cancelPark = function(id, owner)
   if not lease then return true end
   if owner ~= "mine" or lease.owner ~= owner or #lease.steps ~= 1
     or lease.steps[1].op ~= "inspectDown" then return false, "turtle has open lease" end
-  row.open = nil
+  lease = SO.store.copy(lease)
   lease.status = "cancelled"
-  return true
+  if not S.persist(lease) then return false, "lease save failed" end
+  row.open, row.record = nil, lease
+  return S.ackOutcome(lease.id)
 end
 
 S.forget = function(id, key)
@@ -713,7 +870,13 @@ S.forget = function(id, key)
     if wire then pcall(rednet.send, id, wire, "so") end
   end
   -- Without a final report, every reserved cell may still be occupied.
-  row.open, row.probe, row.anchor = nil, nil, nil
+  local record = row.record or row.open
+  if record then
+    local ok, err = S.persist(record, true)
+    if not ok then return false, err end
+    row.open, row.record, row.restored = nil, nil, nil
+  end
+  row.probe, row.anchor = nil, nil
   row.uncertain, row.lost = true, true
   row.worldFrame, row.reconciled = nil, false
   row.pose, row.poseAt = nil, nil
@@ -752,30 +915,39 @@ S.report = function(msg, reply)
     if not result.ok then allOk = false end
   end
   if count ~= #lease.steps then return end
-  row.open = nil
+  lease = SO.store.copy(lease)
+  lease.report = S.facts(body)
+  local accepted, boundaryOK = results, true
+  if lease.boundary then
+    local facts = lease.report
+    local certain = not facts.uncertain and facts.pose and facts.journal and facts.journal ~= lease.journal
+    local actual = certain and {dim="journal",x=facts.pose.x,y=facts.pose.y,z=facts.pose.z,facing=facts.pose.f}
+    local before = lease.expected and {dim="journal",x=lease.expected.x,y=lease.expected.y,z=lease.expected.z,facing=lease.expected.f}
+    local success = certain and (lease.reconcile or S.rules().samePose(before,actual))
+    for i, step in ipairs(lease.steps) do
+      if (S.rules().moves[step.op] or S.rules().turns[step.op]) and not results[i].ok or results[i].err == "journal changed" then success = false end
+    end
+    boundaryOK = success
+    if not success then accepted, lease.hold = nil, true
+    elseif lease.reconcile and lease.frame then lease.pose=S.rules().toWorld(lease.frame,facts.pose) end
+  end
+  lease.status, lease.results = "reported", SO.store.copy(accepted)
+  if not S.persist(lease) then return end
+  row.open, row.record = nil, lease
   S.tools(row, body.tools)
+  if type(body.capabilities) == "table" then
+    row.parkBatch, row.setupFence = body.capabilities.parkBatch == true, body.capabilities.setupFence == true
+  end
   row.seen = SO.now()
-  row.lost = false
+  row.lost = row.restored == true
   lease.report = S.facts(body)
   row.fuel = lease.report.fuel
   row.uncertain = lease.report.uncertain
   if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
   if lease.boundary then
-    local facts = lease.report
-    local certain = not facts.uncertain and facts.pose and facts.journal and facts.journal ~= lease.journal
-    local actual = certain and {dim="journal",x=facts.pose.x,y=facts.pose.y,z=facts.pose.z,facing=facts.pose.f}
-    local before = lease.expected and {dim="journal",x=lease.expected.x,y=lease.expected.y,z=lease.expected.z,facing=lease.expected.f}
-    local success = certain and (lease.reconcile or S.rules().samePose(before, actual))
-    for i, step in ipairs(lease.steps) do
-      if (S.rules().moves[step.op] or S.rules().turns[step.op]) and not results[i].ok then success = false end
-      if results[i].err == "journal changed" then success = false end
-    end
-    if not success then row.boundaryHold, row.reconciled, results, allOk = true, false, nil, false
-    else
-      row.boundaryHold, row.reconciled = nil, true
-      if lease.reconcile and lease.frame then lease.pose = S.rules().toWorld(lease.frame,facts.pose) end
-    end
+    if not boundaryOK then row.boundaryHold, row.reconciled, results, allOk = true, false, nil, false
+    else row.boundaryHold, row.reconciled = nil, true end
   end
   if lease.releaseRecovery and not S.releaseRecovered(row,lease,results,priorContact) then
     results, allOk = nil, false
@@ -794,6 +966,14 @@ S.report = function(msg, reply)
   elseif lease.owner == "cellsRelease" then S.releaseReported(row,lease,results,priorContact)
   elseif lease.owner == "protectedExit" then S.exitReported(lease,row,results)
   elseif lease.owner == "gps" then S.probed(row, results, lease) else S.notify(lease, results) end
+  if lease.releaseHold and not row.releaseLock and not row.releaseHold then
+    lease.hold, lease.releaseHold = nil, nil
+    if not S.persist(lease) then return end
+  end
+  if not S.owners[lease.owner] then
+    if row.restored then lease.hold = true S.persist(lease) end
+    S.ackOutcome(lease.id)
+  end
   if reply then reply("ack", {command="step.report", lease=lease.id}) end
 end
 
@@ -899,17 +1079,31 @@ S.tick = function(now)
       row.settingsPending, row.settingsError = nil, "settings timed out"
     end
     if row.anchor and now >= row.anchor.after then S.anchorSend(id, row) end
+    local record = row.record
+    if row.restored and record and not S.owners[record.owner] and record.status ~= "open" and record.status ~= "recovering" then
+      S.ackOutcome(record.id)
+      record = row.record
+    end
+    if record and record.status == "recovering" and not S.owners[record.owner]
+      and row.worker and row.setupFence and row.parkBatch and not row.uncertain and not S.assigned(id) then
+      S.send(id,{{op="gps",park=true}},{owner="leaseRecovery",recover=true,ms=15000,pose=record.pose,frame=record.frame})
+    end
     local lease = row.open
     if lease and now > lease.expires + 10000 then
-      row.open = nil
+      lease = SO.store.copy(lease)
       lease.status = "expired"
-      if lease.boundary then row.boundaryHold, row.reconciled = true, false end
-      if lease.releaseRecovery then row.boundaryHold, row.reconciled = nil, false end
-      row.last = {status="expired", ok=false, at=now}
-      if lease.owner == "cellsRelease" then S.releaseReported(row,lease,nil)
-      elseif lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
-      elseif lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
-    elseif lease and lease.retryAt and now >= lease.retryAt and now < lease.expires then
+      if S.persist(lease) then
+        row.open, row.record = nil, lease
+        if lease.boundary then row.boundaryHold, row.reconciled = true, false end
+        if lease.releaseRecovery then row.boundaryHold, row.reconciled = nil, false end
+        row.last = {status="expired", ok=false, at=now}
+        if lease.owner == "cellsRelease" then S.releaseReported(row,lease,nil)
+        elseif lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
+        elseif lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
+        if not S.owners[lease.owner] then S.ackOutcome(lease.id) end
+      end
+    elseif lease and #lease.steps == 1 and lease.steps[1].op == "inspectDown"
+      and lease.retryAt and now >= lease.retryAt and now < lease.expires then
       lease.retryAt = now + 1000
       local key = SO.pair.key(lease.turtleId)
       if key then
@@ -987,6 +1181,7 @@ S.dugProtection = function(protect)
   return true
 end
 
+S.restore()
 local config = SO.store.read("so-server.cfg")
 S.safety = type(config) == "table" and (config.protectedAreas == true or config.alternateAxisOrders == true or config.storageDeliveries == true)
 if type(config) == "table" then S.pos = S.copyPose(config.pos) end
@@ -1012,7 +1207,13 @@ return {
     end,
   },
   tick = S.tick,
-  send = S.send,
+  send = S.send, outcome = S.outcome, ackOutcome = S.ackOutcome,
+  recoveryIds = function(owner)
+    local ids = {}
+    for id, row in pairs(S.turtles) do if row.record and row.record.owner == owner then ids[#ids+1] = id end end
+    table.sort(ids)
+    return ids
+  end,
   boundaries = S.boundaries, assess = S.assess, protectionReady = S.protectionReady,
   releaseReady = S.releaseReady, releaseFence = S.releaseFence,
   exitRequest = S.exitRequest,

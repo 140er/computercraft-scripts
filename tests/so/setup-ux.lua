@@ -261,6 +261,51 @@ return function(test,equal)
     a.n.advance(1)
     equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
   end)
+  for _,restart in ipairs({false,true}) do
+    test("failed setup stays busy after an unconfirmed release"..(restart and " across restart" or " live"),function()
+      local a=setup(true)
+      assert(a.s.env.SO.mods.drops.add({id="ore",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+      a.n.world["1,0,0"]="minecraft:stone"
+      a.ui.input({text="test ore"}) press(a.ui,29,12,"facing:1",{})
+      a.n.advance(3) F.check(a)
+      local cells=a.s.env.SO.mods.cells
+      local function ordered(list)
+        table.sort(list,function(a,b)
+          if a.dim~=b.dim then return a.dim<b.dim end
+          if a.x~=b.x then return a.x<b.x end
+          if a.y~=b.y then return a.y<b.y end
+          return a.z<b.z
+        end)
+        return list
+      end
+      local held=ordered(cells.list("setup:2",100))
+      assert(#held>0 and a.s.env.SO.mods.drops.busy(2))
+      a.t.env.gps.locate=function() return nil end
+      a.hello()
+      local send=a.t.env.rednet.send
+      local pending
+      if restart then a.t.env.rednet.send=function(id,payload,protocol)
+        if payload.t=="step.report" then pending=payload return true end
+        return send(id,payload,protocol)
+      end end
+      a.ui.input({text="release 2"}) a.n.advance(1) F.check(a)
+      if restart then
+        assert(pending,"missing release report")
+        a.n.kill(a.s) a.s=a.n.boot(a.s) a.n.flush() a.n.advance(1)
+        a.ui=a.s.env.SO.mods.display.screen("generic")
+        send(1,pending,"so") a.n.flush() a.n.advance(1) F.check(a)
+      end
+      assert(a.s.env.SO.mods.drops.busy(2),"release report forgot the failed task")
+      equal(ordered(a.s.env.SO.mods.cells.list("setup:2",100)),held)
+      local task=a.s.env.SO.store.read("so-data/cells/setup").value.task
+      assert(task and task.failed and task.id==2,"failed task was not persisted")
+      local session={}
+      a.ui.input({id="testing",session=session})
+      local release=false
+      for _,b in ipairs(a.ui.render(29,12,session).buttons) do if b.id=="release" then release=true end end
+      assert(release,"held setup lost its release control")
+    end)
+  end
   test("setup refuses stale fixes and retains its route after a lost report",function()
     local a=setup(true)
     a.n.advance(61)
@@ -309,6 +354,11 @@ return function(test,equal)
     a.n.flush() a.n.advance(3)
     a.ui=a.s.env.SO.mods.display.screen("generic")
     a.hello()
+    equal(a.s.env.SO.mods.lease.status(2).open,delayed.body.lease)
+    a.ui.input({text="release 2"})
+    assert(#a.s.env.SO.mods.cells.list("setup:2",100)>0,"open lease released its route")
+    a.n.advance(26)
+    a.hello() a.n.advance(1) a.hello()
     a.ui.input({text="release 2"})
     a.n.advance(1)
     equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
@@ -323,6 +373,31 @@ return function(test,equal)
     F.check(a)
     equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
     assert(not text(a.ui.render(29,12,{})):find("held",1,true))
+  end)
+  test("setup restart reconciles a saved inspection once when its caller receipt save failed",function()
+    local a=setup(true)
+    assert(a.s.env.SO.mods.drops.add({id="missing",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+    local open=a.s.env.fs.open
+    a.s.env.fs.open=function(path,mode)
+      if path=="so-data/cells/setup.tmp" and mode=="w" then
+        local value=a.s.env.SO.store.read("so-drops")
+        if value and value.value.points[1].fails==1 then return nil end
+      end
+      return open(path,mode)
+    end
+    a.ui.input({text="test missing"}) press(a.ui,29,12,"facing:1",{})
+    a.n.advance(4) F.check(a)
+    equal(a.s.env.SO.store.read("so-drops").value.points[1].fails,1)
+    assert(a.s.env.SO.mods.lease.outcome(2),"failed caller save acknowledged the inspection")
+    local before=#F.sent(a.s,"lease.batch")
+    a.n.kill(a.s) a.s=a.n.boot(a.s) a.n.flush() a.n.advance(1) F.check(a)
+    equal(a.s.env.SO.store.read("so-drops").value.points[1].fails,1)
+    equal(a.s.env.SO.mods.lease.outcome(2),nil)
+    for _,batch in ipairs(F.sent(a.s,"lease.batch")) do
+      for _,step in ipairs(batch.body.steps) do equal(step.op,"gps") end
+    end
+    assert(before>0)
+    assert(#a.s.env.SO.mods.cells.list("setup:2",100)>0)
   end)
   test("setup fenced work refuses a failed pending-journal save without moving",function()
     local a=setup(true)

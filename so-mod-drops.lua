@@ -49,11 +49,12 @@ S.recordOk = function(p)
   for key in pairs(p) do
     keys = keys + 1
     if key ~= "id" and key ~= "dim" and key ~= "x" and key ~= "y" and key ~= "z"
-      and key ~= "side" and key ~= "kind" and key ~= "fails" and key ~= "verified" and key ~= "room" and key ~= "suspended" then
+      and key ~= "side" and key ~= "kind" and key ~= "fails" and key ~= "verified" and key ~= "room" and key ~= "suspended" and key ~= "checkedLease" then
       return false
     end
   end
-  if keys ~= 8+(p.verified and 1 or 0)+(p.room ~= nil and 1 or 0)+(p.suspended ~= nil and 1 or 0) then return false end
+  if keys ~= 8+(p.verified and 1 or 0)+(p.room ~= nil and 1 or 0)+(p.suspended ~= nil and 1 or 0)+(p.checkedLease and 1 or 0) then return false end
+  if p.checkedLease ~= nil and (type(p.checkedLease) ~= "string" or #p.checkedLease > 128) then return false end
   if p.verified then
     if type(p.verified) ~= "table" or not S.whole(p.verified.at) or p.verified.at<0
       or type(p.verified.block) ~= "string" or #p.verified.block > 256 then return false end
@@ -120,7 +121,7 @@ S.clone = function(list)
     local p = list[i]
     out[i] = {
       id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z,
-      side = p.side, kind = p.kind, fails = p.fails, suspended = p.suspended, room = p.room, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil,
+      side = p.side, kind = p.kind, fails = p.fails, suspended = p.suspended, room = p.room, checkedLease = p.checkedLease, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil,
     }
   end
   return out
@@ -330,10 +331,11 @@ S.fix = function(id)
   return S.commit(value, "fix", id)
 end
 
-S.note = function(id, blockName)
+S.note = function(id, blockName, receipt)
   if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false, "missing" end
+  if receipt and S.points[idx].checkedLease == receipt then return true end
   local fails = S.points[idx].fails
   if fails >= S.strikes then return true end
   local nextFails
@@ -348,6 +350,7 @@ S.note = function(id, blockName)
   local value = S.envelope()
   if blockName == nil then value.points[idx].verified = nil end
   value.points[idx].fails = nextFails
+  value.points[idx].checkedLease = receipt
   return S.commit(value, "note", id)
 end
 
@@ -466,16 +469,18 @@ S.inventory = function(result)
       or result.data.name:find("shulker_box",1,true)) ~= nil
 end
 
-S.verify = function(id, result)
+S.verify = function(id, result, receipt)
   if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false, "missing" end
+  if receipt and S.points[idx].checkedLease == receipt then return true end
   if S.points[idx].fails >= S.strikes then return false, "fix broken point first" end
   local value = S.envelope()
   if not result or not result.ok and result.err ~= "No block to inspect" then
     return false,"inspection failed; test again"
   end
   local block = result.ok and result.data and result.data.name or "minecraft:air"
+  value.points[idx].checkedLease = receipt
   value.points[idx].verified = S.inventory(result) and {at=SO.now(),block=block} or nil
   value.points[idx].fails = S.inventory(result) and 0 or math.min(S.strikes,S.points[idx].fails+1)
   S.message = S.inventory(result) and "chest found" or ("no chest: "..tostring(block))
@@ -601,6 +606,7 @@ S.setupRefuse = function(reason)
 end
 
 S.setupSend = function()
+  if S.reconciling then return true end
   local task=S.task
   local step=task.steps[task.next]
   if not step then
@@ -610,7 +616,7 @@ S.setupSend = function()
   end
   step.park=true
   local lid,err=SO.mods.lease.send(task.id,{step},{owner="setup",ms=15000,journal=SO.mods.lease.status(task.id).journal,
-    frame=task.frame,pose=dofile("so-plan.lua").apply(task.pose,step.op)})
+    frame=task.frame,pose=dofile("so-plan.lua").apply(task.pose,step.op),intent={task=SO.store.copy(task)}})
   if lid then task.lease=lid else
     task.failed=true
     S.stopQueue(tostring(err))
@@ -665,7 +671,7 @@ S.setupReport = function(lid,id,results,lease)
     task.inspected = true
     local idx=S.find(step.verify)
     if idx and S.same(S.points[idx],task.point) then
-      local ok,err=S.verify(step.verify,result)
+      local ok,err=S.verify(step.verify,result,lease.id)
       task.message=ok and S.message or tostring(err)
       if task.queued then
         S.queue.current.verified = ok and S.inventory(result) or false
@@ -677,7 +683,44 @@ S.setupReport = function(lid,id,results,lease)
   S.setupSend()
 end
 
+S.reconcileSetup = function(id,record)
+  local lease = SO.mods.lease
+  record = record or lease.outcome and lease.outcome(id)
+  if not record or record.owner ~= "setup" then return false end
+  if not S.recoveryBox then S.message="setup recovery unreadable" return true end
+  local receipt = record.id .. ":" .. record.status
+  if S.setupReceipts[tostring(id)] ~= receipt then
+    local restored = record.intent and record.intent.task
+      and not (S.releasing and S.releasing.lease == record.id)
+      and (not S.task or S.task.lease ~= record.id)
+    if restored then
+      S.task = record.intent and SO.store.copy(record.intent.task) or nil
+      if S.task then S.task.lease, S.task.queued = record.id, nil end
+    end
+    S.reconciling = true
+    S.setupReport(record.id,id,record.results,record)
+    S.reconciling = nil
+    if restored and S.task then
+      S.task.failed = true
+      S.message = "setup interrupted; reservations held"
+    end
+    S.setupReceipts[tostring(id)] = receipt
+  end
+  local ok = S.recoveryBox.save({v=1,task=S.task,receipts=S.setupReceipts})
+  if ok and lease.ackOutcome(record.id) and S.task and not S.task.failed and not S.task.lease then
+    S.setupSend()
+  end
+  return true
+end
+S.durableSetupReport = function(lid,id,results,record)
+  if SO.mods.lease.outcome then S.reconcileSetup(id,record)
+  else S.setupReport(lid,id,results,record) end
+end
 S.beginSetup = function(id, point, facing, queued, preview)
+  if not S.recoveryBox then return S.setupRefuse("setup recovery unreadable") end
+  if not S.task and SO.mods.lease.recoveryIds and #SO.mods.lease.recoveryIds("setup") > 0 then
+    return S.setupRefuse("setup recovery pending")
+  end
   if S.task or S.releasing then return S.setupRefuse("setup busy: #"..(S.task or S.releasing).id) end
   if not queued and S.queueBusy() then return S.setupRefuse("queue busy") end
   local config=SO.store.read("so-server.cfg") or {}
@@ -820,6 +863,10 @@ S.finishRelease = function(id,pose)
       journalPose=SO.store.copy(status.pose), poseAt=status.poseAt, at=SO.now()}
   end
   S.task=nil S.message="setup released"
+  if S.recoveryBox then
+    local saved=S.recoveryBox.save({v=1,receipts=S.setupReceipts})
+    if not saved then S.message="setup recovery save failed" return false end
+  end
   if task and task.queued then
     local q = S.queue
     if not task.failed and q.current.verified then q.completed = q.completed + 1 end
@@ -1711,6 +1758,20 @@ S.input = function(ev)
 end
 
 S.tick = function()
+  local lease = SO.mods.lease
+  if lease and lease.outcome then
+    for _, id in ipairs(lease.recoveryIds("setup")) do
+      if S.reconcileSetup(id) then return end
+    end
+    if S.task and not S.task.lease then
+      local status = lease.status(S.task.id)
+      if status.recovering and not status.open and not status.outcome then
+        local lid = lease.send(S.task.id,{{op="gps",park=true}},{owner="setup",recover=true,ms=15000,
+          frame=S.task.frame,pose=S.task.pose,intent={task=SO.store.copy(S.task)}})
+        if lid then S.task.lease=lid end
+      elseif not S.task.failed then S.setupSend() end
+    end
+  end
   -- A draft with no input for five minutes is dropped unsaved, and its display goes back to the list.
   local now = SO.now()
   if S.queueBusy() then
@@ -1730,7 +1791,7 @@ S.tick = function()
     end
   end
   if not S.callback and SO.mods.lease and SO.mods.lease.onReport then
-    SO.mods.lease.onReport("setup",S.setupReport) S.callback=true
+    SO.mods.lease.onReport("setup",S.durableSetupReport) S.callback=true
   end
   if S.wired then return end
   local display = SO.mods.display
@@ -1752,6 +1813,20 @@ elseif S.box.value then
   S.points = S.clone(S.data.points)
   S.roomSink = S.data.roomSink == true
   S.publishFound(S.data.candidates or {})
+end
+
+local recoveryOK, recoveryBox = pcall(SO.store.store,"so-data/cells/setup",function(v)
+  return type(v)=="table" and v.v==1 and type(v.receipts)=="table"
+    and (v.task==nil or type(v.task)=="table" and S.whole(v.task.id))
+end,262144)
+S.setupReceipts = {}
+if recoveryOK then
+  S.recoveryBox = recoveryBox
+  local value = recoveryBox.value
+  if value then
+    S.setupReceipts, S.task = value.receipts, value.task
+    if S.task then S.task.failed, S.task.lease, S.task.queued = true, nil, nil end
+  end
 end
 
 return {

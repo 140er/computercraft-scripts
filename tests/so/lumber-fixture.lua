@@ -16,7 +16,7 @@ local function setup(phase, fuel, inv)
     lease = { status = function() return { open = queued ~= nil, pos = row.turtle.pose, range = 10000 } end,
       inRange = function() return true end,
       onReport = function(_, fn) callback = fn end,
-      send = function(_, steps, opts) serial = serial + 1 queued = { id = serial, steps = steps, opts = opts } return serial end },
+      send = function(_, steps, opts) serial = serial + 1 queued = { id = "fixture-" .. serial, steps = steps, opts = opts } return queued.id end },
   } } }, { __index = _G })
   local mod = assert(loadfile('so-mod-lumber.lua', 't', env))()
   local function report(fail, custom)

@@ -81,6 +81,7 @@ S.module = function(name)
   return type(mod) == "table" and mod or {}
 end
 S.save = function()
+  if S.reconciling then return true end
   local ok, err = S.box.save(S.job)
   if not ok then S.job.running, S.job.alert = false, "save failed: " .. tostring(err) end
   return ok
@@ -654,6 +655,10 @@ end
 
 S.send = function(steps, action, cells, recover, ms, route)
   local j, lease = S.row, S.module("lease")
+  if S.reconciling then
+    j.nextDispatch = {steps=steps,action=action,cells=cells,recover=recover,ms=ms,route=route}
+    return true
+  end
   if action ~= "suck" and action ~= "burnLogs" then S.invalidateProof(j) end
   if not j.turtle or type(lease.send) ~= "function" or type(lease.status) ~= "function" then return false end
   if S.row.pending or lease.status(j.turtle.id).open then return false end
@@ -744,6 +749,7 @@ S.send = function(steps, action, cells, recover, ms, route)
   local id, err = lease.send(j.turtle.id, steps, {
     owner = "lumber", recover = recover == true, ms = ms, pose = pose, frame = j.turtle.frame,
     journal = once and status.journal or nil,
+    intent = {action=action,steps=steps,pose=j.turtle.pose,boundary=boundary and not recover,route=route,journal=once and status.journal or nil},
   })
   if not id then
     j.inflight = nil
@@ -834,10 +840,10 @@ S.saplingPoint = function(point)
     dim = dim, x = point.x, y = point.y, z = point.z, side = point.side, kind = "storage" }
   if drops.add(saved) then return saved end
 end
-S.noteChest = function(point, result)
+S.noteChest = function(point, result, receipt)
   local name = P.chestPresent(result) and result.data.name or nil
   local drops = S.module("drops")
-  if point and point.id and type(drops.note) == "function" then drops.note(point.id, name) end
+  if point and point.id and type(drops.note) == "function" then drops.note(point.id, name, receipt) end
   return type(name) == "string" and name ~= ""
 end
 S.usable = function(point)
@@ -972,6 +978,10 @@ S.report = function(id, turtleId, results, lease)
       S.prune() S.save() return
     end
     for _, result in ipairs(results) do route.results[#route.results+1] = result end
+    if #route.rest > 0 and S.reconciling then
+      j.resumeRoute = route
+      return
+    end
     if #route.rest > 0 then
       if not S.send(route.rest,route.action,nil,route.recover,route.ms,route) then
         j.recover, j.blocked = true, "hold"
@@ -997,7 +1007,7 @@ S.report = function(id, turtleId, results, lease)
   end
   local inspected
   if pending.action == "junk" or pending.action == "returnFuelItem" or type(pending.action) == "table" and pending.action.kind == "dropCheck" then
-    inspected = S.noteChest(j.service and j.service.point, results[2])
+    inspected = S.noteChest(j.service and j.service.point, results[2], id)
   end
   j.inflight = nil
   S.noteBlocks(pending, results)
@@ -1162,7 +1172,7 @@ S.report = function(id, turtleId, results, lease)
   elseif action == "supplyCheck" then
     if j.service then
       j.service.checked, j.service.emptyProof = nil, nil
-      if S.noteChest(j.service.point, result) then
+      if S.noteChest(j.service.point, result, id) then
         j.service.stage = "take"
         if S.job.burnLogs and j.service.kind == "fuel" and not report.uncertain then
           j.service.checked = { pose = SO.store.copy(j.turtle.pose), chest = S.fuelChestKey(j.service.point) }
@@ -2130,8 +2140,44 @@ S.facts = function()
     cycle = S.job.cycle and { id = S.job.cycle.id, phase = S.job.cycle.phase } }
 end
 
+S.reconcile = function(row,record)
+  local lease = S.module("lease")
+  record = record or lease.outcome and lease.outcome(row.turtle.id)
+  if not record or record.owner ~= "lumber" then return false end
+  S.row = row
+  local receipt = record.id .. ":" .. record.status
+  if row.leaseReceipt ~= receipt then
+    row.pending = SO.store.copy(record.intent) or {action="recover",steps=record.steps,pose=row.turtle.pose}
+    row.pending.id = record.id
+    row.recover = false
+    S.reconciling = true
+    S.report(record.id,row.turtle.id,record.results,record)
+    S.reconciling = nil
+    row.leaseReceipt = receipt
+  end
+  if S.save() and lease.ackOutcome(record.id) and not lease.status(row.turtle.id).recovering
+    and S.job.running and not row.paused and not row.blocked and not row.recover then
+    if row.nextDispatch then
+      local nextDispatch = row.nextDispatch
+      row.nextDispatch = nil
+      S.send(nextDispatch.steps,nextDispatch.action,nextDispatch.cells,nextDispatch.recover,nextDispatch.ms,nextDispatch.route)
+    elseif row.resumeRoute then
+      local route = row.resumeRoute
+      row.resumeRoute = nil
+      if not S.send(route.rest,route.action,nil,route.recover,route.ms,route) then row.resumeRoute,row.recover=route,true end
+    end
+  end
+  return true
+end
+S.durableReport = function(id,turtleId,results,record)
+  local row = S.job.turtles[tostring(turtleId)]
+  if not row or row.turtle.forgotten then return end
+  if S.module("lease").outcome then S.reconcile(row,record)
+  else S.report(id,turtleId,results,record) end
+end
 S.tickRow = function(row, now)
   if row.turtle.forgotten then return end
+  if S.reconcile(row) then return end
   S.row = row
   local j, lease = S.row, S.module("lease")
   local status = lease.status(j.turtle.id)
@@ -2152,6 +2198,7 @@ S.tickRow = function(row, now)
   end
   if j.pending or status.open then return end
   if j.recover then
+    j.nextDispatch, j.resumeRoute = nil, nil
     if S.member(j) then S.job.cycle.parked[tostring(j.turtle.id)] = nil end
     local cells,p=S.module("cells"),j.turtle.pose
     local gps="gps:"..j.turtle.id
@@ -2206,6 +2253,20 @@ S.tickRow = function(row, now)
     if not j.idlePark or not j.parkAt or now - j.parkAt >= 540000 then S.park() end
     return
   end
+  if j.nextDispatch then
+    local nextDispatch = j.nextDispatch
+    j.nextDispatch = nil
+    S.send(nextDispatch.steps,nextDispatch.action,nextDispatch.cells,nextDispatch.recover,nextDispatch.ms,nextDispatch.route)
+    return
+  end
+  if j.resumeRoute then
+    local route = j.resumeRoute
+    j.resumeRoute = nil
+    if not S.send(route.rest,route.action,nil,route.recover,route.ms,route) then
+      j.resumeRoute, j.recover = route, true
+    end
+    return
+  end
   if j.motion then
     local motion = j.motion
     local sent = S.send(motion.steps or { { op = motion.op } }, motion.action or "motion",
@@ -2252,7 +2313,7 @@ S.tick = function(now)
   end
   local lease, display = S.module("lease"), S.module("display")
   if not S.wired and type(display.screen) == "function" then display.screen("lumber", S.render, S.input) S.wired = true end
-  if not S.callback and type(lease.onReport) == "function" then lease.onReport("lumber", S.report) S.callback = true end
+  if not S.callback and type(lease.onReport) == "function" then lease.onReport("lumber", S.durableReport) S.callback = true end
   if not S.callback or type(lease.status) ~= "function" then return end
   local rows = S.rows()
   local requested = S.scanNow and S.job.scanRequested and S.job.running and S.job.area and S.job.ground ~= nil

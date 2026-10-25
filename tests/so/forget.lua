@@ -510,7 +510,7 @@ return function(test,equal)
     local drops=private(so.mods.drops.busy,"S")
     drops.task={id=3,lease="setup"}
     local lease=private(so.mods.lease.forget,"S")
-    lease.turtles[3]={open={id="moving",expires=so.now()+100,owner="mine",steps={{op="forward"}}}}
+    lease.turtles[3]={open={id="moving",turtleId=3,status="open",expires=so.now()+100,owner="mine",steps={{op="forward"}}}}
     assert(so.mods.cells.reserve("setup:3",5,64,0,"minecraft:overworld"))
     local invitation=assert(so.pairCode(3))
     local function planners()
@@ -563,6 +563,33 @@ return function(test,equal)
       equal(cells.owner(1,64,0,"minecraft:overworld"),"gps:3")
     end
   end)
+  for _,restart in ipairs({false,true}) do
+    test("forget mid-lease permits re-pair and mine re-add"..(restart and " across restart" or " live"),function()
+      local s=setup(26,20)
+      local so=s.so
+      so.mods.lease.handlers.hello({from=3,body={role="turtle",journal={id="before",pose={x=0,y=0,z=0,f=1}},
+        capabilities={setupFence=true,parkBatch=true}}})
+      local job=private(so.mods.mine.assigned,"job")
+      job.turtles["3"]={pose={dim="minecraft:overworld",x=0,y=0,z=0,facing=1},state="mining",inv={}}
+      assert(so.mods.cells.reserve("mine:3",0,0,0,"minecraft:overworld"))
+      local old=assert(so.mods.lease.send(3,{{op="forward"}},{owner="mine"}))
+      assert(so.forgetDevice(3))
+      equal(so.mods.lease.status(3).recovering,false)
+      equal(so.mods.cells.owner(0,0,0,"minecraft:overworld"),"mine:3")
+      if restart then
+        s.net.kill(s.m) s.m=s.net.boot(s.m) s.net.flush() s.net.advance(1)
+        so=s.m.env.SO
+      end
+      assert(so.pair.remember(3,string.rep("ab",32)))
+      so.mods.lease.handlers.hello({from=3,body={role="turtle",journal={id="after",pose={x=0,y=0,z=0,f=1}},
+        capabilities={setupFence=true,parkBatch=true}}})
+      so.mods.display.screen("mining").input({text="add 3 0 0 0 e"})
+      job=private(so.mods.mine.assigned,"job")
+      assert(job.turtles["3"] and not job.turtles["3"].forgotten,"re-add refused the forgotten worker")
+      local nextId=so.mods.lease.status(3).open
+      assert(nextId and nextId~=old,"re-add did not dispatch a fresh stationary lease")
+    end)
+  end
   test("forget recovers orphan setup reservations without cancelling another device",function()
     local s=setup(26,20)
     local drops,cells=s.so.mods.drops,s.so.mods.cells
@@ -627,7 +654,7 @@ return function(test,equal)
     build.running=true
     local lease=private(so.mods.lease.forget,"S")
     local called=false
-    lease.turtles[3]={open={id="moving",expires=so.now()+100,owner="mine",steps={{op="forward"}}},probe={done=function() called=true end},range=96}
+    lease.turtles[3]={open={id="moving",turtleId=3,status="open",expires=so.now()+100,owner="mine",steps={{op="forward"}}},probe={done=function() called=true end},range=96}
     for i,owner in ipairs({"mine:3","lumber:3","build:3","moving","gps:3"}) do
       assert(so.mods.cells.reserve(owner,i,64,0,"minecraft:overworld"))
     end

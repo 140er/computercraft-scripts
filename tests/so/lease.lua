@@ -1,13 +1,13 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "f61953f3b2592f1221e5663df35925ba655423d7e3b54f5d9b281459269ef8d5"
+local evidenceSourceHash = "810eb4d6f52822e1ccabe9183d5f6013d2e1d4bd5fed28b15b1221aeb7fe9096"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
-    "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua", "so-mod-cells.lua" })
+    "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua", "so-mod-cells.lua", "so-plan.lua" })
   local libs = {
     "x25519", "random", "blake3", "chacha20", "config", "internal/util",
     "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing",
@@ -36,6 +36,7 @@ local function setup(position, gpsPos)
   end
   lease.onReport("mine", function(id, turtleId, results, record)
     calls[#calls + 1] = { id = id, turtleId = turtleId, results = results, lease = record }
+    assert(lease.ackOutcome(id))
   end)
   local worker = net.machine({ id = 2, modem = true, turtle = true })
   worker.install({ "so-proto.lua" })
@@ -76,7 +77,298 @@ local function setup(position, gpsPos)
 end
 local origin = { dim = 0, x = 0, y = 0, z = 0 }
 local steps = { { op = "forward" }, { op = "up" } }
+local function restartJob(name)
+  local s=dofile("tests/so/protected.lua").setup()
+  s.manualOutcome=true
+  s.m.install({"so-mod-mine.lua","so-mine-plan.lua","so-mod-lumber.lua","so-lumber-plan.lua","so-mod-build.lua","so-ui.lua"})
+  local SO=s.m.env.SO
+  local pose=SO.store.copy(s.pose)
+  local row={pose=pose,anchor=SO.store.copy(pose),frame={dim=pose.dim,ox=0,oy=0,oz=0,rot=0},inv={},fuel=100,state="stopped"}
+  local job
+  if name=="mine" then
+    job={homeSet=true,home={x=0,y=0,z=0,facing=1},dim=pose.dim,bottom=0,length=4,branches=1,
+      mode="fast",ores={},turtles={["2"]=row},progress={nextBranch=0,done=0},running=false}
+  elseif name=="lumber" then
+    job={dim=pose.dim,ground=-2,spots={},turtles={["2"]={turtle={id=2,pose=pose,frame=row.frame},phase="scan",inv={},fuel=100}},running=false}
+  else
+    job={dim=pose.dim,cursor=1,running=false,phase="check",material="minecraft:stone",turtle={id=2,pose=pose,frame=row.frame},inv={},fuel=100}
+  end
+  s.path="so-data/"..name.."/job"
+  assert(SO.store.store(s.path,function() return true end).save(job))
+  SO.mods.display={screen=function() end}
+  SO.mods.state={emit=function() return true end,canStart=function() return true end}
+  SO.mods.drops={list=function() return {} end}
+  s.loadJob=function()
+    s.lease.describe=function() end
+    s.job=s.m.env.dofile("so-mod-"..name..".lua") SO.mods[name]=s.job
+  end
+  s.reload=function()
+    s.lease=s.m.env.dofile("so-mod-lease.lua") SO.mods.lease=s.lease
+    s.hello()
+    s.loadJob()
+  end
+  s.savedJob=function() return SO.store.store(s.path,function() return true end).value end
+  s.row=function(j)
+    if name=="mine" then return j.turtles["2"] end
+    if name=="lumber" then return j.turtles["2"].turtle end
+    return j.turtle
+  end
+  s.dispatch=function(op)
+    local steps={{op=op}}
+    local action={kind="travel",action="move",steps=steps,from=pose,pose=pose,boundary=true}
+    local target=s.m.env.dofile("so-plan.lua").apply(pose,op)
+    return assert(s.lease.send(2,steps,{owner=name,pose=target,frame=row.frame,intent=action}))
+  end
+  s.loadJob()
+  return s
+end
 return function(test, equal, read)
+  test("restart restores open work before dispatch and never resends it",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.manualOutcome=true
+    local lid=assert(s.lease.send(2,{{op="forward"}},{owner="mine"}))
+    s.lease=s.m.env.dofile("so-mod-lease.lua") s.m.env.SO.mods.lease=s.lease
+    equal(s.lease.status(2).open,lid)
+    s.hello()
+    local other,why=s.lease.send(2,{{op="forward"}},{owner="mine"})
+    equal(other,nil) equal(why,"busy")
+    s.lease.tick(1000)
+    equal(#s.sent,1)
+    s.report()
+    equal(s.lease.outcome(2).id,lid)
+    equal(s.lease.send(2,{{op="forward"}},{owner="mine"}),nil)
+    assert(s.lease.ackOutcome(lid))
+    s.hello()
+    equal(s.lease.send(2,{{op="dig"}},{owner="mine"}),nil)
+    local observation=assert(s.lease.send(2,{{op="inspectDown"}},{owner="mine",recover=true}))
+    s.report({{ok=false,err="No block to inspect"}})
+    assert(s.lease.ackOutcome(observation))
+    local nextId=assert(s.lease.send(2,{{op="turnRight"}},{owner="mine"}))
+    assert(nextId~=lid,"restart reused a lease identity")
+  end)
+  test("restart retries only a stationary inspection and learns its reported fence capabilities",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.manualOutcome=true
+    local lid=assert(s.lease.send(2,{{op="inspectDown"}},{owner="mine"}))
+    s.lease=s.m.env.dofile("so-mod-lease.lua") s.m.env.SO.mods.lease=s.lease
+    s.lease.tick(1000)
+    equal(#s.sent,2) equal(s.sent[2].body.lease,lid)
+    s.lease.handlers["step.report"]({from=2,body={lease=lid,results={{ok=false,err="No block to inspect"}},
+      pose={x=0,y=0,z=0,f=1},journal="after",capabilities={parkBatch=true,setupFence=true}}})
+    assert(s.lease.ackOutcome(lid))
+    assert(s.lease.send(2,{{op="inspectDown"}},{owner="mine",recover=true}))
+  end)
+  test("lease persists open before send and failed sends remain uncertain",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.m.env.rednet.send=function(_,wire)
+      local disk=s.m.env.SO.store.store("so-data/cells/leases",function() return true end).value
+      equal(disk.records[wire.body.lease].status,"open")
+      error("radio failed")
+    end
+    local lid=assert(s.lease.send(2,{{op="forward"}},{owner="mine"}))
+    equal(s.lease.status(2).open,lid)
+    s.lease=s.m.env.dofile("so-mod-lease.lua")
+    equal(s.lease.status(2).open,lid)
+  end)
+  test("lease failed open close and acknowledgement saves keep dispatch blocked",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.manualOutcome=true
+    s.m.capacity=1
+    equal(s.lease.send(2,{{op="forward"}},{owner="mine"}),nil)
+    equal(#s.sent,0)
+    s.m.capacity=16000000
+    local lid=assert(s.lease.send(2,{{op="forward"}},{owner="mine"}))
+    local calls=0
+    s.lease.onReport("mine",function() calls=calls+1 end)
+    s.m.capacity=1
+    s.report()
+    equal(calls,0) equal(s.lease.status(2).open,lid)
+    s.m.capacity=16000000
+    s.report(nil,s.pose)
+    equal(calls,1) equal(s.lease.outcome(2).id,lid)
+    s.m.capacity=1
+    equal(s.lease.ackOutcome(lid),false)
+    equal(s.lease.send(2,{{op="dig"}},{owner="mine"}),nil)
+    s.m.capacity=16000000
+    assert(s.lease.ackOutcome(lid))
+    equal(s.lease.outcome(2),nil)
+  end)
+  test("corrupt existing lease state refuses dispatch and protection activation",function()
+    for _,value in ipairs({"broken",{schema=1,generation=1,value={v=2,seq=0,records={}}},
+      {schema=1,generation=1,value={v=1,seq=0,records={broken={id="broken"}}}},
+      {schema=1,generation=1,value={v=1,seq=1,records={bad={id="bad",turtleId=2,owner="mine",
+        steps={{op="inspectDown"}},expires=1000,status="open",retryAt="broken"}}}}}) do
+      local s=dofile("tests/so/protected.lua").setup(nil,{["so-data/cells/leases"]=value})
+      local id,why=s.lease.send(2,{{op="forward"}},{owner="mine"})
+      equal(id,nil) equal(why,"lease state unreadable") equal(#s.sent,0)
+      equal(s.lease.protectionReady(),false)
+    end
+  end)
+  test("corrupt lease state retains GPS recovery cells during explicit reassignment",function()
+    local s=dofile("tests/so/protected.lua").setup(nil,{["so-data/cells/leases"]="broken"})
+    assert(s.cells.reserve("gps:2",0,0,0,s.pose.dim))
+    equal(s.lease.claimProbe(2,"mine:2",s.pose),false)
+    equal(s.lease.clearProbe(2),false)
+    equal(s.cells.owner(0,0,0,s.pose.dim),"gps:2")
+  end)
+  test("a corrupt lease generation blocks dispatch even beside a valid older backup",function()
+    local s=dofile("tests/so/protected.lua").setup(nil,{
+      ["so-data/cells/leases"]="broken",
+      ["so-data/cells/leases.bak"]={schema=1,generation=1,value={v=1,seq=0,records={}}},
+    })
+    equal(s.lease.send(2,{{op="forward"}}),nil)
+    equal(s.lease.status(2).persistenceError,"lease state unreadable")
+    equal(#s.sent,0)
+  end)
+  for _,partial in ipairs({"", "{schema=1,generation="}) do
+    test("uncommitted partial lease tmp permits dispatch: "..#partial.." bytes",function()
+      local s=dofile("tests/so/protected.lua").setup(nil,{
+        ["so-data/cells/leases"]={schema=1,generation=1,value={v=1,seq=0,records={}}},
+        ["so-data/cells/leases.tmp"]=partial,
+      })
+      assert(s.lease.send(2,{{op="forward"}},{owner="mine"}))
+      equal(s.lease.status(2).persistenceError,nil)
+    end)
+  end
+  test("expiry save failure skips that worker and still expires another worker",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.manualOutcome=true
+    assert(s.lease.send(2,{{op="forward"}},{owner="mine",ms=1000}))
+    s.lease.handlers.hello({from=3,body={role="turtle",journal={id="other",pose={x=3,y=0,z=0,f=1}},
+      capabilities={setupFence=true,parkBatch=true}}})
+    assert(s.lease.send(3,{{op="inspectDown"}},{owner="mine",ms=1000}))
+    local SO=s.m.env.SO
+    local store=SO.store.store
+    local saves=0
+    SO.store.store=function(...)
+      local box=store(...)
+      local save=box.save
+      box.save=function(value)
+        saves=saves+1
+        if saves==1 then return false,"disk" end
+        return save(value)
+      end
+      return box
+    end
+    s.lease=s.m.env.dofile("so-mod-lease.lua")
+    s.lease.tick(11001)
+    equal(saves,2)
+    local open,expired=0,0
+    for _,id in ipairs({2,3}) do
+      if s.lease.status(id).open then open=open+1 end
+      if s.lease.outcome(id) then expired=expired+1 end
+    end
+    equal(open,1) equal(expired,1)
+  end)
+  test("expired restart work requires a fenced observation and retains its route",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.manualOutcome=true
+    assert(s.cells.reserveMany("mine:2",{s.pose,{dim=s.pose.dim,x=1,y=0,z=0}}))
+    local lid=assert(s.lease.send(2,{{op="forward"}},{owner="mine",ms=1000}))
+    s.lease=s.m.env.dofile("so-mod-lease.lua") s.m.env.SO.mods.lease=s.lease
+    s.hello() s.lease.tick(11001)
+    equal(s.lease.outcome(2).status,"expired")
+    assert(s.lease.ackOutcome(lid))
+    equal(s.lease.send(2,{{op="dig"}},{owner="mine",recover=true}),nil)
+    equal(#s.cells.list("mine:2",10),2)
+    assert(s.lease.send(2,{{op="inspectDown"}},{owner="mine",recover=true}))
+    s.report({{ok=false,err="No block to inspect"}})
+    assert(s.lease.ackOutcome(s.lease.outcome(2).id))
+    equal(s.lease.status(2).recovering,false)
+    assert(s.lease.send(2,{{op="turnRight"}},{owner="mine"}))
+  end)
+  for _,name in ipairs({"mine","lumber","build"}) do
+    for _,terminal in ipairs({false,true}) do
+      test(name.." restart with an "..(terminal and "acknowledged" or "open").." lease reconciles its prefix once",function()
+        local s=restartJob(name)
+        local lid=s.dispatch("forward")
+        if terminal then s.report() end
+        s.reload()
+        s.job.tick(0)
+        if not terminal then
+          equal(s.lease.status(2).open,lid)
+          equal(#s.sent,1)
+          s.report()
+        end
+        local saved=s.savedJob()
+        equal(s.row(saved).pose.x,1)
+        local receipt=name=="build" and saved.leaseReceipt or saved.turtles["2"].leaseReceipt
+        equal(receipt,lid..":reported")
+        equal(s.lease.outcome(2),nil)
+        s.reload() s.job.tick(0)
+        for i=2,#s.sent do
+          for _,step in ipairs(s.sent[i].body.steps) do
+            assert(step.op~="forward","replayed interrupted movement")
+          end
+        end
+      end)
+    end
+    test(name.." restart after a failed prefix sends only stationary reconciliation",function()
+      local s=restartJob(name)
+      s.dispatch("forward")
+      s.reload() s.job.tick(0)
+      s.report({{ok=false,err="blocked"}})
+      equal(s.row(s.savedJob()).pose.x,0)
+      s.reload() s.job.tick(0)
+      equal(#s.sent,2)
+      for _,step in ipairs(s.sent[2].body.steps) do equal(step.op,"inspectDown") end
+      s.report({{ok=false,err="No block to inspect"}})
+      equal(s.row(s.savedJob()).pose.x,0)
+    end)
+    test(name.." failed caller save keeps the acknowledged prefix blocked until its receipt saves",function()
+      local s=restartJob(name)
+      local store=s.m.env.SO.store.store
+      local fail=true
+      s.m.env.SO.store.store=function(path,...)
+        local box=store(path,...)
+        local save=box.save
+        if path==s.path then box.save=function(value) if fail then return false,"disk" end return save(value) end end
+        return box
+      end
+      s.loadJob()
+      local lid=s.dispatch("forward")
+      s.job.tick(0) s.report()
+      equal(s.lease.outcome(2).id,lid)
+      for _=1,3 do s.job.tick(0) end
+      equal(#s.sent,1)
+      fail=false s.job.tick(0)
+      equal(s.lease.outcome(2),nil)
+      equal(s.row(s.savedJob()).pose.x,1)
+    end)
+  end
+  for _,name in ipairs({"lumber","build"}) do
+    test(name.." supply inspection strike survives caller save failure and restart once",function()
+      local s=restartJob(name)
+      local SO=s.m.env.SO
+      s.m.install({"so-mod-drops.lua"})
+      SO.mods.drops=s.m.env.dofile("so-mod-drops.lua")
+      local point={id="supply",dim=0,x=0,y=-1,z=0,side="down",kind="storage"}
+      assert(SO.mods.drops.add(point))
+      local j=s.savedJob()
+      local row=name=="lumber" and j.turtles["2"] or j
+      row.service={point=point,kind="fuel",stage="check"}
+      assert(SO.store.store(s.path,function() return true end).save(j))
+      local store=SO.store.store
+      local fail=true
+      SO.store.store=function(path,...)
+        local box=store(path,...)
+        local save=box.save
+        if path==s.path then box.save=function(value) if fail then return false,"disk" end return save(value) end end
+        return box
+      end
+      s.loadJob()
+      local steps={{op="inspectDown"}}
+      local id=assert(s.lease.send(2,steps,{owner=name,intent={action="supplyCheck",steps=steps,pose=s.pose}}))
+      s.job.tick(0) s.report({{ok=false,err="No block to inspect"}})
+      equal(SO.store.read("so-drops").value.points[1].fails,1)
+      equal(s.lease.outcome(2).id,id)
+      fail=false
+      SO.mods.drops=s.m.env.dofile("so-mod-drops.lua")
+      s.reload() s.job.tick(0)
+      equal(SO.store.read("so-drops").value.points[1].fails,1)
+      equal(s.lease.outcome(2),nil)
+    end)
+  end
   test("stationary boundary recovery reconciles an unexpected pose without publishing the intended pose",function()
     local s=dofile("tests/so/protected.lua").setup()
     local stale=s.m.env.SO.store.copy(s.pose)
@@ -398,12 +690,12 @@ return function(test, equal, read)
     assert(s.lease.claimProbe(2, "mine:2", {dim=pose.dim,x=2,y=0,z=0}))
     equal(s.cells.owner(2, 0, 0), "mine:2")
   end)
-  test("lease lost GPS probe explains retry and a fresh hello permits another add", function()
+  test("lease lost GPS probe requires fenced recovery before another add", function()
     local dim = "minecraft:overworld"
     local s = setup({dim=dim,x=0,y=0,z=0})
     local function hello()
       s.send("hello", {role="turtle", gps={dim=dim,x=0,y=0,z=0},
-        journal={id="probe",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true}})
+        journal={id="probe",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true,setupFence=true}})
     end
     hello()
     local reason
@@ -411,7 +703,13 @@ return function(test, equal, read)
     local first = assert(s.lease.status(2).open)
     s.net.advance(26)
     equal(reason, "GPS probe lost; retry add")
-    equal(s.lease.status(2).open, nil)
+    s.net.advance(1)
+    local recovery=assert(s.lease.status(2).open)
+    assert(recovery~=first)
+    s.net.flush()
+    equal(s.worker.env.batches[#s.worker.env.batches].steps,{{op="gps",park=true}})
+    s.send("step.report",{lease=recovery,results={{ok=true,data={dim=dim,x=0,y=0,z=0}}},
+      journal="recovered",pose={x=0,y=0,z=0,f=0}})
     hello()
     s.lease.locate(2, dim, function() error("retry should start a probe") end)
     local retry = assert(s.lease.status(2).open)
