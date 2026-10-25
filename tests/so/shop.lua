@@ -5,6 +5,7 @@ local Scene = dofile("tests/ui/scene.lua")
 local FIXTURE = {
   page = "tests/ui/fixtures/pocket-shoppage-P.txt", low = "tests/ui/fixtures/pocket-shoplow-P.txt",
   qty = "tests/ui/fixtures/pocket-shopqty-P.txt", noroom = "tests/ui/fixtures/pocket-shopnoroom-P.txt",
+  panelqty = "tests/ui/fixtures/panelqty-P.txt", panelnoroom = "tests/ui/fixtures/panelnoroom-P.txt",
 }
 local POCKET = 10
 
@@ -263,5 +264,34 @@ return function(test, equal)
     for id in pairs(s.ids()) do assert(not id:match("^order:"), id) end
     s.tap(POCKET, "show:all")
     assert(s.ids()["pick:minecraft:gold_ingot"] == nil and s.ids()["pick:minecraft:iron_ingot"])
+  end)
+  test("shop P-U2-1 the legacy screen has no chip above the stack, and a forced 64 pearls sends nothing", function()
+    local s = setup(true)
+    s.mod.listen.roomsorter_stock(9, { totals = { ["minecraft:ender_pearl"] = 40, ["minecraft:iron_ingot"] = 64 } })
+    local ids = {}
+    for _, b in ipairs(s.render(39, 19, s.session).buttons) do ids[b.id] = true end
+    assert(ids["order:16:minecraft:ender_pearl"] and not ids["order:64:minecraft:ender_pearl"])
+    assert(ids["order:64:minecraft:iron_ingot"], "a 64-stack item keeps its 64 chip")
+    local n = #s.sends
+    s.input({ session = s.session, id = "order:64:minecraft:ender_pearl" })
+    equal(#s.sends, n)
+    s.input({ session = s.session, id = "order:16:minecraft:ender_pearl" })
+    equal({ #s.sends, s.sends[#s.sends].body.n }, { n + 1, 16 })
+  end)
+
+  test("shop P-U2-1 and P-U2-8 the keyboard panel twin: a typed quantity and no room", function()
+    local s = Scene.new({ panel = true, shop = true, facts = true })
+    assert(s.d.assign(POCKET, "panel"))
+    local function match(key)
+      local fixture = R.load(FIXTURE[key])
+      local diff = R.diff(fixture, Scene.capture(s.view(POCKET), fixture.w, fixture.h))
+      assert(#diff == 0, key .. "\n" .. table.concat(diff, "\n"))
+    end
+    s.type(POCKET, "iron 37")
+    match("panelqty")
+    s.type(POCKET, "iron")
+    s.env.SO.mods.shop = assert(loadfile("so-mod-shop.lua", "t", s.env))()
+    match("panelnoroom")
+    for _, b in ipairs(s.view(POCKET).buttons) do assert(not b.id:match("^order:"), b.id) end
   end)
 end

@@ -429,14 +429,18 @@ S.legacy = function(_w, _h, clientId)
     local samples = S.history[item.name]
     local baseline = samples and samples[1] or item.count
     local arrow = item.count > baseline and "^" or (item.count < baseline and "v" or "-")
-    local y = #rows + 1
-    rows[y] = S.row("1 16 64 " .. arrow .. " " .. tostring(item.count) .. " " .. item.name)
+    -- Counts above the item's stack are left blank and get no button.
+    local y, stack = #rows + 1, S.stackOf(item.name, S.kind(item.name))
+    rows[y] = S.row("1 " .. (stack >= 16 and "16" or "  ") .. " " .. (stack >= 64 and "64" or "  ") .. " " .. arrow
+      .. " " .. tostring(item.count) .. " " .. item.name)
     for _, amount in ipairs({ 1, 16, 64 }) do
-      buttons[#buttons + 1] = {
-        id = "order:" .. tostring(amount) .. ":" .. item.name,
-        x = amount == 1 and 1 or (amount == 16 and 3 or 6),
-        y = y, w = #tostring(amount), label = tostring(amount),
-      }
+      if amount <= stack then
+        buttons[#buttons + 1] = {
+          id = "order:" .. tostring(amount) .. ":" .. item.name,
+          x = amount == 1 and 1 or (amount == 16 and 3 or 6),
+          y = y, w = #tostring(amount), label = tostring(amount),
+        }
+      end
     end
   end
   return picture
@@ -996,9 +1000,8 @@ S.input = function(event)
   if U then return S.press(view, client, event.id) end
   local count, name = event.id:match("^order:(%d+):(.+)$")
   count = tonumber(count)
-  if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil then
-    S.request("order", name, count, view)
-  end
+  -- S.order refuses a count above the item's stack.
+  if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil then S.order(name, count, view) end
 end
 
 S.tick = function(now)

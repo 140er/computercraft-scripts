@@ -97,9 +97,10 @@ def pager(cv, y, page, pages, prev, nxt):
     chip(cv, x + len(n) + 1, y, "►", nxt, kind)
 
 
-def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None):
-    """The search, its best match with the stock, 1, 16 and 64, then the last order (sent: line, colour)
-    and the shop's reply."""
+def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=True):
+    """The search, its best match with the stock, 1, 16 and 64 (one ORDER n for a typed trailing count),
+    then the last order (sent: line, colour) and the shop's reply. Without a storage room (found False)
+    the chips are muted."""
     section(cv, x, y, cw, "SHOP", "" if loaded else "not loaded")
     if loaded:
         typed = search[-(cw - 3):] if cw > 3 else ""
@@ -107,17 +108,26 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None):
         cv.put(x + 2, y + 1, typed, "0")
         cv.put(x + 2 + len(typed), y + 1, "_", "9")
         cv.hit("search", x, y + 1, cw, 1)
-        # S.best: an exact id keeps its count, even zero; another search takes the first match in stock.
-        exact = [i for i in PK.matches(search, 99) if i["name"] == search]
-        best = exact or ([i for i in PK.matches(search, 1) if i["count"] > 0] if search else [])
-        if best:
-            leader(cv, x, y + 2, cw, best[0]["label"], str(best[0]["count"]), "1" if best[0]["count"] < 10 else "0")
-        elif search:
-            cv.put(x, y + 2, "no match", "8")
+    search, qty = PK.split(search)
+    live = loaded and found
+    # S.best: an exact id keeps its count, even zero; another search takes the first match in stock.
+    exact = [i for i in PK.matches(search, 99) if i["name"] == search]
+    best = exact or ([i for i in PK.matches(search, 1) if i["count"] > 0] if search else [])
+    if loaded and not live:
+        cv.put(x, y + 2, "storage room not found"[:cw], "e")
+    elif loaded and best:
+        leader(cv, x, y + 2, cw, best[0]["label"], str(best[0]["count"]), "1" if best[0]["count"] < 10 else "0")
+    elif loaded and search:
+        cv.put(x, y + 2, "no match", "8")
     third = (cw - 2) // 3
-    for i, n in enumerate((1, 16, 64)):
+    if qty is not None:
+        if live:
+            chip(cv, x, y + 3, "ORDER %d" % qty, "order:%d" % qty, "plain", cw)
+        else:
+            PK.dead(cv, x, y + 3, "ORDER %d" % qty, cw)
+    for i, n in enumerate(() if qty is not None else (1, 16, 64)):
         cx = x + i * (third + 1)
-        if loaded:
+        if live:
             chip(cv, cx, y + 3, str(n), "order:%d" % n, "plain", third)
         else:
             PK.dead(cv, cx, y + 3, str(n), third)
@@ -132,7 +142,7 @@ def fleet(m):
     return "%d ok · %d lost" % (len(m["turtles"]) - lost, lost), lost
 
 
-def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True):
+def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True, found=True):
     """Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule;
     the lowest row of blocks gives up its spare row, then its facts, when rows run out."""
     cv = Canvas(w, h, title)
@@ -182,7 +192,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
                 for j in range(y, y + rh):
                     cv.put(x - 2, j, "|", "c")
             if role == "shop":
-                shop_block(cv, x, y, cw, search)
+                shop_block(cv, x, y, cw, search, found=found)
             else:
                 PK.job(cv, x, y, cw, role, f.get(role), mode(row, role), reasons.get(role))
         y += rh + 1
@@ -343,6 +353,10 @@ FIXTURES = [
     ("panel-XS", lambda: main(ST.model(), 15, 10, "Panel, smallest monitor 15x10", needs=SC["needs"])),
     ("panel-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20, quick order",
                              keyboard=True, search=PK.SYS["search"])),
+    ("panelqty-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20, a typed quantity of 37",
+                                keyboard=True, search="iron 37")),
+    ("panelnoroom-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20 without a storage room",
+                                   keyboard=True, search=PK.SYS["search"], found=False)),
     ("pocket-shoplong-P", lambda: PK.shop(ST.model(), search="stairs", stock=LONG,
                                           sent=(PK.order_line(1, "POLISHED DEEPSLATE STAIRS", "delivered", 24), "d"),
                                           reply="Delivered 1 Polished Deepslate Stairs")),
