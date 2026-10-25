@@ -313,6 +313,11 @@ C.drawPair = function()
 end
 
 C.retry = function()
+  -- Every keyed retry, in any phase, waits out the shared 2 s limit.
+  if C.server and C.pair.key(C.server) and C.retryWait() > 0 then
+    C.arm(C.retryWait() / 1000)
+    return
+  end
   C.openModems()
   C.output()
   if not C.server or (not C.pair.key(C.server) and C.digits == "") then
@@ -382,9 +387,7 @@ C.loop = function()
         C.repaint = os.startTimer(1)
       end
     elseif ev == "timer" and a == C.timer then
-      if C.phase == "live" then C.markStale()
-      elseif C.phase == "stale" and C.retryWait() > 0 then C.arm(C.retryWait() / 1000)
-      else C.retry() end
+      if C.phase == "live" then C.markStale() else C.retry() end
     elseif C.phase == "stale" and C.retryInput
       and (ev == "key" or ev == "char" or ev == "monitor_touch" or ev == "mouse_click") then
       -- A retry only re-sends hello to the saved server; it never changes C.server or keys.

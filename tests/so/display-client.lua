@@ -316,6 +316,27 @@ return function(test,equal)
       end
     end
   end)
+  test("retryInput: a repair hint between an input retry and its timer keeps the 2 s limit",function()
+    local t=setup(29,12,true,false,{retryInput=true}); pair(t); t.n.advance(3)
+    stale(t)
+    local log=stamp(t)
+    event(t,"key",57)
+    equal(count(log,"hello"),1,"key did not retry at once")
+    event(t,"rednet_message",1,{t="pair.required",from=1},"so")
+    assert(t.face.text():find("Old key kept",1,true),t.face.text())
+    t.n.advance(1.95)
+    equal(count(log,"hello"),1,"pairing timer broke the 2 s limit")
+    t.n.advance(30)
+    assert(count(log,"hello")>=2,"no retry after the limit")
+    equal(count(log,"hello"),count(log,"view.sub"))
+    local prev
+    for _,e in ipairs(log) do
+      if e.t=="hello" then
+        if prev then assert(e.at-prev>=2000,"hellos "..(e.at-prev).." ms apart") end
+        prev=e.at
+      end
+    end
+  end)
   for _,cfg in ipairs({false,{},{retryInput=false}}) do
     test("retryInput off ("..(cfg and "key "..tostring(cfg.retryInput) or "no file").."): input in NO SERVER waits for the timer",function()
       local t=setup(26,20,false,false,cfg or nil); pair(t); t.n.advance(3)
