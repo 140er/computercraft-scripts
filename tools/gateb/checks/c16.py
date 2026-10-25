@@ -84,6 +84,24 @@ def park_round(ctx, names, label):
     return bool(rows) and len(sent) == len(names) and all(v.get("lease") for v in sent.values())
 
 
+def reset_after_park(ctx, names, revision):
+    boots = {name: trace(ctx, name).get("boots", 0) for name in names}
+    for name in names:
+        ctx.power(name, "reboot")
+    def ready():
+        traces = {name: trace(ctx, name) for name in names}
+        fresh = all(current.get("boots", 0) > boots[name] and any(
+            event["kind"] == "hello" and event.get("boot", 0) > boots[name]
+            and event.get("revision") == revision for event in current.get("events", []))
+            for name, current in traces.items())
+        rows = status(ctx, names)
+        return {"traces": traces, "rows": rows} if fresh and idle(rows, len(names)) else None
+    recovered = ctx.wait(ready, 90)
+    ctx.record("C16-fixture-reset.json", {"boots_before": boots, "recovered": recovered})
+    if not recovered:
+        raise Blocked("C16 fixture workers did not reboot and become idle after the initial park leases")
+
+
 def fingerprint(ctx, name):
     marker = ctx.request("files", computer=ctx.computer(name), path=".so-revision").get("content", "").strip()
     config = ctx.lua(name, '''local cfg=dofile('/so-store.lua').readConfig('so-worker.cfg')
@@ -133,7 +151,7 @@ def refusal(ctx, name, target, budget=False):
         return later if current.get("boots", 0) > boot and any(e["kind"] == "hello" and e.get("boot", 0) > boot
             and e.get("revision") == before["revision"] for e in later) else None
     recovered = ctx.wait(booted, 45)
-    events = recovered or events
+    events = trace(ctx, name).get("events", [])[start:]
     after = fingerprint(ctx, name)
     terminal = next((e["terminal"] for e in events if e["kind"] == "reboot"), None)
     text = " ".join(line.get("text", "") for line in (terminal or {}).get("lines", []))
@@ -148,7 +166,8 @@ def refusal(ctx, name, target, budget=False):
             and e.get("running") == before["revision"] for e in events)
         refused_ok &= any(e["kind"] == "api" and e.get("url", "").startswith(compare) for e in events)
         refused_ok &= "Pinnedrevisionancestryrefused" in "".join(text.split())
-    ctx.record(f"C16-{kind}-refusal.json", {"target": target, "before": before, "after": after, "events": events, "terminal": terminal})
+    ctx.record(f"C16-{kind}-refusal.json", {"target": target, "before": before, "after": after, "events": events, "terminal": terminal,
+        "recovered": bool(recovered), "server": status(ctx, [name])})
     return bool(refused_ok and recovered and unchanged(before, after, budget))
 
 
@@ -193,10 +212,9 @@ def run(ctx):
             raise Blocked("C16 fixture workers did not pair and become idle")
         if not park_round(ctx, names, "before"):
             raise Blocked("C16 fixture did not complete the initial park leases")
-        # A report closes the server lease, but the worker retains its 15-second
-        # deadline. Allow that deadline and the next 30-second hello to pass so
-        # the real idle guard can confirm unassignment before the update probes.
-        ctx.sleep(46)
+        # Completed leases keep a worker deadline. Expiring it deliberately enters
+        # silence recovery, so start the update probes on a fresh fixture boot.
+        reset_after_park(ctx, names, previous)
         ancestry = refusal(ctx, names[0], outside)
         if not ctx.wait(lambda: idle(status(ctx, names), len(names)), 90):
             raise Blocked("C16 worker did not recover after the ancestry probe")

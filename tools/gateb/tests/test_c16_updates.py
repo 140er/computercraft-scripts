@@ -130,11 +130,11 @@ def test_actual_refusal_observations_with_mocked_ctx(budget, passed):
     observed += [{"kind": "reboot", "terminal": terminal}, {"kind": "hello", "boot": 2, "revision": OLD}]
     with patch.object(c16, "fingerprint", return_value=fingerprint()), \
          patch.object(c16, "dispatch"), \
-         patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1}, {"events": observed}, {"boots": 2, "events": observed}]):
+         patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1}, {"events": observed}, {"boots": 2, "events": observed}, {"boots": 2, "events": observed}]):
         assert c16.refusal(ctx, NAMES[0], OUTSIDE, budget) == passed
     if not budget:
-        assert OUTSIDE in ctx.lua.call_args.args[1]
-        assert OLD not in ctx.lua.call_args.args[1]
+        assert OUTSIDE in ctx.lua.call_args_list[0].args[1]
+        assert OLD not in ctx.lua.call_args_list[0].args[1]
 
 
 def test_budget_probe_rejects_non_exhausting_fake_quota():
@@ -154,7 +154,7 @@ def test_complete_run_and_each_failure_with_mocked_ctx(criterion):
          patch.object(update_fixture, "outside_revision", return_value=OUTSIDE), \
          patch.object(update_fixture, "prepare", return_value=NAMES), \
          patch.object(c16, "status", return_value=rows()), \
-         patch.object(c16, "park_round", side_effect=[True, criterion != "paired_lease_recovery"]), \
+         patch.object(c16, "reset_after_park"), patch.object(c16, "park_round", side_effect=[True, criterion != "paired_lease_recovery"]), \
          patch.object(c16, "refusal", side_effect=[criterion != "ancestry_refused_unchanged", criterion != "budget_refused_unchanged"]), \
          patch.object(c16, "fingerprint", return_value=fingerprint()), \
          patch.object(c16, "trace", return_value={}), \
@@ -180,7 +180,7 @@ def test_second_quota_admission_blocks_batch():
          patch.object(update_fixture, "baseline", return_value=OLD), \
          patch.object(update_fixture, "outside_revision", return_value=OUTSIDE), \
          patch.object(update_fixture, "prepare", return_value=NAMES), \
-         patch.object(c16, "status", return_value=rows()), patch.object(c16, "park_round", return_value=True), \
+         patch.object(c16, "status", return_value=rows()), patch.object(c16, "reset_after_park"), patch.object(c16, "park_round", return_value=True), \
          patch.object(c16, "refusal", return_value=True), patch.object(c16, "dispatch") as dispatch:
         with pytest.raises(Blocked, match="fell below 40"):
             c16.run(ctx)
@@ -337,12 +337,12 @@ def test_installer_that_skips_ancestry_validation_fails_c16(broken):
     observed = ancestry_events(skipped=broken == "skipped_installer_ancestry", early=broken == "early_worker_refusal")
     with patch.object(c16, "fingerprint", return_value=fingerprint()), \
          patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1},
-                      {"events": observed}, {"boots": 2, "events": observed}]):
+                      {"events": observed}, {"boots": 2, "events": observed}, {"boots": 2, "events": observed}]):
         ancestry = c16.refusal(ctx, NAMES[0], OUTSIDE)
     data = {"worker_count": 10, "tick_rate": 20, **dict.fromkeys(c16.CRITERIA, True)}
     data["ancestry_refused_unchanged"] = ancestry
     assert c16.evaluate(data).status == ("pass" if broken is None else "fail")
-    assert OUTSIDE in ctx.lua.call_args.args[1]
+    assert OUTSIDE in ctx.lua.call_args_list[0].args[1]
 
 
 @pytest.mark.parametrize("budget", [False, True])
@@ -359,7 +359,7 @@ def test_refusal_rejects_changed_recovered_config(budget, field, value):
                     {"kind": "hello", "boot": 2, "revision": OLD}]
     with patch.object(c16, "fingerprint", side_effect=[before, after]), patch.object(c16, "dispatch"), \
          patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1},
-                      {"events": observed}, {"boots": 2, "events": observed}]):
+                      {"events": observed}, {"boots": 2, "events": observed}, {"boots": 2, "events": observed}]):
         assert not c16.refusal(ctx, NAMES[0], OUTSIDE, budget)
 
 
@@ -447,3 +447,38 @@ def test_probe_selects_real_remote_commit_verified_outside_server_only(tmp_path)
         git("update-ref", "-d", "refs/remotes/origin/fixture-outside")
         with pytest.raises(Blocked, match="outside server-only ancestry"):
             update_fixture.outside_revision(ctx)
+
+
+@pytest.mark.parametrize("missing", [None, "boot", "hello", "revision", "idle"])
+def test_fixture_reset_requires_native_boot_old_revision_hello_and_idle(missing):
+    ctx = context()
+    observed = {"boots": 1 if missing == "boot" else 2, "events": [] if missing == "hello" else [
+        {"kind": "hello", "boot": 2, "revision": TARGET if missing == "revision" else OLD}]}
+    current_rows = rows()
+    if missing == "idle":
+        current_rows["100"]["lease"]["lost"] = True
+    with patch.object(c16, "trace", side_effect=[*[{"boots": 1}] * 10, *[observed] * 10]), \
+         patch.object(c16, "status", return_value=current_rows):
+        if missing:
+            with pytest.raises(Blocked, match="initial park leases"):
+                c16.reset_after_park(ctx, NAMES, OLD)
+        else:
+            c16.reset_after_park(ctx, NAMES, OLD)
+    assert ctx.power.call_args_list == [((name, "reboot"),) for name in NAMES]
+    assert ctx.record.call_args.args[0] == "C16-fixture-reset.json"
+
+
+def test_early_busy_refusal_keeps_diagnostics_and_fails():
+    ctx = context()
+    observed = [{"kind": "err", "command": "worker.update", "revision": OUTSIDE, "text": "worker busy"},
+                {"kind": "hello", "boot": 1, "revision": OLD}]
+    with patch.object(c16, "fingerprint", return_value=fingerprint()), \
+         patch.object(c16, "status", return_value=rows()), \
+         patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1},
+             {"events": observed, "boots": 1}, {"events": observed, "boots": 1},
+             {"events": observed, "boots": 1}]):
+        assert not c16.refusal(ctx, NAMES[0], OUTSIDE)
+    proof = ctx.record.call_args.args[1]
+    assert proof["events"] == observed
+    assert proof["recovered"] is False
+    assert proof["server"] == rows()
