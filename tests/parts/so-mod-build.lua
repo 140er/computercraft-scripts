@@ -1,5 +1,9 @@
 local fixture=dofile("tests/so/build-fixture.lua")
 return function(test,equal)
+  local function start(f)
+    if f.job().fuel==nil then f.tick() f.report() end
+    f.input("start")
+  end
   test("builder expands floors walls and hollow boxes without duplicate cells",function()
     local f=fixture() local build=f.mod()
     for _,shape in ipairs({"floor","platform","wall","walls","box"}) do
@@ -21,7 +25,7 @@ return function(test,equal)
   end)
   for _,case in ipairs({{"floor",5,1,5,25},{"box",3,3,3,26}}) do
     test("builder lease plan constructs exact " .. case[1],function()
-      local f=fixture() f.configure(case[1],case[2],case[3],case[4]) f.input("start") f.run()
+      local f=fixture() f.configure(case[1],case[2],case[3],case[4]) start(f) f.run()
       equal(f.count(),case[5])
       for y=0,case[3]-1 do for z=0,case[4]-1 do for x=0,case[2]-1 do
         local k=x..","..y..","..z
@@ -34,7 +38,7 @@ return function(test,equal)
   end
   test("builder waits for empty material chest and resumes after a timed refill",function()
     local f=fixture() f.configure("floor",5,1,5)
-    f.world["-3,0,0"].stock=4 f.input("start")
+    f.world["-3,0,0"].stock=4 start(f)
     for _=1,1000 do f.tick() if f.queued() then f.report() end if f.job().blocked=="material" then break end end
     equal(f.count(),4) equal(f.job().alert,"out of material")
     f.world["-3,0,0"].stock=64
@@ -42,7 +46,7 @@ return function(test,equal)
     equal(f.count(),25)
   end)
   test("builder restart after unreported placement reconciles world without double placement",function()
-    local f=fixture() f.configure("box",3,3,3) f.input("start")
+    local f=fixture() f.configure("box",3,3,3) start(f)
     for _=1,1000 do
       f.tick()
       local q=f.queued()
@@ -54,7 +58,7 @@ return function(test,equal)
     for _,n in pairs(f.placed) do equal(n,1) end
   end)
   test("builder refuses another job reservation and never breaks an occupied cell",function()
-    local f=fixture() f.configure("floor",1,1,1) f.input("start")
+    local f=fixture() f.configure("floor",1,1,1) start(f)
     f.held["0,0,0"]="mine:7"
     for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
     equal(f.count(),0) equal(f.held["0,0,0"],"mine:7") equal(f.job().blocked,"cells")
@@ -63,7 +67,7 @@ return function(test,equal)
     equal(f.count(),0) equal(f.world["0,0,0"],"minecraft:diamond_block") equal(f.job().alert,"build cell occupied")
   end)
   test("builder clips movement at proven radio range",function()
-    local f=fixture() f.configure("floor",5,1,5) f.input("start")
+    local f=fixture() f.configure("floor",5,1,5) start(f)
     f.range=function(p) return p.x<0 end
     for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
     equal(f.job().blocked,"range") equal(f.count(),0)
@@ -78,7 +82,7 @@ return function(test,equal)
       f.mods.mine={mapView=function() return {dim=home.dim,home=home,homeSet=true,bottom=0,mode="fast",branches=2} end}
       f.configure("floor",1,1,1)
       f.input("area "..top.x.." 0 "..top.z.." "..top.x.." 0 "..top.z)
-      f.input("start")
+      start(f)
       for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
       equal(f.job().blocked,"lane") equal(f.count(),0)
     end
@@ -98,7 +102,7 @@ return function(test,equal)
     equal(boxes[2].margin,1)
   end)
   test("builder resolved material alerts clear from the shared state",function()
-    local f=fixture() f.configure("floor",1,1,1) f.world["-3,0,0"].stock=0 f.input("start")
+    local f=fixture() f.configure("floor",1,1,1) f.world["-3,0,0"].stock=0 start(f)
     for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked=="material" then break end end
     equal(f.alert,"out of material")
     f.world["-3,0,0"].stock=64 f.now=f.now+10000 f.run()
@@ -128,7 +132,7 @@ return function(test,equal)
   test("builder refuses workers that cannot park complete batches",function()
     local f=fixture() f.configure("floor",1,1,1)
     f.mod().handlers.hello({from=2,body={}})
-    f.input("start")
+    start(f)
     for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
     equal(f.job().alert,"update worker for builder safety") equal(f.count(),0)
     for _,q in ipairs(f.calls) do assert(q.opts.recover) end
@@ -142,8 +146,8 @@ return function(test,equal)
   end)
 
   test("builder probes a dry worker and places after a manual refuel",function()
-    local f=fixture() f.fuel=0 f.configure("floor",1,1,1) f.input("start")
-    f.tick() f.report()
+    local f=fixture() f.fuel=1 f.configure("floor",1,1,1) start(f)
+    f.tick() f.fuel=0 f.report()
     f.tick()
     equal(f.job().intent.action,"fuel")
     equal(f.queued().steps,{{op="inspectDown",park=true}})
@@ -153,8 +157,8 @@ return function(test,equal)
     f.run() equal(f.count(),1) equal(f.world["0,0,0"],"minecraft:stone")
   end)
   test("builder keeps probing at zero fuel without moving and stops probing when stopped",function()
-    local f=fixture() f.fuel=0 f.configure("floor",1,1,1) f.input("start")
-    f.tick() f.report()
+    local f=fixture() f.fuel=1 f.configure("floor",1,1,1) start(f)
+    f.tick() f.fuel=0 f.report()
     for _=1,3 do
       f.tick() equal(f.queued().steps,{{op="inspectDown",park=true}}) f.report()
       equal(f.job().alert,"out of fuel") equal(f.job().blocked,"fuel")
@@ -163,8 +167,8 @@ return function(test,equal)
     f.input("stop") f.tick() equal(f.queued(),nil)
   end)
   test("builder fuel probe accepts unlimited fuel",function()
-    local f=fixture() f.fuel=0 f.configure("floor",1,1,1) f.input("start")
-    f.tick() f.report() f.tick() f.fuel="unlimited" f.report()
+    local f=fixture() f.fuel=1 f.configure("floor",1,1,1) start(f)
+    f.tick() f.fuel=0 f.report() f.tick() f.fuel="unlimited" f.report()
     equal(f.job().blocked,nil) f.run() equal(f.count(),1)
   end)
   for _,conflict in ipairs({"below","current"}) do
@@ -172,7 +176,7 @@ return function(test,equal)
       local f=fixture()
       f.setPose({dim="minecraft:overworld",x=0,y=1,z=0,facing=1})
       f.inventory[1]={name="minecraft:stone",count=2}
-      f.configure("floor",2,1,1) f.input("start")
+      f.configure("floor",2,1,1) start(f)
       for _=1,20 do
         f.tick() if f.queued() then f.report() end
         if f.count()==1 then break end
@@ -246,6 +250,126 @@ return function(test,equal)
     assert(f.mod().forget(2)) f.input("add 2")
     equal(f.job().alert,"add needs x y z n|e|s|w")
     f.input("add 2 -2 4 0 e") equal(f.job().turtle.forgotten,nil)
+  end)
+
+  local function ready(f)
+    f.tick() assert(f.queued(),"recovery report missing") f.report()
+  end
+  local function step(f)
+    f.tick() if f.queued() then return f.report() end
+  end
+  test("builder START names the missing storage chest without running or writing drop alerts",function()
+    local f=fixture() f.configure("floor",1,1,1) ready(f)
+    f.chest=nil
+    f.input("start") equal(f.job().running,false) equal(f.job().alert,"no storage chest set")
+    equal(f.count(),0)
+    for _=1,4 do f.input("start") end
+    equal(f.event,"build.alert")
+  end)
+  test("builder START refuses unknown and zero fuel and requires a certain pose and parkBatch",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    f.input("start") equal(f.job().running,false) equal(f.job().alert,"fuel unknown; wait for report")
+    ready(f)
+    f.uncertain=true f.input("start") equal(f.job().running,false)
+    assert(f.job().alert:find("pose missing or uncertain",1,true))
+    f.uncertain=false f.mod().handlers.hello({from=2,body={}})
+    f.input("start") equal(f.job().alert,"update worker for builder safety")
+    f.mod().handlers.hello({from=2,body={capabilities={parkBatch=true}}})
+    f.fuel=0 f.restart() ready(f) f.input("start")
+    equal(f.job().running,false) equal(f.job().alert,"out of fuel")
+  end)
+  test("builder material budget is unknown before a report and counts all matching stacks",function()
+    local f=fixture() f.configure("floor",5,1,5)
+    equal(f.mod().budget(),{total=25,remaining=25})
+    f.inventory[1]={name="minecraft:stone",count=12}
+    f.inventory[3]={name="minecraft:stone",count=4}
+    f.inventory[4]={name="minecraft:dirt",count=7}
+    ready(f) equal(f.mod().budget(),{total=25,remaining=25,carried=16})
+    f.input("start")
+    for _=1,100 do step(f) if f.count()==1 then break end end
+    equal(f.mod().budget(),{total=25,remaining=24,carried=15})
+    f.input("stop") f.input("material dirt")
+    equal(f.job().cursor,2) equal(f.mod().budget(),{total=25,remaining=24,carried=7})
+    f.restart() equal(f.mod().budget(),{total=25,remaining=24,carried=7})
+  end)
+  test("builder solid 3x3x3 places all 27 cells once with default-off geometry",function()
+    local off=fixture()
+    equal(off.mod().expand({shape="solid",x1=0,y1=0,z1=0,x2=2,y2=2,z2=2}),nil)
+    local f=fixture({builderSolid=true}) f.configure("solid",3,3,3) ready(f)
+    equal(#assert(f.mod().expand(f.job().blueprint)),27)
+    f.input("start") f.run() equal(f.count(),27)
+    for _,n in pairs(f.placed) do equal(n,1) end
+    equal(f.world["1,1,1"],"minecraft:stone")
+    f.input("stop") f.press("shape-next") equal(f.job().shape,"floor")
+  end)
+  test("builder material change preserves placed cells across restart",function()
+    local f=fixture() f.configure("floor",2,1,1)
+    f.inventory[1]={name="minecraft:stone",count=2} ready(f) f.input("start")
+    for _=1,100 do step(f) if f.count()==1 then break end end
+    f.input("stop") f.input("material dirt") equal(f.job().cursor,2)
+    f.inventory[2]={name="minecraft:dirt",count=3}
+    f.restart() ready(f) f.input("start") f.run()
+    equal(f.world["0,0,0"],"minecraft:stone") equal(f.world["1,0,0"],"minecraft:dirt")
+    equal(f.placed["0,0,0"],1) equal(f.placed["1,0,0"],1)
+  end)
+  test("builder add uses lease locate and failed delayed probes preserve the assignment",function()
+    local f=fixture()
+    f.input("area 0 0 0 0 0 0") f.input("material stone")
+    local old=f.job().turtle
+    f.deferLocate=true f.input("add 2")
+    equal(f.located,{id=2,dim="minecraft:overworld"})
+    equal(f.job().turtle,old)
+    f.locateDone(nil,"GPS failed") equal(f.job().turtle,old) equal(f.job().alert,"GPS failed")
+    f.input("add 2")
+    f.locateDone({dim="minecraft:overworld",x=7,y=8,z=9,facing=2})
+    equal(f.job().turtle.pose,{dim="minecraft:overworld",x=7,y=8,z=9,facing=2})
+  end)
+  test("builder fuel 3 refuels from its chest before placing and survives restart",function()
+    local f=fixture({builderFuelTrips=true})
+    f.consumeFuel=true f.fuel=3
+    f.fuelChest={id="fuel",kind="fuel",dim=0,x=-2,y=3,z=0,side="down"}
+    f.world["-2,3,0"]={name="minecraft:chest",item="minecraft:coal",stock=8}
+    f.configure("floor",1,1,1) ready(f) f.input("start")
+    local refuelled=false
+    for _=1,200 do
+      f.tick()
+      local q=f.queued()
+      if q then
+        local op=q.steps[#q.steps].op
+        if op=="placeDown" then assert(refuelled,"placed before refuelling") end
+        f.report()
+        if op=="refuel" then refuelled=true end
+      end
+      if f.job().service and f.job().service.stage=="refuel" then f.restart() end
+      if not f.job().running then break end
+      assert(not f.job().blocked,f.job().alert)
+    end
+    assert(refuelled) equal(f.count(),1)
+    assert(f.fuel>3)
+  end)
+  test("builder fuel trips stay off by default and missing fuel chest holds with its name",function()
+    local f=fixture() f.fuel=3 f.configure("floor",1,1,1) ready(f) f.input("start") f.run()
+    for _,q in ipairs(f.calls) do for _,s in ipairs(q.steps) do assert(s.op~="refuel") end end
+    local enabled=fixture({builderFuelTrips=true}) enabled.configure("floor",1,1,1) ready(enabled)
+    enabled.input("start") equal(enabled.job().running,false) equal(enabled.job().alert,"no fuel chest set")
+  end)
+  test("builder empty fuel chest retries on game time without placing",function()
+    local f=fixture({builderFuelTrips=true}) f.fuel=3
+    f.fuelChest={id="fuel",kind="fuel",dim=0,x=-2,y=3,z=0,side="down"}
+    f.world["-2,3,0"]={name="minecraft:chest",item="minecraft:coal",stock=0}
+    f.configure("floor",1,1,1) ready(f) f.input("start")
+    for _=1,30 do step(f) if f.job().blocked then break end end
+    equal(f.job().blocked,"fuelStock") equal(f.count(),0)
+    local calls=#f.calls f.tick() equal(#f.calls,calls)
+    f.world["-2,3,0"].stock=1 f.now=f.now+10000 f.run() equal(f.count(),1)
+  end)
+  test("builder unreachable fuel chest polls for manual refuel without moving",function()
+    local f=fixture({builderFuelTrips=true}) f.fuel=3
+    f.fuelChest={id="fuel",kind="fuel",dim=0,x=-20,y=3,z=0,side="down"}
+    f.configure("floor",1,1,1) ready(f) f.input("start")
+    step(f) equal(f.job().alert,"out of fuel") equal(f.count(),0)
+    f.tick() equal(f.job().intent.action,"fuel") f.fuel=10000 f.report()
+    f.run() equal(f.count(),1)
   end)
 
 end
