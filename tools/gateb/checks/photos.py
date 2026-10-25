@@ -4,6 +4,7 @@ Without --collect-photos a photo earns credit only by matching its reviewed refe
 (visual.check; a missing reference blocks). With it, every photo is written with its
 camera to the candidate folder and earns no credit."""
 import json
+from collections import deque
 from pathlib import Path
 import subprocess
 import time
@@ -27,6 +28,9 @@ def fraction(path, crop, formula):
 # The pocket GUI with its bezel. A pocket photo looks at the sky, where clouds drift and
 # the item list and minimap redraw, so only this area has to hold still.
 POCKET_AREA = (548, 620, 392, 50)
+
+# Entire 3x2 wall, bezel and margin at the calibrated C3 camera, 70 FOV, 1280x720.
+WALL_AREA = (416, 272, 432, 216)
 
 
 def changed(a, b, area=None):
@@ -90,33 +94,79 @@ def close_screens(ctx, attempts=4):
     raise Blocked("Native client kept a screen open over the world")
 
 
-def settled(ctx, name, pocket, seconds=90, limit=.02):
+def diff_mask(a, b, target):
+    """Full-image white changed pixels and black unchanged pixels, with the same 3% fuzz."""
+    result = subprocess.run(["compare", "-fuzz", "3%", "-highlight-color", "white",
+                             "-lowlight-color", "black", "-compose", "Src", str(a), str(b), str(target)],
+                            capture_output=True, text=True, timeout=60)
+    if result.returncode not in (0, 1) or not Path(target).is_file():
+        raise Blocked("Native settle diff needs ImageMagick and readable screenshots")
+
+
+def unsettled_evidence(ctx, name, samples, area, limit):
+    prefix = Path(name).stem + "-settle"
+    saved = []
+    for i, sample in enumerate(samples, 1):
+        filename = f"{prefix}-{i}.png"
+        ctx.keep(sample["source"], filename)
+        saved.append({k: v for k, v in sample.items() if k != "source"} | {"image": filename})
+    details = {"area": area, "limit": limit, "fuzz": "3%", "samples": saved}
+    if len(saved) >= 2:
+        filename = f"{prefix}-diff.png"
+        try:
+            diff_mask(ctx.output / saved[-2]["image"], ctx.output / saved[-1]["image"], ctx.output / filename)
+            ctx.keep(ctx.output / filename, filename)
+            details["diff"] = filename
+        except (Blocked, OSError, subprocess.TimeoutExpired) as error:
+            details["diff_error"] = str(error)
+    ctx.record(f"{prefix}.json", details)
+
+
+def prepare(ctx):
+    if not getattr(ctx, "photo_prepared", False):
+        for command in ctx.manifest.get("photo_prepare", []):
+            ctx.command(command)
+        ctx.photo_prepared = True
+
+
+def settled(ctx, name, pocket, seconds=90, limit=.02, *, area=None):
     """A screenshot with the world loaded, no menu, the pocket screen in the wanted state,
     and less than limit of its pixels changed from the previous one."""
     deadline, previous = time.monotonic() + seconds, None
-    while time.monotonic() < deadline:
-        shot = ctx.shot()
-        if menu_open(shot):
-            keys(ctx).press("Escape"); ctx.sleep(2); previous = None; continue
-        if loading(shot):
-            ctx.sleep(2); previous = None; continue
-        if pocket_open(shot) != pocket:
-            (open_pocket if pocket else close_screens)(ctx); previous = None; continue
-        if previous is not None and changed(previous, shot, POCKET_AREA if pocket else None) < limit:
-            return shot
-        previous = shot
-        ctx.sleep(1)
-    raise Blocked(f"Native screenshot did not settle for {name}")
+    area = area if area is not None else POCKET_AREA if pocket else None
+    samples = deque(maxlen=3)
+    try:
+        while time.monotonic() < deadline:
+            shot = ctx.shot()
+            sample = {"source": shot, "reason": "probe"}
+            samples.append(sample)
+            if menu_open(shot):
+                sample["reason"] = "menu"
+                keys(ctx).press("Escape"); ctx.sleep(2); previous = None; continue
+            if loading(shot):
+                sample["reason"] = "loading"
+                ctx.sleep(2); previous = None; continue
+            if pocket_open(shot) != pocket:
+                sample["reason"] = "pocket state"
+                (open_pocket if pocket else close_screens)(ctx); previous = None; continue
+            sample["reason"] = "first frame"
+            if previous is not None:
+                sample["changed_fraction"] = changed(previous, shot, area)
+                sample["reason"] = "motion"
+                if sample["changed_fraction"] < limit:
+                    return shot
+            previous = shot
+            ctx.sleep(1)
+        raise Blocked(f"Native screenshot did not settle for {name}")
+    except Blocked:
+        unsettled_evidence(ctx, name, samples, area, limit)
+        raise
 
 
 def take(ctx, name, view=None, pocket=False):
     """Photo `name` from camera command `view`: True or False by its reviewed reference,
     or None (no credit) when collecting candidates."""
-    if not getattr(ctx, "photo_prepared", False):
-        # One-off world setup the reviewed cameras assume, such as clearing a block in the view.
-        for command in ctx.manifest.get("photo_prepare", []):
-            ctx.command(command)
-        ctx.photo_prepared = True
+    prepare(ctx)
     if view:
         ctx.command(view)
     (open_pocket if pocket else close_screens)(ctx)

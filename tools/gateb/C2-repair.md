@@ -38,9 +38,26 @@ each reboot, and four native photos taken after successful repair and reboot. Be
 six-digit exchange the previous frame is discarded. A repair photo waits for the
 client to be live with only the new peer and for a fresh authenticated frame;
 `C2R-<client>-repair-frame.json` and `C2R-<client>-repaired.json` retain that proof.
-The photo uses the existing settling threshold without extra masks. Candidate
-entry and partial code snapshots contain state only. Photos document the run and do
-not claim reviewed visual approval. The C2 result records the exact commit and TPS.
+Wall photos use the calibrated C3 camera for the north-facing 3x2 wall and require
+70-degree FOV in the private client's options. They compare the complete wall,
+including its bezel and margin, in the 416x272 rectangle at pixel 432,216 of the
+1280x720 native image. The 3% pixel fuzz and 2% motion limit are unchanged. Motion
+in the surrounding world no longer prevents a stable wall from settling. Other
+wall geometry or FOV blocks instead of using an uncalibrated rectangle. Pocket
+photos retain the existing pocket region.
+
+When settling blocks, the shared photo helper keeps the last three full native
+samples as `<photo>-settle-1.png` through `-3.png`, or fewer when fewer samples
+were taken. `<photo>-settle-diff.png` compares the last two full images, with white
+for changed pixels and black for unchanged pixels at the same 3% fuzz. This mask
+includes the surrounding world, even when settling checks a smaller region.
+`<photo>-settle.json` records the region, limit, each sample's rejection reason and
+changed fraction. If the diff cannot be produced, the raw samples and error are
+still retained. All these files are listed in the check evidence.
+
+Candidate entry and partial code snapshots contain state only. Photos document
+the run and do not claim reviewed visual approval. The C2 result records the exact
+commit and TPS.
 
 This tooling PR runs mocked tests only. The UI-B orchestrator runs native Gate B
 on the pinned merged tip and reviews its evidence.

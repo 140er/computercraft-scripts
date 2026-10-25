@@ -131,19 +131,39 @@ def capture(ctx, name, label):
     return ctx.record(f"C2R-{name}-{label}.json", {"state": state, "screens": screens})
 
 
+def wall_camera(ctx):
+    from . import photos
+    pos, wall = ctx.fixture("wall")["pos"], ctx.manifest.get("wall", {})
+    if (wall.get("size") != [3, 2] or wall.get("from") != pos
+            or wall.get("to") != [pos[0] + 2, pos[1] + 1, pos[2]]):
+        raise Blocked("C2 wall photos require the calibrated north-facing 3x2 wall")
+    options = ctx.runtime.run(ctx.run) / "client/options.txt"
+    try:
+        fov = float(next(line[4:] for line in options.read_text().splitlines() if line.startswith("fov:")))
+    except (OSError, StopIteration, ValueError):
+        raise Blocked("C2 wall photos require verified 70-degree client FOV") from None
+    if fov != 0:
+        raise Blocked("C2 wall photos require verified 70-degree client FOV")
+    # Match the C3 wall camera. Its entire screen and bezel fit inside WALL_AREA.
+    return f"tp {photos.PLAYER} {pos[0] + 1.5} {pos[1]} {pos[2] - 3.5} 0 10.050983"
+
+
 def photo(ctx, name, label):
     from . import photos
     state = snapshot(ctx, name)
     if state.get("phase") != "live" or state.get("step") or state["digits"]:
         raise Blocked(f"{name} {label} photo requires a live display outside REPAIR")
+    area = None
     if name == "pocket":
         photos.open_pocket(ctx)
     else:
+        view = wall_camera(ctx)
+        photos.prepare(ctx)
         photos.close_screens(ctx)
-        pos = ctx.fixture("wall")["pos"]
-        ctx.command(f"tp {photos.PLAYER} {pos[0] + 1.5} {pos[1]} {pos[2] - 4} 0 0")
+        ctx.command(view)
+        area = photos.WALL_AREA
     path = f"C2R-{name}-{label}.png"
-    ctx.keep(photos.settled(ctx, path, name == "pocket"), path)
+    ctx.keep(photos.settled(ctx, path, name == "pocket", area=area), path)
     return path
 
 

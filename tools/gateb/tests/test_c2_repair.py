@@ -251,17 +251,32 @@ class RepairTests(unittest.TestCase):
                 repair.photo(ctx, "wall", "repair")
         settled.assert_not_called()
 
-    def test_live_wall_photo_keeps_existing_settling_check(self):
+    def test_live_wall_photo_uses_calibrated_camera_and_full_wall_region(self):
         from checks import photos
         ctx = MockWorld()
         ctx.states["wall"] = state(10)
         ctx.fixture = lambda name: {"pos": [-3, 64, -1]}
-        ctx.command = lambda command: None
-        kept = []
+        ctx.manifest = {"wall": {"size": [3, 2], "from": [-3, 64, -1], "to": [-1, 65, -1]},
+                        "photo_prepare": ["clear view"]}
+        commands, kept = [], []
+        ctx.command = commands.append
         ctx.keep = lambda source, target: kept.append((source, target))
-        with patch.object(photos, "close_screens"), patch.object(photos, "settled", return_value="shot.png") as settled:
-            self.assertEqual(repair.photo(ctx, "wall", "repair"), "C2R-wall-repair.png")
-        settled.assert_called_once_with(ctx, "C2R-wall-repair.png", False)
+        with tempfile.TemporaryDirectory() as tmp:
+            class Runtime:
+                def run(self, name): return Path(tmp)
+            ctx.runtime = Runtime()
+            (Path(tmp) / "client").mkdir()
+            (Path(tmp) / "client/options.txt").write_text("fov:0.0\n")
+            with patch.object(photos, "close_screens"), patch.object(photos, "settled", return_value="shot.png") as settled:
+                self.assertEqual(repair.photo(ctx, "wall", "repair"), "C2R-wall-repair.png")
+            settled.assert_called_once_with(ctx, "C2R-wall-repair.png", False, area=photos.WALL_AREA)
+            self.assertEqual(commands, ["clear view", "tp GateBTester -1.5 64 -4.5 0 10.050983"])
+            (Path(tmp) / "client/options.txt").write_text("fov:0.5\n")
+            with self.assertRaisesRegex(Blocked, "70-degree client FOV"):
+                repair.wall_camera(ctx)
+            ctx.manifest["wall"]["size"] = [4, 2]
+            with self.assertRaisesRegex(Blocked, "calibrated north-facing 3x2"):
+                repair.wall_camera(ctx)
         self.assertEqual(kept, [("shot.png", "C2R-wall-repair.png")])
 
     def test_mock_world_drives_every_phase_and_reboots_both_clients(self):
