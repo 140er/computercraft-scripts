@@ -56,8 +56,14 @@ and listeners use `listener(sender, message)`.
   Successful pair2, legacy pairing and enrollment approval emit `pair.done`
   after key persistence and clear the previous `pair.forgotten` row.
   R opens the role prompt; Enter passes its line to `display.command`.
-  With `so-server.cfg` `enroll = true` it adds the built-in `enroll` handler and
-  `SO.enroll` with `open`, `view`, `close` and `decide`; otherwise `SO.enroll` is nil.
+  The built-in `enroll` handler and `SO.enroll` are always available.
+  `SO.enroll` exposes `enabled()`, `setEnabled(boolean)`, `open`, `view`, `close`,
+  `extend` and `decide`. Enrollment defaults off. OFF closes pending work but
+  permits collection of retained approved results. Only the boolean survives restart.
+  Config saves verify the write and retain unrelated settings. If the canonical
+  config is missing at startup, restore a valid temporary table first, otherwise
+  the valid backup, before modules load. This preserves a checked OFF value after
+  interruption between the two rename operations.
 - [so-proto.lua](../so-proto.lua) builds and checks authenticated envelopes.
   Calls are `encode(value)`, `decode(value)`, `build(key, t, body, rid)`,
   `sign(key, msg)`, `macOk(key, msg)`, `fresh(msg)`, `bind(keyFor)`,
@@ -68,8 +74,8 @@ and listeners use `listener(sender, message)`.
   `request` waits, so never call it from the server's handlers or ticks.
 - [so-pair.lua](../so-pair.lua) pairs machines with CPace over X25519 and saves their keys.
   Calls are `open(proto, store, now?)`, `derive(code, serverId, clientId)`,
-  `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
-  `list()`, `forget(id, modules?)`, `forgetPending()`, `forgetDone(id)`, `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
+  `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key, options?)`,
+  `list()`, `forget(id, modules?)`, `forgetPending()`, `forgetDone(id)`, `session(clientPubHex)`, `invite(screen)`, `join(code, serverId, options?)`,
   `repairHint(sender, payload, serverId)`, `envelopeKey()`, `start(from, body)`,
   `confirm(from, body)`, `blocked(id)`, `charge(id, kind, paired)`, `rejected()` and
   `machineKey(secret)`.
@@ -79,10 +85,15 @@ and listeners use `listener(sender, message)`.
   Kind `start` returns false when the sender or all senders are over budget.
   Kinds `reject` and `guess` return true and then true when they burned the code.
   `machineKey` turns a pairing secret into the stored 64-hex key with HKDF-SHA512.
-  `join` sends only `pair2`.
+  `join` sends only `pair2`. Client repair can pass `{replace=oldServerId}` to
+  `join`, `remember` or `enroll`. After key proof, it saves one verified generation
+  containing only the proven server. Failed saves retain old keys in memory and
+  after reboot. Server-side additions remain additive. Enrollment preserves the
+  token and secret on timeout or `paused="off"`; explicit resume clears the pause.
+  A full 16-reply round is noisy and cannot confirm a key or pause the attempt.
   Batch enrollment adds `enrollOpen(owner)`, `enrollView(owner)`, `enrollClose()`,
-  `enrollDecide(id, n, approve)` and `enrollAnswer(from, body)` on the server,
-  `enroll(kind, show)` and `enrollSave(text)` on devices, `enrollToken(text)` and
+  `enrollExtend(owner)`, `enrollDecide(id, n, approve)` and `enrollAnswer(from, body, enabled?)` on the server,
+  `enroll(kind, show, options?)` and `enrollSave(text)` on devices, `enrollToken(text)` and
   `enrollDrop(id)`, which `forget` calls. The window and its token stay in memory.
   See [enroll](server-only/PROTOCOL.md#enroll).
   `derive` and `session` serve legacy `pair` for one release. `cpace` holds the
@@ -146,8 +157,12 @@ and listeners use `listener(sender, message)`.
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
   `cleanup(inv, all, side?)`, `travel(from, goal, point, job?, row?)`,
   `supplyRoute(job, row, stand, point?, lookup?)`, `supplyDistance(job, row, stand?, lookup?)`,
-  `next(job, row, lookup, inv, fuel)`,
+  `next(job, row, lookup, inv, fuel)`, `fuelEstimate(job)`,
   `lane(job, exit)`, `inLane(job, pos)` and `lanePass(job, row)`.
+  `fuelEstimate(job)` returns approximate fuel in constant time. It counts
+  `branches * length + gap * branches * (branches + 1) / 2`
+  plus `2 * (1 + abs(home.y - bottom))`. Gap is 2 in fast mode and 4 in thorough
+  mode. It excludes ore detours and chest service trips.
   `lane` lists the shared shaft column and bottom spine through the furthest
   assigned junction, plus an optional exit. `inLane` tests that geometry;
   `lanePass` lists the cells crossed in the planned pass through its exit.
@@ -327,12 +342,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Handler `cells.forget` requires a second, confirmed request.
   Sections save a 1024-character hex bitset, with a 2048-byte generation limit.
   Legacy tables migrate through two compact generations without losing marks.
-  `retirement()` returns a pending request or a brief decision notice.
-  `decideRetirement(id, choice)` accepts `allow` or `keep` for that request.
-  At 1000000 bytes of section generations, eligible sections prompt every
-  display and AR. Only `allow` removes sections, oldest use first, aiming for
-  650000 bytes. `keep` persists a new request threshold at 150% of current use.
-  At 85% disk use, KEEP asks again after one minute without waiting for growth.
+  `retirement()` returns a pending request, a brief decision notice or a
+  disk warning during a snooze. Pending `areas` are copied 16-cube bounds
+  `{dim,x1,y1,z1,x2,y2,z2}`. `decideRetirement(id, choice)` accepts `allow` or `keep`.
+  ALLOW rechecks current protection and saves dirty eligible sections before
+  retirement. The offer never expands. Reads since the offer do not exclude sections.
+  At 1000000 bytes, threshold offers aim for 650000 bytes. Pressure offers retire
+  all offered sections still safe, even below that target. Empty retirable sets
+  produce no request. KEEP saves a ten-minute snooze across restart and growth.
+  Under pressure it returns `status="snoozed"`, `untilAt` and
+  `text="Disk full. Add disk space."`. NEEDS shows `Add disk space`.
+  After the gap, pressure may prompt for any previous choice. ALLOW's gap is one minute.
   `rememberWorker(id, worldPose, dug)` retains the last reported world-frame
   journal cells, including after job removal. Its bounded per-worker record and
   consent policy save to `so-data/dug-policy`. Reservations, running job areas,
@@ -372,7 +392,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
-  clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `tick(now)`,
+  clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `identify(id)`, `tick(now)`,
   `terminal(model, view, w, h)`, `monitorTouch(side, x, y)`, `assign(id, role)`,
   `command(text)`, `drawTerminal(now?)` and `statusModel()`.
   `statusModel()` returns the status model of the last gather, or nil. The gather
@@ -387,16 +407,18 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   unregistered screens return `false, reason`. Success returns
   `true, "display <id>: <role>"`; the next tick sends the new frame, and button
   taps from the old frame are ignored until then. `command`
-  parses the terminal line `<id> <role>` or `<id> -`. The server terminal's R
+  parses `<id> <role>`, `<id> -`, `<id> far on|off` or `<id> identify`. The server terminal's R
   prompt, tests and the gateb driver use it. See
   [display roles](server-only/PROTOCOL.md#display-roles).
   `terminal` returns a pure route A frame: alerts, FLEET, DISK, the log with a
   coloured mark per line and `[P] pair [R] roles [L] log`. The view supplies
   `id`, `mode` as normal, code, log or role, `uptime`, `log`, `offset`, `code`,
   `expires`, `now` and `pending`; role mode adds `displays`, `input` and `notice`.
-  `monitorTouch` queues local input for the next tick. Local and remote taps
+  `monitorTouch` handles the tap and redraws at once. The last drawn button wins.
+  Local and remote taps
   use the same drawn-button validation for dug-storage consent. Tick discovers a local
-  monitor at most every five seconds and draws at scale 0.5 without rednet. It
+  monitor at most every five seconds. It draws at scale 0.5, or 1 with far saved
+  under the server's id, without rednet. It
   shows the role saved under the server's own id, or status.
   Tick also draws `SO.terminal` once a second.
   `screen(role)` returns the registered `{ render, input }` callbacks or nil.
@@ -420,8 +442,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Any other roleless display draws UNASSIGNED with its id in line digits; a
   role whose screen is missing draws the same page under the role name. Saved
   roles survive restart.
-  Status has no paging; big walls cap their rows and redraw tight over 15000
-  frame bytes. Gather runs in
+  Status has no paging; big walls cap their rows and redraw tight over 15400
+  frame bytes. `identify(id)` shows IDENTIFY and the id in line digits for five
+  seconds and saves nothing. Sessions retain the hello label for the role list.
+  The DISPLAYS tile names stale ids. Status turtle rows, lost flags and the takeover
+  id chip carry `turtle:<id>`. Status ALERTS opens a newest-first list with
+  `alert-prev`, `alert-next` and `alerts-back`. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
   Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
   A missing kit retains
@@ -460,10 +486,15 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   cause before its blocked state. `attention(facts)` returns severity-sorted rows
   with `key`, `text`, `target` and optional input `actions`. Gathered facts are
   `now`, `disk`, `points`, `jobs`, `machines`, `leases`, `retirement`, `pairing`
-  and optional `requests` and `fuelAlerts`. The module gathers once per five game seconds.
-  Jobs and paired IDs come from read-only generation recovery. An optional
-  `SO.pair.requests()` supplies pairing requests; an open invitation also
-  appears. Other job modules may add read-only status APIs later. The pages draw in route A:
+  and optional `requests`, `fuelAlerts`, `forgotten`, `clockRefused`, `errorCount`
+  and `errorAt`. The module gathers once per five game seconds. Jobs and paired
+  IDs come from read-only generation recovery. Pending rows come from
+  `SO.enroll.view().rows`, without the owner's token. Open pairing invitations
+  also appear. A nonempty error ring adds one `errors` attention row while its
+  newest entry is less than ten game minutes old. Aging out the row keeps errors.
+  ERRORS rows preview the first line and open the full message with wrapping,
+  paging and BACK. Each display keeps a stable selected message and list page.
+  Truncation and wrapping preserve UTF-8 codepoints. The pages draw in route A:
   tabs HEALTH and NEEDS n, then EVENTS ALERTS ERRORS, leaders or list rows, and the `prev` and
   `next` chips on the last row ([schematic spec](ui/SCHEMATIC-SPEC.md#23-health-pages)).
   Display inputs receive `event.open(role, actions?)`. Under the role lock it opens
@@ -473,14 +504,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the `panel` and
   `pocket` screens from `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
   main/alerts/pair pages and alert paging in each display session. Tick gathers
-  registered screen callbacks and job header states, plus state `.alert` values.
+  registered screen callbacks and job header states, reading only the header row, plus state `.alert` values.
   The status PAIR button opens the panel pair page directly. Main-page inputs
   forward START and STOP once to the mining or lumber screen.
-  Keyboard-equipped panels call `shop.order(search, count)` once. Shop's count/name sort defines
+  Keyboard-equipped panels show the best match and stock, call
+  `shop.order(search, count, view)` once and draw the last order and reply below
+  the quantity chips. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
   Monitor panels drop quick search and quantities and show only the job blocks.
-  ALERTS lists state alerts; PAIR offers NEW CODE. The panel pages are route A
+  ALERTS wraps state alerts to two rows as on the pocket; PAIR offers NEW CODE. The panel pages are route A
   (twin `docs/ui/schematic/panel.py`, SCHEMATIC-SPEC section 22): job blocks with
   the pocket's facts in columns of 16 to 36 cells, HEALTH and `NEEDS n` chips in
   row 1, ALERTS and PAIR chips on the last row, and bracketed `[FORGET]`,
@@ -495,9 +528,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lumber.facts()` when present, else the status model, else the state the
   panel's 120x18 probe reads; it forwards `mining:start|stop` and
   `lumber:start|stop` once. SHOP lists as many `shop.matches` items as fit;
-  `pick:<item>` selects, `clear` empties the search, and `order:<1|16|64>:<item>`
-  under the shown item calls `shop.order(item, count)` once while that item
-  still matches the search. PAIR draws the code in line digits with a teal
+  `pick:<item>` selects, `clear` empties the search, and `order:<1|16|64|stack|all>:<item>`
+  under the shown item calls `shop.order(item, count, view)` once while that item
+  still matches the search. ALL has no target at zero stock. Row h-1 shows sent,
+  delivered or failed; row h shows the reply. PAIR draws the code in line digits with a teal
   countdown and uses the same `pair-code` path as the panel. Its PAIRED chip opens
   the paired devices page (per-device FORGET), and ENROLL the batch enroll window
   when `enroll` is on. Inputs act only on
@@ -513,14 +547,19 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
-  turtle to the shop screen. Exports `tick(now)`, `order(search, count)`,
+  turtle to the shop screen. Exports `tick(now)`, `order(search, count, view?)`,
   `best(search)` and `matches(search, limit?)`. `matches` is read-only: up to `limit`
   (default 10) `{ name, count, label }` stocked items whose id or display name contains
   the search, by stock then id. `best` returns an exact id present in totals and
   its count, including zero; otherwise it returns the first stocked match.
-  `order` refuses zero stock and sends one order of 1, 16 or 64 for a stocked item.
-  It returns the id, or nil and a reason; it changes no display. A failed send
-  marks the order failed immediately.
+  `order` refuses zero stock. Count accepts 1, 16, 64, `"stack"` or `"all"`.
+  STACK uses the stack size; ALL uses stock up to one stack. It returns item id
+  and count, or nil and a reason. An optional view receives `order`, `orderDetail`
+  and `orderRid`, without a recent-orders entry. A failed send fails immediately.
+  Getting or Crafting keeps the order pending for up to 600000 game ms from
+  dispatch. Without acknowledgment the limit is 120000 ms. Delivery needs an
+  explicit Delivered or sent-to-output-chest reply. Silence after acknowledgment
+  shows `no delivery`. Matching sender and request id are required.
   `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point, orderRid?)`,
   `fuelClear()` and `fuelAlerts()` run the fuel policy. Fuel auto-order defaults off in `so-data/fuel-policy`.
   Bind the room output as a fuel point in mining SETUP. Empty reports share a
@@ -651,6 +690,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   below the cells burst threshold. Trips wholly on the surface retain normal batching.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
+  SETUP has SINGLE and CONTINUOUS chips, a continuous branch stepper from 1 to
+  4096 and `fuelEstimate(job)`. Ore taps preserve other selections across all
+  ten supported ores. Empty or missing filters mean all ores. Narrow screens
+  use a dedicated ore editor. Empty auto-fuel pickups retry after 60000 game ms
+  and call the shared `shop.fuelEmpty` policy again.
   Mining refuses `home`, `bottom`, `length`, `branches`, `continuous` and `mode` edits
   while the job runs or a turtle row still holds a route. STOP waits for outstanding
   batches to settle and clears route geometry. START rebuilds the routes using existing
@@ -850,9 +894,16 @@ that list or the running installer's list, plus unlisted root `so-mod-*.lua` fil
 Those deletions share the backup manifest and roll back with the replacements.
 `/.so-revision` and `/.so-files` also participate in the swap.
 
-`install <token>` on a fresh turtle install passes an enroll token to the
-pinned installer, which writes `so-enroll` after the swap. Other roles refuse a
-token. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
+`install <token> [sha] [--server <id>]` stages enrollment for workers,
+pockets and wall displays. Their enrollment kinds are `turtle`, `pocket` and
+`computer`. The pinned installer must support these options or installation
+refuses without fallback. `--server` accepts one nonnegative integer and must
+match the token's server when both are supplied. Any key-file generation refuses
+a token or selected-server install. Selection merges `server` into
+`so-worker.cfg` or `so-display.cfg` through the installer transaction and keeps
+unrelated fields. Missing selection preserves config. These options stage client
+data; consumption depends on the installed client. The current display client
+still uses code pairing. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
 then the role program. A fresh server install writes `so-server.cfg` as the
 plain table `{ pos = { dim = string, x = number, y = number, z = number } }`.
 The installer uses GPS or integer manual coordinates. X and Z are bounded to
@@ -1025,8 +1076,9 @@ Do not save inside tight loops.
 - `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
-  `so-enroll` holds a worker's enroll token and X25519 secret until it joins,
-  is denied or the window closes.
+  `so-enroll` holds a client's enrollment token, optional X25519 secret and
+  optional `paused="off"`. Window closure and timeout retain the attempt.
+  Explicit local token entry or installer rerun resumes a pause.
 
 Lease records, owner callbacks, observed ranges, lost flags and journal facts
 are memory-only. Reply/replay caches, display sessions and pictures, state

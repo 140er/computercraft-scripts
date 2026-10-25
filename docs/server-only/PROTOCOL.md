@@ -135,10 +135,16 @@ The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.
 
 ### enroll
 
-Batch enrollment, off unless `so-server.cfg` has `enroll = true`. With the flag
-off the server treats `enroll` like any unknown message from an unpaired
-sender: a bad MAC and no answer. Envelopes and replies use the public
-`pair.envelopeKey()`, as `pair2` does. The tags below carry the security.
+Batch enrollment defaults off. `so-server.cfg.enroll` is a saved runtime boolean.
+`SO.enroll` always exposes `enabled()`, `setEnabled(boolean)`, `open(owner)`,
+`view(owner?)`, `close()`, `extend(owner)` and `decide(id, n, approve)`.
+`setEnabled` merges and verifies the config save before changing the flag.
+OFF closes the window and drops undecided rows. Only the flag survives restart.
+The handler stays registered and uses the public `pair.envelopeKey()` while off.
+It checks the flag for every request, including cached requests, with at most
+one config read per server tick. Matching retained decision results remain
+collectible while off. Other requests get `err {code="enroll",text="off"}`.
+The tags below carry the security.
 
 Timing initialization follows the [pairing rule](#pair2), including the three-attempt
 limit, event-preserving yields and refusal without a new secret. Saved keys and
@@ -147,7 +153,8 @@ a saved enrollment token remain available for a later attempt.
 The owner opens a window on the panel. It holds a token, the server's X25519
 key pair for the window and up to 20 pending rows, in memory only. It ends after
 600000 ms, after 20 approvals, on CLOSE, when its owner is forgotten and on
-server restart.
+server restart. `extend(owner)` sets the deadline to ten minutes from the call.
+It preserves the token, rows, joined count and 20-device cap.
 
 The token is `S-XXXX-XXXX-XXXX-XXXX`. `S` is the server computer id in
 decimal. The 16 symbols come from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no 0, 1,
@@ -187,7 +194,7 @@ The server answers:
   tag1 that cannot get a row: `paired` (the id already has a key), `busy` (the
   id has another request in this window), `full` (20 rows or 20 joins) or
   `wait` (over the pairing budget).
-- untagged `err` with `text` `closed` (no window), `token` (tag1 wrong), `wait`
+- untagged `err` with `text` `off` (disabled), `closed` (no window), `token` (tag1 wrong), `wait`
   (a wrong tag1 over the budget), `body` (malformed) or `share` (`Xd` equals
   `Xs` or gives an all-zero `K`).
 
@@ -211,24 +218,29 @@ against its `K`. It ignores replies whose tag fails or whose `Xs` equals its own
 `conflict`. Since the real server tags every answer to a valid tag1, a forged
 tag3 loses whenever the device hears the real server in the same attempt. It
 keeps at most 16 replies per 3 s round and runs at most four new X25519
-exchanges per round. A round is noisy when it drops a reply over either cap
-or sees more than 64 rednet messages, since CraftOS may then have dropped
-queued events. A noisy round may be missing the real server's reply, so a
-tag3 in it counts as pending; a sustained flood only delays the device. It
-saves the key only after a valid tag3 in a round that is not noisy, then
-deletes `so-enroll`. `conflict`, a valid tag4 or a tagged `busy`, `full` or `paired`,
-or, with nothing tagged that round, an untagged `closed`, `token`, `share` or
-`body` also deletes `so-enroll`. After 660000 ms without one of those it
-deletes the file with `timeout`.
+exchanges per round. A round is noisy once all 16 reply slots are full,
+when the exchange cap skips a reply, or after more than 64 rednet messages.
+A noisy round cannot confirm a key or change the public-error hint. A tagged
+`ok` in it counts as pending. Only a valid tag3 in a quiet round saves the key.
+Success, `conflict`, a valid tag4 or a tagged `busy`, `full` or `paired` deletes
+`so-enroll`.
 
-`so-enroll` on the device is a serialized `{ token, sk? }`. The installer writes
-the token. The worker adds its X25519 secret before the first request, so a
-reboot resumes the same request. A worker that already has a key deletes the
-file at boot.
+Untagged errors are public hints. `closed`, `token`, `share`, `body` and `wait`
+remain retryable and cannot delete an attempt. A quiet round with no tagged
+result can make `off` final for that attempt. Before a tagged share is locked,
+one such round pauses. After locking a share, two consecutive quiet off rounds
+are required. Other rounds reset that count. Noisy rounds cannot pause.
 
-Untagged errors can be forged, since the envelope key is public. A forger can
-end a device's attempt, which costs the owner a new install line, but cannot
-make it save a key. Anyone with the token is a token holder: it can ask to join
+`so-enroll` is a serialized `{ token, sk?, paused? }`. A pause saves
+`paused="off"` and retains the token and secret across reboot. Explicit local
+token entry or an installer rerun clears the pause. The same normalized token
+retains its secret. Tagged pending or wait under the locked share refreshes the
+660000 game-ms deadline. Timeout retains the attempt and secret for retry.
+A keyed worker deletes the enrollment file at boot.
+
+Untagged errors can be forged because the envelope key is public. A quiet
+forged off can pause an attempt, but cannot make the device save a key.
+Anyone with the token is a token holder: it can ask to join
 under any unpaired id, and the owner must approve it. A token holder that asks
 first under a turtle's id gets a row that looks like that turtle, apart from
 the fingerprint. It can also end any device's attempt by contesting its id. A
@@ -533,7 +545,7 @@ room shows `missing`.
 `item:<itemName>` opens the item, beside the list on wide screens and as its own page on narrow
 ones; tapping the open row, `items` (the × or `back`) closes it. Its order chips are
 `order:1:<itemName>`, `order:16:<itemName>`, `order:64:<itemName>`, `order:stack:<itemName>` (one
-stack) and `order:all:<itemName>` (the whole stock; muted at 0). Without a storage room every
+stack) and `order:all:<itemName>` (stock up to one stack; muted at 0). Without a storage room every
 order chip is muted. Without `so-ui.lua`, the legacy list and its direct order buttons remain.
 
 Each tap on an order chip of the open item sends one `{ cmd = "order", text = itemName, n = count,
@@ -541,13 +553,20 @@ rid = number }` on `roomsorter`; drawing sends nothing, and another display's ta
 open item. Replies match sender and request ID. Each order from a shop display is listed under
 the item, newest first, up to 8, with its time and state: sent after dispatch and on a Getting or Crafting reply,
 delivered only after an explicit Delivered or sent-to-output-chest reply, and failed on refusal
-or a two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is the final
-observable state there. The screen never infers delivery from stock changes and never retries
-orders. `shop.order(search, count)` remains a direct one-order API for keyboard panel and pocket
+or timeout. Without an acknowledgment, timeout is 120000 game ms after dispatch.
+Getting or Crafting keeps the order pending and sets its timeout to 600000 game ms
+from the original dispatch, not from the acknowledgment. Silence then shows
+`no delivery`. Repeated acknowledgments do not extend this deadline.
+Replies after completion or timeout are ignored.
+The screen never infers delivery from stock changes and never retries orders. `shop.order(search, count, view?)` is a direct one-order API for keyboard panel and pocket
 quick orders and leaves shop displays unchanged. An exact id present in the latest totals wins over a better-stocked partial match,
 including when its count is zero. `shop.best(search)` returns that id and its count
-without ordering. `shop.order` refuses a zero-stock exact id and returns nil with `out of stock`; it never substitutes a partial match. Otherwise it returns the id it sent, or
-nil and a reason. A failed rednet send removes the pending request and marks its
+without ordering. `shop.order` refuses a zero-stock exact id and returns nil with `out of stock`; it never substitutes a partial match. Otherwise it returns the item id and count sent, or nil and a reason.
+Count accepts 1, 16, 64, `"stack"` or `"all"`. STACK uses the item's stack size;
+ALL uses its stock up to one stack. An optional view receives `order`,
+`orderDetail` and `orderRid`, including replies and timeouts. Quick orders do
+not enter the shop display's recent-order list.
+A failed rednet send removes the pending request and marks its
 displayed order failed immediately. `shop.matches(search,
 limit?)` is read-only and returns up to `limit` (default 10) `{ name, count, label }` stocked
 items whose id or display name contains the search, most stock first, then by id.
@@ -584,6 +603,9 @@ remain authoritative after the configured output changes. Worker pickup reports
 pass the order id saved before `suck`; false means no order was outstanding.
 A stale id or false cannot clear a later pending order. Explicit matching
 delivery replies also clear it.
+An empty mining pickup under fuel auto retries the chest after 60000 game ms
+and calls `shop.fuelEmpty(point)` again. The saved shop policy still controls
+its outstanding order and chest cooldown.
 A Getting or Crafting acknowledgement does not clear waiting or extend its 120000 ms
 deadline. Waiting saves its request id and sender. A matching delivery received before
 timeout can clear that durable record after restart. After a timeout has saved, replies
@@ -867,7 +889,13 @@ below. On the setup tab `set-bottom-` and `set-bottom+` send `bottom` one block
 lower or higher, `set-length-` and `set-length+` send `length` 8 shorter or longer
 (1 to 4096), `mode-fast` and `mode-thorough` send `mode`, `ores-edit` opens the ore
 list and `ore-<name>` sends `ores` with that ore switched; the last selected ore
-cannot be switched off. Each tap is exactly its text command and saves once.
+cannot be switched off. Taps preserve the other selected ores, including
+quartz, nether_gold and ancient_debris. An empty or missing filter means all ten
+supported ores. SETUP opens a dedicated editor if inline filters would clip.
+SINGLE and CONTINUOUS send `continuous off` and `continuous on`. Continuous mode
+shows `set-branches-` and `set-branches+`, bounded from 1 to 4096. `fuel ~N`
+estimates the branch budget, spine access and shaft round trip, excluding ore
+detours and chest service trips. Each tap is its text command and saves once.
 Both tabs accept text commands. Without a daily module the ore leader shows `-`.
 A missing UI kit retains the legacy renderer.
 `facts()` returns `{ state, done, total, busy, workers, depth, lane?, fuel?, alert? }`
@@ -1072,7 +1100,7 @@ Staged claims are memory-only. `lease.claimProbe` uses this for setup owners.
 through the generation store. Failed saves leave the old owner in place. Other
 reservations keep their owners. Repeating a completed handoff succeeds.
 
-At 85% disk use, dug-mark KEEP prompts again after one minute. Consent remains
+At 85% disk use, dug-mark KEEP snoozes prompts for ten minutes. Consent remains
 required before any mark is removed.
 
 SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. All one-cell calls accept an optional last `dim` string, defaulting to `minecraft:overworld`. The same coordinates in different dimensions are separate cells. `who` is a computer id or a lease string.
@@ -1130,7 +1158,7 @@ Reads refresh LRU time in memory. A section with marks persists that time at
 most once per minute unless its bits change.
 
 `cells.retirement()` returns nil, a pending request
-`{ id, status = "pending", bytes, count, reclaim, text }`, or a decision notice
+`{ id, status = "pending", bytes, count, reclaim, text, areas }`, or a decision notice
 `{ status = "allowed"|"kept", text, untilAt }` for 30 seconds.
 At 1000000 bytes of section files, tick proposes eligible sections in LRU order,
 aiming for 650000 bytes. Accounting includes primary, backup and temporary
@@ -1143,7 +1171,10 @@ a new request after a restart.
 `choice = "allow"|"keep"`. It returns true on a decision, or false and an
 optional storage error. A decision must save before any section is deleted.
 `allow` rechecks protection and removes only the offered sections that remain
-eligible and unused since the request. It removes backup and temporary files
+eligible. A read since the offer does not exclude a section. Dirty eligible
+sections save before removal. The offer never expands. Threshold offers aim
+for 650000 bytes. Pressure offers retire all offered sections that remain safe,
+even below that target. It removes backup and temporary files
 before the primary and evicts the cached section. A crash can leave some
 approved sections intact. Restart never resumes deletion. Forgotten cells become
 unknown, and mining clears their cached block facts so later travel inspects
@@ -1152,7 +1183,14 @@ them. The request can reclaim less than offered if protections change.
 `keep` deletes nothing. The generation store `so-data/dug-policy` records the
 choice and a new request threshold at 150% of current use, including across
 restarts. A completed `allow` also uses that growth step if protected areas keep
-storage above the original threshold. The 80% disk guard remains in force.
+storage above the original threshold. KEEP also saves a ten-minute snooze
+across reboot and storage growth. ALLOW saves a one-minute gap. After the gap,
+disk pressure can ask again for any previous choice. No request is made without
+retirable sections. Pending `areas` are copied section bounds
+`{dim,x1,y1,z1,x2,y2,z2}`. During KEEP's snooze under disk pressure,
+`retirement()` returns `status="snoozed"`, `untilAt` in server game ms and
+`text="Disk full. Add disk space."`, without consent buttons. NEEDS shows
+`Add disk space`. The 80% disk guard remains in force.
 
 `cells.rememberWorker(id, worldPose, dug)` records the worker's last reported
 pose and up to 32 world-frame journal cells in that policy store. Tick and
@@ -1216,14 +1254,18 @@ Esc clears it. Used or expired invites return to the normal page.
 A display shows one role. Only the server changes it:
 
 - R on the server terminal opens role mode. It lists every known display as
-  `ID  SIZE  ROLE` and reads one line: `<id> <role>` assigns, `<id> -` clears.
+  `ID  SIZE  ROLE` and the hello label, cut to fit.
+  `<id> <role>` assigns and `<id> -` clears. `<id> far on|off` saves scale 1 or
+  0.5, including for the server's own monitor. `<id> identify` shows IDENTIFY
+  and that display's id in large digits for five seconds and saves nothing.
+  Without a session it returns `display <id> not connected`.
   Enter applies it with `display.command`, prints `role: <result>` to the log
   and shows the result above the prompt, wrapped to two rows when long. A list
   longer than the screen ends with `+N more`. Backspace edits, Esc leaves. Keys
   such as P and L type into the prompt instead of acting, and a panel's NEW
   CODE request does not close it. Kit-free servers draw the same prompt as
   plain rows.
-- `display.command(text)` parses that line and calls `display.assign`.
+- `display.command(text)` routes that line to assign, far or identify.
 - `display.assign(id, role)` returns `true, "display <id>: <role>"` or
   `false, <reason>`. Role nil or `-` clears the saved role. Roles are
   `status`, `pocket`, `mining`, `lumber`, `shop`, `drops`, `ar`, `panel` and
@@ -1260,15 +1302,19 @@ when the modules have them, else the status model's `mining`, `lumber` and
 turtle rows, and forwards `mining:start`, `mining:stop`, `lumber:start` and
 `lumber:stop` once each. SHOP takes typed text as its search; `pick:<item>`
 selects a match, `clear` empties the search and `order:<count>:<item>` (1, 16
-or 64) under the shown item calls `shop.order(item, count)` once while that
-item still matches. PAIR draws `pair-code` (NEW CODE) and the session's own
+or 64, `stack` or `all`) under the shown item calls
+`shop.order(item, count, view)` once while that item still matches. ALL has no
+target at zero stock. Row h-1 shows sent, delivered or failed; row h shows the
+reply. Replies must match the room sender and request id.
+PAIR draws `pair-code` (NEW CODE) and the session's own
 code in line digits. No page changes the saved role. Without the `pocket`
 screen the role draws the 26-wide status layout. `display.statusModel()`
 returns the status model of the last gather for these pages.
 
-`display.monitorTouch(side, x, y)` queues a touch on the server's own monitor.
-The next display tick routes it to the drawn screen. Discovery runs at most
-every five seconds. The monitor uses its real size, text scale 0.5 and the
+`display.monitorTouch(side, x, y)` routes a touch on the server's own monitor
+to the drawn screen and redraws at once. The last drawn button under the tap wins.
+Discovery runs at most every five seconds. The monitor uses its real size,
+text scale 0.5, or 1 with far on, and the
 spec palette. It draws the role saved under the server's own id, or status
 when there is none. Its session is volatile and
 separate from paired displays and needs no rednet traffic.
@@ -1371,7 +1417,8 @@ The tile model fields stay for the panel role and older callers:
 The takeover ([schematic spec](../ui/SCHEMATIC-SPEC.md#16-system-screens)) draws a coral
 frame, the alert in a coral title chip with its subject's position, the detail
 or sub, a map crop around the subject from `map.crop` and a coral tick row for
-the time left; it is one `dismiss` button. Gathering stays in display handler and tick
+the time left; the background is a `dismiss` button. Its `#id` chip opens the subject's turtle
+with `turtle:<id>` and takes precedence over dismissal. Gathering stays in display handler and tick
 paths. It reads state view `.alert` keys, registered worker machines, lease
 status, drop points, display sessions and the server root disk. Ore and log
 totals come from `daily.today()`, with `-` on stale tiles when unavailable.
@@ -1381,10 +1428,11 @@ count descending then name ascending, with short names. Lumber shows daily logs.
 
 Alert identity is the state key plus its serialized value. Each display sees
 at most one takeover for each identity and at most one in 30 seconds. The
-coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
-stay in the alert bar and do not trigger a delayed takeover. The alert bar
-opens the latest alert until tapped. The alert rows are the `alerts` input
-while a state alert exists; status has no other buttons and no paging.
+coral takeover ends after 5000 milliseconds or a tap outside its turtle chip.
+Suppressed identities stay in the alert bar and do not trigger a delayed takeover.
+The alert rows open a newest-first list with `alert-prev`, `alert-next` and
+`alerts-back`. Status turtle rows and lost flags open `turtle:<id>`.
+The DISPLAYS tile names stale ids, such as `#7 stale`.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids, plus `locked = { [computerId] = true }`
@@ -1570,11 +1618,12 @@ route A ([SCHEMATIC-SPEC section 22](../ui/SCHEMATIC-SPEC.md#22-panel)).
 Main-screen inputs are `mining:start`, `mining:stop`, `lumber:start`,
 `lumber:stop`, `search`, `order:1`, `order:16` and `order:64`. Typed text changes
 only this panel's search. START and STOP forward one input to the corresponding
-registered screen. An order applies that search to the registered shop screen,
-renders its first list page, selects its first `item:<name>` and sends exactly
-one `order:<count>:<name>`. Shop sorts by descending stock count and then name,
-which defines the best match. A search with no match sends no order. This uses
-the existing shop search and selection state, shared with full shop screens.
+registered screen. Keyboard panels show the best match and stock above the quantity chips.
+An order calls `shop.order(search, count, view)` once. Exact ids win; otherwise
+stock count and then item id define the best match. No match sends nothing.
+The last order and the shop's reply appear below the chips. Each panel keeps
+its own view. ALERTS wraps each alert to at most two rows, as on the pocket.
+The job probe reads only the rendered header row.
 
 The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
 blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and
@@ -2124,6 +2173,18 @@ Press P on the server, then enter its new code on the client. Displays accept
 six digits; turtles also require Enter. Failed pairing retains the old key.
 Only a successful authenticated pairing saves the replacement key.
 
+After local repair authorization, `join`, `remember` and `enroll` accept
+`{replace=oldServerId}`. After Tb or tag3 proves the new key, the client saves
+one verified `so-keys` generation containing only the proven server. Same-id
+repair replaces that key. A failed save retains the old keys in memory and on
+reboot. Server-side additions remain additive.
+
+A keyed worker accepts repair tokens only with `so-worker.cfg.repairServer=true`,
+read at use and false when absent. The terminal masks tokens. Monitor touches
+cannot submit credentials. Repair preserves journals, saves pose uncertainty
+and requires explicit re-anchor before movement. It cannot replace trust during
+an active batch. Token installs still refuse existing key generations.
+
 ## Visibility
 
 `MORE` and the panel have `HEALTH` and `ATTENTION` buttons. These pages draw
@@ -2146,6 +2207,13 @@ dug-mark consent, disk pressure and pairing activity. Rows open the screen for
 that issue. Broken chests select their point; uncertain workers open setup.
 Gathering never starts jobs, moves workers or clears errors. Repairing a source
 removes its item on the next gather, within five game seconds.
+Pending enrollments come from `SO.enroll.view().rows`, without the owner's token.
+A nonempty error ring adds one `errors` attention row while its newest entry is
+less than ten game minutes old. Aging out that row keeps the stored errors.
+ERRORS previews the first line of each message. Each row opens the full message,
+wrapped to at most 40 columns with paging and BACK to the same list page.
+Truncation and wrapping preserve UTF-8 codepoints. Each display keeps its selected
+message stable when the error ring changes.
 
 `HEALTH` pages uptime, game and wall tick cadence, tick cost, event sequence and
 bytes, snapshot age, free disk, modem count, online and lost paired machines,

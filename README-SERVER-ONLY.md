@@ -183,7 +183,10 @@ pair the machine again after a reset.
 Each display shows one role. Only the server changes it. Press `R` on the
 server terminal, type `<id> <role>` and press Enter, for example `7 mining`.
 `7 -` clears the role. The list above the prompt shows every display's id,
-size and role. Esc closes the prompt.
+size, role and computer label. Esc closes the prompt.
+`<id> far on|off` changes text scale. `<id> identify` shows that display's id
+for five seconds. Status ALERTS opens the complete newest-first alert list.
+Server monitor taps redraw at once.
 
 Roles are `status`, `pocket`, `mining`, `lumber`, `shop`, `drops`, `ar`,
 `panel` and `map`. A new pocket gets `pocket`: its glance page and panel page
@@ -323,6 +326,11 @@ Mining and lumber each have `START`, `STOP` and `SETUP`. Setup's `BACK`
 returns to its main page. Shop item tiles open the order page, whose `BACK`
 returns to the list. No screen links to another role. Every page fits 26x20
 and 29x12. Compact mining rows show the full x,y,z position before state.
+Mining SETUP has SINGLE and CONTINUOUS controls. Continuous mode has a branch
+stepper from 1 to 4096 and a route-based fuel estimate. The estimate excludes
+ore detours and chest trips. Ore taps preserve other filters, including Nether
+ores. An empty filter means all ten supported ores. Narrow screens open a
+separate ore editor. Empty auto-fuel pickups retry after one game minute.
 
 The server stores dug marks in compact 16x16x16 sections. At 1 MB of section
 files, every display shows a request to forget old areas, with `allow` and
@@ -333,10 +341,14 @@ Nothing in the world changes. Turtles inspect forgotten blocks if they return.
 reservations, open leases and worker recovery paths stay protected. If an area
 becomes protected after the request appears, the server keeps it. Recovery
 history stays protected even after a worker is removed from a job.
-`keep` saves everything and remembers the choice across restarts. The server
-asks again after section files grow by another 50 percent. At 85% disk use,
-`keep` asks again after one minute even without that growth. Sharding onto
-more server storage is a future option. The 80 percent disk guard still applies.
+The banner asks "Dug marks X. Forget N areas (Y)?" with ALLOW and KEEP in at
+most three rows at 26x20 and 29x12. KEEP shows "Kept." and saves a ten-minute
+snooze across reboot and storage growth. Later threshold requests need another
+50 percent growth. Under disk pressure, the snooze shows "Disk full. Add disk
+space." and an "Add disk space" row in NEEDS. After the gap, pressure may ask
+again for any previous choice. ALLOW has a one-minute gap. A pressure offer can
+retire all offered sections that remain safe, even below 650 KB.
+The 80 percent disk guard still applies.
 
 Open the `mining` display screen. Submit these text commands:
 
@@ -509,9 +521,13 @@ Each display keeps its own category, letter, sort, page, selection and order
 status. An order sends once. Quantity buttons stay inactive until you return
 to the list and select an item again. `Order: sent` means the request went out
 or the room accepted it. `Order: delivered` requires an explicit delivery reply.
-The current legacy room replies when it queues an order, so it stays `sent`.
-Refusals and unanswered orders show `failed`. Orders time out after two minutes
-and are never retried automatically.
+Getting or Crafting keeps the order pending. Without acknowledgment, orders
+fail after two game minutes. Acknowledged orders wait ten game minutes from
+dispatch, then fail with "no delivery". Refusals show failed. The server never
+retries orders automatically.
+Keyboard panels show the best shop match, stock, last order and room reply.
+Pocket SHOP adds STACK and ALL. ALL orders stock up to one stack and is disabled
+at zero stock.
 
 Stock older than 30 seconds shows `STALE STOCK`. After five minutes without
 stock, the server clears the list and discovers storage again. Rooms use the
@@ -627,7 +643,9 @@ clock, storage and network diagnostics. ATTENTION lists issues that need a
 person and opens the screen for each repair. The list refreshes every five
 game seconds. `ALERTS` keeps retained alert events after they clear. `EVENTS`
 browses state history with a kind filter. `ERRORS` shows the bounded persistent
-server error log. `PREV`, `NEXT` and `BACK` work on pockets and compact monitors.
+server error log. NEEDS includes pending enrollments and recent server errors.
+ERRORS rows open the complete message with wrapping, paging and BACK.
+`PREV`, `NEXT` and `BACK` work on pockets and compact monitors.
 Recent errors save at most once per 30 game seconds; a power loss can lose
 records still waiting to save.
 
@@ -697,7 +715,11 @@ the most recent forget event.
 ### Enroll many turtles
 
 Enrollment is off by default. Add `enroll = true` to the existing
-`so-server.cfg` table and restart the server.
+`so-server.cfg` table and restart to enable it at setup. The server API
+`SO.enroll.setEnabled(true)` also saves the runtime switch without a restart.
+`SO.enroll.setEnabled(false)` closes the window and drops
+undecided rows. Approved devices can still collect their results for ten minutes
+after the decision. Restart keeps the switch but closes the window.
 
 Open PANEL, PAIR and tap ENROLL. The page shows a token such as
 `12-K7QP-3MXA-9WTD-HR2E`, the time left and how many turtles joined. The window
@@ -720,6 +742,14 @@ Anyone who has the token can ask to join, so approve only turtles you expect;
 compare fingerprints if in doubt. When two requests use the same id, that id
 cannot join in this window. A turtle stops and keeps no key when two different
 servers answer its token.
-The token file on the turtle is deleted when it joins, is denied or the
-window closes. A server restart closes the window.
+Joining or a tagged refusal deletes the token file. Window closure and timeout
+keep the token and secret for retry. An off reply pauses the attempt across
+reboot. Re-enter the token locally or rerun the installer to resume it. The same
+token keeps its secret. The window owner can reset the deadline to ten minutes from now
+without changing its token or approval cap. A server restart closes the window.
+
+The installer can stage tokens for workers, pockets and wall displays with
+`install <token> [sha] [--server <id>]`. Selection must match the token's server
+and requires an unpaired client. The current display client still uses code
+pairing; staging a token does not enroll it.
 
