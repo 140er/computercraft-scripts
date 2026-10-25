@@ -9,7 +9,7 @@ import math
 import re
 
 from cc import Canvas
-from kit import actions, bar, chip, leader, mark, progress, role_bar, rule, section, tone
+from kit import actions, age, bar, chip, leader, mark, progress, role_bar, rule, section, tone
 from pocket import wrap
 from scene import lines
 
@@ -18,7 +18,7 @@ FACING = "NESW"
 
 
 def scene():
-    s = {"build": {}, "detail": {}, "health": {"machines": [], "leases": {}, "points": [], "holds": [],
+    s = {"build": {}, "detail": {}, "inv": {"slots": {}}, "health": {"machines": [], "leases": {}, "points": [], "holds": [],
                                                "entries": [], "events": []}}
     for p in lines("other-scene.txt"):
         if p[0].startswith("#"):
@@ -51,6 +51,11 @@ def scene():
                 d[key] = int(rest[1])
             else:
                 d[key] = rest[1]
+        elif k == "inv":
+            if rest[0] == "slot":
+                s["inv"]["slots"][int(rest[1])] = dict(name=rest[2], count=int(rest[3]))
+            else:
+                s["inv"][rest[0]] = int(rest[1])
         elif k == "draft":
             n = list(map(int, rest))
             s["draft"] = dict(x=n[0], y=n[1], z=n[2], facing=n[3])
@@ -189,10 +194,11 @@ def confirm_chip(sel, key, label, bid, kind):
     return ("CONFIRM", bid, "stop") if sel.get("confirm") == key else (label, bid, kind)
 
 
-def turtle(w, h, title, sel=None, row=None, now=None):
+def turtle(w, h, title, sel=None, row=None, now=None, inv=None):
     """U.turtle.render: the state word in the header, the error flag, leaders, progress, then the job's
     chips with BACK on the last row. With a draft it is the pose editor, with a step chip from 36 cells.
-    With row workerPark the chips park, resume and remove this worker; RESUME replaces PARK once parked."""
+    With row workerPark the chips park, resume and remove this worker; RESUME replaces PARK once parked.
+    With an inventory model (turtleInventory) the inventory leader reads it and opens the page."""
     cv = Canvas(w, h, title)
     sel = sel or dict(id=SCENE["detail"]["id"])
     row = detail_row() if row is None else row
@@ -238,12 +244,14 @@ def turtle(w, h, title, sel=None, row=None, now=None):
     retry = "retry %ds" % max(0, math.ceil((row["retry"] - now) / 1000)) if row.get("retry") is not None else ""
     if row.get("error") or retry:
         y += flag_lines(cv, 2, y, w - 2, row.get("error") or "", retry, 3 if retry else 2, True) + gap
-    inv = row.get("inv") or []
+    carried = list(inv["slots"].values()) if inv else row.get("inv") or []
     fuel = row.get("fuel")
     seen = row.get("seen")
+    held = "%d/16 %s %d" % (len(carried), DOT, sum(i.get("count", 0) for i in carried))
     facts = [("pose", "?" if uncertain else pose_text(row.get("pose")), "e" if uncertain else None),
              ("fuel", "-" if fuel is None else str(fuel), "1" if fuel is not None and fuel < 64 else None),
-             ("inventory", "%d/16 %s %d" % (len(inv), DOT, sum(i.get("count", 0) for i in inv)), None),
+             ("inventory", "unknown" if inv and not inv["known"] else held,
+              "1" if inv and (not inv["known"] or inv["stale"]) else None),
              ("lease", str(row.get("lease") or "-"), None),
              ("step", str(row.get("step") or "-"), None),
              ("ore", str(row.get("ore") or 0), None),
@@ -252,6 +260,8 @@ def turtle(w, h, title, sel=None, row=None, now=None):
     shown = max(0, min(len(facts), bottom - y + 1 - (1 + gap if total is not None else 0)))
     for i, (label, value, vfg) in enumerate(facts[:shown]):
         leader(cv, 2, y + i, lw, label, value, vfg or ("8" if value == "-" else "0"))
+    if inv and shown >= 3:
+        cv.hit("turtle-inventory", 2, y + 2, lw, 1, "inventory")
     if total is not None:
         py = y + shown + gap
         branch = row.get("branch")
@@ -264,6 +274,84 @@ def turtle(w, h, title, sel=None, row=None, now=None):
             frac = "%d/%d" % (row["done"], total)
             progress(cv, x, py, max(1, min(12, w - 1 - x - len(frac))), row["done"], total)
     return cv
+
+
+def inventory_layout(w, h, sel, model, now):
+    """U.turtle.inventoryLayout: the state word, in the header when it fits, and the slot paging."""
+    L = dict(gap=1 if h >= 16 else 0, name="INVENTORY #%s" % model["id"], fg="1")
+    if not model["known"]:
+        L["word"] = "unknown"
+    elif model["stale"]:
+        L["word"] = "stale " + age(max(0, now - model["at"]))
+    else:
+        L["word"], L["fg"] = "%d/16" % len(model["slots"]), "0"
+    L["header"] = len(L["name"]) + len(L["word"]) + 5 <= w
+    L["top"] = 2 + L["gap"] + (0 if L["header"] else 1)
+    body = max(1, h - 1 - L["gap"] - L["top"] + 1)
+    if body >= 32:
+        L["step"], L["per"] = 2, 16
+    elif w >= 36 and body >= 16:
+        L["step"], L["per"] = 1, 16
+    elif L["gap"] == 1:
+        L["step"], L["per"] = 2, max(1, body // 2)
+    else:
+        L["step"], L["per"] = 1, body
+    L["pages"] = -(-16 // L["per"]) if model["known"] else 1
+    L["page"] = max(1, min(L["pages"], sel.get("inventoryPage") or 1))
+    return L
+
+
+def inventory(w, h, title, model, page=1, now=None):
+    """U.turtle.inventory: slots 01..16 with item leaders and counts, muted empty slots, one amber
+    unknown, the stale age, then the page arrows, page count and BACK on the last row."""
+    cv = Canvas(w, h, title)
+    now = SCENE["inv"]["later"] if now is None else now
+    L = inventory_layout(w, h, dict(inventoryPage=page), model, now)
+    bar(cv, L["name"], (), None, L["word"] if L["header"] else "", L["fg"])
+    if not L["header"]:
+        cv.put(2, L["top"] - 1, L["word"], L["fg"])
+    if model["known"]:
+        names = {}
+        for item in model["slots"].values():
+            short = item["name"].split(":", 1)[-1]
+            names.setdefault(short, set()).add(item["name"])
+        first = (L["page"] - 1) * L["per"]
+        for i in range(min(L["per"], 16 - first)):
+            slot, y = first + i + 1, L["top"] + i * L["step"]
+            item = model["slots"].get(slot)
+            cv.put(2, y, "%02d" % slot, "8")
+            if item:
+                short = item["name"].split(":", 1)[-1]
+                label = item["name"] if len(names[short]) > 1 else short
+                leader(cv, 5, y, w - 5, label, str(item["count"]), "0", "0")
+            else:
+                cv.put(5, y, "empty", "8")
+    if L["pages"] > 1:
+        x = chip(cv, 2, h, "◄", "inventory-prev", "plain" if L["page"] > 1 else "muted") + 1
+        x = chip(cv, x, h, "►", "inventory-next", "plain" if L["page"] < L["pages"] else "muted") + 1
+        note = "%d/%d" % (L["page"], L["pages"])
+        if x + len(note) < w - 6:
+            cv.put(x, h, note, "8")
+    chip(cv, w - 6, h, "BACK", "inventory-back")
+    return cv
+
+
+def inv_model(kind):
+    """The scene's sample for #2 as display.invModel returns it: occupied, stale, empty or unknown."""
+    i = SCENE["inv"]
+    if kind == "unknown":
+        return dict(id=SCENE["detail"]["id"], known=False, stale=False, slots={})
+    slots = {} if kind == "empty" else i["slots"]
+    return dict(id=SCENE["detail"]["id"], known=True, stale=kind == "stale", at=i["at"], slots=slots)
+
+
+def _inventory(w, h, title, kind, page=1):
+    now = SCENE["inv"]["later"] if kind == "stale" else SCENE["inv"]["at"]
+    return lambda: inventory(w, h, title, inv_model(kind), page, now)
+
+
+def _turtleinv(w, h, title, kind):
+    return lambda: turtle(w, h, title, None, None, None, inv_model(kind))
 
 
 def _turtle(w, h, title):
@@ -852,6 +940,15 @@ FIXTURES = [
 # tests/ui/w2screens.lua checks these against the generator.
 FIXTURES += [("turtlepose-M", _pose(57, 24, "Pose editor for an uncertain turtle, room monitor 57x24")),
              ("turtlepark-P", _parked(26, 20, "Parked turtle detail with worker park at 26x20"))]
+# The turtleInventory page; tests/ui/inventory.lua checks these against the generator.
+FIXTURES += [("inventory-P", _inventory(26, 20, "Turtle inventory at 26x20", "known")),
+             ("inventory2-P", _inventory(26, 20, "Turtle inventory page 2 at 26x20", "known", 2)),
+             ("inventory-XS", _inventory(15, 10, "Turtle inventory at 15x10", "known")),
+             ("inventory3-XS", _inventory(15, 10, "Turtle inventory page 3 at 15x10", "known", 3)),
+             ("inventoryempty-S", _inventory(29, 12, "Known empty turtle inventory at 29x12", "empty")),
+             ("inventoryunknown-P", _inventory(26, 20, "Unknown turtle inventory at 26x20", "unknown")),
+             ("inventorystale-M", _inventory(57, 24, "Stale turtle inventory, room monitor 57x24", "stale")),
+             ("turtleinv-S", _turtleinv(29, 12, "Turtle detail with an unknown inventory at 29x12", "unknown"))]
 
 
 if __name__ == "__main__":

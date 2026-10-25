@@ -52,3 +52,14 @@ health event 3300000 drops.broken chest 3 broken
 health event 3500000 lumber.alert out of saplings
 health event 3560000 mine.ore 3 diamond
 health event 3590000 mine.alert ore chest full
+
+# turtleInventory samples for #2 (U.turtle.inventory): two stones from different mods carry their
+# namespaces; the sample was taken at 100000, so it is stale at the scene's later time 300000.
+inv at 100000
+inv later 300000
+inv slot 1 minecraft:diamond 14
+inv slot 2 minecraft:cobblestone 64
+inv slot 5 create:andesite_alloy 32
+inv slot 9 minecraft:stone 12
+inv slot 10 chisel:stone 3
+inv slot 16 minecraft:torch 1

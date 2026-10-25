@@ -1,0 +1,31 @@
+15x10 Turtle inventory page 3 at 15x10
+ INVENTORY #2  
+ 6/16          
+ 15 empty      
+ 16 torch ·· 1 
+               
+               
+               
+               
+               
+  ◄   ►  BACK  
+000000000000000
+000000000000000
+088088888000000
+0880000000cc000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000008880000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777f777777777f

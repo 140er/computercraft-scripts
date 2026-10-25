@@ -1,0 +1,31 @@
+15x10 Turtle inventory at 15x10
+ INVENTORY #2  
+ 6/16          
+ 01 diamond 14 
+ 02 cobbles 64 
+ 03 empty      
+ 04 empty      
+ 05 andesit 32 
+ 06 empty      
+ 07 empty      
+  ◄   ►  BACK  
+000000000000000
+000000000000000
+088000000000000
+088000000000000
+088088888000000
+088088888000000
+088000000000000
+088088888000000
+088088888000000
+088800000000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777f777777777f

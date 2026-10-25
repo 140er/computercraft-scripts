@@ -1,0 +1,37 @@
+29x12 Turtle detail with an unknown inventory at 29x12
+ TURTLE #2  --------- mining 
+ pose ··········· 12,60,-5 E 
+ fuel ··················· 42 
+ inventory ········· unknown 
+ lease ············· lease-2 
+ step ·············· forward 
+ ore ···················· 14 
+ seen ··················· 3s 
+ b1 |||········· 12/48       
+                             
+                             
+  PARK ALL   REMOVE    BACK  
+000000000000ccccccccc0dddddd0
+088880ccccccccccc000000000000
+088880ccccccccccccccccccc0110
+08888888880ccccccccc011111110
+0888880ccccccccccccc000000000
+088880cccccccccccccc000000000
+08880cccccccccccccccccccc0000
+088880ccccccccccccccccccc0000
+08803338888888880000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+000000000000eeeeeeee000000000
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777f77777777ff777777f
