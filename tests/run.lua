@@ -845,6 +845,18 @@ if failed > 0 then os.exit(1) end
 dofile("tests/ui/inventory.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+
+
+test("B4-A KEEP preserves sealing eligibility independently of the selected IDs", function()
+  local mine = assert(loadfile("so-mine-plan.lua"))()
+  local item = {slot=1,name="minecraft:cobblestone",count=64}
+  assert(mine.sealable(item))
+  equal(mine.cleanup({item},false,nil,{item.name}),{})
+  local surplus, stock = mine.unload({item},{item.name})
+  equal(surplus,nil) equal(stock,true)
+end)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
 dofile("tests/so/build-picker.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
