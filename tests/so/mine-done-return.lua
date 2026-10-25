@@ -81,6 +81,111 @@ local function miner(config)
   return f
 end
 
+local P = dofile("so-plan.lua")
+local M = dofile("so-mine-plan.lua")
+local function recaller()
+  local f=miner()
+  f.actual,f.journals,f.open,f.held,f.clear={},{},{},{},{}
+  f.assessments,f.admissions=0,0
+  local oldSend=f.mods.lease.send
+  f.mods.lease.send=function(id,steps,opts)
+    assert(not f.open[id],"overlapping recall leases")
+    if opts.journal then assert(opts.journal==f.journals[id],"stale journal") end
+    local lid=oldSend(id,steps,opts) f.open[id]=f.calls[#f.calls] return lid
+  end
+  f.mods.lease.status=function(id)
+    if f.status[id] then return f.status[id] end
+    local p=f.actual[id]
+    return {parkBatch=true,setupFence=true,journal=f.journals[id],open=f.open[id] and "open",
+      pose=p and {x=p.x,y=p.y,z=p.z,f=p.facing}}
+  end
+  f.mods.cells.reserve=function(who,x,y,z,dim)
+    local key=M.key({dim=dim,x=x,y=y,z=z})
+    if f.held[key] and f.held[key]~=who then return false,"held" end
+    f.held[key]=who return true
+  end
+  f.mods.cells.reserveMany=function(who,cells)
+    for _,c in ipairs(cells) do
+      local key=M.key(c) if f.held[key] and f.held[key]~=who then return false,"held" end
+    end
+    for _,c in ipairs(cells) do f.held[M.key(c)]=who end
+    return true
+  end
+  f.mods.cells.owner=function(x,y,z,dim) return f.held[M.key({dim=dim,x=x,y=y,z=z})] end
+  f.mods.cells.list=function(who)
+    local cells={}
+    for key,held in pairs(f.held) do
+      if held==who then
+        local x,y,z=key:match("^([%-0-9]+),([%-0-9]+),([%-0-9]+)$")
+        cells[#cells+1]={dim=f.job.dim,x=tonumber(x),y=tonumber(y),z=tonumber(z)}
+      end
+    end
+    return cells
+  end
+  f.mods.cells.release=function(who,x,y,z,dim)
+    local key=M.key({dim=dim,x=x,y=y,z=z}) if f.held[key]==who then f.held[key]=nil end return true
+  end
+  f.mods.cells.releaseOwner=function(who)
+    for key,held in pairs(f.held) do if held==who then f.held[key]=nil end end return true
+  end
+  f.mods.cells.isDug=function(x,y,z,dim) return f.clear[M.key({dim=dim,x=x,y=y,z=z})]==true end
+  f.mods.cells.admit=function(_,from,op,target)
+    f.admissions=f.admissions+1
+    if f.deny then return false,"protected" end
+    if f.finalDeny then return false,"changed protection" end
+    return true
+  end
+  f.mods.lease.assess=function(_,from,steps)
+    f.assessments=f.assessments+1
+    return P.assess(from,steps,{admit=function() return not f.deny,"protected" end,
+      clear=function(p) return f.clear[M.key(p)]==true end})
+  end
+  f.add=function(id,x,y,z,facing)
+    local row=f.row(id)
+    row.pose={dim=f.job.dim,x=x,y=y,z=z,facing=facing or 1}
+    row.anchor,row.route,row.index=copy(row.pose),{copy(row.pose)},2
+    f.actual[id],f.journals[id]=copy(row.pose),"j0"
+    f.clear[M.key(row.pose)]=true
+    return row
+  end
+  f.stage=function(id,x,z,facing)
+    f.input(table.concat({"staging",id,x,0,z,({[0]="n","e","s","w"})[facing or 1]}," "))
+    assert(f.job.staging[tostring(id)],"staging was refused")
+    local row=f.job.turtles[tostring(id)]
+    local path=M.supplyRoute(f.job,row,f.job.staging[tostring(id)])
+    for _,p in ipairs(path or {}) do f.clear[M.key(p)]=true end
+  end
+  f.step=function(id,ok,actual,extra)
+    local q=assert(f.open[id],"no open lease") f.open[id]=nil
+    local results={}
+    local p=copy(f.actual[id])
+    for i,step in ipairs(q.steps) do
+      results[i]={ok=ok~=false,err=ok==false and "blocked" or nil}
+      if ok~=false then p=P.apply(p,step.op) end
+    end
+    p=actual or p f.actual[id]=copy(p)
+    f.journals[id]=f.journals[id].."n"
+    local facts={pose={x=p.x,y=p.y,z=p.z,f=p.facing},journal=f.journals[id],
+      inv=copy(f.job.turtles[tostring(id)].inv),fuel=f.job.turtles[tostring(id)].fuel}
+    for k,v in pairs(extra or {}) do facts[k]=v end
+    f.now=f.now+100
+    f.report(id,results,facts)
+    return q
+  end
+  f.begin=function() f.input("recall on") f.input("recall") f.mod.tick() end
+  f.finish=function()
+    for _=1,120 do
+      if f.job.recall and f.job.recall.phase=="staged" then return end
+      local ran=false
+      for id in pairs(f.open) do f.step(id) ran=true break end
+      f.mod.tick()
+      if not ran and not next(f.open) then error("recall made no progress") end
+    end
+    error("recall did not stage")
+  end
+  return f
+end
+
 return function(test, equal)
   test("mine-done-return: a finished miner recovered away from its branch end returns there", function()
     local net = H.new()
@@ -300,4 +405,492 @@ return function(test, equal)
     f.saveOK=false f.input("add 3 12 -2 -5 e")
     equal(f.job.complete,true) equal(f.job.turtles["3"],nil)
   end)
+  test("B4-A KEEP sorts exact IDs and waits for outstanding batches",function()
+    local f=miner() f.row(2)
+    equal(f.job.keep,{}) equal(f.job.recallEnabled,false) equal(f.job.staging,{})
+    f.input("keep minecraft:tuff,minecraft:cobblestone minecraft:tuff")
+    equal(f.job.keep,{"minecraft:cobblestone","minecraft:tuff"})
+    f.status[2]={open="busy"} f.input("keep none") equal(#f.job.keep,2)
+    f.status[2]={lost=true} f.input("keep none") equal(#f.job.keep,2)
+    f.status[2]={} f.input("keep bad:id*") equal(#f.job.keep,2)
+    local names={} for i=1,65 do names[i]="mod:item"..i end
+    f.input("keep "..table.concat(names,",")) equal(#f.job.keep,2)
+    f.saveOK=false f.input("keep none") equal(#f.job.keep,2)
+    f.saveOK=true f.input("keep none") equal(f.job.keep,{})
+  end)
+  test("B4-A KEEP excludes selected cleanup and reserves shared sealing stock before bounded surplus",function()
+    local inv={{slot=1,name="minecraft:cobblestone",count=32},
+      {slot=2,name="minecraft:cobblestone",count=120},
+      {slot=3,name="minecraft:coal",count=64},{slot=4,name="minecraft:diamond_pickaxe",count=1},
+      {slot=5,name="minecraft:raw_iron",count=35}}
+    equal(M.cleanup(inv,false,nil,{"minecraft:cobblestone"}),{})
+    equal(M.cleanup(inv,false),{{op="select",slot=2},{op="discard",side="down"}})
+    local surplus,stock=M.unload(inv,{"minecraft:cobblestone","minecraft:coal","minecraft:diamond_pickaxe"})
+    equal(surplus,{slot=2,n=64}) equal(stock,true)
+    inv[2].count=13 equal(M.unload(inv,{"minecraft:cobblestone"}),{slot=2,n=13})
+    table.remove(inv,2) equal(M.unload(inv,{"minecraft:cobblestone"}),{slot=5,n=35})
+    inv[4]=nil equal(M.unload(inv,{"minecraft:cobblestone"}),nil)
+  end)
+  test("B4-A KEEP never bypasses the fewer-than-two-free-slots unload trigger",function()
+    local f=miner() local row=f.row(2)
+    f.input("keep minecraft:cobblestone")
+    row.inv={} for i=1,16 do row.inv[i]={slot=i,name="minecraft:cobblestone",count=64} end
+    f.mods.drops.pick=function(kind)
+      equal(kind,"ore") return {point={id="ore",dim=0,x=0,y=-1,z=0,side="down"}}
+    end
+    f.job.running=true f.mod.tick()
+    assert(row.trip and row.trip.kind=="ore")
+    for _,q in ipairs(f.calls) do for _,step in ipairs(q.steps) do assert(step.op~="discard") end end
+  end)
+  test("B4-A KEEP unload recalculates positive counts after reports and holds for headroom or sealing stock",function()
+    local f=miner() local row=f.row(2) f.input("keep minecraft:cobblestone")
+    row.inv={} for i=1,16 do row.inv[i]={slot=i,name="minecraft:torch",count=64} end
+    row.inv[1]={slot=1,name="minecraft:cobblestone",count=32}
+    row.inv[2]={slot=2,name="minecraft:cobblestone",count=90}
+    row.trip={kind="ore",stage="out",stand=copy(row.pose),back=copy(row.pose),
+      point={id="ore",dim=f.job.dim,x=10,y=-3,z=-5,side="down"}}
+    f.mods.drops.steps=function() return {{op="inspectDown"},{op="dropDown"}} end
+    f.job.running=true f.mod.tick()
+    equal(f.calls[1].steps[1],{op="select",slot=2}) equal(f.calls[1].steps[3],{op="dropDown",n=64})
+    row.inv[2].count=26
+    f.report(2,{{ok=true},{ok=true,data={name="minecraft:chest"}},{ok=true}},
+      {pose={x=row.pose.x,y=row.pose.y,z=row.pose.z,f=row.pose.facing},inv=copy(row.inv),fuel=row.fuel})
+    f.mod.tick() equal(f.calls[2].steps[3],{op="dropDown",n=26})
+    table.remove(row.inv,2)
+    f.mod.tick() equal(row.state,"hold") equal(row.error,"KEEP needs two free slots") equal(row.trip.stage,"out")
+    table.remove(row.inv,2) row.parkUntil=nil f.mod.tick() equal(row.trip.stage,"back")
+    row.trip.stage="out" table.remove(row.inv,1) row.parkUntil=nil f.mod.tick()
+    equal(row.error,"KEEP needs sealing stock") equal(row.trip.stage,"out")
+    for _,q in ipairs(f.calls) do
+      for _,step in ipairs(q.steps) do if step.op=="dropDown" then assert(step.n and step.n>0 and step.n<=64) end end
+    end
+  end)
+  test("B4-A recall refuses old unknown and partly capable workers",function()
+    for _,caps in ipairs({{}, {parkBatch=true}, {setupFence=true}}) do
+      local f=recaller() f.add(2,0,0,-1) f.stage(2,3,2)
+      f.status[2]=caps f.input("recall on") f.input("recall")
+      equal(f.job.recall,nil) equal(#f.calls,0)
+      assert(f.events[#f.events].data.text:find("parkBatch and setupFence",1,true))
+    end
+    local f=recaller() f.add(2,0,0,-1) f.stage(2,3,2) f.input("recall") equal(f.job.recall,nil)
+  end)
+  test("B4-A staging rejects shared lane chest access and duplicate destinations",function()
+    local f=recaller() f.add(2,0,0,-1) f.add(3,1,0,-1)
+    for _,cmd in ipairs({"staging 2 0 0 -1 e","staging 2 0 0 1 e","staging 2 4 -1 3 e"}) do
+      f.input(cmd) equal(f.job.staging["2"],nil)
+    end
+    f.stage(2,3,2) f.input("staging 3 3 0 2 n") equal(f.job.staging["3"],nil)
+    f.saveOK=false f.input("staging 3 5 0 4 n") equal(f.job.staging["3"],nil)
+  end)
+  test("B4-A recall saves before dispatch and drains active batches before snapshotting cursors",function()
+    local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,3,2)
+    f.saveOK=false f.input("recall on") equal(f.job.recallEnabled,false)
+    f.saveOK=true f.input("recall on") f.saveOK=false f.input("recall")
+    equal(f.job.recall,nil) equal(#f.calls,0)
+    f.saveOK=true f.status[2]={parkBatch=true,setupFence=true,open="dig"}
+    f.input("recall") f.mod.tick() equal(#f.calls,0)
+    local worker=f.job.recall.workers["2"] equal(worker.phase,"draining")
+    local nextBranch=f.job.progress.nextBranch
+    f.status[2]=nil row.index=7 f.mod.tick()
+    equal(worker.cursor.index,7) equal(worker.cursor.branch,row.branch)
+    equal(f.job.progress.nextBranch,nextBranch) assert(f.calls[1].steps[1].park)
+  end)
+  test("B4-A recall sends only acknowledged non-digging fenced stationary prefixes and reserves the lane exit",function()
+    local f=recaller() local row=f.add(2,0,-2,-3,0) f.stage(2,3,2,3)
+    local cursor=copy(row.route) local index=row.index
+    f.begin()
+    local worker=f.job.recall.workers["2"]
+    for _,cell in ipairs(worker.remaining) do equal(f.held[M.key(cell)],"mine:2") end
+    f.finish()
+    equal(worker.phase,"staged") equal(row.pose,f.job.staging["2"])
+    equal(row.route,cursor) equal(row.index,index) equal(f.job.running,false)
+    assert(f.assessments>0 and f.admissions>0)
+    for _,q in ipairs(f.calls) do
+      assert(q.steps[1].park) assert(q.opts.journal)
+      local motions=0
+      for i,step in ipairs(q.steps) do
+        assert(step.op~="dig" and step.op~="digUp" and step.op~="digDown" and step.op~="place")
+        if P.moves[step.op] or P.turns[step.op] then motions=motions+1 equal(i,#q.steps) end
+      end
+      assert(motions<=1)
+    end
+  end)
+  test("B4-A recall holds unknown cells and both assessment and final admission refusals",function()
+    for _,kind in ipairs({"unknown","assessment","final"}) do
+      local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,3,2)
+      if kind=="unknown" then f.clear["1,0,-1"]=nil
+      elseif kind=="assessment" then f.deny=true else f.finalDeny=true end
+      f.begin() equal(f.job.recall.workers["2"].phase,"blocked")
+      for _,q in ipairs(f.calls) do equal(q.steps,{{op="inspectDown",park=true}}) end
+      equal({row.pose.x,row.pose.y,row.pose.z},{0,0,-1})
+      if kind=="final" then assert(f.admissions>0) end
+    end
+  end)
+  test("B4-A failed recall movement waits for stationary reconciliation before a dependent turn",function()
+    local f=recaller() local row=f.add(2,0,0,-1,3) f.stage(2,-1,2)
+    f.begin() equal(f.open[2].steps[1].op,"forward")
+    local held=copy(f.held) f.step(2,false)
+    equal(row.recover,true) equal(f.held,held)
+    f.mod.tick() equal(f.open[2].steps,{{op="inspectDown",park=true}}) assert(f.open[2].opts.recover)
+    equal(row.pose.x,0)
+    f.step(2) f.mod.tick()
+    equal(row.recover,false) equal(f.open[2].steps[1].op,"forward")
+    f.step(2)
+    if not f.open[2] then f.mod.tick() end
+    equal(f.open[2].steps[1].op,"turnLeft")
+  end)
+  test("B4-A expired and unexpected recall reports retain occupied and uncertain cells",function()
+    for _,kind in ipairs({"expired","unexpected","stale","uncertain"}) do
+      local f=recaller() local row=f.add(2,0,0,-1,1) f.stage(2,3,2) f.begin()
+      local held=copy(f.held)
+      if kind=="expired" then f.open[2]=nil f.report(2,nil,nil)
+      elseif kind=="unexpected" then
+        local actual=copy(f.actual[2]) actual.x=7 f.step(2,true,actual)
+      elseif kind=="stale" then f.step(2,true,nil,{journal=f.journals[2]})
+      else f.step(2,true,nil,{uncertain=true}) end
+      equal(row.recover,true) equal(f.held,held) equal(row.pose.x,0)
+      f.mod.tick() assert(f.open[2].opts.recover) assert(f.open[2].steps[1].park)
+    end
+  end)
+  test("B4-A low-fuel recall uses inventory fuel or parks without digging",function()
+    for _,stock in ipairs({false,true}) do
+      local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,3,2)
+      row.fuel=0 if stock then row.inv={{slot=1,name="minecraft:coal",count=1}} end
+      f.begin()
+      equal(f.job.recall.workers["2"].phase,"fuel")
+      if stock then
+        equal(f.calls[1].steps,{{op="select",slot=1,park=true},{op="refuel",n=1}})
+      else equal(f.calls[1].steps,{{op="inspectDown",park=true}}) end
+      for _,q in ipairs(f.calls) do for _,step in ipairs(q.steps) do assert(not step.op:match("^dig") and not step.op:match("^place")) end end
+    end
+  end)
+  test("B4-A recall restart recovers the journal before replacing stale routes and preserves STOP and disabled intents",function()
+    local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,3,2) f.begin()
+    f.step(2)
+    local worker=f.job.recall.workers["2"] local cursor=copy(worker.cursor)
+    worker.remaining={{dim=f.job.dim,x=999,y=999,z=999}}
+    f.open[2]=nil f.restart()
+    equal(worker.remaining,nil) assert(row.recover) assert(f.open[2].opts.recover)
+    equal(f.open[2].steps,{{op="inspectDown",park=true}})
+    f.step(2) f.input("stop") f.input("recall off")
+    equal(f.job.running,false) equal(worker.cursor,cursor) assert(f.job.recall)
+    if f.open[2] then f.step(2) end
+    f.mod.tick()
+    if f.open[2] then equal(f.open[2].steps,{{op="inspectDown",park=true}}) f.step(2) end
+    f.input("start") f.mod.tick() f.finish()
+    equal(row.pose,f.job.staging["2"]) equal(worker.cursor,cursor)
+    f.open[2]=nil f.restart() assert(f.open[2].opts.recover) f.step(2) f.mod.tick()
+    equal(worker.phase,"staged") equal(f.job.running,false)
+  end)
+  test("B4-A recall completes only after every worker stages and START returns to unfinished cursors",function()
+    local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,3,2)
+    local other=f.add(3,5,0,3) f.stage(3,5,4,2)
+    local original,index=copy(row.pose),row.index
+    f.begin() f.finish()
+    equal(f.job.recall.workers["3"].phase,"staged") equal(other.pose,f.job.staging["3"])
+    if f.open[2] then f.step(2) end if f.open[3] then f.step(3) end
+    f.input("start")
+    equal(f.job.recall.phase,"resuming")
+    for _=1,120 do
+      if not f.job.recall then break end
+      for id in pairs(f.open) do f.step(id) break end
+      if f.job.recall then f.mod.tick() end
+    end
+    equal(f.job.recall,nil) equal(row.pose,original) equal(row.index,index)
+  end)
+
+  test("B4-A real B3-A admission refuses protected recall entry and automatic protected exits",function()
+    for _,inside in ipairs({false,true}) do
+      local fixture=dofile("tests/so/protected.lua")
+      local a=fixture.setup()
+      local so=a.m.env.SO
+      local pose=copy(a.pose)
+      local j={homeSet=true,home={x=0,y=0,z=0,facing=1},bottom=-2,length=4,dim=pose.dim,
+        mode="fast",ores={},turtles={["2"]={pose=pose,anchor=copy(pose),
+          frame={dim=pose.dim,ox=0,oy=0,oz=0,rot=0},inv={},fuel=100,state="stopped",branch=0,
+          route={copy(pose)},index=2}},running=false,progress={nextBranch=1,done=0}}
+      assert(so.store.store("so-data/mine/job",function(v) return type(v)=="table" end).save(j))
+      local input
+      so.mods.display={screen=function(_,_,fn) input=fn end}
+      so.mods.state={emit=function() end,canStart=function() return true end}
+      so.mods.drops={list=function() return {} end}
+      a.m.install({"so-mod-mine.lua","so-mine-plan.lua"})
+      local mine=a.m.env.dofile("so-mod-mine.lua") so.mods.mine=mine
+      a.lease.describe=function() end
+      mine.tick() a.report()
+      local blocked=inside and 0 or 2
+      assert(a.cells.protect({a.box("recall-box",blocked,blocked)}))
+      input({text="staging 2 3 0 2 e"})
+      local row=j.turtles["2"]
+      for _,cell in ipairs(M.supplyRoute(j,row,{dim=pose.dim,x=3,y=0,z=2})) do
+        assert(a.cells.markDug(cell.x,cell.y,cell.z,cell.dim))
+      end
+      input({text="recall on"}) input({text="recall"}) mine.tick()
+      local function lastBatch()
+        for i=#a.sent,1,-1 do if a.sent[i].body.steps then return a.sent[i] end end
+      end
+      if not inside then
+        equal(lastBatch().body.steps[1].op,"forward") a.report()
+      end
+      mine.tick()
+      equal(lastBatch().body.steps,{{op="inspectDown",park=true}})
+      for _,wire in ipairs(a.sent) do
+        for _,step in ipairs(wire.body.steps or {}) do assert(not step.op:match("^dig")) end
+      end
+      local view=mine.turtleView()["2"]
+      equal(view.error,"protected") equal(view.pose.x,inside and 0 or 1)
+      equal(a.cells.owner(view.pose.x,view.pose.y,view.pose.z,view.pose.dim),"mine:2")
+      if not inside then assert(#a.cells.list("mine:2")>1,"recall released its reserved pass") end
+    end
+  end)
+  test("B4-A real worker keeps a recall travel prefix stationary through expiry and reboot",function()
+    local F=dofile("tests/so/worker-fixture.lua")
+    local a=F.setup(nil,{"so-mod-lease.lua","so-mod-cells.lua","so-plan.lua","so-mine-plan.lua"})
+    local so=a.s.env.SO
+    local pose={dim="minecraft:overworld",x=0,y=0,z=0,facing=0}
+    local j={homeSet=true,home={x=0,y=0,z=1,facing=0},bottom=-2,length=4,dim=pose.dim,
+      mode="fast",ores={},turtles={["2"]={pose=pose,anchor=copy(pose),
+        frame={dim=pose.dim,ox=0,oy=0,oz=0,rot=0},inv={},fuel=100,state="stopped",branch=0,
+        route={copy(pose)},index=2}},running=false,progress={nextBranch=1,done=0}}
+    assert(so.store.store("so-data/mine/job",function(v) return type(v)=="table" end).save(j))
+    local input
+    so.mods.display={screen=function(_,_,fn) input=fn end}
+    so.mods.drops={list=function() return {} end}
+    a.s.install({"so-mod-mine.lua"})
+    local mine=a.s.env.dofile("so-mod-mine.lua") so.mods.mine=mine
+    mine.tick() a.n.advance(1)
+    input({text="staging 2 3 0 2 e"})
+    for _,cell in ipairs(M.supplyRoute(j,j.turtles["2"],{dim=pose.dim,x=3,y=0,z=2})) do
+      assert(so.mods.cells.markDug(cell.x,cell.y,cell.z,cell.dim))
+    end
+    local send=a.t.env.rednet.send
+    a.t.env.rednet.send=function(id,wire,protocol)
+      local msg=a.t.env.dofile("so-proto.lua").decode(wire)
+      if msg and msg.t=="step.report" and a.t.pos.x>0 then return true end
+      return send(id,wire,protocol)
+    end
+    input({text="recall on"}) input({text="recall"}) mine.tick() a.n.advance(2)
+    for _=1,5 do mine.tick() a.n.advance(1) if a.t.pos.x>0 then break end end
+    assert(a.t.pos.x==1,"worker did not move "..H.encode(mine.turtleView()).." batches "..H.encode(F.sent(a.s,"lease.batch")))
+    local batches=F.sent(a.s,"lease.batch") local batch=batches[#batches].body
+    equal(batch.steps,{{op="forward",park=true}}) assert(batch.journal)
+    a.n.kill(a.s) a.n.advance(95)
+    assert(a.t.alive(),tostring(a.t.error)) equal(a.t.pos.x,1) equal(a.t.pos.z,0)
+    equal(F.journal(a.t).park,true)
+    local physical,heading=copy(a.t.pos),a.t.heading
+    a.n.onBoot=function(m) if m.id==2 then m.pos=copy(physical) m.heading=heading end end
+    a.t=a.n.boot(a.t) a.n.onBoot=nil a.n.advance(95)
+    assert(a.t.alive(),tostring(a.t.error)) equal(a.t.pos.x,1) equal(a.t.pos.z,0)
+  end)
+
+  test("B4-A low-fuel service stays on clear fenced prefixes and preserves the frozen mining trip",function()
+    local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,100,2)
+    row.fuel=70
+    row.trip={kind="ore",stage="out",back=copy(row.pose),stand=copy(row.pose),point={id="old"}}
+    local frozen=copy(row.trip)
+    f.mods.drops.pick=function(kind)
+      equal(kind,"fuel") return {point={id="fuel",dim=0,x=3,y=-1,z=-1,side="down"}}
+    end
+    f.begin()
+    for _=1,8 do
+      local q=assert(f.open[2])
+      if q.steps[#q.steps].op=="suckDown" then break end
+      f.step(2) f.mod.tick()
+    end
+    equal(row.pose.x,3) equal(f.open[2].steps[#f.open[2].steps],{op="suckDown",n=64})
+    f.step(2,true,nil,{inv={{slot=1,name="minecraft:coal",count=64}}}) f.mod.tick()
+    equal(f.open[2].steps[2].op,"refuel")
+    f.step(2,true,nil,{fuel=230,inv={{slot=1,name="minecraft:coal",count=62}}}) f.mod.tick()
+    for _=1,12 do
+      if not f.job.recall.workers["2"].service then break end
+      if f.open[2] then f.step(2) end
+      f.mod.tick()
+    end
+    equal(row.trip,frozen) equal(f.job.recall.workers["2"].service,nil)
+    for _,q in ipairs(f.calls) do
+      assert(q.steps[1].park and q.opts.journal)
+      for _,step in ipairs(q.steps) do assert(not step.op:match("^dig") and not step.op:match("^place")) end
+    end
+  end)
+  test("B4-A low-fuel service refuses a trip that would consume its reserve",function()
+    local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,100,2) row.fuel=65
+    f.mods.drops.pick=function() return {point={id="fuel",dim=0,x=3,y=-1,z=-1,side="down"}} end
+    f.begin()
+    equal(f.job.recall.workers["2"].service,nil)
+    equal(f.open[2].steps,{{op="inspectDown",park=true}})
+  end)
+  test("B4-A draining recall suppresses new vein claims from the last mining scan",function()
+    local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,3,2)
+    row.scan={index=1,facing=row.pose.facing} f.job.running=true f.mod.tick()
+    equal(f.open[2].steps[1].op,"inspect")
+    f.input("recall on") f.input("recall")
+    equal(f.job.recall.workers["2"].phase,"draining")
+    f.open[2]=nil f.journals[2]="j1"
+    f.report(2,{{ok=true,data={name="minecraft:diamond_ore"}}},
+      {pose={x=0,y=0,z=-1,f=1},journal="j1",fuel=row.fuel,inv={}})
+    equal(row.veins,nil) equal(f.job.progress.nextBranch,0)
+  end)
+  test("B4-A recall dispatch refuses a failed intent save before any worker message",function()
+    local f=recaller() f.add(2,0,0,-1) f.stage(2,3,2)
+    f.input("recall on") f.input("recall") f.saveOK=false f.mod.tick()
+    equal(#f.calls,0) equal(f.job.running,false) assert(f.job.recall)
+  end)
+
+  test("B4-A recall treats unknown fuel as service pending and leaves offline workers pending",function()
+    local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,3,2) row.fuel=nil
+    f.begin() equal(f.job.recall.workers["2"].phase,"fuel")
+    equal(f.open[2].steps,{{op="inspectDown",park=true}})
+    f.open[2]=nil f.status[2]={parkBatch=true,setupFence=true,journal=f.journals[2],lost=true}
+    f.mod.tick() equal(row.recover,true) equal(f.job.recall.phase,"returning")
+    assert(f.open[2].opts.recover and f.open[2].steps[1].park)
+  end)
+  test("B4-A a failed recall completion save preserves the saved cursor and intent",function()
+    local f=recaller() f.add(2,0,0,-1) f.stage(2,3,2) f.begin() f.finish()
+    local pending=f.job.recall
+    if f.open[2] then f.step(2) end
+    f.input("start") f.saveOK=false
+    local worker=pending.workers["2"]
+    worker.phase="resumed"
+    f.mod.tick()
+    equal(f.job.recall,pending) equal(f.job.recall.phase,"resuming")
+    assert(worker.cursor) equal(f.job.running,false)
+  end)
+
+  test("B4-A restart cannot complete recall while a previously staged offline worker still needs recovery",function()
+    local f=recaller() f.add(2,0,0,-1) f.stage(2,3,2)
+    local offline=f.add(3,5,0,4) f.stage(3,5,4) f.begin()
+    equal(f.job.recall.workers["3"].phase,"staged")
+    f.open[2],f.open[3]=nil,nil
+    f.status[3]={parkBatch=true,setupFence=true,journal=f.journals[3],lost=true}
+    f.restart() assert(offline.recover) f.status[3].open="recovery"
+    f.step(2)
+    for _=1,60 do
+      if f.job.recall.workers["2"].phase=="staged" then break end
+      f.mod.tick() if f.open[2] then f.step(2) end
+    end
+    equal(f.job.recall.workers["2"].phase,"staged")
+    equal(f.job.recall.phase,"returning") equal(f.job.running,true) assert(offline.recover)
+    f.status[3]=nil f.step(3) f.mod.tick()
+    equal(offline.recover,false) equal(f.job.recall.phase,"staged") equal(f.job.running,false)
+  end)
+
+  test("B4-A review P1 explicit re-add reconciles a rebooted uncertain worker without losing recall claims or reservations",function()
+    local a=dofile("tests/so/protected.lua").setup()
+    local so=a.m.env.SO
+    local pose=copy(a.pose)
+    local j={homeSet=true,home={x=0,y=0,z=0,facing=1},bottom=-2,length=4,dim=pose.dim,
+      mode="fast",ores={},turtles={["2"]={pose=pose,anchor=copy(pose),
+        frame={dim=pose.dim,ox=0,oy=0,oz=0,rot=0},inv={},fuel=100,state="stopped",branch=0,
+        route={copy(pose)},index=2}},running=false,progress={nextBranch=1,done=0},unfinished={4}}
+    assert(so.store.store("so-data/mine/job",function(v) return type(v)=="table" end).save(j))
+    local input
+    so.mods.display={screen=function(_,_,fn) input=fn end}
+    so.mods.state={emit=function() end,canStart=function() return true end}
+    so.mods.drops={list=function() return {} end}
+    a.m.install({"so-mod-mine.lua","so-mine-plan.lua"})
+    local mine=a.m.env.dofile("so-mod-mine.lua") so.mods.mine=mine a.lease.describe=function() end
+    mine.tick() a.report()
+    input({text="staging 2 3 0 2 e"})
+    for _,cell in ipairs(M.supplyRoute(j,j.turtles["2"],{dim=pose.dim,x=3,y=0,z=2})) do
+      assert(a.cells.markDug(cell.x,cell.y,cell.z,cell.dim))
+    end
+    input({text="recall on"}) input({text="recall"}) mine.tick()
+    local function saved() return so.store.read("so-data/mine/job").value end
+    local cursor=copy(saved().recall.workers["2"].cursor)
+    local reservations=a.cells.list("mine:2") assert(#reservations>1)
+    a.lease.handlers.hello({from=2,body={role="turtle",dim=pose.dim,fuel=100,
+      capabilities={parkBatch=true,setupFence=true},journal={id="uncertain-turn",uncertain=true}}})
+    mine.tick() assert(a.lease.status(2).uncertain)
+    input({text="stop"}) input({text="recall off"}) input({text="add 2 0 0 0 e"})
+    equal(a.sent[#a.sent].kind,"worker.anchor")
+    equal(saved().recall.workers["2"].cursor,cursor) equal(saved().unfinished,{4})
+    equal(saved().turtles["2"].route,j.turtles["2"].route)
+    for _,cell in ipairs(reservations) do equal(a.cells.owner(cell.x,cell.y,cell.z,cell.dim),"mine:2") end
+    mine=a.m.env.dofile("so-mod-mine.lua") so.mods.mine=mine mine.tick()
+    equal(a.sent[#a.sent].kind,"worker.anchor")
+    a.lease.handlers.hello({from=2,body={role="turtle",dim=pose.dim,fuel=100,
+      capabilities={parkBatch=true,setupFence=true},journal={id="anchored",pose={x=0,y=0,z=0,f=1},
+        recovery={outcome="anchored",journal="uncertain-turn"}}}})
+    mine.tick()
+    equal(a.sent[#a.sent].body.steps,{{op="inspectDown",park=true}})
+    equal(a.sent[#a.sent].body.journal,"anchored") a.report()
+    equal(saved().recall.workers["2"].cursor,cursor) equal(saved().unfinished,{4})
+    equal(saved().turtles["2"].recover,false) equal(saved().recallEnabled,false)
+    input({text="start"}) mine.tick()
+    assert(a.sent[#a.sent].body.steps[1].park)
+    equal(mine.turtleView()["2"].pose,pose)
+  end)
+  test("B4-A review P1 START restores a frozen shared-lane cursor after workers that still need its pass",function()
+    local f=recaller() local lane=f.add(2,0,-2,-3,0) f.stage(2,3,2)
+    local branch=f.add(3,2,-2,-5,1) f.stage(3,5,4)
+    local lanePose,branchPose=copy(lane.pose),copy(branch.pose)
+    f.begin() f.finish()
+    for id in pairs(f.open) do f.step(id) end
+    f.input("start")
+    local sawWait=false
+    for _=1,200 do
+      if not f.job.recall then break end
+      f.mod.tick()
+      local workers=f.job.recall.workers
+      if workers["3"].phase~="resumed" then
+        sawWait=sawWait or lane.state=="wait resume"
+        equal(lane.pose,f.job.staging["2"])
+      end
+      local ids={} for id in pairs(f.open) do ids[#ids+1]=id end
+      for _,id in ipairs(ids) do if f.open[id] then f.step(id) end end
+    end
+    assert(sawWait,"lane cursor did not wait for the other return")
+    equal(f.job.recall,nil) equal(lane.pose,lanePose) equal(branch.pose,branchPose)
+  end)
+  test("B4-A review P2 a restarted resume fuel detour returns to its departure before reconnecting to the frozen route",function()
+    local f=recaller() local row=f.add(2,0,-2,-3,0) f.stage(2,100,2)
+    local original=copy(row.pose)
+    f.begin() f.finish()
+    if f.open[2] then f.step(2) end
+    row.fuel=70
+    f.clear["101,0,2"]=true
+    f.mods.drops.pick=function() return {point={id="resume-fuel",dim=0,x=101,y=-1,z=2,side="down"}} end
+    f.input("start") f.mod.tick()
+    for _=1,6 do
+      if row.pose.x==101 then break end
+      f.step(2) f.mod.tick()
+    end
+    equal(row.pose.x,101) assert(f.job.recall.workers["2"].service)
+    f.open[2]=nil f.restart() assert(f.open[2].opts.recover)
+    f.step(2) f.mod.tick()
+    equal(f.open[2].steps[#f.open[2].steps].op,"suckDown")
+    f.step(2,true,nil,{inv={{slot=1,name="minecraft:coal",count=8}}}) f.mod.tick()
+    equal(f.open[2].steps[#f.open[2].steps].op,"refuel")
+    f.step(2,true,nil,{fuel=4000,inv={{slot=1,name="minecraft:coal",count=5}}}) f.mod.tick()
+    local reconnected=false
+    for _=1,180 do
+      if not f.job.recall then break end
+      local service=f.job.recall.workers["2"].service
+      if not service then reconnected=true end
+      assert(row.error~="resume pose outside confirmed recall route")
+      if f.open[2] then f.step(2) end
+      if f.job.recall then f.mod.tick() end
+    end
+    assert(reconnected,"fuel service did not reconnect")
+    equal(f.job.recall,nil) equal(row.pose,original)
+  end)
+  test("B4-A review P2 cached recall fuel retries revalidate drop suspension before touching the chest",function()
+    for _,reason in ipairs({"suspended","missing","broken","unreadable"}) do
+      local f=recaller() local row=f.add(2,0,0,-1) f.stage(2,100,2) row.fuel=70
+      local usable,checks=true,0
+      f.mods.drops.pick=function() return {point={id="cached-fuel",dim=0,x=0,y=-1,z=-1,side="down"}} end
+      f.mods.drops.usable=function(id) equal(id,"cached-fuel") checks=checks+1 return usable,reason end
+      f.begin() equal(f.open[2].steps[#f.open[2].steps].op,"suckDown")
+      usable=false f.step(2,false)
+      if f.open[2] then f.step(2) end
+      local after=#f.calls f.now=f.now+60000 f.mod.tick()
+      assert(row.error:find(reason,1,true)) assert(checks>=2)
+      for i=after+1,#f.calls do equal(f.calls[i].steps,{{op="inspectDown",park=true}}) end
+      assert(f.job.recall.workers["2"].service)
+      if f.open[2] then f.step(2) end
+      usable=true f.now=f.now+60000 f.mod.tick()
+      equal(f.open[2].steps[#f.open[2].steps].op,"suckDown") equal(row.error,nil)
+    end
+  end)
+
 end
