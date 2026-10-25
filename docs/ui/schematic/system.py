@@ -317,7 +317,17 @@ ROLES_ACK = [dict(id=1, size="57x24", role="status", label="server", state="0s")
              dict(id=7, size="15x10", role="status", label="hall", state="stale 12s", stale=True),
              dict(id=9, size="-", role="drops")]
 
+def acked(m):
+    """The status model with displayAck: the first display stale for 70 s, the next waiting, the third unverified."""
+    m = dict(m, staleDisplays=1, unverifiedDisplays=1)
+    states = [("stale", 70000), ("waiting", 0), ("unverified", 0)]
+    m["displays"] = [dict(d, state=st, ago=ago) for d, (st, ago) in zip(m["displays"], states)] + m["displays"][3:]
+    return m
+
+
 FIXTURES = [
+    ("statusack-M", lambda: ST.status(acked(ST.model()), 57, 24, "Status with displayAck, one display stale")),
+    ("statusack-W", lambda: ST.status(acked(ST.model()), 100, 38, "Status wall with displayAck, no map")),
     ("rolesack-T", lambda: terminal(ST.model(), dict(id=1, uptime="up 3h12", mode="role", log=SYS["log"], offset=0,
                                                      input="", notice="", displays=ROLES_ACK),
                                     title="Server terminal, roles (R) with displayAck")),

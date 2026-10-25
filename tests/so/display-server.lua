@@ -560,4 +560,89 @@ return function(test, equal)
     sc.d.drawTerminal(sc.now)
     equal(R.diff(R.load("tests/ui/fixtures/serverstale-T.txt"), term), {})
   end)
+
+  test("B7-U: a view.get reply that may not have gone out never pushes out a sent token", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    local D = private(s)
+    local sent = { s.frame(2).ack.token }
+    for i = 2, 4 do s.d.handlers["view.sub"]({ from = 2 }); sent[i] = s.frame(2).ack.token end
+    -- The production reply returns nothing whether or not the frame went out.
+    local lost
+    s.d.handlers["view.get"]({ from = 2, rid = "2-9-1" }, function(_, body) lost = body.ack.token end)
+    assert(lost, "view.get still carries a challenge")
+    equal(#D.sessions[2].ack.pending, 4)
+    for i = 1, 4 do equal(D.sessions[2].ack.pending[i].token, sent[i]) end
+    ack(s, 2, sent[1])
+    equal(D.sessions[2].ack.heard, 0, "the oldest sent token still counts")
+    -- Below the limit a view.get token waits provisionally; the next sent frame pushes it out first.
+    s.d.handlers["view.get"]({ from = 2, rid = "2-9-2" }, function(_, body) lost = body.ack.token end)
+    s.d.handlers["view.sub"]({ from = 2 })
+    local tokens = {}
+    for _, p in ipairs(D.sessions[2].ack.pending) do tokens[p.token] = true end
+    assert(not tokens[lost], "the provisional token went first")
+    for i = 2, 4 do assert(tokens[sent[i]], "sent token " .. i .. " kept") end
+  end)
+
+  test("B7-U: a near-limit view.get with an escaped 64-byte rid still fits once signed", function()
+    local rid = string.rep('"', 32) .. string.rep("\\", 32)
+    for limit = 900, 1400, 7 do
+      local s = boot({ cfg = { displayAck = true }, proto = sized(limit) })
+      big(s)
+      s.d.handlers.hello({ from = 2, body = { w = 39, h = 13, capabilities = { frameAck = 1 } } })
+      assert(s.d.assign(2, "generic"))
+      local replied, called
+      s.d.handlers["view.get"]({ from = 2, rid = rid }, function(t, body)
+        called = true
+        replied = sized(limit).encode(sized(limit).build("key", t, body, rid))
+      end)
+      assert(not called or replied, "limit " .. limit .. ": the reply fit the probe but not the envelope")
+      assert(called, "limit " .. limit .. ": no reply")
+    end
+  end)
+
+  test("B7-U: route A rows carry stale, waiting and unverified, and fresh rows their ACK age", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    capable(s, 3)
+    s.open("status", 39, 13, 4)
+    s.clock = 1000
+    ack(s, 3, s.frame(3).ack.token)
+    s.at(3000)
+    local rows = {}
+    for _, row in ipairs(s.d.statusModel().displays) do rows[row.id] = row end
+    equal({ rows[2].state, rows[3].state, rows[4].state }, { "waiting", nil, "unverified" })
+    equal(rows[3].ago, 0)
+    equal({ s.d.statusModel().staleDisplays, s.d.statusModel().unverifiedDisplays }, { 0, 1 })
+    s.at(11000)
+    rows = {}
+    for _, row in ipairs(s.d.statusModel().displays) do rows[row.id] = row end
+    equal({ rows[2].state, rows[3].state }, { "stale", "stale" })
+    equal(rows[3].ago, 10000)
+    equal(s.d.statusModel().staleDisplays, 2)
+    local off = boot()
+    off.open("status", 39, 13, 4)
+    off.at(1000)
+    equal(off.d.statusModel().displays[1].state, nil, "flag off: no state")
+    equal(off.d.statusModel().staleDisplays, nil)
+  end)
+
+  test("B7-U: the status leaders and the wall list match their twins", function()
+    local U = dofile("so-ui.lua")
+    local sc = dofile("tests/ui/scene.lua").new()
+    local model = sc.D.gather()
+    local copy = {}
+    for k, v in pairs(model) do copy[k] = v end
+    copy.staleDisplays, copy.unverifiedDisplays, copy.thumb = 1, 1, nil
+    local states = { { "stale", 70000 }, { "waiting", 0 }, { "unverified", 0 } }
+    copy.displays = {}
+    for i, d in ipairs(model.displays) do
+      local row = {}
+      for k, v in pairs(d) do row[k] = v end
+      if states[i] then row.state, row.ago = states[i][1], states[i][2] end
+      copy.displays[i] = row
+    end
+    match("tests/ui/fixtures/statusack-M.txt", U.status(copy, 57, 24))
+    match("tests/ui/fixtures/statusack-W.txt", U.status(copy, 100, 38))
+  end)
 end

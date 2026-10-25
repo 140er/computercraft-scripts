@@ -439,12 +439,12 @@ D.sendFrame = function(id, now, force)
   if slot then session.revSent = slot.rev end
 end
 
--- With displayAck every frame is fitted before signing, in an envelope at its largest rid, at and mac
--- holding the largest challenge, so the challenge it then carries (or none) never sheds anything.
--- False when even one row and no buttons do not fit.
-D.room = function(body, challenge)
+-- With displayAck every frame is fitted before signing, in an envelope holding the largest challenge,
+-- the request's own rid (else the largest one build makes), the largest at and a full mac, so the
+-- challenge it then carries (or none) never sheds anything. False when even one row and no buttons do not fit.
+D.room = function(body, challenge, rid)
   local pad = D.reserve.token
-  local probe = { v = 1, t = "view.frame", rid = pad, from = D.self() or 0, at = 9999999999999, mac = pad, body = body }
+  local probe = { v = 1, t = "view.frame", rid = rid or pad, from = D.self() or 0, at = 9999999999999, mac = pad, body = body }
   body.ack = D.reserve
   while not SO.proto.encode(probe) do
     if #body.rows > 1 then body.rows[#body.rows] = nil
@@ -600,6 +600,8 @@ D.gather = function()
   for _, row in ipairs(D.listing()) do if row.size ~= "-" then shown = shown + 1 end end
   D.termFacts(model, lostIds, points, turtles, leases, shown, capacity, free)
   model.terminal.stale = D.ackOn and stale or nil
+  -- The route A displays leaders read these.
+  model.staleDisplays, model.unverifiedDisplays = D.ackOn and stale or nil, D.ackOn and unverified or nil
   model.oreShort = model.tiles[4].sub
   model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
   for _, alert in ipairs(model.alerts) do model.log[#model.log + 1] = alert.text end
@@ -748,8 +750,12 @@ D.facts = function(model, machines, points, today, capacity, free)
   for _, row in ipairs(D.listing()) do
     local session = D.sessions[row.id]
     if row.size ~= "-" then
-      local age = D.ackOn and session and select(3, D.freshness(session, now))
+      -- displayAck: state is stale, waiting or unverified (nil when fresh); ago counts from the last ACK.
+      local m, text, late, age = D.monitor
+      local seen = D.ackOn and (session or row.id == D.self() and m and m.heard and { ack = { heard = m.heard } })
+      if seen then text, late, age = D.freshness(seen, now) end
       model.displays[#model.displays + 1] = { id = row.id, role = row.role, size = row.size,
+        state = late and "stale" or (text == "waiting" or text == "unverified") and text or nil,
         ago = age and D.ago(age) or session and session.sent and D.ago(now - session.sent) or 0 }
     end
   end
@@ -1088,11 +1094,11 @@ D.once = function(msg, reply)
   -- The challenge goes in before reply signs the frame under the request's rid, in room fitted for it.
   local now = D.now()
   local challenge = D.challenge(session, now)
-  if D.ackOn and not D.room(body, challenge) then return end
-  if reply("view.frame", body) ~= false then
-    D.rememberFrame(session,body)
-    D.track(session, challenge, now)
-  end
+  if D.ackOn and not D.room(body, challenge, msg.rid) then return end
+  -- reply cannot report a failed send, so this token is provisional: it never pushes out a sent one.
+  reply("view.frame", body)
+  D.rememberFrame(session,body)
+  D.track(session, challenge, now, true)
 end
 
 -- displayAck challenges. A capable session keeps { started, heard?, pending = {{ token, sentAt }} }:
@@ -1105,12 +1111,18 @@ D.challenge = function(session, now)
   return { v = 1, token = string.format("%x-%x", D.serial, math.random(0, 0x3fffffff)) }
 end
 
--- Only a token that went out counts; a fifth pushes out the oldest.
-D.track = function(session, challenge, now)
+-- Only a token that went out counts. A fifth pushes out the oldest provisional (view.get) token,
+-- else the oldest; a provisional one never pushes out a sent one.
+D.track = function(session, challenge, now, provisional)
   local ack = challenge and session.ack
   if not ack then return end
-  if #ack.pending >= 4 then table.remove(ack.pending, 1) end
-  ack.pending[#ack.pending + 1] = { token = challenge.token, sentAt = now }
+  if #ack.pending >= 4 then
+    local drop = not provisional and 1 or nil
+    for i, p in ipairs(ack.pending) do if p.provisional then drop = i break end end
+    if not drop then return end
+    table.remove(ack.pending, drop)
+  end
+  ack.pending[#ack.pending + 1] = { token = challenge.token, sentAt = now, provisional = provisional }
 end
 
 D.prune = function(ack, now)

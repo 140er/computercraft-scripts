@@ -337,6 +337,17 @@ U.st.at = function(t, full)
   return full and (t.x .. "," .. t.y .. "," .. t.z) or (t.x .. "," .. t.z)
 end
 U.st.more = function(C, x, y, n) C.put(x, y, "+" .. n .. " more", "8") end
+-- The displays leader value and colour: the count, then (displayAck) stale in amber or unverified,
+-- shortened to fit after the label.
+U.st.shown = function(m, width)
+  local n, k, u = #m.displays, m.staleDisplays or 0, m.unverifiedDisplays or 0
+  if k == 0 and u == 0 then return tostring(n), "0" end
+  local count, word = k > 0 and k or u, k > 0 and "stale" or "unverified"
+  for _, v in ipairs({ n .. " " .. U.g.dot .. " " .. count .. " " .. word, count .. " " .. word }) do
+    if #v + 9 <= width then return v, k > 0 and "1" or "8" end
+  end
+  return tostring(n), "0"
+end
 U.st.diskValue = function(d)
   if not d then return "-", "8" end
   return math.floor(d.used * 100 / d.cap) .. "%", d.used * 5 >= d.cap * 4 and "e" or "0"
@@ -452,7 +463,7 @@ U.st.room = function(C, m)
   C.section(rx, top + 5, 19, "SERVER")
   U.st.disk(C, rx, top + 6, 19, m.disk)
   C.leader(rx, top + 7, 19, "leases", m.leases)
-  C.leader(rx, top + 8, 19, "displays", #m.displays)
+  C.leader(rx, top + 8, 19, "displays", U.st.shown(m, 19))
   C.leader(rx, top + 9, 19, "up", m.server.up)
   local dy = math.max(jy + 2, top + 9) + 2
   C.section(2, dy, w - 2, "DROPS", #m.drops)
@@ -515,7 +526,7 @@ U.st.wall = function(C, m)
   C.section(31, fy, 25, "SERVER")
   U.st.disk(C, 31, fy + 1, 25, d, d and string.format("%.1f/%d MB", d.used / 1e6, math.floor(d.cap / 1e6)))
   C.leader(31, fy + 2, 25, "leases", m.leases)
-  C.leader(31, fy + 3, 25, "displays", #m.displays)
+  C.leader(31, fy + 3, 25, "displays", U.st.shown(m, 25))
   C.leader(31, fy + 4, 25, "up", m.server.up)
   local dy, ds = fy + 7, m.drops
   local nd = math.min(#ds, 5)
@@ -554,7 +565,10 @@ U.st.wall = function(C, m)
     C.put(rx, y, string.format("%2d", s.id), "0")
     C.put(rx + 4, y, s.role:sub(1, 7), "0")
     C.put(rx + 12, y, s.size, "8")
-    C.put(rx + 21, y, U.age(s.ago), s.ago < 10000 and "8" or "1")
+    -- displayAck: waiting and unverified in words, stale in amber with its age from a minute on.
+    local late = s.state == "stale" or not s.state and s.ago >= 10000
+    local age = s.state == "stale" and (s.ago < 60000 and "stale" or "stale " .. U.age(s.ago)) or s.state or U.age(s.ago)
+    C.put(rx + 21, y, age, late and "1" or "8")
   end
   -- The rule stops with the content: every ruled row costs about 140 frame bytes.
   for y = 3, math.max(bottom, sy + shown) do C.put(58, y, "|", "c") end
