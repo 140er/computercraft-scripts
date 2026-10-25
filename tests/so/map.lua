@@ -74,7 +74,7 @@ local function setup(opts)
   local scene = loadScene()
   local net = H.new()
   local m = net.machine({id=1, modem=true, directories=true, monitor=opts.monitor, width=26, height=20})
-  m.install({"so-store.lua","so-mod-map.lua","so-mod-display.lua","so-ui.lua","so-proto.lua","so-mod-cells.lua"})
+  m.install({"so-store.lua","so-mod-map.lua","so-mod-display.lua","so-ui.lua","so-proto.lua","so-mod-cells.lua","so-mod-lease.lua","so-plan.lua"})
   if opts.monitor then
     local target = R.capture(26,20)
     target.setTextScale = function() end
@@ -84,7 +84,7 @@ local function setup(opts)
   end
   m.files["so-server.cfg"] = H.encode({pos=scene.server})
   local t = {scene=scene, machine=m, net=net, calls=0, leases=scene.leases}
-  local now = m.env.os.epoch("utc")
+  local now = 1700000000000
   local lumber = {dim="minecraft:overworld", area=scene.area, ground=scene.ground, spots=scene.spots, saplings=scene.saplings}
   local machines = {}
   for _, j in ipairs(scene.jobs) do
@@ -100,12 +100,15 @@ local function setup(opts)
   end
   t.mine, t.lumber, t.machines = scene.mine, lumber, machines
   local store = m.env.dofile("so-store.lua")
-  m.env.SO = {now=function() return m.env.os.epoch("utc") end, store=store, proto=m.env.dofile("so-proto.lua"),
+  m.env.SO = {now=function() return now + net.time - 1700000000000 end, store=store, proto=m.env.dofile("so-proto.lua"),
     breathe=function() end, pair={key=function() return "key" end}, mods={
     mine={mapView=function() return t.mine end}, lumber={mapView=function() return t.lumber end},
     state={get=function() return t.machines end},
     -- peek reads a lease without creating its row; the map never calls status.
-    lease={peek=function(id) return {open=t.leases[id] == "open" and "l" or nil, lost=t.leases[id] == "lost" or nil} end,
+    lease={peek=function(id)
+      if type(t.leases[id]) == "table" then return t.leases[id] end
+      return {open=t.leases[id] == "open" and "l" or nil, lost=t.leases[id] == "lost" or nil}
+    end,
       status=function() t.statusCalls = (t.statusCalls or 0) + 1 return {} end, inRange=function() return true end},
     drops={list=function() return scene.drops end}}}
   local cells = m.env.dofile("so-mod-cells.lua")
@@ -128,7 +131,13 @@ local function setup(opts)
   map.tick(0)
   d.tick(0)
   t.map, t.display, t.screen = map, d, d.screen("map")
-  t.step = function() net.advance(1) map.tick(m.env.SO.now()) end
+  t.reloadMap = function()
+    t.map = m.env.dofile("so-mod-map.lua")
+    m.env.SO.mods.map = t.map
+    t.map.tick(0)
+    t.screen = d.screen("map")
+  end
+  t.step = function() net.advance(1) t.map.tick(m.env.SO.now()) end
   -- Renders until every dug plane in view is loaded; returns the frame and the most reads in one frame.
   t.settle = function(w, h, session, limit)
     local frame, most = nil, 0
@@ -225,6 +234,147 @@ return function(test,equal)
       if w >= 25 then equal(button(frame, "map-broken", w, h).y, 1) end
       local bytes = #s.machine.env.SO.proto.ser(frame)
       assert(bytes < 16384, view.name .. " frame bytes " .. bytes)
+    end)
+  end
+
+  test("map cache versions stay stable across two dimensions", function()
+    local s = setup()
+    local over, nether = "minecraft:overworld", "minecraft:the_nether"
+    assert(s.cells.reserve("mine:8", 0, 40, 0, nether))
+    local a, av = s.cells.reserved(over)
+    local b, bv = s.cells.reserved(nether)
+    for _ = 1, 2 do
+      local aa, aav = s.cells.reserved(over)
+      local bb, bbv = s.cells.reserved(nether)
+      equal(aa, a) equal(aav, av) equal(bb, b) equal(bbv, bv)
+    end
+    assert(s.cells.reserve("mine:9", 1, 40, 0, nether))
+    assert(select(2, s.cells.reserved(over)) ~= av)
+    equal(#s.cells.reserved(nether), 2)
+  end)
+
+  test("map held callout shows held #4 mine and silent 7 min at 26x20", function()
+    local s = setup()
+    local now = s.machine.env.SO.now()
+    s.leases[4] = {lost=true, seen=now-7*60000}
+    s.machines["4"].seen = now-8*60000
+    local session = {map={level=-58, fit=false, sx=1, sz=1, cx=120, cz=-360, pick={k="cell", x=120, z=-360}}}
+    local function text() return table.concat(picture(s.settle(26,20,session),26,20).picture().text,"\n") end
+    local shown = text()
+    assert(shown:find("held #4 mine",1,true),shown)
+    assert(shown:find("silent 7 min",1,true),shown)
+    s.leases[4] = {seen=now}
+    s.machines["4"].seen = now
+    s.step()
+    assert(not text():find("silent",1,true), "fresh holder is not silent")
+    -- A holder without a world pose still refreshes its callout after contact.
+    s.mine.turtles["4"], s.machines["4"] = nil, {seen=now-7*60000}
+    s.leases[4] = {seen=now-7*60000}
+    s.step()
+    assert(text():find("silent 7 min",1,true))
+    s.leases[4].seen = s.machine.env.SO.now()
+    s.step()
+    assert(not text():find("silent",1,true))
+  end)
+
+  test("map turtle callout shows last ok 2m and range 27/24 at 26x20", function()
+    local s = setup()
+    local now = s.machine.env.SO.now()
+    s.mine.turtles, s.lumber, s.machines = {}, {}, {
+      ["8"]={id=8, role="worker", fuel=700, seen=now, pose={x=140,y=64,z=-336,facing=1}}}
+    s.leases[8] = {range=16, last={status="reported",ok=true,at=now-120000}}
+    s.machine.env.SO.mods.lease.inRange = function() return false end
+    local session = {map={level=64,fit=false,sx=1,sz=1,cx=140,cz=-336,pick={k="turtle",id="8"}}}
+    local function text() return table.concat(picture(s.settle(26,20,session),26,20).picture().text,"\n") end
+    local shown = text()
+    assert(shown:find("last ok 2m",1,true),shown)
+    assert(shown:find("range 27/24",1,true),shown)
+    s.leases[8].last = {status="reported",ok=false,at=now}
+    s.step()
+    assert(text():find("last failed",1,true),text())
+    s.leases[8].last = {status="expired",ok=false,at=now}
+    s.step()
+    assert(text():find("last expired",1,true),text())
+  end)
+
+  test("lease snapshots copy the last accepted report and expiry", function()
+    local s = setup()
+    s.machine.env.SO.pair.key = function() return string.rep("a",64) end
+    local lease = s.machine.env.dofile("so-mod-lease.lua")
+    s.machine.env.SO.mods.lease = lease
+    local function report(ok)
+      local id = assert(lease.send(8, {{op="forward"}}, {owner="mine"}))
+      lease.handlers["step.report"]({from=8,body={lease=id,results={{ok=ok}}}})
+      return lease.peek(8).last
+    end
+    equal(report(true), {status="reported",ok=true,at=s.machine.env.SO.now()})
+    local last = lease.status(8).last
+    last.ok = false
+    equal(lease.peek(8).last.ok,true,"snapshot owns its copy")
+    local id = assert(lease.send(8, {{op="forward"}}, {ms=1,owner="mine"}))
+    lease.handlers["step.report"]({from=8,body={lease="wrong",results={{ok=false}}}})
+    equal(lease.peek(8).last.ok,true,"foreign report does not replace the result")
+    lease.handlers["step.report"]({from=8,body={lease=id,results={{ok=false}}}})
+    equal(lease.peek(8).last.ok,false)
+    assert(lease.send(8, {{op="forward"}}, {ms=1,owner="mine"}))
+    local now = s.machine.env.SO.now()+10002
+    lease.tick(now)
+    equal(lease.peek(8).last,{status="expired",ok=false,at=now})
+  end)
+
+  test("map level arrows clamp at the limits of each dimension", function()
+    local s = setup()
+    s.machine.files["so-server.cfg"] = H.encode({pos=s.scene.server,remoteDimensions=true})
+    s.net.advance(6)
+    for _, limits in ipairs({{"minecraft:overworld",-64,319},{"minecraft:the_nether",1,126},{"minecraft:the_end",1,255}}) do
+      for _, edge in ipairs({{limits[2],"map-down"},{limits[3],"map-up"}}) do
+        local session = {map={dim=limits[1],level=edge[1],fit=true}}
+        s.settle(26,20,session)
+        for _ = 1, 3 do s.screen.input({id=edge[2],session=session}) end
+        equal(session.map.level,edge[1])
+      end
+    end
+  end)
+
+  test("map holder lookup includes reservations past the 4096 display cap", function()
+    local s = setup()
+    local many = {}
+    for x = 1, 5000 do many[#many+1] = {x=x,y=-58,z=5000} end
+    assert(s.cells.reserveMany("setup:99",many))
+    -- Omit every displayed reservation. Callouts must query the actual owners.
+    s.cells.reserved = function() return {}, 1 end
+    local function text(pick,level,sx)
+      local session = {map={level=level,fit=false,sx=sx or 1,sz=sx or 1,cx=120,cz=-341,pick=pick}}
+      return table.concat(picture(s.settle(26,20,session),26,20).picture().text,"\n")
+    end
+    assert(text({k="cell",x=120,z=-341},-58):find("held #4 mine",1,true))
+    assert(text({k="shaft"},"all"):find("#4 mine",1,true))
+    assert(text({k="cell",x=120,z=-341},"all",2):find("held #4 mine",1,true))
+    local held = assert(s.cells.holder("minecraft:overworld",1,5000,5000,5000))
+    equal(held.who,"setup:99")
+    held.who = "changed"
+    equal(s.cells.owner(held.x,held.y,held.z),"setup:99","lookup is a copy")
+  end)
+
+  for seed = 1, 20 do
+    test("map-XL fixture ignores randomized prior state " .. seed, function()
+      local s = setup()
+      local copy = s.machine.env.SO.store.copy
+      local mine, lumber, machines, leases = copy(s.mine), copy(s.lumber), copy(s.machines), copy(s.leases)
+      local clock = s.machine.env.SO.now
+      local random = seed
+      local function nextValue(n) random = random*16807%2147483647 return random%n end
+      s.mine.running, s.mine.branches = nextValue(2)==1, nextValue(30)+1
+      s.mine.preview = {{x=120,y=-58,z=-381},{x=120+nextValue(100),y=-58,z=-381}}
+      local priorTime = nextValue(1000000000)
+      s.machine.env.SO.now = function() return priorTime end
+      s.screen.render(164,81,{map={fit=true,level="all",pick={k="shaft"}}})
+      s.mine, s.lumber, s.machines, s.leases = mine, lumber, machines, leases
+      s.machine.env.SO.now = clock
+      s.reloadMap()
+      local frame = s.settle(164,81,{})
+      local diffs = R.diff(R.load(FIXTURES["schematic-map-XL"]),picture(frame,164,81).picture())
+      equal(#diffs,0,"seed " .. seed .. "\n" .. table.concat(diffs,"\n"))
     end)
   end
 
