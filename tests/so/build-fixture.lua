@@ -7,6 +7,7 @@ local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
 local function fixture(config)
   config=config or {}
   local f={world={},held={},saved=nil,now=1000,serial=0,placed={},calls={},fuel=10000,saveOK=true,range=function() return true end}
+  f.journal="builder-journal"
   local pose={dim="minecraft:overworld",x=-2,y=4,z=0,facing=1}
   local inv,selected={},1
   local input,render,callback,queued,mod
@@ -25,7 +26,8 @@ local function fixture(config)
   mods.state={canStart=function() return true end,emit=function(kind,data) f.alert=type(data)=="table" and data.text or false f.event=kind end,
     get=function() return {pose=copy(pose)} end}
   mods.display={screen=function(_,r,i) render,input=r,i end}
-  mods.lease={peek=function() return {uncertain=f.uncertain,lost=f.lost} end,status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost} end,
+  mods.lease={peek=function() return {uncertain=f.uncertain,lost=f.lost} end,status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost,parkBatch=f.parkBatch~=false,setupFence=f.setupFence~=false,journal=f.journal,
+      pose={x=pose.x,y=pose.y,z=pose.z,f=pose.facing}} end,
     boundaries=function() return config.protectedAreas == true end,
     assess=function(_,from,steps)
       f.assessments=(f.assessments or 0)+1
@@ -70,7 +72,7 @@ local function fixture(config)
   f.world[key(chest)]={name="minecraft:chest",stock=128}
   local function boot(quiet)
     mod=assert(loadfile("so-mod-build.lua","t",env))()
-    mod.handlers.hello({from=2,body={capabilities={parkBatch=true}}})
+    mod.handlers.hello({from=2,body={capabilities={parkBatch=f.parkBatch~=false,setupFence=f.setupFence~=false}}})
     local onReport=mods.lease.onReport
     if quiet then mods.lease.onReport=nil end
     mod.tick()
@@ -137,12 +139,16 @@ local function fixture(config)
       end
       results[i]=result
     end
+    if f.journal then f.journal=f.journal.."-next" end
     if reportedFuel~=nil then f.fuel=reportedFuel end
     if not drop then
-      callback(q.id,q.turtleId,results,{report={pose={x=pose.x,y=pose.y,z=pose.z,f=pose.facing},inv=inventory(),fuel=f.fuel}})
+      local facts={pose={x=pose.x,y=pose.y,z=pose.z,f=pose.facing},inv=inventory(),fuel=f.fuel,journal=f.journal}
+      if f.reportChange then f.reportChange(results,facts,q) end
+      callback(q.id,q.turtleId,results,{report=facts})
     end
     return q
   end
+  f.deliver=function(id,results,facts) callback(id,2,results,{report=facts}) end
   f.expire=function()
     local q=assert(queued,"no queued lease") queued=nil
     f.lost=true

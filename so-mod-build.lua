@@ -71,9 +71,11 @@ local box = SO.store.store("so-data/build/job", function(j)
 end)
 local j = box.value or { dim="minecraft:overworld", cursor=1, running=false, phase="check" }
 j.fuel=normalizeFuel(j.fuel)
+j.returnHome=j.returnHome == true
 if j.blueprint then
   S.targets=expand(j.blueprint)
-  if S.targets and #S.targets>0 and j.cursor>#S.targets then j.running,j.complete,j.blocked,j.alert,j.legacyHold=false,true,nil,nil,nil end
+  if j.completion and j.completion.phase=="returning" then j.complete=false
+  elseif S.targets and #S.targets>0 and j.cursor>#S.targets then j.running,j.complete,j.blocked,j.alert,j.legacyHold=false,true,nil,nil,nil end
 end
 if not j.placement and j.intent and j.intent.action=="place" then
   j.placement={cursor=j.cursor,material=j.material}
@@ -172,11 +174,40 @@ local sendCauses = {
   ["Nether bedrock boundary"]="dimension_mismatch", ["End void or height boundary"]="dimension_mismatch",
   id="path", owner="path", steps="path", opts="path", ms="path", size="path",
 }
+local function returning()
+  return j.completion and j.completion.phase=="returning"
+end
+local function journalPose(p)
+  return type(p)=="table" and whole(p.x) and whole(p.y) and whole(p.z)
+    and whole(p.f) and p.f>=0 and p.f<=3
+end
+local function returnReady(stat, recover)
+  local row=j.turtle
+  if not row or not S.safe[row.id] or not stat.parkBatch or not stat.setupFence or not stat.journal then
+    return false,"update worker for fenced builder return","worker_safety"
+  end
+  if stat.uncertain or not journalPose(stat.pose) or not (row.frame or recover and row.anchor)
+    or not P.assess(row.pose,{}).ok
+    or not recover and (S.recover or stat.lost or not P.samePose(row.pose,P.toWorld(row.frame,stat.pose))) then
+    return false,"return needs a certain pose and facing","pose_uncertain"
+  end
+  return true
+end
+local function finish()
+  j.running,j.complete,j.alert,j.blocked=false,true,nil,nil
+  if j.completion then j.completion.phase="complete" end
+end
 local function send(steps, action, recover)
   local lease, cells = module("lease"), module("cells")
   if S.pending or not lease.send or lease.status(j.turtle.id).open then return false end
   if not recover and not S.safe[j.turtle.id] then alert("update worker for builder safety", "worker_safety") return false end
-  local boundary = lease.boundaries and lease.boundaries()
+  local returning = returning()
+  local stat=lease.status(j.turtle.id)
+  if returning then
+    local ready,why,cause=returnReady(stat,recover)
+    if not ready then alert(why,cause) return false end
+  end
+  local boundary = returning or lease.boundaries and lease.boundaries()
   if boundary then
     steps = P.boundary({from=j.turtle.pose,steps=steps}).steps
     local check = lease.assess(j.turtle.id,j.turtle.pose,steps,{owner="build"})
@@ -211,7 +242,7 @@ local function send(steps, action, recover)
   if action=="place" then j.placement={cursor=j.cursor,material=j.material} end
   if not save() then return false end
   local id
-  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at,frame=j.turtle.frame})
+  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at,frame=j.turtle.frame,journal=returning and stat.journal or nil})
   if not id then
     j.intent = nil
     if action=="place" then j.placement=nil end
@@ -220,7 +251,7 @@ local function send(steps, action, recover)
     alert("lease " .. tostring(err), cause)
     return false
   end
-  S.pending = { id=id, action=action, steps=steps, pose=start, boundary=boundary and not recover }
+  S.pending = { id=id, action=action, steps=steps, pose=start, boundary=boundary and not recover, returning=returning, journal=returning and stat.journal or nil }
   return true
 end
 local function item()
@@ -351,7 +382,12 @@ local function budget()
 end
 local function advance()
   j.cursor, j.phase = j.cursor+1, "check"
-  if j.cursor > #S.targets then j.running, j.alert, j.blocked, j.complete = false, nil, nil, true end
+  if j.cursor > #S.targets then
+    if j.returnHome then
+      j.completion={phase="returning",target=SO.store.copy(j.home)}
+      j.complete,j.alert,j.blocked=false,nil,nil
+    else finish() end
+  end
 end
 local function reconcile(last)
   local pending=j.placement
@@ -374,6 +410,18 @@ local function report(id, turtleId, results, lease)
   local pending = S.pending
   if not j.turtle or j.turtle.forgotten or turtleId ~= j.turtle.id or not pending or pending.id ~= id then return end
   S.pending = nil
+  if pending.returning and not results and lease.boundary and lease.status=="reported" then
+    local facts=lease.report or {}
+    local certain=not facts.uncertain and journalPose(facts.pose) and j.turtle.frame
+    local blocked=certain and P.samePose(pending.pose,P.toWorld(j.turtle.frame,facts.pose))
+    local cause=blocked and (facts.fuel==0 and "fuel" or "path") or "pose_uncertain"
+    local text=cause=="fuel" and "out of fuel" or cause=="path" and "path blocked; clear route"
+      or "boundary unconfirmed; reservations held"
+    j.completion.hold=j.completion.hold or {cause=cause,text=text}
+    S.recover,j.turtle.parkConfirmed=true,nil
+    alert(j.completion.hold.text,j.completion.hold.cause)
+    return
+  end
   if not results or not lease.report or not lease.report.pose then
     S.recover, j.turtle.parkConfirmed = true, nil
     if j.turtle.paused then j.turtle.state="lost" end
@@ -381,10 +429,23 @@ local function report(id, turtleId, results, lease)
     return
   end
   local facts = lease.report
+  if pending.returning and (facts.uncertain or type(facts.journal)~="string" or facts.journal==pending.journal or not journalPose(facts.pose)
+    or #results~=#pending.steps or results[1] and results[1].err=="journal changed") then
+    S.recover=true
+    alert("return report unconfirmed; reservations held","pose_uncertain")
+    return
+  end
   if pending.boundary and (facts.uncertain or not j.turtle.frame
     or not P.confirm(pending.pose,pending.steps,results,P.toWorld(j.turtle.frame,facts.pose))) then
     S.recover = true
-    alert("boundary unconfirmed; reservations held", "pose_uncertain")
+    local failed
+    if pending.returning then
+      for _,result in ipairs(results) do if not result.ok then failed=result break end end
+    end
+    if failed then
+      local fuel=facts.fuel==0 or tostring(failed.err):lower():find("fuel",1,true)
+      alert(fuel and "out of fuel" or "path blocked; clear route",fuel and "fuel" or "path")
+    else alert("boundary unconfirmed; reservations held", "pose_uncertain") end
     return
   end
   if j.turtle.anchor then
@@ -401,8 +462,11 @@ local function report(id, turtleId, results, lease)
     if j.turtle.paused then j.turtle.state="parked" end
   elseif action == "recover" then
     S.recover, j.phase = false, "check"
-    if j.legacyHold then j.blocked,j.alert="hold",j.legacyHold
-    elseif not (j.retryAt and (j.blocked=="material" or j.blocked=="fuel")) then j.blocked,j.alert=nil,nil end
+    if returning() and j.completion.hold then
+      j.blocked,j.alert=j.completion.hold.cause,j.completion.hold.text
+    elseif j.legacyHold then j.blocked,j.alert="hold",j.legacyHold
+    elseif not (returning() and j.blocked and j.blocked~="lost" and j.blocked~="pose_uncertain" and j.blocked~="worker_safety" and j.blocked~="save")
+      and not (j.retryAt and (j.blocked=="material" or j.blocked=="fuel")) then j.blocked,j.alert=nil,nil end
     if j.service then j.service.stage = "travel" end
     if j.placement and not reconcile(last) then S.recover=true end
   elseif action == "fuel" then
@@ -485,6 +549,7 @@ local function input(ev)
       or not stat or stat.open or stat.lost or stat.uncertain or j.running or S.pending then feedback("paired pose unavailable") return end
     if p.dim ~= j.dim or not whole(p.x) or not whole(p.y) or not whole(p.z)
       or not whole(p.facing) or p.facing<0 or p.facing>3 then feedback("paired pose unavailable") return end
+    if returning() then feedback("finish return before configuring") return end
     if text == "home-here" then j.home=SO.store.copy(p) save() return end
     if text == "from-here" then session.buildCorner=SO.store.copy(p) return end
     local first = session.buildCorner
@@ -499,6 +564,7 @@ local function input(ev)
   if text == "status" then return end
   local w = {}
   for word in text:gmatch("%S+") do w[#w+1]=word end
+  if w[1]=="remove" and returning() then feedback("finish return before removing worker") return end
   if S.workerPark and (w[1]=="park" or w[1]=="resume" or w[1]=="remove") and #w==2 then
     local row=j.turtle
     if not row or tonumber(w[2])~=row.id then feedback("unknown turtle") return end
@@ -527,8 +593,15 @@ local function input(ev)
     if not j.blueprint or not j.turtle or not j.material then feedback("configure area, material, turtle") return end
     S.targets, err = expand(j.blueprint)
     if not S.targets then feedback(err) return end
-    if j.cursor > #S.targets then j.running=false save() return end
-    local checks=readiness()
+    if j.cursor > #S.targets and not returning() then j.running=false save() return end
+    if j.returnHome or returning() then
+      if not j.home or j.home.dim~=j.dim or not P.assess(j.home,{}).ok then feedback("set builder home before return-on") return end
+      local stat=module("lease").status(j.turtle.id)
+      if j.fuel~=nil and stat.fuel~=nil then j.fuel=normalizeFuel(stat.fuel) end
+      local ready,why,cause=returnReady(stat)
+      if not ready then alert(why,cause) return end
+    end
+    local checks=returning() and {} or readiness()
     local missing=P.missing(checks)
     if #missing>0 then
       if j.blocked then feedback(table.concat(missing,"; "))
@@ -540,14 +613,27 @@ local function input(ev)
       return
     end
     j.running,j.blocked,j.alert,j.phase,j.legacyHold=true,nil,nil,"check",nil
+    if returning() then j.completion.hold=nil end
     save()
     return
   end
   local status = j.turtle and module("lease").status and module("lease").status(j.turtle.id) or {}
   local reanchor = w[1] == "add" and j.turtle and tonumber(w[2]) == j.turtle.id and status.uncertain
   if (j.running or S.pending or status.open) and not reanchor then feedback("stop before configuring") return end
+  if returning() and not reanchor then feedback("finish return before configuring") return end
   if j.placement and w[1]~="add" then feedback("reconcile placement before configuring") return end
-  if w[1] == "area" and #w == 7 then
+  if w[1]=="return" and #w==2 and (w[2]=="on" or w[2]=="off") then
+    if w[2]=="on" then
+      if not j.home or j.home.dim~=j.dim or not P.assess(j.home,{}).ok then feedback("set builder home before return-on") return end
+      local ready,why=returnReady(status)
+      if not ready then feedback(why) return end
+    end
+    j.returnHome=w[2]=="on"
+  elseif w[1]=="home" and #w==5 then
+    local p={dim=j.dim,x=tonumber(w[2]),y=tonumber(w[3]),z=tonumber(w[4]),facing=({n=0,e=1,s=2,w=3})[w[5]]}
+    if not whole(p.x) or not whole(p.y) or not whole(p.z) or p.facing==nil then feedback("home needs x y z n|e|s|w") return end
+    j.home=p
+  elseif w[1] == "area" and #w == 7 then
     local n={}
     for i=2,7 do n[i]=tonumber(w[i]) if not whole(n[i]) then feedback("invalid area") return end end
     local b={x1=math.min(n[2],n[5]),y1=math.min(n[3],n[6]),z1=math.min(n[4],n[7]),
@@ -609,7 +695,7 @@ local function input(ev)
       if not ok then feedback(err) return end
     end
     j.turtle={id=id,pose=pose,anchor=SO.store.copy(pose)}
-    j.home=SO.store.copy(pose)
+    if not j.home then j.home=SO.store.copy(pose) end
     j.inv,j.fuel=nil,nil
     S.recover=true
     j.blocked,j.alert=nil,nil
@@ -619,7 +705,7 @@ local function input(ev)
     end
     return
   else feedback("invalid command") return end
-  if w[1]=="area" or w[1]=="shape" or w[1]=="import" then j.complete,j.announced=nil,nil end
+  if w[1]=="area" or w[1]=="shape" or w[1]=="import" then j.complete,j.announced,j.completion=nil,nil,nil end
   j.blocked,j.alert=nil,nil
   save()
 end
@@ -631,7 +717,7 @@ local function render(w,h,session)
   session=session or S.view
   local C=U.canvas(w,h)
   local gap,lw=h>=16 and 1 or 0,math.min(w-2,40)
-  local state=j.legacyHold and "hold" or j.blocked or (j.complete and "COMPLETE" or j.running and "running" or "stopped")
+  local state=j.legacyHold and "hold" or j.blocked or (j.complete and "COMPLETE" or returning() and "RETURNING" or j.running and "running" or "stopped")
   local tone=U.tone(state)
   if j.blocked and tone~="e" then tone="1" end
   local shape=({platform="floor",wall="walls"})[j.shape] or j.shape or "floor"
@@ -718,6 +804,18 @@ local function tick()
     end
     return
   end
+  if returning() then
+    if not j.running or j.blocked then return end
+    local ready,why,cause=returnReady(stat)
+    if not ready then alert(why,cause) return end
+    local target=j.completion.target
+    if not target or target.dim~=j.dim or not P.assess(target,{}).ok then alert("return home missing","pose_uncertain") return end
+    if P.samePose(j.turtle.pose,target) then finish() save() return end
+    local need=distance(j.turtle.pose,target)
+    if j.fuel~="unlimited" and (type(j.fuel)~="number" or j.fuel<need) then alert("out of fuel for return","fuel") return end
+    route(target)
+    return
+  end
   if j.service and j.service.kind=="fuel" and not S.fuelTrips then
     j.running=false alert("builder fuel trips disabled", "fuel") return
   end
@@ -790,13 +888,13 @@ end
 local function facts()
   local total = j.blueprint and S.targets and #S.targets or 0
   local done = math.max(0, math.min(j.cursor-1, total))
-  local complete = j.blueprint and j.blocked~="save" and (j.complete or total>0 and done==total)
+  local complete = j.blueprint and not returning() and j.blocked~="save" and (j.complete or total>0 and done==total)
   local row = j.turtle
   local stat = row and module("lease").peek and module("lease").peek(row.id) or {}
   local out = {dim=j.dim, running=j.running==true, done=done, total=total,
     state=not j.blueprint and "idle" or complete and "complete" or (j.blocked or j.legacyHold) and "held"
       or (S.recover or stat.lost or stat.uncertain) and row and not row.forgotten and "recovering"
-      or j.running and "running" or "stopped"}
+      or returning() and "returning" or j.running and "running" or "stopped"}
   if j.blueprint then
     out.bounds={dim=j.dim}
     for _, field in ipairs({"x1","y1","z1","x2","y2","z2"}) do out.bounds[field]=j.blueprint[field] end
