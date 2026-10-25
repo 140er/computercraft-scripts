@@ -4,7 +4,8 @@ local function copy(v)
   local out={} for k,x in pairs(v) do out[k]=copy(x) end return out
 end
 local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
-return function()
+local function fixture(config)
+  config=config or {}
   local f={world={},held={},saved=nil,now=1000,serial=0,placed={},calls={},fuel=10000,saveOK=true,range=function() return true end}
   local pose={dim="minecraft:overworld",x=-2,y=4,z=0,facing=1}
   local inv,selected={},1
@@ -14,7 +15,7 @@ return function()
     return out
   end
   local env=setmetatable({SO={now=function() return f.now end,breathe=function() end,
-    pair={key=function() return "paired" end},store={copy=copy,store=function()
+    pair={key=function() return "paired" end},store={copy=copy,read=function() return config end,store=function()
       return {value=copy(f.saved),save=function(j)
         if not f.saveOK then return false,"disk full" end
         f.saved=copy(j) return true
@@ -25,6 +26,10 @@ return function()
     get=function() return {pose=copy(pose)} end}
   mods.display={screen=function(_,r,i) render,input=r,i end}
   mods.lease={status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost} end,
+    locate=function(id,dim,done)
+      f.located={id=id,dim=dim}
+      if f.deferLocate then f.locateDone=done else done(f.locateError and nil or copy(pose),f.locateError) end
+    end,
     inRange=function(_,p) return f.range(p) end,onReport=function(_,fn) callback=fn end,
     send=function(id,steps,opts)
       if f.sendError then return nil,f.sendError end
@@ -48,7 +53,11 @@ return function()
       local k=x..","..y..","..z if f.held[k]==who then f.held[k]=nil end return true
     end}
   local chest={id="supply",dim=0,x=-3,y=0,z=0,side="down",kind="storage"}
-  mods.drops={pick=function() return {point=copy(chest)} end,note=function() end}
+  mods.drops={choose=function(kind)
+      f.choices=(f.choices or 0)+1
+      local point=kind=="fuel" and f.fuelChest or kind=="storage" and f.chest or nil
+      return {point=point and copy(point),alert=not point and ("no "..kind.." chest set") or nil}
+    end,pick=function() error("builder must use read-only selection") end,note=function() end}
   f.chest=chest
   f.world[key(chest)]={name="minecraft:chest",stock=128}
   local function boot()
@@ -87,6 +96,15 @@ return function()
           f.world[key(at)]=block.name block.count=block.count-1
           f.placed[key(at)]=(f.placed[key(at)] or 0)+1
         else result.err="Cannot place block here" end
+      elseif step.op=="refuel" then
+        local block=inv[selected]
+        local value=block and P.fuelValue(block.name) or 0
+        result.ok=value>0
+        if result.ok then
+          local n=math.min(block.count,step.n or block.count)
+          if f.fuel~="unlimited" then f.fuel=f.fuel+n*value end
+          block.count=block.count-n
+        end
       elseif step.op=="suckDown" or step.op=="suck" then
         local x,y,z=P.ahead(pose,step.op=="suckDown" and "down" or "forward")
         local supply=f.world[x..","..y..","..z]
@@ -98,7 +116,7 @@ return function()
         local move=step.op=="forward" or step.op=="up" or step.op=="down"
         if move and (f.fuel==0 or f.moveError) then result.ok=false result.err=f.moveError or "Out of fuel"
         elseif f.world[key(nextPose)] and move then result.ok=false result.err="Movement obstructed"
-        else pose=nextPose end
+        else pose=nextPose if move and f.consumeFuel and f.fuel~="unlimited" then f.fuel=f.fuel-1 end end
       end
       results[i]=result
     end
@@ -126,3 +144,5 @@ return function()
   f.inventory=inv
   return f
 end
+
+return fixture
