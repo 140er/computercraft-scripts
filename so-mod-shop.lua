@@ -284,7 +284,16 @@ end
 S.broadcast = function(sender, message)
   if type(message) ~= "table" or type(message.totals) ~= "table" then return end
   if not S.turtle then S.turtle = sender S.selectedAt = SO.now() end
-  if sender == S.turtle then S.stock(message) end
+  if sender ~= S.turtle then return end
+  S.stock(message)
+  local state = SO.mods.state
+  if state and state.get and state.emit then
+    local full = message.full == true
+    local alerted = not not state.get("shop.room.alert")
+    if full ~= alerted then
+      state.emit("shop.room.alert", full and { text = "Storage room full" } or false)
+    end
+  end
 end
 
 S.dns = function(sender, message)
