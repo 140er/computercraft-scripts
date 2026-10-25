@@ -491,7 +491,7 @@ local function report(id, turtleId, results, lease)
       j.service.stage = "take"
     else alert((j.service.kind or "storage").." chest missing", "storage_missing") end
     local drops = module("drops")
-    if drops.note then drops.note(j.service.point.id,last.ok and last.data and last.data.name or nil) end
+    if drops.note then drops.note(j.service.point.id,last.ok and last.data and last.data.name or nil,id) end
   elseif action == "refuel" then
     local target=S.targets and S.targets[j.cursor]
     local required=S.fuelTrips and target and fuelNeed(target) or 1

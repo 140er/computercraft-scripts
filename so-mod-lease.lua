@@ -673,8 +673,8 @@ S.restore = function()
         if not ok or type(generation) ~= "table" or generation.schema ~= 1
           or not S.number(generation.generation) or generation.generation <= 0 or generation.generation%1 ~= 0
           or not S.validLeases(generation.value) then
-          S.persistenceError = "lease state unreadable"
-          return
+          if path == "so-data/cells/leases.tmp" then fs.delete(path)
+          else S.persistenceError = "lease state unreadable" return end
         end
       end
     end
@@ -870,10 +870,11 @@ S.forget = function(id, key)
     if wire then pcall(rednet.send, id, wire, "so") end
   end
   -- Without a final report, every reserved cell may still be occupied.
-  if row.open then
-    local record = SO.store.copy(row.open)
-    record.status = "expired"
-    if S.persist(record) then row.open, row.record = nil, record end
+  local record = row.record or row.open
+  if record then
+    local ok, err = S.persist(record, true)
+    if not ok then return false, err end
+    row.open, row.record, row.restored = nil, nil, nil
   end
   row.probe, row.anchor = nil, nil
   row.uncertain, row.lost = true, true
@@ -1091,15 +1092,16 @@ S.tick = function(now)
     if lease and now > lease.expires + 10000 then
       lease = SO.store.copy(lease)
       lease.status = "expired"
-      if not S.persist(lease) then return end
-      row.open, row.record = nil, lease
-      if lease.boundary then row.boundaryHold, row.reconciled = true, false end
-      if lease.releaseRecovery then row.boundaryHold, row.reconciled = nil, false end
-      row.last = {status="expired", ok=false, at=now}
-      if lease.owner == "cellsRelease" then S.releaseReported(row,lease,nil)
-      elseif lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
-      elseif lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
-      if not S.owners[lease.owner] then S.ackOutcome(lease.id) end
+      if S.persist(lease) then
+        row.open, row.record = nil, lease
+        if lease.boundary then row.boundaryHold, row.reconciled = true, false end
+        if lease.releaseRecovery then row.boundaryHold, row.reconciled = nil, false end
+        row.last = {status="expired", ok=false, at=now}
+        if lease.owner == "cellsRelease" then S.releaseReported(row,lease,nil)
+        elseif lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
+        elseif lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
+        if not S.owners[lease.owner] then S.ackOutcome(lease.id) end
+      end
     elseif lease and #lease.steps == 1 and lease.steps[1].op == "inspectDown"
       and lease.retryAt and now >= lease.retryAt and now < lease.expires then
       lease.retryAt = now + 1000

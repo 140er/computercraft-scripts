@@ -261,6 +261,42 @@ return function(test,equal)
     a.n.advance(1)
     equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
   end)
+  for _,restart in ipairs({false,true}) do
+    test("failed setup stays busy after an unconfirmed release"..(restart and " across restart" or " live"),function()
+      local a=setup(true)
+      assert(a.s.env.SO.mods.drops.add({id="ore",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+      a.n.world["1,0,0"]="minecraft:stone"
+      a.ui.input({text="test ore"}) press(a.ui,29,12,"facing:1",{})
+      a.n.advance(3) F.check(a)
+      local cells=a.s.env.SO.mods.cells
+      local held=cells.list("setup:2",100)
+      assert(#held>0 and a.s.env.SO.mods.drops.busy(2))
+      a.t.env.gps.locate=function() return nil end
+      a.hello()
+      local send=a.t.env.rednet.send
+      local pending
+      if restart then a.t.env.rednet.send=function(id,payload,protocol)
+        if payload.t=="step.report" then pending=payload return true end
+        return send(id,payload,protocol)
+      end end
+      a.ui.input({text="release 2"}) a.n.advance(1) F.check(a)
+      if restart then
+        assert(pending,"missing release report")
+        a.n.kill(a.s) a.s=a.n.boot(a.s) a.n.flush() a.n.advance(1)
+        a.ui=a.s.env.SO.mods.display.screen("generic")
+        send(1,pending,"so") a.n.flush() a.n.advance(1) F.check(a)
+      end
+      assert(a.s.env.SO.mods.drops.busy(2),"release report forgot the failed task")
+      equal(a.s.env.SO.mods.cells.list("setup:2",100),held)
+      local task=a.s.env.SO.store.read("so-data/cells/setup").value.task
+      assert(task and task.failed and task.id==2,"failed task was not persisted")
+      local session={}
+      a.ui.input({id="testing",session=session})
+      local release=false
+      for _,b in ipairs(a.ui.render(29,12,session).buttons) do if b.id=="release" then release=true end end
+      assert(release,"held setup lost its release control")
+    end)
+  end
   test("setup refuses stale fixes and retains its route after a lost report",function()
     local a=setup(true)
     a.n.advance(61)

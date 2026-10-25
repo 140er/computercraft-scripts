@@ -89,6 +89,17 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
       model.lost = model.open ~= nil or model.terminal ~= nil or model.recovering == true
       model.uncertain = model.terminal and model.terminalUncertain or false
       model.seq, model.restored = model.durableSeq, model.lost
+    elseif action == "forget" then
+      local pending = model.open or model.terminal or model.recovering
+      local saved = not (pending and actual.failSave)
+      local ok = lease.forget(2)
+      equal("recovery_forget",ok ~= false,saved)
+      if saved and pending then
+        model.open, model.terminal, model.recovering, model.restored = nil, nil, false, false
+        model.durableSeq = model.seq
+        equal("recovery_forget",next(actual.disk.records),nil)
+      end
+      if saved then model.uncertain, model.lost = true, true end
     elseif action == "expire" then
       actual.now, model.now = grace, grace
       lease.tick(actual.now)
@@ -183,6 +194,7 @@ local witnesses = {
   uncertainty = { "uncertain", "send_a" },
   callback_once = { "send_a", "report_a", "report_again" },
   restart_restore = {"send_a","restart"},
+  recovery_forget = {"send_a","forget","restart","hello","send_b"},
 }
 local foreign, batch, grace = (witness or ""):match("^partition:([^:]+):(%d+):(%d+)$")
 if foreign then
@@ -190,6 +202,15 @@ if foreign then
 elseif witness == "restarts:1" or witness == "restarts:16" then
   local size=tonumber(witness:match("%d+"))
   run({"send_a","report_a","expire","ack","restart","restart2","hello"},"wrong-id",size,11001,true)
+elseif witness == "recovery" then
+  for _,size in ipairs({1,16}) do
+    for _,trace in ipairs({
+      {"send_a","forget","restart","hello","send_b"},
+      {"send_a","report_a","forget","restart","hello","send_b"},
+      {"send_a","expire","ack","forget","restart","hello","send_b"},
+      {"send_a","fail_save","forget","save_ok","restart","hello","forget","restart2","hello","send_b"},
+    }) do run(trace,"wrong-id",size,11001) end
+  end
 elseif witness == "failures" then
   for _,size in ipairs({1,16}) do
     for _,trace in ipairs({

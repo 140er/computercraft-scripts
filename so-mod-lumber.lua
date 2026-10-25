@@ -840,10 +840,10 @@ S.saplingPoint = function(point)
     dim = dim, x = point.x, y = point.y, z = point.z, side = point.side, kind = "storage" }
   if drops.add(saved) then return saved end
 end
-S.noteChest = function(point, result)
+S.noteChest = function(point, result, receipt)
   local name = P.chestPresent(result) and result.data.name or nil
   local drops = S.module("drops")
-  if point and point.id and type(drops.note) == "function" then drops.note(point.id, name) end
+  if point and point.id and type(drops.note) == "function" then drops.note(point.id, name, receipt) end
   return type(name) == "string" and name ~= ""
 end
 S.usable = function(point)
@@ -1007,7 +1007,7 @@ S.report = function(id, turtleId, results, lease)
   end
   local inspected
   if pending.action == "junk" or pending.action == "returnFuelItem" or type(pending.action) == "table" and pending.action.kind == "dropCheck" then
-    inspected = S.noteChest(j.service and j.service.point, results[2])
+    inspected = S.noteChest(j.service and j.service.point, results[2], id)
   end
   j.inflight = nil
   S.noteBlocks(pending, results)
@@ -1172,7 +1172,7 @@ S.report = function(id, turtleId, results, lease)
   elseif action == "supplyCheck" then
     if j.service then
       j.service.checked, j.service.emptyProof = nil, nil
-      if S.noteChest(j.service.point, result) then
+      if S.noteChest(j.service.point, result, id) then
         j.service.stage = "take"
         if S.job.burnLogs and j.service.kind == "fuel" and not report.uncertain then
           j.service.checked = { pose = SO.store.copy(j.turtle.pose), chest = S.fuelChestKey(j.service.point) }

@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "61efb778b54230d9407a647dbf18f2811752c37319ffe6b20dda25ab18626af8"
+local evidenceSourceHash = "810eb4d6f52822e1ccabe9183d5f6013d2e1d4bd5fed28b15b1221aeb7fe9096"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
@@ -220,6 +220,46 @@ return function(test, equal, read)
     equal(s.lease.status(2).persistenceError,"lease state unreadable")
     equal(#s.sent,0)
   end)
+  for _,partial in ipairs({"", "{schema=1,generation="}) do
+    test("uncommitted partial lease tmp permits dispatch: "..#partial.." bytes",function()
+      local s=dofile("tests/so/protected.lua").setup(nil,{
+        ["so-data/cells/leases"]={schema=1,generation=1,value={v=1,seq=0,records={}}},
+        ["so-data/cells/leases.tmp"]=partial,
+      })
+      assert(s.lease.send(2,{{op="forward"}},{owner="mine"}))
+      equal(s.lease.status(2).persistenceError,nil)
+    end)
+  end
+  test("expiry save failure skips that worker and still expires another worker",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.manualOutcome=true
+    assert(s.lease.send(2,{{op="forward"}},{owner="mine",ms=1000}))
+    s.lease.handlers.hello({from=3,body={role="turtle",journal={id="other",pose={x=3,y=0,z=0,f=1}},
+      capabilities={setupFence=true,parkBatch=true}}})
+    assert(s.lease.send(3,{{op="inspectDown"}},{owner="mine",ms=1000}))
+    local SO=s.m.env.SO
+    local store=SO.store.store
+    local saves=0
+    SO.store.store=function(...)
+      local box=store(...)
+      local save=box.save
+      box.save=function(value)
+        saves=saves+1
+        if saves==1 then return false,"disk" end
+        return save(value)
+      end
+      return box
+    end
+    s.lease=s.m.env.dofile("so-mod-lease.lua")
+    s.lease.tick(11001)
+    equal(saves,2)
+    local open,expired=0,0
+    for _,id in ipairs({2,3}) do
+      if s.lease.status(id).open then open=open+1 end
+      if s.lease.outcome(id) then expired=expired+1 end
+    end
+    equal(open,1) equal(expired,1)
+  end)
   test("expired restart work requires a fenced observation and retains its route",function()
     local s=dofile("tests/so/protected.lua").setup()
     s.manualOutcome=true
@@ -294,6 +334,39 @@ return function(test, equal, read)
       fail=false s.job.tick(0)
       equal(s.lease.outcome(2),nil)
       equal(s.row(s.savedJob()).pose.x,1)
+    end)
+  end
+  for _,name in ipairs({"lumber","build"}) do
+    test(name.." supply inspection strike survives caller save failure and restart once",function()
+      local s=restartJob(name)
+      local SO=s.m.env.SO
+      s.m.install({"so-mod-drops.lua"})
+      SO.mods.drops=s.m.env.dofile("so-mod-drops.lua")
+      local point={id="supply",dim=0,x=0,y=-1,z=0,side="down",kind="storage"}
+      assert(SO.mods.drops.add(point))
+      local j=s.savedJob()
+      local row=name=="lumber" and j.turtles["2"] or j
+      row.service={point=point,kind="fuel",stage="check"}
+      assert(SO.store.store(s.path,function() return true end).save(j))
+      local store=SO.store.store
+      local fail=true
+      SO.store.store=function(path,...)
+        local box=store(path,...)
+        local save=box.save
+        if path==s.path then box.save=function(value) if fail then return false,"disk" end return save(value) end end
+        return box
+      end
+      s.loadJob()
+      local steps={{op="inspectDown"}}
+      local id=assert(s.lease.send(2,steps,{owner=name,intent={action="supplyCheck",steps=steps,pose=s.pose}}))
+      s.job.tick(0) s.report({{ok=false,err="No block to inspect"}})
+      equal(SO.store.read("so-drops").value.points[1].fails,1)
+      equal(s.lease.outcome(2).id,id)
+      fail=false
+      SO.mods.drops=s.m.env.dofile("so-mod-drops.lua")
+      s.reload() s.job.tick(0)
+      equal(SO.store.read("so-drops").value.points[1].fails,1)
+      equal(s.lease.outcome(2),nil)
     end)
   end
   test("stationary boundary recovery reconciles an unexpected pose without publishing the intended pose",function()

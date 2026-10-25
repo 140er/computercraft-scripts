@@ -331,10 +331,11 @@ S.fix = function(id)
   return S.commit(value, "fix", id)
 end
 
-S.note = function(id, blockName)
+S.note = function(id, blockName, receipt)
   if S.blocked then return false, "drops unreadable" end
   local idx = S.find(id)
   if not idx then return false, "missing" end
+  if receipt and S.points[idx].checkedLease == receipt then return true end
   local fails = S.points[idx].fails
   if fails >= S.strikes then return true end
   local nextFails
@@ -349,6 +350,7 @@ S.note = function(id, blockName)
   local value = S.envelope()
   if blockName == nil then value.points[idx].verified = nil end
   value.points[idx].fails = nextFails
+  value.points[idx].checkedLease = receipt
   return S.commit(value, "note", id)
 end
 
@@ -688,7 +690,9 @@ S.reconcileSetup = function(id,record)
   if not S.recoveryBox then S.message="setup recovery unreadable" return true end
   local receipt = record.id .. ":" .. record.status
   if S.setupReceipts[tostring(id)] ~= receipt then
-    local restored = not S.task or S.task.lease ~= record.id
+    local restored = record.intent and record.intent.task
+      and not (S.releasing and S.releasing.lease == record.id)
+      and (not S.task or S.task.lease ~= record.id)
     if restored then
       S.task = record.intent and SO.store.copy(record.intent.task) or nil
       if S.task then S.task.lease, S.task.queued = record.id, nil end
