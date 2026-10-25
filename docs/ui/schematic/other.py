@@ -358,6 +358,10 @@ def attention(hs):
             rows.append((1, "lost/%d" % m["id"], "T%d lost" % m["id"], owners.get(m["id"], "mining")))
     if hs["disk"][0] >= 0.8:
         rows.append((1, "disk", "Disk %d%% full" % int(hs["disk"][0] * 100), "health"))
+    if hs["errors"][0] and hs["entries"] and 0 <= now - hs["entries"][-1]["at"] < 600000:
+        rows.append((2, "errors", "Server errors %d" % hs["errors"][0], "errors"))
+    for request in hs.get("requests", []):
+        rows.append((2, "pair/%d" % request["id"], "Pair %d" % request["id"], "panel"))
     rows.sort(key=lambda r: (r[0], r[1]))
     return [dict(severity=r[0], key=r[1], text=r[2], target=r[3]) for r in rows]
 
@@ -389,10 +393,10 @@ def metrics(hs):
     return rows
 
 
-def health(role, w, h, title, kind=None):
+def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1):
     """so-mod-health's render for role: tabs, the page's rows from the top, paging on the last row."""
     cv = Canvas(w, h, title)
-    hs = SCENE["health"]
+    hs = facts if facts is not None else SCENE["health"]
     now = hs["now"][0]
     items = attention(hs)
     accent = ("e" if items[0]["severity"] == 1 else "1") if items else None
@@ -405,6 +409,19 @@ def health(role, w, h, title, kind=None):
         chip(cv, 7, top, kind or "all", "kind")
         top += 1 + gap
     capacity = max(0, h - gap - top)
+    if role == "errors" and error is not None:
+        cv.put(2, top, duration(now - error["at"]) + " ago", "8")
+        top += 1 + gap
+        capacity = max(1, h - gap - top)
+        text = re.sub(r"[\x00-\x1f\x7f]", " ", error["text"])
+        rows = wrap(text, lw)
+        pages = max(1, math.ceil(len(rows) / capacity))
+        error_page = max(1, min(error_page, pages))
+        for i, line in enumerate(rows[(error_page - 1) * capacity:error_page * capacity]):
+            cv.put(2, top + i, line, "0")
+        chip(cv, 2, h, "BACK", "error-back")
+        pager(cv, h, "%d/%d" % (error_page, pages), error_page > 1, error_page < pages)
+        return cv
     history = role in ("events", "alerts")
     if role == "health":
         rows = []
@@ -466,6 +483,38 @@ def health(role, w, h, title, kind=None):
     return cv
 
 
+HEALTH_ERROR = (
+    "tick failed: so-mod-mine.lua:120 attempt to index a nil value while saving the mining job "
+    "for turtle 7; checkpoint refused because the disk is full. Free space in so-data, "
+    "then retry the job. The worker keeps its last saved pose and reservations while the "
+    "server waits for the checkpoint. Final detail: no blocks were changed."
+)
+
+
+def health_case(role, w, h, pending=False, detail=False, page=1):
+    hs = dict(SCENE["health"], machines=[], leases={}, points=[], holds=[], requests=[],
+              errors=[0, 0], entries=[])
+    if pending:
+        hs["requests"] = [dict(id=17)]
+    else:
+        hs["errors"], hs["entries"] = [1, 340], [dict(at=3590000, text=HEALTH_ERROR)]
+    return health(role, w, h, "Health %s at %dx%d" % (role, w, h), facts=hs,
+                  error=hs["entries"][0] if detail else None, error_page=page)
+
+
+HEALTH_FIXTURES = []
+for _w, _h in ((26, 20), (29, 12)):
+    for _name, _role, _options in (
+        ("needs-error", "attention", {}),
+        ("needs-enroll", "attention", dict(pending=True)),
+        ("errors-list", "errors", {}),
+        ("error-detail", "errors", dict(detail=True)),
+        ("error-detail-next", "errors", dict(detail=True, page=2)),
+    ):
+        HEALTH_FIXTURES.append(("health/%s-%dx%d" % (_name, _w, _h),
+                                lambda r=_role, w=_w, h=_h, o=_options: health_case(r, w, h, **o)))
+
+
 def _health(role, w, h, title, kind=None):
     return lambda: health(role, w, h, title, kind)
 
@@ -495,3 +544,17 @@ FIXTURES = [
     ("turtlepose-P", _pose(26, 20, "Pose editor for an uncertain turtle at 26x20")),
     ("turtlepose-S", _pose(29, 12, "Pose editor for an uncertain turtle at 29x12")),
 ]
+
+
+if __name__ == "__main__":
+    import argparse
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fixtures", required=True)
+    args = parser.parse_args()
+    for name, make in FIXTURES + HEALTH_FIXTURES:
+        if name.startswith(("health", "attention-", "alerts-", "events-", "errors-")):
+            path = Path(args.fixtures) / (name + ".txt")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            make().fixture(str(path))

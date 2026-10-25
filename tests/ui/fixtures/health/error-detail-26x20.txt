@@ -1,0 +1,61 @@
+26x20 Health errors at 26x20
+ HEALTH  NEEDS 1  ------- 
+ EVENTS  ALERTS  ERRORS   
+                          
+ 10s ago                  
+                          
+ tick failed:             
+ so-mod-mine.lua:120      
+ attempt to index a nil   
+ value while saving the   
+ mining job for turtle 7; 
+ checkpoint refused       
+ because the disk is      
+ full. Free space in      
+ so-data, then retry the  
+ job. The worker keeps    
+ its last saved pose and  
+ reservations while the   
+ server waits for the     
+                          
+  BACK        1/2  ◄   ►  
+888888888888888180ccccccc0
+88888888888888880000000000
+00000000000000000000000000
+08888888000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000888088800000
+ffffffffffffffffffffffffff
+ffffffffffffffff77777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777fffffffffff777f777f

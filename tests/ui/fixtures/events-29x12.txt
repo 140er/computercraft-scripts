@@ -1,5 +1,5 @@
 29x12 Events at 29x12
- HEALTH  NEEDS 3  ---------- 
+ HEALTH  NEEDS 4  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
  kind  all                   
  • 10s mine.alert ore chest  

@@ -69,6 +69,9 @@ local function attention(facts)
   end
   if (facts.disk.ratio or 0) >= 0.8 then add("disk",1,"Disk "..math.floor(facts.disk.ratio*100).."% full","health") end
   if facts.clockRefused then add("clock",1,"Clock frozen; checkpoint refused","health") end
+  if (facts.errorCount or 0) > 0 and facts.errorAt and facts.now >= facts.errorAt and facts.now-facts.errorAt < 600000 then
+    add("errors",2,"Server errors "..facts.errorCount,"errors")
+  end
   if facts.forgotten then
     add("forgotten",2,facts.forgotten.text,"panel",{"pair"})
   end
@@ -105,17 +108,20 @@ H.gather = function(now)
   H.jobs = {mining=generation("so-data/mine/job"),lumber=generation("so-data/lumber/job")}
   local diskFrame = state and state.view and state.view.get({name="status"})
   local disk = diskFrame and diskFrame.data or {}
+  local enroll = SO.enroll and SO.enroll.view()
+  local errors = SO.errors and SO.errors.status() or {}
+  local entries = SO.errors and SO.errors.entries() or {}
   H.items = attention({now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,
     clockRefused=SO.clock and SO.clock.refused,
+    errorCount=errors.count,errorAt=entries[#entries] and entries[#entries].at,
     points=call("drops","list") or {},fuelAlerts=call("shop","fuelAlerts") or {},retirement=call("cells","retirement"),
     forgotten=call("state","get","pair.forgotten"),
     pairing=SO.pair and SO.pair.pending and SO.pair.pending() ~= nil,
-    requests=SO.pair and SO.pair.requests and SO.pair.requests() or {}})
+    requests=enroll and enroll.rows or {}})
   local log = call("state","diagnostics") or {}
   local clock = generation("so-data/clock")
   local runtime = SO.health or {}
   local modems = peripheral and peripheral.find and {peripheral.find("modem")} or {}
-  local errors = SO.errors and SO.errors.status() or {}
   -- Leaders { label, value, fg?, tail? } for the health page: a value of "-" is muted, a tail is the
   -- value's coral end.
   local dot, ratio = " "..U.g.dot.." ", disk.ratio or 0
@@ -138,7 +144,6 @@ H.gather = function(now)
     {"leases", open.." open"},
   }
   if errors.error then H.metrics[#H.metrics+1] = {flag="error save "..errors.error} end
-  local entries = SO.errors and SO.errors.entries() or {}
   if entries[#entries] then H.metrics[#H.metrics+1] = {last=entries[#entries].text} end
 end
 
@@ -166,6 +171,23 @@ H.render = function(role,w,h,session)
     top = top+1+gap
   end
   local capacity = math.max(0,h-1-gap-top+1)
+  if role == "errors" and v.error then
+    c.put(2,top,duration(H.now-v.error.at).." ago","8")
+    top = top+1+gap
+    capacity = math.max(1,h-gap-top)
+    local lines = U.wrap(v.error.text:gsub("[%c]"," "),lw)
+    local pages = math.max(1,math.ceil(#lines/capacity))
+    v.errorPage = math.max(1,math.min(v.errorPage or 1,pages))
+    v.errorNext = v.errorPage < pages
+    v.targets = {}
+    for i=1,capacity do
+      local line = lines[(v.errorPage-1)*capacity+i]
+      if line then c.put(2,top+i-1,line,"0") end
+    end
+    c.chip(2,h,"BACK","error-back")
+    U.pager(c,h,v.errorPage.."/"..pages,v.errorPage>1,v.errorNext)
+    return c.frame()
+  end
   local rows, page = {}, nil
   if role == "health" then
     for _, m in ipairs(H.metrics) do
@@ -178,7 +200,9 @@ H.render = function(role,w,h,session)
   elseif role == "attention" then rows=H.items
   elseif role == "errors" then
     local entries = SO.errors and SO.errors.entries() or {}
-    for i=#entries,1,-1 do rows[#rows+1] = {time=duration(H.now-entries[i].at),text=entries[i].text,fg="e"} end
+    for i=#entries,1,-1 do
+      rows[#rows+1] = {time=duration(H.now-entries[i].at),text=entries[i].text,fg="e",entry=entries[i],id="error:"..i}
+    end
   else
     local state = SO.mods.state
     if state and state.history then
@@ -226,6 +250,10 @@ H.render = function(role,w,h,session)
       local x = 5+#row.time
       if row.kind then c.put(x,y,row.kind:sub(1,math.max(0,w-x)),"8") x = x+#row.kind+1 end
       c.put(x,y,U.fit((row.text:gsub("[%c]"," ")),w-x),"0")
+      if role == "errors" then
+        c.hit(row.id,1,y,w,1)
+        v.targets[row.id] = row.entry
+      end
     end
   end
   local pages = math.max(1,math.ceil(#rows/math.max(1,capacity)))
@@ -237,7 +265,19 @@ H.input = function(role,event)
   if not event.session then return end
   local v = sessionView(event.session,role)
   local id = event.id
-  if id == "next" and v.next then
+  if role == "errors" and id == "error-back" then
+    v.error,v.errorPage,v.errorNext = nil,nil,nil
+  elseif role == "errors" and v.error then
+    if id == "next" and v.errorNext then v.errorPage = v.errorPage+1
+    elseif id == "prev" then v.errorPage = math.max(1,v.errorPage-1)
+    elseif event.open and (id=="health" or id=="attention" or id=="events" or id=="alerts" or id=="errors") then
+      v.error = nil
+      event.open(id)
+    end
+  elseif role == "errors" and v.targets and v.targets[id] then
+    local entry = v.targets[id]
+    v.error,v.errorPage = {at=entry.at,text=entry.text},1
+  elseif id == "next" and v.next then
     v.page = v.page+1
     if role == "events" or role == "alerts" then v.cursors[v.page] = v.next end
   elseif id == "prev" then v.page=math.max(1,v.page-1)

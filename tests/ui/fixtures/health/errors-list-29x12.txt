@@ -1,0 +1,37 @@
+29x12 Health errors at 29x12
+ HEALTH  NEEDS 1  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ • 10s tick failed:          
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                 1/1  ◄   ►  
+888888888888888180cccccccccc0
+8888888888888888000000000ccc0
+0e088800000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000888088808880
+fffffffffffffffffffffffffffff
+ffffffffffffffff77777777fffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777f777f

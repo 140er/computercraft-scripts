@@ -1,0 +1,37 @@
+29x12 Health errors at 29x12
+ HEALTH  NEEDS 1  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ 10s ago                     
+ job. The worker keeps its   
+ last saved pose and         
+ reservations while the      
+ server waits for the        
+ checkpoint. Final detail:   
+ no blocks were changed.     
+                             
+                             
+  BACK           2/2  ◄   ►  
+888888888888888180cccccccccc0
+8888888888888888000000000ccc0
+08888888000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000888000008880
+fffffffffffffffffffffffffffff
+ffffffffffffffff77777777fffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777777ffffffffffffff777f777f
