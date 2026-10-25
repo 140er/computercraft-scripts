@@ -1,0 +1,31 @@
+15x10 AR on the smallest monitor with focus on drop #3
+ AR GOGGLES  1 
+               
+ LAYERS  4 on  
+ turtles  [on] 
+ leases · [on] 
+ drops ·· [on] 
+ alerts · [on] 
+ foc [drop #3] 
+ OVER NETH END 
+               
+000000000000080
+000000000000000
+088888800888800
+08888888008dd80
+08888880c08dd80
+0888880cc08dd80
+08888880c08dd80
+088808000000080
+0dddd0888808880
+000000000000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
