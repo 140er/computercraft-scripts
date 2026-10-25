@@ -5,8 +5,8 @@
                                | • paired turtle missing 
  bottom      -    Y -58    +   | • #12 fuel 380     add  
                                | • home 120,64,-340      
- length      -      64     +   | • ore #1 unverified at  
-                               | • fuel #2 unverified at 
+ length      -      64     +   | • ore #1 not scanned at 
+                               | • fuel #2 not scanned a 
  mode        fast   thorough   | • #2 tools unknown      
                                | • fuel #2 812           
  ores       all         edit   | • #3 tools unknown      
