@@ -1166,13 +1166,19 @@ return function(test, equal)
       assert(flat:find(token, 1, true) or flat:find(token:match("^%d+%-%w+%-%w+"), 1, true), flat)
       assert(flat:find("#10 turtle", 1, true), "kind label cut at " .. w .. "x" .. h)
       for word in flat:gmatch("[^%s]+") do
-        local ok = ({ ENROLL = true, PENDING = true, joined = true, APPROVE = true, ALL = true, CLOSE = true, OK = true,
+        local ok = ({ ENROLL = true, PENDING = true, joined = true, APPROVE = true, ALL = true, CLOSE = true, EXTEND = true, OK = true,
           NO = true, turtle = true, PANEL = true, FLEET = true, JOBS = true, SHOP = true, PAIR = true })[word]
           or word:match("^#%d+$") or fps[word] or word:match("^%d+:%d%d$") or word:match("^%d+/?%d*$")
           or word:match("^%-+$") or token:find(word, 1, true)
         assert(ok, "unexpected text " .. word .. " at " .. w .. "x" .. h)
       end
       assert(s.button(OWNER, "enroll-ok:12"), "third row missing at " .. w .. "x" .. h)
+      -- EXTEND reaches the real server's enroll extend and keeps the token.
+      t.net.advance(60)
+      local before = t.so.enroll.view(OWNER).left
+      s.press(OWNER, "enroll-extend")
+      assert(t.so.enroll.view(OWNER).left > before, "EXTEND did not move the window end")
+      equal(t.so.enroll.view(OWNER).token, token)
       s.press(OWNER, "enroll-ok:10")
       s.press(OWNER, "enroll-no:11")
       assert(t.so.pair.key(10))

@@ -422,6 +422,78 @@ return function(test,equal)
       equal(frame.role,'panel')
     end
   end)
+  -- U5-P: the panel's EXTEND chip goes through the paired display's drawn-input path.
+  local function enrollPanel(refuse)
+    local e={now=1000000,exp=1000000+594000,owner=7,calls={}}
+    local env=setmetatable({},{__index=_G})
+    env.os=setmetatable({epoch=function() return 0 end},{__index=os})
+    local screens={}
+    env.SO={now=function() return e.now end,proto=assert(loadfile('so-proto.lua','t',env))(),
+      mods={state={get=function() end},display={screen=function(role,render,input) if render then screens[role]={render=render,input=input} end end}},
+      pair={key=function() return 'key' end,pending=function() end,list=function() return {} end},pairCode=function() end,
+      enroll={view=function(owner)
+        if not e.exp then return nil end
+        return {owner=e.owner,left=e.exp-e.now,joined=0,cap=20,rows={},token=owner==e.owner and '1-K7QP-3MXA-9WTD-HR2E' or nil}
+      end,open=function() return true end,close=function() e.exp=nil end,decide=function() return true end,
+      extend=function(owner)
+        e.calls[#e.calls+1]=owner
+        -- As so-pair: an expired window is gone, another display's window is not this one's.
+        if refuse=='closed' then e.exp=nil elseif refuse=='taken' then e.owner=9 end
+        if refuse then return nil,refuse=='taken' and 'owner' or refuse end
+        e.exp=e.now+600000;return true
+      end}}
+    local p=assert(loadfile('so-mod-panel.lua','t',env))();p.tick(0)
+    local session={id=7,isDisplay=true,w=29,panel={page='enroll',search=''}}
+    e.session=session
+    e.draw=function() return screens.panel.render(29,12,session) end
+    e.tap=function(id,from)
+      local f=e.draw();local b
+      for _,x in ipairs(f.buttons) do if x.id==id then b=x end end
+      assert(b,'missing '..id)
+      screens.panel.input({session=session,from=from or 7,id=id,x=b.x,y=b.y})
+    end
+    return e
+  end
+  test('UI3b EXTEND on the panel ENROLL page calls enrollExtend once and moves the drawn window end',function()
+    local e=enrollPanel()
+    assert(e.draw().rows[3].text:find('9:54',1,true))
+    e.now=e.now+120000
+    assert(e.draw().rows[3].text:find('7:54',1,true))
+    e.tap('enroll-extend')
+    equal(e.calls,{7})
+    local row=e.draw().rows[3].text
+    assert(row:find('10:00',1,true),row)
+    e.tap('enroll-extend',8);equal(e.calls,{7})
+  end)
+  test('UI3b a refused EXTEND shows its reason in place of the window end',function()
+    local e=enrollPanel('off')
+    e.tap('enroll-extend');equal(e.calls,{7})
+    local row=e.draw().rows[3].text
+    assert(row:find('off',1,true) and not row:find('9:54',1,true),row)
+  end)
+  test('UI3b an EXTEND refused as the window closed keeps its reason on PAIR until the next enroll tap',function()
+    local e=enrollPanel('closed')
+    e.tap('enroll-extend');equal(e.calls,{7})
+    local f=e.draw()
+    equal(e.session.panel.page,'pair')
+    local fixture=R.load('tests/ui/fixtures/panelrefused-S.txt')
+    local diff=R.diff(fixture,capture(f,29,12))
+    assert(#diff==0,table.concat(diff,'\n'))
+    for _,b in ipairs(f.buttons) do assert(b.id~='enroll-extend' and b.id~='enroll-close') end
+    assert(not table.concat(capture(f,29,12).picture().text,'\n'):find('K7QP',1,true))
+    e.tap('enroll')
+    assert(not e.draw().rows[10].text:find('closed',1,true))
+  end)
+  test('UI3b an EXTEND refused because another display holds the window shows taken on PAIR',function()
+    local e=enrollPanel('taken')
+    e.tap('enroll-extend');equal(e.calls,{7})
+    local f=e.draw()
+    equal(e.session.panel.page,'pair')
+    local text=capture(f,29,12).picture().text
+    assert(text[10]:find('ENROLL  taken',1,true),text[10])
+    assert(not table.concat(text,'\n'):find('K7QP',1,true))
+    for _,b in ipairs(f.buttons) do assert(b.id~='enroll' and not b.id:match('^enroll%-')) end
+  end)
   test('UI3b panel installs only on the server',function()
     local f=assert(io.open('install.lua'));local source=f:read('*a');f:close()
     local roles=assert(load('return '..source:match('local ROLES = (.-)\nlocal BASE'),'roles','t',{}))()

@@ -1,7 +1,7 @@
 26x20 Pocket ENROLL
  FLEET  JOBS  SHOP  PAIR  
                           
- ENROLL ----------- 9:54  
+ ENROLL -- 9:54   EXTEND  
  1-K7QP-3MXA-9WTD-HR2E    
  joined ············ 3/20 
  PENDING ------------- 3  
@@ -21,7 +21,7 @@
   APPROVE ALL      CLOSE  
 88888888888888888880000000
 00000000000000000000000000
-08888880ccccccccccc0000000
+08888880cc0000000000000000
 00000000000000000000000000
 08888880cccccccccccc000000
 088888880ccccccccccccc0800
@@ -41,7 +41,7 @@
 09999999999999000000000000
 fffffffffffffffffff777777f
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
+fffffffffffffffff77777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

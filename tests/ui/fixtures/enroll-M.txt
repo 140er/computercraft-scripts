@@ -1,7 +1,7 @@
 57x24 Panel ENROLL 57x24
  PANEL  -----------------------------------------------  
                                                          
- ENROLL ------------------------------------------ 9:54  
+ ENROLL --------------------------------- 9:54   EXTEND  
  1-K7QP-3MXA-9WTD-HR2E                                   
  joined ··········································· 3/20 
  PENDING -------------------------------------------- 3  
@@ -25,7 +25,7 @@
   APPROVE ALL                                     CLOSE  
 00000000ccccccccccccccccccccccccccccccccccccccccccccccc00
 000000000000000000000000000000000000000000000000000000000
-08888880cccccccccccccccccccccccccccccccccccccccccc0000000
+08888880ccccccccccccccccccccccccccccccccc0000000000000000
 000000000000000000000000000000000000000000000000000000000
 08888880ccccccccccccccccccccccccccccccccccccccccccc000000
 088888880cccccccccccccccccccccccccccccccccccccccccccc0800
@@ -49,7 +49,7 @@
 099999999999990000000000000000000000000000000000000000000
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffff77777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

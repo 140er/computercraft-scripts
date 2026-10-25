@@ -405,7 +405,10 @@ end
 P.enrollFrame = function(c, w, h, session, view)
   local panel = session.panel
   local left = math.max(0,math.ceil(view.left/1000))
-  c.section(2,3,w-2,"ENROLL",string.format("%d:%02d",math.floor(left/60),left%60),"0")
+  -- EXTEND sits beside the window end it moves; a refusal replaces the time with its reason.
+  local refused = panel.extendFailed and panel.extendFailed:sub(1,w-19)
+  c.section(2,3,w-11,"ENROLL",refused or string.format("%d:%02d",math.floor(left/60),left%60),refused and "e" or "0")
+  c.chip(w-8,3,"EXTEND","enroll-extend")
   local token,y = view.token,4
   if #token <= w-2 then c.put(2,4,token,"0")
   else
@@ -465,12 +468,19 @@ P.trusted = function(session, event)
     and (not event or (event.from == session.id and P.drawn(event)))
 end
 
+P.refusals = {off="off",closed="closed",owner="taken"}
+
 P.enrollInput = function(event, panel, id)
   if not SO.enroll or not P.trusted(event.session, event) then return end
   local owner = event.from
-  panel.drawn = nil
+  panel.drawn, panel.extendFailed = nil, nil
   if id == "enroll" then
     if SO.enroll.open(owner) then panel.page, panel.enrollFailed = "enroll", nil end
+    return
+  end
+  if id == "enroll-extend" then
+    local ok, err = SO.enroll.extend(owner)
+    if not ok then panel.extendFailed = P.refusals[err] or tostring(err) end
     return
   end
   local view = SO.enroll.view(owner)
@@ -860,6 +870,8 @@ P.pairPage = function(c, session, state, w, h, g)
     local enroll = SO.enroll.view(session.id)
     if P.trusted(session) and (not enroll or enroll.token) then c.chip(x,g.list,"ENROLL","enroll","primary")
     else P.dead(c,x,g.list,"ENROLL",8) end
+    -- A refused EXTEND that closed the ENROLL page keeps its reason here until the next enroll tap.
+    if state.extendFailed then c.put(x+9,g.list,state.extendFailed:sub(1,math.max(0,w-x-9)),"e") end
     return
   end
   if not SO.enroll then c.chip(2,g.list,"PAIRED","paired","plain",w-2);return end
