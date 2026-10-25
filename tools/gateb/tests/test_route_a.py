@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from checks import c2, c3, c4, c13
@@ -118,6 +118,29 @@ class DelayedBackPocket(Pocket):
         return after
 
 
+class DelayedTapPocket(Pocket):
+    def __init__(self, arrives=True):
+        super().__init__()
+        self.arrives, self.stale, self.stale_reads = arrives, None, 0
+
+    def frame(self, name):
+        if self.stale is not None:
+            self.stale_reads += 1
+            stale = self.stale
+            if self.arrives:
+                self.stale = None
+            return stale
+        return super().frame(name)
+
+    def click(self, name, ident):
+        before = self.frame(name)
+        after = super().click(name, ident)
+        if ident.startswith(("tab:", "turtle:")):
+            self.stale = before
+            return before
+        return after
+
+
 class MiningPageTests(unittest.TestCase):
     def test_active_tab_reads_bg_strings_and_runs(self):
         frame = Pocket().frame("pocket")
@@ -136,10 +159,34 @@ class MiningPageTests(unittest.TestCase):
         self.assertTrue(returned)
         self.assertEqual(ctx.clicks, ["tab:setup", "tab:main"])
 
-    def test_tab_that_does_not_switch_page_fails(self):
+    def test_tab_that_does_not_switch_page_blocks(self):
         ctx = Pocket()
         ctx.click = lambda name, ident: ctx.frame(name)
-        self.assertFalse(c3.page(ctx, "pocket", "mining", "setup")[1])
+        with patch("checks.context.time.monotonic", side_effect=[0, 0, 10]), \
+             patch("checks.context.time.sleep"), \
+             self.assertRaisesRegex(Blocked, "No setup frame on pocket mining within 10s after tab:setup"):
+            c3.page(ctx, "pocket", "mining", "setup")
+
+    def test_tab_taps_wait_through_previous_page(self):
+        for name in ("pocket", "wall"):
+            with self.subTest(name=name):
+                ctx = DelayedTapPocket()
+                self.assertTrue(c3.page(ctx, name, "mining", "setup")[1])
+                self.assertTrue(c3.page(ctx, name, "mining", "main")[1])
+                self.assertEqual(ctx.stale_reads, 2)
+
+    def test_turtle_taps_wait_through_list_frame(self):
+        ctx = DelayedTapPocket()
+        self.assertEqual(c3.coordinates_of(ctx, "pocket", ctx.frame("pocket"), ("miner1", "miner2")), [True, True])
+        self.assertEqual(ctx.stale_reads, 2)
+
+    def test_turtle_tap_without_detail_frame_blocks(self):
+        ctx = DelayedTapPocket(arrives=False)
+        with patch("checks.context.time.monotonic", side_effect=[0, 0, 10]), \
+             patch("checks.context.time.sleep"), \
+             self.assertRaisesRegex(Blocked, "No turtle detail frame on pocket turtle 4 within 10s after turtle:4"):
+            c3.coordinates_of(ctx, "pocket", ctx.frame("pocket"), ("miner1",))
+        self.assertNotIn("turtle-back", ctx.clicks)
 
     def test_legacy_setup_and_back_buttons_still_work(self):
         ctx = Pocket(legacy=True)
@@ -173,7 +220,7 @@ class MiningPageTests(unittest.TestCase):
         for name in ("pocket", "wall"):
             with self.subTest(name=name):
                 ctx = DelayedBackPocket(tab_arrives=False)
-                with patch("checks.context.time.monotonic", side_effect=[0, 0, 10]), \
+                with patch("checks.context.time.monotonic", side_effect=[0, 0, 0, 10]), \
                      patch("checks.context.time.sleep"), \
                      self.assertRaisesRegex(Blocked, f"No tab frame on {name} mining within 10s after turtle-back"):
                     c3.coordinates_of(ctx, name, ctx.frame(name), ("miner1",))
@@ -196,6 +243,65 @@ class MiningPageTests(unittest.TestCase):
             return f
         ctx.frame = details
         self.assertEqual(c3.coordinates_of(ctx, "pocket", frame, ("miner1", "miner2")), [True, False])
+
+
+class ShopOrderTests(unittest.TestCase):
+    def shop(self, order_arrives=True, order_id="order:1:minecraft:diamond"):
+        ctx = Mock()
+        ctx.run, ctx.interval = "private", 0
+        ctx.manifest = {"client_views": {"pocket": "pocket", "wall": "wall"}}
+        ctx.navigate.side_effect = lambda name, role: {"role": role}
+        ctx.lua.return_value = "generic"
+        ctx.wait.side_effect = lambda predicate, seconds=30: Context.wait(ctx, predicate, seconds)
+        state = {"tapped": False, "stale_reads": 0, "delivered": 0}
+        def frame(name):
+            if state["tapped"]:
+                state["stale_reads"] += 1
+                if order_arrives and state["stale_reads"] > 1:
+                    return {"buttons": [{"id": order_id}]}
+            return {"buttons": [{"id": "item:minecraft:diamond"}]}
+        def click(name, ident):
+            if ident == "item:minecraft:diamond":
+                state["tapped"] = True
+            else:
+                if ident not in c3.ids(frame(name)):
+                    raise Blocked(f"Visible {ident} button absent on wall shop")
+                state["delivered"] += 1
+            return {"buttons": [{"id": "item:minecraft:diamond"}]}
+        ctx.frame.side_effect = frame
+        ctx.click.side_effect = click
+        ctx.count_items.side_effect = lambda *args: state["delivered"]
+        return ctx, state
+
+    def run_shop(self, ctx):
+        with patch.object(c3, "coordinates_of", return_value=[True, True]), \
+             patch.object(c3, "page", return_value=({}, True)), \
+             patch.object(c3.camera, "take", return_value=True), \
+             patch.object(c3.camera, "credit", return_value=True):
+            return c3.run(ctx)
+
+    def test_item_tap_waits_through_item_list_then_passes(self):
+        ctx, state = self.shop()
+        self.assertEqual(self.run_shop(ctx).status, "pass")
+        self.assertGreaterEqual(state["stale_reads"], 2)
+        self.assertEqual(state["delivered"], 1)
+        ctx.click.assert_any_call("wall", "order:1:minecraft:diamond")
+
+    def test_item_tap_without_order_frame_blocks_after_timeout(self):
+        ctx, state = self.shop(order_arrives=False)
+        with patch("checks.context.time.monotonic", side_effect=[0, 0, 0, 0, 0, 0, 10]), \
+             patch("checks.context.time.sleep"), \
+             self.assertRaisesRegex(Blocked, "No order frame on wall shop within 10s after item:minecraft:diamond"):
+            self.run_shop(ctx)
+        self.assertEqual(state["delivered"], 0)
+        self.assertEqual(ctx.click.call_count, 1)
+        ctx.cli.assert_called_with("client", "private", "stop")
+
+    def test_order_frame_still_requires_exact_diamond_button(self):
+        ctx, state = self.shop(order_id="order:1:minecraft:stone")
+        with self.assertRaisesRegex(Blocked, "Visible order:1:minecraft:diamond button absent"):
+            self.run_shop(ctx)
+        self.assertEqual(state["delivered"], 0)
 
 
 LINKED = "[13:21:21] [Server thread/INFO] [minecraft/MinecraftServer]: [Not Secure] [GateBTester] {}\n"

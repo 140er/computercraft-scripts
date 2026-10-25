@@ -38,6 +38,16 @@ def active_tab(frame):
     return None
 
 
+def wait_frame(ctx, name, ready, finding):
+    def received():
+        frame = ctx.frame(name)
+        return frame if ready(frame) else None
+    frame = ctx.wait(received, 10)
+    if not frame:
+        raise Blocked(finding)
+    return frame
+
+
 def page(ctx, name, role, want):
     """Open the setup or main page through its visible tab and report whether it became active."""
     frame = ctx.frame(name)
@@ -45,11 +55,15 @@ def page(ctx, name, role, want):
     target = next((i for i in choices if i in ids(frame)), None)
     if not target:
         raise Blocked(f"Visible {want} tab absent on {name} {role}")
-    after = ctx.click(name, target)
-    if target.startswith("tab:"):
-        return after, active_tab(after) == target or want == "main" and active_tab(after) in MAIN[role][:2]
-    # Legacy pages: setup shows a back button, main shows the setup button again.
-    return after, any("back" in i for i in ids(after)) if want == "setup" else "setup" in ids(after)
+    ctx.click(name, target)
+    def ready(after):
+        if target.startswith("tab:"):
+            return active_tab(after) == target or want == "main" and active_tab(after) in MAIN[role][:2]
+        # Legacy pages: setup shows a back button, main shows the setup button again.
+        return any("back" in i for i in ids(after)) if want == "setup" else "setup" in ids(after)
+    after = wait_frame(ctx, name, ready,
+                       f"No {want} frame on {name} {role} within 10s after {target}")
+    return after, True
 
 
 def stocked(frame):
@@ -70,7 +84,9 @@ def coordinates_of(ctx, name, frame, miners):
         if f"turtle:{ident}" not in ids(ctx.frame(name)):
             found.append(False)
             continue
-        details = ctx.click(name, f"turtle:{ident}")
+        ctx.click(name, f"turtle:{ident}")
+        details = wait_frame(ctx, name, lambda current: "turtle-back" in ids(current),
+                             f"No turtle detail frame on {name} turtle {ident} within 10s after turtle:{ident}")
         ctx.record(f"C3-{name}-mining-turtle-{ident}.json", details)
         found.append(pos in "\n".join(r.get("text", "") for r in rows(details)))
         if "turtle-back" not in ids(details):
@@ -126,6 +142,8 @@ def run(ctx):
         ctx.wait(lambda: any(b.get("id") == "item:minecraft:diamond" for b in values(ctx.frame("wall")["buttons"])), 30)
         before_order = ctx.count_items("storage_output", "diamond")
         ctx.click("wall", "item:minecraft:diamond")
+        wait_frame(ctx, "wall", lambda current: any(i.startswith("order:") for i in ids(current)),
+                   "No order frame on wall shop within 10s after item:minecraft:diamond")
         ctx.click("wall", "order:1:minecraft:diamond")
         ctx.wait(lambda: ctx.count_items("storage_output", "diamond") - before_order == 1, 120)
         single_order = ctx.count_items("storage_output", "diamond") - before_order == 1
