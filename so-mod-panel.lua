@@ -248,12 +248,13 @@ P.savedControls = function(c, state, shop, item, x, y, width, lists)
 end
 P.savedFrame = function(c, state, w, h)
   local draft, shop = state.minimumDraft, SO.mods.shop
+  local g = h < 12 and 1 or 2
   c.put(2,3,draft.item:sub(1,w-2),"0")
-  c.section(2,5,w-2,"MIN",state.savedResult or "")
-  U.stepper(c,2,7,draft.value,"saved:min",4)
+  c.section(2,3+g,w-2,"MIN",state.savedResult or "")
+  U.stepper(c,2,3+2*g,draft.value,"saved:min",4)
   local watches = shop.saved("watches")
-  if watches then P.watchControl(c,state,watches,draft.item,2,9) end
-  c.chip(2,h-2,"DEFAULT","saved:default")
+  if watches then P.watchControl(c,state,watches,draft.item,2,3+3*g) end
+  c.chip(2,h-g,"DEFAULT","saved:default")
   c.chip(2,h,"SAVE","saved:save")
   P.back(c,h,"saved:back")
 end
@@ -597,14 +598,18 @@ P.workerFrame = function(c, w, h, session)
   local dim = "-"
   for _,d in ipairs(P.dims) do if settings.dim == d[2] then dim = d[1] end end
   local swap = status.settings and (settings.autoToolSwap and "on" or "off") or "-"
-  c.leader(2,4,w-2,"dimension",dim,dim == "-" and "8" or "0")
-  c.leader(2,5,w-2,"tool swap",swap,swap == "-" and "8" or "0")
-  if block and block ~= "pending" then c.put(2,7,block:sub(1,w-2),"8")
+  -- Below 9 rows the chips take the leader rows; the primary chip shows the confirmed value.
+  local top = (block or h >= 9) and 7 or 4
+  if top == 7 then
+    c.leader(2,4,w-2,"dimension",dim,dim == "-" and "8" or "0")
+    c.leader(2,5,w-2,"tool swap",swap,swap == "-" and "8" or "0")
+  end
+  if block and block ~= "pending" then c.put(2,math.min(7,h-1),block:sub(1,w-2),"8")
   elseif not block then
     local items = {}
     for _,d in ipairs(P.dims) do items[#items+1] = {d[1],"worker-dim:"..d[1]:lower(),settings.dim == d[2] and "primary" or "plain"} end
-    P.nav(c,7,items)
-    P.nav(c,8,{{"SWAP ON","worker-swap:on",settings.autoToolSwap and "primary" or "plain"},
+    P.nav(c,top,items)
+    P.nav(c,top+1,{{"SWAP ON","worker-swap:on",settings.autoToolSwap and "primary" or "plain"},
       {"SWAP OFF","worker-swap:off",settings.autoToolSwap and "plain" or "primary"}})
   end
   P.back(c,h,"worker-back")

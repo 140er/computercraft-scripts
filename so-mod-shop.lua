@@ -490,12 +490,12 @@ S.savedCanvas = function(c, state, w, h)
       back()
       return
     end
-    c.chip(2,5,"NAME","saved2:name")
-    c.put(2,6,draft.value.name:sub(1,w-2),"0")
+    if h < 12 then c.chip(2,4,"NAME","saved2:name") c.put(9,4,draft.value.name:sub(1,w-9),"0")
+    else c.chip(2,5,"NAME","saved2:name") c.put(2,6,draft.value.name:sub(1,w-2),"0") end
     list = draft.value
   elseif list then c.put(2,4,list.name:sub(1,w-2),"0") end
   if list then
-    local top, step = draft and 8 or 6, draft and 2 or w < 24 and 4 or 3
+    local top, step = draft and (h < 12 and 5 or 8) or 6, draft and 2 or w < 24 and 4 or 3
     local per = math.max(1,math.min(4,math.floor((h-2-top)/step)))
     local pages = math.max(1,math.ceil(#list.items/per))
     state.listPage = math.max(1,math.min(state.listPage or 1,pages))

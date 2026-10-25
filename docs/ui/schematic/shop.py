@@ -435,13 +435,17 @@ def saved_canvas(cv, entries, revision=1, page="supplies", draft=None, totals=No
             chip(cv, 2, h, "DONE", "saved2:done")
             chip(cv, w - 6, h, "BACK", "saved2:back")
             return
-        chip(cv, 2, 5, "NAME", "saved2:name")
-        cv.put(2, 6, draft["value"]["name"][:w - 2], "0")
+        if h < 12:
+            chip(cv, 2, 4, "NAME", "saved2:name")
+            cv.put(9, 4, draft["value"]["name"][:w - 9], "0")
+        else:
+            chip(cv, 2, 5, "NAME", "saved2:name")
+            cv.put(2, 6, draft["value"]["name"][:w - 2], "0")
         selected = draft["value"]
     elif selected:
         cv.put(2, 4, selected["name"][:w - 2], "0")
     if selected:
-        top, step = (8, 2) if draft else (6, 4 if w < 24 else 3)
+        top, step = ((5 if h < 12 else 8), 2) if draft else (6, 4 if w < 24 else 3)
         per = max(1, min(4, (h - 2 - top) // step))
         pages = max(1, math.ceil(len(selected["items"]) / per))
         list_page = max(1, min(list_page, pages))

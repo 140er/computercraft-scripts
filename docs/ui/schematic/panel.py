@@ -396,15 +396,17 @@ def worker(w, h, title, ident, settings=None, block=None, note=None, tabs=None):
     s = settings or {}
     dim = next((label for label, name in DIMS if s.get("dim") == name), "-")
     swap = ("on" if s.get("autoToolSwap") else "off") if settings is not None else "-"
-    leader(cv, 2, 4, w - 2, "dimension", dim, "8" if dim == "-" else "0")
-    leader(cv, 2, 5, w - 2, "tool swap", swap, "8" if swap == "-" else "0")
+    top = 7 if block or h >= 9 else 4
+    if top == 7:
+        leader(cv, 2, 4, w - 2, "dimension", dim, "8" if dim == "-" else "0")
+        leader(cv, 2, 5, w - 2, "tool swap", swap, "8" if swap == "-" else "0")
     if block and block != "pending":
-        cv.put(2, 7, block[:w - 2], "8")
+        cv.put(2, min(7, h - 1), block[:w - 2], "8")
     elif not block:
-        nav(cv, 7, [(label, "worker-dim:" + label.lower(), "primary" if s.get("dim") == name else "plain")
+        nav(cv, top, [(label, "worker-dim:" + label.lower(), "primary" if s.get("dim") == name else "plain")
                     for label, name in DIMS])
         on = bool(s.get("autoToolSwap"))
-        nav(cv, 8, [("SWAP ON", "worker-swap:on", "primary" if on else "plain"),
+        nav(cv, top + 1, [("SWAP ON", "worker-swap:on", "primary" if on else "plain"),
                     ("SWAP OFF", "worker-swap:off", "plain" if on else "primary")])
     back(cv, h, "worker-back")
     return cv
