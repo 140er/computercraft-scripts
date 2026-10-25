@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "0c0127af7b158fa3e3d20a20d1340cde7d0a632d90f931204d1e65dc1d387ba5"
+local evidenceSourceHash = "b5514c400c13a86790c836264f7e33e630ab7facf751653eb3b80061bb3b6cd3"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
