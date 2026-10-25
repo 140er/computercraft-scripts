@@ -160,7 +160,7 @@ and listeners use `listener(sender, message)`.
   `SO.health.modules` holds at most 64 module-file facts with `status` absent,
   loaded or failed, and load `error` capped at 160 characters. Ticks record
   `lastGood` and `tickError`; success clears the tick error. `revision` is the
-  running full SHA or nil; `config` is the startup config. `configError` marks an
+  running full SHA or nil; `config` is the config snapshot refreshed each tick. `configError` marks an
   unreadable existing config. `gpsGap` compares saved position with boot GPS.
   These facts stay in memory.
 - [so-plan.lua](../so-plan.lua) provides pure geometry and batch helpers.
@@ -1468,6 +1468,17 @@ eight sizes. `tests/parts/so-mod-panel.lua` runs it with ui3b and r3pocket.
   for reservations that survived the restart.
 - SO3 mining, SO7 lumber, SO9 installer and SO10 AR are implemented.
 
+## Gate B C2 repair scenario
+
+`GATEB_C2_REPAIR=1` selects replacement-server repair for `--checks C2`.
+Without it, C2 keeps invitation/rejection checks. Run both separately when
+needed. Repair requires 20 TPS, the private wall/pocket/probe fixture and a
+native client. It checks monitor-touch isolation through repair, local terminal
+and pocket confirmation, new peer keys and fresh frames after reboot.
+Evidence includes observations, redacted credential snapshots and four native
+photos. This documents the driver, not a completed native run. See
+[C2 repair](../tools/gateb/C2-repair.md) for the pinned-SHA command and evidence.
+
 ## Accelerated Gate B checks
 
 Run complete updated fleets at `/tick rate 80` for four times game speed.
@@ -1515,7 +1526,84 @@ fuel for round-trip admission. The display dispatcher keeps a per-session map
 of the last delivered frame's button ids and rejects hidden or stale ids before
 any screen action. Local monitor input uses its last painted frame.
 
+## Runtime refusal and tick diagnostics
+
+`SO.health.refused` has `windowMs=600000`, `cap=128`, `senders`, `totals` and
+`evicted`. Sender rows hold a game-time `bucket`, `last` and reason counts
+`shape`, `time`, `mac`, `replay` and `blocked`. Old buckets expire each tick;
+capacity evicts the least recently seen sender. Lifetime reason totals survive
+expiry and eviction. Refused packets write zero ERRORS lines per sender per
+ten minutes. Diagnostics store no payloads or keys and reset at restart.
+
+Module tick facts add `tickMs`, `peakMs` and `peakAt`. Costs use `os.clock()`
+rounded to milliseconds, including failed ticks. `peakAt` uses game time.
+`SO.health.slowest={name,tickMs,at,age}` retains the largest tick cost since
+boot; `age` updates each tick in game milliseconds. HEALTH pages these facts,
+refusal totals, retained senders and the evicted count.
+
+`health.soundFacts()` returns copied `{ready,quiet,keys}` with sorted severity 1
+attention keys, independent of output flags and display snoozes. `ready` follows
+the first complete gather. Default-off `alarm` enables server notes every
+300000 game milliseconds per standing key after a silent startup/enabling
+baseline. `pocketTone` is a separate default-off flag; pocket playback is a
+follow-up. `soundQuiet` uses Amsterdam civil minutes and defaults off. See
+[severity 1 sound](server-only/PROTOCOL.md#severity-1-sound) for quiet hours,
+speaker selection and skipped attempts. Sound settings refresh each tick.
+
+## Job setup and completion
+
+Default-off `jobPoseSetup` adds paired-worker HOME and FROM/TO chips.
+Mining and lumber select a worker per display. First corners stay per display.
+Mining and build HOME use the occupied cell and facing. Lumber ground uses
+first-corner Y minus one; build corners use each captured Y minus one.
+Open leases, lost or uncertain poses and recovery refuse capture. Existing
+command validation still applies. Capture sends no movement.
+
+Mining and build stop at COMPLETE and save one completion notice. Mining waits
+for all workers and supply/return work; raising the branch budget needs START
+before new work. Stopped completed-worker recovery only returns to its branch
+end. Build shows placed/total cells and does not repeat the notice after START
+or restart. Mining and lumber omit worker-fuel warnings for empty fleets.
+
+`build.turtleView()` returns copied rows keyed by worker ID, with `role="build"`,
+`pose`, `anchor`, `state`, `inv`, `fuel`, `done`, `total`, `step`, `error`,
+`paused` and `parkConfirmed`. Forgotten or removed workers have no row.
+`lumber.turtleView()` also exposes `paused` and `parkConfirmed`. A confirmed
+paused worker reports `parked` while retaining its error. The display consumer
+still gathers only mining and lumber; build detail controls remain a follow-up.
+
+Mining rechecks `drops.usable` before failed-trip retries. Lumber rechecks it
+before fuel retries and new chest commands, and before selecting or continuing
+sapling services, including restored IDs. Unusable points hold with the current
+reason. In-flight commands and safe returns finish. These checks respect saved
+exclusions even after `dropsSavedSetup` is disabled.
+
+## Chest test sweeps
+
+Default-off `dropsTestQueue` adds TEST ALL and CHECK SELECTED to SETUP.
+Sweeps also need `setupMovement=true`. TEST ALL takes unverified usable points
+in the current dimension; CHECK SELECTED can include verified points. Each
+display selects stable IDs. One worker visits at most 64 points in list order,
+with full admission and route checks before each visit. A visit counts only
+after saved verification, safe return and occupied-cell handoff.
+
+STOP QUEUE drops pending visits and preserves the active return and reservations.
+Failures and FACING drop pending visits. Leaving SETUP keeps the sweep running.
+Forgetting its owner or worker drops pending visits. Restart clears the queue
+and selections and retains fenced setup recovery. Queue data stays in memory.
+See [chest test queue](server-only/PROTOCOL.md#chest-test-queue).
+
 ## Per-device forget
+
+`SO.forgetImpact(id)` returns read-only `{jobs,scans,jobNames,text}`. It counts
+one assignment per mining, lumber or build module, and one busy setup/release
+scan. Unpaired IDs return zero. Text is `parks 0 jobs`, `parks 1 job` or
+`parks N jobs`, with `; holds 1 scan` when needed. Other lumber workers continue.
+
+Default-off `terminalRevoke` enables R, `<id> revoke`, then the same numeric ID
+within 15000 game milliseconds. A mismatch, Escape, expiry, changed saved key
+or disabled flag cancels. Ordinary role commands cancel the pending revoke
+and dispatch normally. Success calls `SO.forgetDevice(id, serverId)`.
 
 `pair.list()` returns sorted `{ id, fingerprint }` rows. The fingerprint is the
 first four uppercase hex characters of SHA-256 of the stored hex key string.
