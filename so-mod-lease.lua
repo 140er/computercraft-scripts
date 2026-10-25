@@ -1,4 +1,4 @@
-local S = { turtles = {}, callbacks = {}, seq = 0, owners = {mine=true,lumber=true,build=true,setup=true} }
+local S = { turtles = {}, callbacks = {}, seq = 0, restartAlert = false, owners = {mine=true,lumber=true,build=true,setup=true} }
 S.rules = function()
   if not S.plan then S.plan=dofile("so-plan.lua") end
   return S.plan
@@ -693,8 +693,9 @@ S.restore = function()
   S.seq = S.saved.seq
   for _, record in pairs(S.saved.records) do
     local row = S.row(record.turtleId)
-    -- Peer movement waits until every restored worker has saved its current pose.
+    -- Restored workers hold peer movement while their hello window is open.
     row.record, row.lost, row.restored, row.bootRecovery = SO.store.copy(record), true, true, true
+    row.restartContactAt = SO.now()
     row.worldFrame, row.releaseHold = record.frame, SO.store.copy(record.releaseHold)
     if record.status == "open" then row.open = row.record end
     if (record.status == "recovering" or record.hold) and not row.releaseHold then row.boundaryHold = true end
@@ -705,10 +706,34 @@ S.restore = function()
   end
 end
 
+S.restartHolders = function(now)
+  local waiting, absent = {}, {}
+  for id, row in pairs(S.turtles) do
+    if row.bootRecovery then
+      -- Silence ends the fleet wait, never this worker's recovery or cell holds.
+      local list = now - row.restartContactAt < 60000 and waiting or absent
+      list[#list + 1] = id
+    end
+  end
+  table.sort(waiting) table.sort(absent)
+  return waiting, absent
+end
+
 S.restartReady = function()
   if S.persistenceError then return false end
-  for _, row in pairs(S.turtles) do if row.bootRecovery then return false end end
-  return true
+  local waiting = S.restartHolders(SO.now())
+  return #waiting == 0
+end
+
+S.restartNotice = function(now)
+  local waiting, absent = S.restartHolders(now)
+  local parts = {}
+  if #waiting > 0 then parts[#parts + 1] = "lease recovery pending: " .. table.concat(waiting, ", ") end
+  if #absent > 0 then parts[#parts + 1] = "lease recovery absent: " .. table.concat(absent, ", ") .. "; reservations held" end
+  local text = #parts > 0 and table.concat(parts, "; ") or nil
+  if text == S.restartAlert then return end
+  S.restartAlert = text
+  S.emit("lease.alert", text and {text=text,waiting=waiting,absent=absent} or false)
 end
 
 S.send = function(id, steps, opts)
@@ -1067,6 +1092,7 @@ end
 
 S.hello = function(msg)
   local row = S.row(msg.from)
+  if row.bootRecovery then row.restartContactAt = SO.now() end
   row.contact, row.contactAt = (row.contact or 0)+1, SO.now()
   local key = SO.pair.key(msg.from)
   if row.settingsKey ~= key then
@@ -1130,8 +1156,12 @@ S.tick = function(now)
       record = row.record
     end
     if record and record.status == "recovering" and not S.owners[record.owner]
-      and row.worker and row.setupFence and row.parkBatch and not row.uncertain and not S.assigned(id) then
-      S.send(id,{{op="gps",park=true}},{owner="leaseRecovery",recover=true,ms=15000,pose=record.pose,frame=record.frame})
+      and row.worker and not row.uncertain and not S.assigned(id) then
+      if row.setupFence and row.parkBatch then
+        S.send(id,{{op="gps",park=true}},{owner="leaseRecovery",recover=true,ms=15000,pose=record.pose,frame=record.frame})
+      elseif not S.safety and not row.releaseHold then
+        S.send(id,{{op="inspectDown"}},{owner="leaseRecovery",recover=true,ms=15000,pose=record.pose,frame=record.frame})
+      end
     end
     local lease = row.open
     if lease and (now > lease.expires + 10000 or row.restartProof) then
@@ -1169,6 +1199,7 @@ S.tick = function(now)
     count = count + 1
     if count % 64 == 0 then SO.breathe() end
   end
+  S.restartNotice(now)
 end
 
 S.historyPage = function(query, history)
