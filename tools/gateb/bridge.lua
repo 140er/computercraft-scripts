@@ -13,6 +13,9 @@ local bootId=read('/.gateb/boot-id')
 local programs={server='so-server.lua',worker='worker.lua',display='display.lua'}
 local env=setmetatable({}, {__index=_ENV})
 env._G=env
+if fs.exists('/.gateb/c16-hook.lua') then
+  assert(loadfile('/.gateb/c16-hook.lua','t',env))()
+end
 local screens={}
 local jobs={}
 local pending={}

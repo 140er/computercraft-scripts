@@ -31,6 +31,8 @@ PASS = {
     "C12": {"stock_visible_seconds": 10.78, "search_filtered": True, "delivered_delta": 16, "stock_delta": -16},
     "C13": {k: True for k in ("linked_goggles", "labels_boxes_headings_aligned", "no_overlap", "stable_frames", "hud_matches_server", "native_layer_removal", "layers_persist", "real_photos")},
     "C14": {k: True for k in ("real_http_staging", "native_interruption", "old_files_unchanged", "pairing_unchanged", "old_role_rebooted", "full_update_exact", "final_rebooted")},
+    "C16": {"worker_count": 10, "tick_rate": 20, **{k: True for k in (
+        "simultaneous_updates", "budget_refused_unchanged", "ancestry_refused_unchanged", "paired_lease_recovery")}},
 }
 PASS["C5"].update(observed_game_seconds=600, stalled_miners=[], shared_dig_cells=[], previously_dug_cells=[])
 PASS["C7"] = {**PASS["C5"], "game_seconds": 1800, "ore_delivered": True, "fuel_trip": False, "ore_trip": True, "server_errors": 0}
@@ -40,7 +42,8 @@ FAIL = {"C1": ("install_errors", ["initial TLS failure"]), "C2": ("probe_unpaire
         "C8": ("ore", {"alerts":2,"parked":True,"retry_game_seconds":[60],"resume_game_seconds":30}),
         "C9": ("no_motion", False), "C10": ("outside_own_path", [{"worker":"4","pos":[99,99,99]}]),
         "C11": ("no_input_after_return", False), "C12": ("delivered_delta", 15),
-        "C13": ("stable_frames", False), "C14": ("old_files_unchanged", False)}
+        "C13": ("stable_frames", False), "C14": ("old_files_unchanged", False),
+        "C16": ("simultaneous_updates", False)}
 
 
 class SelectionTests(unittest.TestCase):
@@ -51,8 +54,9 @@ class SelectionTests(unittest.TestCase):
             "so-mod-lease.lua": ["C5", "C7", "C8", "C10"],
             "display.lua": ["C3", "C4"], "so-mod-display.lua": ["C3", "C4"],
             "so-ui.lua": ["C3", "C4"], "screens/mining.lua": ["C3", "C4"],
-            "so-mod-ar.lua": ["C13"], "install.lua": ["C1", "C14"],
-            "update.lua": ["C1", "C14"], "worker.lua": ["C1", "C9", "C11"],
+            "so-mod-ar.lua": ["C13"], "install.lua": ["C1", "C14", "C16"],
+            "update.lua": ["C1", "C14"], "worker.lua": ["C1", "C9", "C11", "C16"],
+            "so-server.lua": list(IDS),
             "so-lumber-plan.lua": ["C6"], "so-mod-shop.lua": ["C12"], "so-pair.lua": ["C2"]}
         for path, checks in expected.items():
             with self.subTest(path=path): self.assertEqual(run.select_checks([path]), checks)
