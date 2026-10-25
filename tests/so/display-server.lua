@@ -2,6 +2,26 @@
 -- lost flags and the takeover chip opening the turtle, labels in the role list, stale ids
 -- on the DISPLAYS tile, immediate monitor taps and the status ALERTS list.
 local H = dofile("tests/so/harness.lua")
+local R = dofile("tests/ui/render.lua")
+
+-- A sent frame against its twin fixture (docs/ui/schematic/system.py alert_list), in text, fg and bg.
+local function match(path, frame)
+  local fixture = R.load(path)
+  local out = R.capture(fixture.w, fixture.h)
+  for y, row in ipairs(frame.rows) do
+    local fg, bg = {}, {}
+    for _, run in ipairs(row.runs or {}) do fg[#fg + 1], bg[#bg + 1] = string.rep(run[2], run[1]), string.rep(run[3], run[1]) end
+    fg, bg = table.concat(fg), table.concat(bg)
+    if not row.runs then
+      fg = #row.fg == 1 and string.rep(row.fg, #row.text) or row.fg
+      bg = #row.bg == 1 and string.rep(row.bg, #row.text) or row.bg
+    end
+    out.setCursorPos(1, y)
+    out.blit(row.text .. string.rep(" ", #fg - #row.text), fg, bg)
+  end
+  local diff = R.diff(fixture, out)
+  assert(#diff == 0, path .. "\n" .. table.concat(diff, "\n"))
+end
 
 -- A screen that records blit rows by y.
 local function screen(w, h)
@@ -224,6 +244,36 @@ return function(test, equal)
     assert(s.button("alerts-back"), "BACK is drawn")
     s.tap("alerts-back")
     s.at(40300)
+    assert(s.text():find("STATUS", 1, true), s.text())
+  end)
+
+  test("P-U3-13: the ALERTS list matches its twin at 57x24", function()
+    local s = boot({ values = { ["a.alert"] = { text = "ore chest full", detail = "drop point #3" },
+      ["b.alert"] = { text = "out of saplings" }, ["c.alert"] = { text = "#4 lease expired, lane released" } } })
+    s.open("status", 57, 24)
+    s.at(1000)
+    s.tap("alerts")
+    s.at(1100)
+    match("tests/ui/fixtures/alertlist-M.txt", s.frame())
+  end)
+
+  test("P-U3-13: seven alerts at 15x10 page in the header and keep BACK whole", function()
+    local values = {}
+    for i = 1, 7 do values["a" .. i .. ".alert"] = { text = "alert " .. i } end
+    local s = boot({ values = values })
+    s.open("status", 15, 10)
+    s.at(1000)
+    s.tap("alerts")
+    s.at(1100)
+    match("tests/ui/fixtures/alertlist-XS.txt", s.frame())
+    equal(s.frame().rows[10].text:sub(1, 8), "  BACK  ", "BACK and the gap after it are intact")
+    local back, prev = s.button("alerts-back"), s.button("alert-prev")
+    assert(back.x + back.w < prev.x, "the controls keep apart")
+    s.tap("alert-next")
+    s.at(1200)
+    match("tests/ui/fixtures/alertlist-XS2.txt", s.frame())
+    s.tap("alerts-back")
+    s.at(1300)
     assert(s.text():find("STATUS", 1, true), s.text())
   end)
 end

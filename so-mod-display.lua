@@ -867,22 +867,28 @@ end
 D.alertList = function(model, session, w, h)
   local C, list = U.canvas(w, h), {}
   for i = #model.alerts, 1, -1 do list[#list + 1] = model.alerts[i] end
-  C.bar("ALERTS", nil, nil, tostring(#list), #list > 0 and "e" or "8")
   local top = h >= 6 and 3 or 2
   local capacity = math.max(1, h - top - 1)
   local pages = math.max(1, math.ceil(#list / capacity))
   session.alertList = session.alertList % pages
+  -- BACK, a gap, then the arrows at the right, moved up to the edge on narrow displays. The page count
+  -- goes between BACK and the arrows when it fits there, else in the header.
+  local back = w >= 15 and "BACK" or U.g.cross
+  local free = 2 + #back + 3
+  local px = math.max(w - 7, free)
+  local note = pages > 1 and (session.alertList + 1) .. "/" .. pages or nil
+  local footer = note and px - 1 - #note >= free
+  C.bar("ALERTS", nil, nil, note and not footer and note or tostring(#list), #list > 0 and "e" or "8")
   if #list == 0 then C.put(2, top, "no alerts", "8") end
   for i = 1, capacity do
     local a = list[session.alertList * capacity + i]
     if a then C.flag(2, top + i - 1, w - 2, tostring(a.text or ""), a.detail and tostring(a.detail)) end
   end
-  C.chip(2, h, "BACK", "alerts-back")
-  if pages > 1 then
-    local note = (session.alertList + 1) .. "/" .. pages
-    C.chip(w - 7, h, U.g.left, "alert-prev")
-    C.chip(w - 3, h, U.g.right, "alert-next")
-    C.put(w - 8 - #note, h, note, "8")
+  C.chip(2, h, back, "alerts-back")
+  if pages > 1 and px + 6 <= w then
+    C.chip(px, h, U.g.left, "alert-prev")
+    C.chip(px + 4, h, U.g.right, "alert-next")
+    if footer then C.put(px - 1 - #note, h, note, "8") end
   end
   return C.frame()
 end

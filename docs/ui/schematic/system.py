@@ -3,7 +3,7 @@ no-server bar (display.lua) and the server terminal (D.terminal in so-mod-displa
 import re
 
 from cc import Canvas
-from kit import age, bar, box, digits, filled, flag, leader, mark, rule, section, ticks
+from kit import age, bar, box, chip, digits, filled, flag, leader, mark, rule, section, ticks
 import mapdraw as MD
 import status as ST
 from pocket import SYS, wrap
@@ -53,7 +53,8 @@ def crop(cv, x, y, w, h, focus):
 
 def alert(m, a, w, h, left=None, mapped=True, title="Alert takeover"):
     """Coral frame and title chip, the subject's position, the detail, a map crop around the subject
-    and a coral tick row counting the takeover down. A tap anywhere dismisses it."""
+    and a coral tick row counting the takeover down. The #id chip opens its turtle; a tap anywhere
+    else dismisses it."""
     cv = Canvas(w, h, title)
     box(cv, 1, 1, w, h, "e")
     mx = 5 if w >= 40 else 3
@@ -63,6 +64,7 @@ def alert(m, a, w, h, left=None, mapped=True, title="Alert takeover"):
     rest = len(name) > iw - 2 and s and s.get("id") is not None
     label = " %s " % (s["label"] if rest else name).upper()[:iw - 2]
     y = 3 if h >= 10 else 2
+    chip_y = y
     cv.put(mx, y, label, "f", "e")
     if rest:
         for line in wrap(a["text"], iw)[:2]:
@@ -91,6 +93,46 @@ def alert(m, a, w, h, left=None, mapped=True, title="Alert takeover"):
     if left is not None and h >= 8:
         ticks(cv, mx, h - 2, iw, filled(iw, left, TAKEOVER), "e")
     cv.hit("dismiss", 1, 1, w, h)
+    # Clients take the last button drawn, so the chip goes after the dismiss hit.
+    if s and s.get("id") is not None:
+        cv.hit("turtle:%d" % s["id"], mx, chip_y, len(label), 1)
+    return cv
+
+
+# ---------------------------------------------------------------- status ALERTS
+
+# Standing alerts, oldest first, as the gather lists them; tests/so/display-server.lua raises the same.
+ALERTS = [dict(text="ore chest full", detail="drop point #3"), dict(text="out of saplings"),
+          dict(text="#4 lease expired, lane released")]
+ALERTS_XS = [dict(text="alert %d" % i) for i in range(1, 8)]
+
+
+def alert_list(alerts, w, h, page=0, title="Status ALERTS"):
+    """Every standing alert, newest first, one flag row each; BACK and a pager on the last row, the arrows
+    moved up to the edge on narrow displays. The page count sits between BACK and the arrows when it
+    fits, else in the header."""
+    cv = Canvas(w, h, title)
+    shown = list(reversed(alerts))
+    top = 3 if h >= 6 else 2
+    capacity = max(1, h - top - 1)
+    pages = max(1, -(-len(shown) // capacity))
+    page %= pages
+    back = "BACK" if w >= 15 else "×"
+    free = 2 + len(back) + 3
+    px = max(w - 7, free)
+    note = "%d/%d" % (page + 1, pages) if pages > 1 else None
+    footer = note is not None and px - 1 - len(note) >= free
+    bar(cv, "ALERTS", right=note if note and not footer else str(len(shown)), rfg="e" if shown else "8")
+    if not shown:
+        cv.put(2, top, "no alerts", "8")
+    for i, a in enumerate(shown[page * capacity:(page + 1) * capacity]):
+        flag(cv, 2, top + i, w - 2, a["text"], a.get("detail") or "")
+    chip(cv, 2, h, back, "alerts-back")
+    if pages > 1 and px + 6 <= w:
+        chip(cv, px, h, "◄", "alert-prev")
+        chip(cv, px + 4, h, "►", "alert-next")
+        if footer:
+            cv.put(px - 1 - len(note), h, note, "8")
     return cv
 
 
