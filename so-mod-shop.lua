@@ -199,6 +199,162 @@ S.fuelAlerts = function()
   return {}
 end
 
+S.savedBoxes, S.watchKeys = {}, {}
+S.savedEnabled = function()
+  local read = SO.store and SO.store.read
+  local cfg = read and read("so-server.cfg")
+  return type(cfg) == "table" and cfg.shopSaved == true
+end
+S.integer = function(n, lo, hi)
+  return type(n) == "number" and n == n and n >= lo and n <= hi and n % 1 == 0
+end
+S.itemId = function(id)
+  return type(id) == "string" and #id <= 128 and id:match("^[a-z0-9_.-]+:[a-z0-9_./-]+$") ~= nil
+end
+S.savedValid = function(v, kind)
+  if type(v) ~= "table" or v.v ~= 1 or v.kind ~= kind or not S.integer(v.revision, 0, 2147483647)
+      or type(v.entries) ~= "table" then return false end
+  for key in pairs(v) do
+    if key ~= "v" and key ~= "kind" and key ~= "revision" and key ~= "entries" then return false end
+  end
+  local n, seen = 0, {}
+  for key, value in pairs(v.entries) do
+    n = n + 1
+    if kind == "minimums" then
+      if not S.itemId(key) or not S.integer(value, 1, 4096) then return false end
+    elseif kind == "watches" then
+      if not S.integer(key, 1, 256) or not S.itemId(value) or seen[value] then return false end
+      seen[value] = true
+    else return false end
+  end
+  if n > 256 then return false end
+  if kind == "watches" then for i = 1, n do if v.entries[i] == nil then return false end end end
+  return true
+end
+S.savedPreflight = function(kind)
+  local path, newest, rejected, picked = "so-data/shop-"..kind, 0, 0, nil
+  for _, file in ipairs({path,path..".tmp",path..".bak"}) do
+    if fs.exists(file) then
+      local ok, t, bytes = pcall(SO.store.read,file)
+      local generation = ok and type(t) == "table" and t.generation
+      if not S.integer(generation,1,2^53-1) then return false end
+      if t.schema == 1 and S.savedValid(t.value,kind) and type(bytes) == "string" and #bytes <= 65536 then
+        if generation > newest then newest,picked = generation,t.value end
+      else rejected = math.max(rejected,generation) end
+    end
+  end
+  return rejected == 0 or rejected < newest, picked
+end
+S.savedCommitted = function(kind, current)
+  local ok, value = S.savedPreflight(kind)
+  if not ok then return false end
+  if not value then return current.revision == 0 and next(current.entries) == nil end
+  if value.revision ~= current.revision then return false end
+  for item, count in pairs(current.entries) do if value.entries[item] ~= count then return false end end
+  for item, count in pairs(value.entries) do if current.entries[item] ~= count then return false end end
+  return true
+end
+S.savedBlock = function(kind, box)
+  box.blocked = true
+  if SO.error then SO.error("shop-"..kind..": save unavailable; recovery failed",true) end
+end
+S.savedRestore = function(kind, box)
+  if S.savedCommitted(kind,box.current) then return end
+  local ok, restored = pcall(function()
+    -- Ignore the rejected revision while selecting the rollback source.
+    local rollback = SO.store.store("so-data/shop-"..kind,function(v)
+      return S.savedValid(v,kind) and v.revision == box.current.revision
+    end,65536)
+    if not rollback.save(box.current) or not S.savedCommitted(kind,box.current) then return end
+    local reopened = SO.store.store("so-data/shop-"..kind,function(v) return S.savedValid(v,kind) end,65536)
+    reopened.current,reopened.present = box.current,true
+    return reopened
+  end)
+  if ok and restored then S.savedBoxes[kind] = restored
+  else S.savedBlock(kind,box) end
+end
+S.savedBox = function(kind)
+  if not S.savedEnabled() then return nil, "off" end
+  if kind ~= "minimums" and kind ~= "watches" then return nil, "invalid" end
+  if S.savedBoxes[kind] == nil then
+    if not S.savedPreflight(kind) then S.savedBoxes[kind] = false return nil,"save unavailable" end
+    local ok, box = pcall(SO.store.store, "so-data/shop-" .. kind,
+      function(v) return S.savedValid(v, kind) end, 65536)
+    S.savedBoxes[kind] = ok and box or false
+    if ok then
+      box.current = box.value or {v=1, kind=kind, revision=0, entries={}}
+      box.present = box.value ~= nil
+    end
+  end
+  return S.savedBoxes[kind] or nil, "save unavailable"
+end
+S.saved = function(kind)
+  local box, err = S.savedBox(kind)
+  if not box then return nil, err end
+  if box.blocked then return nil,"save unavailable" end
+  return SO.store.copy(box.current)
+end
+S.minimum = function(item)
+  local box = S.savedBox("minimums")
+  return box and box.current.entries[item] or math.min(16, S.stackOf(item, S.kind(item)))
+end
+S.watchAlerts = function(fresh)
+  local state = SO.mods.state
+  if not state or not state.get or not state.emit then return end
+  if not S.watchScanned and state.view then
+    S.watchScanned = true
+    for key, value in pairs(state.view().values or {}) do
+      if type(key) == "string" and key:match("^shop%.watch%..+%.alert$") and value then S.watchKeys[key] = true end
+    end
+  end
+  local enabled, watched = S.savedEnabled(), {}
+  local box = enabled and S.savedBox("watches")
+  for _, item in ipairs(box and box.current.entries or {}) do watched[item] = true end
+  for key in pairs(S.watchKeys) do
+    local item = key:sub(12, -7)
+    if not enabled or box and (not watched[item] or fresh and S.totals[item] ~= nil and S.totals[item] > 0) then
+      if not state.get(key) or state.emit(key, false) ~= false then S.watchKeys[key] = nil end
+    end
+  end
+  if not fresh or not box then return end
+  for item in pairs(watched) do
+    if S.totals[item] == 0 then
+      local key = "shop.watch." .. item .. ".alert"
+      if not state.get(key) then state.emit(key, {item=item, count=0, text=item .. " empty"}) end
+      S.watchKeys[key] = true
+    end
+  end
+end
+S.savedEdit = function(kind, item, value, revision)
+  local box, err = S.savedBox(kind)
+  if not box then return false, err end
+  if box.blocked then return false,"save unavailable" end
+  if not S.savedPreflight(kind) then S.savedBlock(kind,box) return false,"save unavailable" end
+  if not S.integer(revision, 0, 2147483647) or revision ~= box.current.revision then return false, "changed" end
+  if revision == 2147483647 then return false, "save unavailable" end
+  if not S.itemId(item) then return false, "invalid" end
+  local data = SO.store.copy(box.current)
+  if kind == "minimums" then data.entries[item] = value
+  else
+    if type(value) ~= "boolean" then return false, "invalid" end
+    for i = #data.entries, 1, -1 do if data.entries[i] == item then table.remove(data.entries, i) end end
+    if value then data.entries[#data.entries + 1] = item end
+  end
+  data.revision = revision + 1
+  if not S.savedValid(data, kind) then return false, "invalid" end
+  if not box.present then
+    if not box.save(box.current) then return false,"save unavailable" end
+    box.present = true
+  end
+  if not box.save(data) then
+    S.savedRestore(kind,box)
+    return false, "save unavailable"
+  end
+  box.current = data
+  if kind == "watches" then S.watchAlerts(S.heardAt ~= nil and SO.now() - S.heardAt < 30000) end
+  return true
+end
+
 S.stock = function(message)
   if type(message.totals) == "table" then
     S.heardAt = SO.now()
@@ -209,6 +365,7 @@ S.stock = function(message)
           and count < math.huge then totals[name] = count end
     end
     S.totals = totals
+    S.watchAlerts(true)
   end
   if type(message.state) == "string" then S.state = message.state end
   for name, label in pairs(type(message.labels) == "table" and message.labels or {}) do
@@ -601,6 +758,8 @@ end
 -- Every known item: stocked now, or stocked within the sampled hour (count 0).
 S.items = function()
   local names, list = {}, {}
+  local box = S.savedBox("minimums")
+  local minimums = box and box.current.entries or {}
   for name in pairs(S.totals) do names[name] = true end
   for name in pairs(S.history) do names[name] = true end
   for name in pairs(names) do
@@ -611,7 +770,7 @@ S.items = function()
     local stack = S.stackOf(name, cat)
     list[#list + 1] = { name = name, label = S.label(name), count = count, stack = stack, cat = cat, sub = sub,
       rate = delta < 0 and -rate or rate,
-      state = count == 0 and "empty" or count < math.min(16, stack) and "low" or "ok" }
+      state = count == 0 and "empty" or count < (minimums[name] or math.min(16, stack)) and "low" or "ok" }
   end
   return list
 end
@@ -1014,6 +1173,7 @@ S.input = function(event)
 end
 
 S.tick = function(now)
+  S.watchAlerts(false)
   if S.fuel.auto and S.fuel.waiting and now - S.fuel.waiting.at >= 120000 then
     S.fuelAlert("fuel order timed out", S.fuel.waiting.point, true)
   end
@@ -1068,6 +1228,10 @@ return {
   lows = S.lows,
   stack = function(name) return type(name) == "string" and S.stackOf(name, S.kind(name)) or nil end,
   status = S.status,
+  saved = S.saved,
+  minimum = S.minimum,
+  setMinimum = function(item, value, revision) return S.savedEdit("minimums", item, value, revision) end,
+  setWatch = function(item, value, revision) return S.savedEdit("watches", item, value, revision) end,
   fuelConfig = S.fuelConfig,
   fuelEmpty = S.fuelEmpty,
   fuelAvailable = S.fuelAvailable,

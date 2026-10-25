@@ -97,7 +97,7 @@ def pager(cv, y, page, pages, prev, nxt):
     chip(cv, x + len(n) + 1, y, "►", nxt, kind)
 
 
-def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=True, again=None, stock=None):
+def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=True, again=None, stock=None, saved=None):
     """The search, its best match with the stock, 1, 16 and 64 (one ORDER n for a typed trailing count),
     then the last order (sent: line, colour) and the shop's reply. Without a storage room (found False)
     the chips are muted. again is the last order's (count, id), which a tap on its line sends again."""
@@ -117,7 +117,7 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=T
     if loaded and not live:
         cv.put(x, y + 2, "storage room not found"[:cw], "e")
     elif loaded and best:
-        leader(cv, x, y + 2, cw, best[0]["label"], str(best[0]["count"]), "1" if best[0]["count"] < 10 else "0")
+        leader(cv, x, y + 2, cw, best[0]["label"], str(best[0]["count"]), "1" if best[0]["count"] < (PK.saved_minimum(saved, best[0]) if saved is not None else 10) else "0")
     elif loaded and search:
         cv.put(x, y + 2, "no match", "8")
     third = (cw - 2) // 3
@@ -132,12 +132,15 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=T
             chip(cv, cx, y + 3, str(n), "order:%d" % n, "plain", third)
         else:
             PK.dead(cv, cx, y + 3, str(n), third)
+    if loaded and best and saved is not None:
+        PK.saved_controls(cv, saved, best[0], x, y + 4, cw)
+    offset = 1 if saved is not None else 0
     if loaded and sent:
-        cv.put(x, y + 4, sent[0][:cw], sent[1])
+        cv.put(x, y + 4 + offset, sent[0][:cw], sent[1])
         if live and again:
-            cv.hit("order:%d:%s" % again, x, y + 4, cw, 1)
+            cv.hit("order:%d:%s" % again, x, y + 4 + offset, cw, 1)
     if loaded and reply:
-        cv.put(x, y + 5, reply[:cw], "8")
+        cv.put(x, y + 5 + offset, reply[:cw], "8")
 
 
 def fleet(m):
@@ -146,7 +149,7 @@ def fleet(m):
 
 
 def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True, found=True,
-         fuel=None, stock=None, sent=None, again=None):
+         fuel=None, stock=None, sent=None, again=None, saved=None):
     """Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule;
     the lowest row of blocks gives up its spare row, then its facts, when rows run out. fuel is the fuel
     auto row (PK.fuel_value) under the turtles; "N lost" (`lost`) opens the panel's own ALERTS."""
@@ -180,7 +183,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
         return MODES[row["mode"]] if f.get(role) is not None else "compact"
 
     def rows(row):
-        return max(6 if r == "shop" else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
+        return max((7 if saved is not None else 6) if r == "shop" else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
 
     def total():
         return sum(rows(row) + 1 for row in grid) - 1
@@ -202,7 +205,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
                 for j in range(y, y + rh):
                     cv.put(x - 2, j, "|", "c")
             if role == "shop":
-                shop_block(cv, x, y, cw, search, found=found, stock=stock, sent=sent, again=again)
+                shop_block(cv, x, y, cw, search, found=found, stock=stock, sent=sent, again=again, saved=saved)
             else:
                 PK.job(cv, x, y, cw, role, f.get(role), mode(row, role), reasons.get(role))
         y += rh + 1
@@ -375,6 +378,12 @@ FIXTURES = [
                              keyboard=True, search=PK.SYS["search"])),
     ("panelqty-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20, a typed quantity of 37",
                                 keyboard=True, search="iron 37")),
+    ("pocket-shopsaved-P", lambda: PK.shop({"flags": []}, search="iron",
+         stock=[("minecraft:iron_ingot", 24)], saved={})),
+    ("pocket-shopsaved-low-P", lambda: PK.shop({"flags": []}, search="iron",
+         stock=[("minecraft:iron_ingot", 24)], show="low",
+         saved={"minimums": {"minecraft:iron_ingot": 32}, "revision": 1})),
+    ("pocket-shopminimum-P", lambda: PK.saved_editor()),
     ("panelnoroom-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20 without a storage room",
                                    keyboard=True, search=PK.SYS["search"], found=False)),
     ("pocket-shoplong-P", lambda: PK.shop(ST.model(), search="stairs", stock=LONG,

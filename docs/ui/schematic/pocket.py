@@ -269,10 +269,11 @@ def tag(item, labels):
     return dict(item, label=item["name"].split(":", 1)[0].upper() + ":" + item["label"])
 
 
-def lows(search, stock=None):
-    """so-mod-shop's lows: low (under 16) and empty items whose id contains the search, emptiest first."""
+def lows(search, stock=None, minimums=None):
+    """Low and empty matches use shared minimums, then stack defaults, emptiest first."""
+    minimums = minimums or {}
     items = [dict(i, state="empty" if i["count"] == 0 else "low") for i in matches(search, 999, stock)
-             if i["count"] < min(16, i["stack"])]
+             if i["count"] < minimums.get(i["name"], min(16, i["stack"]))]
     items.sort(key=lambda i: (i["count"], i["name"]))
     return items
 
@@ -305,8 +306,40 @@ def pager(cv, y, note, back, forward):
     cv.put(cv.w - 8 - len(note), y, note, "8")
 
 
+def watch_control(cv, saved, item, x, y):
+    chip(cv, x, y, "UNWATCH" if saved.get("watched") else "WATCH",
+         "saved:watch:%d:%s" % (saved.get("watchRevision", 0), item))
+
+
+def saved_minimum(saved, item):
+    return saved.get("minimums", {}).get(item["name"], min(16, item["stack"]))
+
+
+def saved_controls(cv, saved, item, x, y, width):
+    nx = chip(cv, x, y, "MIN %d" % saved_minimum(saved, item),
+              "saved:min:%d:%s" % (saved.get("revision", 0), item["name"])) + 1
+    if nx + 9 <= x + width:
+        watch_control(cv, saved, item["name"], nx, y)
+
+
+def saved_editor(item="minecraft:iron_ingot", value=16, saved=None, w=26, h=20):
+    cv = Canvas(w, h, "Pocket shared minimum")
+    tabs(cv, "shop", False)
+    cv.put(2, 3, item[:w - 2], "0")
+    section(cv, 2, 5, w - 2, "MIN", "")
+    chip(cv, 2, 7, "-", "saved:min-")
+    text = str(value)[:4]
+    cv.put(7 + (4 - len(text)) // 2, 7, text, "0")
+    chip(cv, 12, 7, "+", "saved:min+")
+    watch_control(cv, saved or {}, item, 2, 9)
+    chip(cv, 2, h - 2, "DEFAULT", "saved:default")
+    chip(cv, 2, h, "SAVE", "saved:save")
+    chip(cv, w - 6, h, "BACK", "saved:back")
+    return cv
+
+
 def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock=None, found=True, stale=False,
-         show="all", page=1, title="Pocket SHOP quick order", again=None):
+         show="all", page=1, title="Pocket SHOP quick order", again=None, saved=None):
     """sent is the last order's line and colour; reply is the shop's reply under it. show is the all, low
     or empty chip; page is the result page when the matches need a pager on row h-2. again is the last
     order's (count, id), which a tap on its line sends again. A label two ids share gets its namespace."""
@@ -334,21 +367,22 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
     elif show == "all":
         items = matches(search, 256, stock)
     else:
-        items = [i for i in lows(search, stock) if i["state"] == show]
+        items = [i for i in lows(search, stock, saved.get("minimums", {}) if saved is not None else None)
+                 if i["state"] == show]
     labels = shared(stock)
     items = [tag(i, labels) for i in items]
     if found and not items:
         cv.put(2, y, "no stock" if not search and show == "all" else "none " + show if show != "all" else "no match", "8")
 
     def grow(item):
-        return 3 if item and item["count"] > 0 else 0
+        return (3 if item and item["count"] > 0 else 0) + (1 if saved is not None else 0)
 
     def pick(lst):
         return next((i for i in lst if i["name"] == selected), lst[0] if lst else None)
 
     bottom, lst = h - 2, items
     if len(items) + grow(pick(items)) > bottom - y + 1:
-        per = max(1, bottom - y - 3)
+        per = max(1, bottom - y - 3 - (1 if saved is not None else 0))
         pages = -(-len(items) // per)
         page = max(1, min(page, pages))
         lst = items[(page - 1) * per:page * per]
@@ -356,13 +390,17 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         bottom -= 1
     shown = pick(lst)
     for item in lst:
-        if y > bottom - (2 if item is shown and grow(item) else 0):
+        if y > bottom - (max(0, grow(item) - 1) if item is shown else 0):
             break
         if item is shown:
             cv.fill(1, y, w, 1, "7")
-        leader(cv, 2, y, w - 2, item["label"], str(item["count"]), count_fg(item["count"]), "0")
+        leader(cv, 2, y, w - 2, item["label"], str(item["count"]), ("8" if item["count"] == 0 else "1"
+               if item["count"] < (saved_minimum(saved, item) if saved is not None else 10) else "0"), "0")
         cv.hit("pick:" + item["name"], 2, y, w - 2, 1)
         y += 1
+        if item is shown and saved is not None:
+            saved_controls(cv, saved, item, 2, y, w - 2)
+            y += 1
         if item is shown and item["count"] > 0:
             half = (w - 3) // 2
             if qty is None:
