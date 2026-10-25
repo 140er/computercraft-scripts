@@ -113,6 +113,8 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=T
     # S.best: an exact id keeps its count, even zero; another search takes the first match in stock.
     exact = [i for i in PK.matches(search, 99, stock) if i["name"] == search]
     best = exact or ([i for i in PK.matches(search, 1, stock) if i["count"] > 0] if search else [])
+    if not search and saved and saved.get("pins"):
+        best = [i for i in PK.matches("", 4096, stock) if i["name"] == saved["pins"][0]][:1]
     best = [PK.tag(i, PK.shared(stock)) for i in best]
     if loaded and not live:
         cv.put(x, y + 2, "storage room not found"[:cw], "e")
@@ -120,21 +122,24 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=T
         leader(cv, x, y + 2, cw, best[0]["label"], str(best[0]["count"]), "1" if best[0]["count"] < (PK.saved_minimum(saved, best[0]) if saved is not None else 10) else "0")
     elif loaded and search:
         cv.put(x, y + 2, "no match", "8")
+    target = ":" + best[0]["name"] if not search and saved and saved.get("pins") and best else ""
     third = (cw - 2) // 3
     if qty is not None:
         if live:
-            chip(cv, x, y + 3, "ORDER %d" % qty, "order:%d" % qty, "plain", cw)
+            chip(cv, x, y + 3, "ORDER %d" % qty, "order:%d%s" % (qty, target), "plain", cw)
         else:
             PK.dead(cv, x, y + 3, "ORDER %d" % qty, cw)
     for i, n in enumerate(() if qty is not None else (1, 16, 64)):
         cx = x + i * (third + 1)
         if live:
-            chip(cv, cx, y + 3, str(n), "order:%d" % n, "plain", third)
+            chip(cv, cx, y + 3, str(n), "order:%d%s" % (n, target), "plain", third)
         else:
             PK.dead(cv, cx, y + 3, str(n), third)
     if loaded and best and saved is not None:
-        PK.saved_controls(cv, saved, best[0], x, y + 4, cw)
-    offset = 1 if saved is not None else 0
+        PK.saved_controls(cv, saved, best[0], x, y + 4, cw, True)
+    elif loaded and saved is not None:
+        PK.saved_nav(cv, saved, None, x, y + 4, cw)
+    offset = 2 if saved is not None else 0
     if loaded and sent:
         cv.put(x, y + 4 + offset, sent[0][:cw], sent[1])
         if live and again:
@@ -183,7 +188,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
         return MODES[row["mode"]] if f.get(role) is not None else "compact"
 
     def rows(row):
-        return max((7 if saved is not None else 6) if r == "shop" else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
+        return max((8 if saved is not None else 6) if r == "shop" else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
 
     def total():
         return sum(rows(row) + 1 for row in grid) - 1
@@ -384,6 +389,8 @@ FIXTURES = [
          stock=[("minecraft:iron_ingot", 24)], show="low",
          saved={"minimums": {"minecraft:iron_ingot": 32}, "revision": 1})),
     ("pocket-shopminimum-P", lambda: PK.saved_editor()),
+    ("pocket-shoppin-P", lambda: PK.shop({"flags": []}, search="", stock=[("minecraft:iron_ingot", 24)],
+         saved={"pins": ["minecraft:iron_ingot"], "pinRevision": 1})),
     ("panelnoroom-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20 without a storage room",
                                    keyboard=True, search=PK.SYS["search"], found=False)),
     ("pocket-shoplong-P", lambda: PK.shop(ST.model(), search="stairs", stock=LONG,

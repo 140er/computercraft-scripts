@@ -400,3 +400,94 @@ FIXTURES += [("pocket-shoppage-P", pocket_page(search="item", stock="forty", pag
              ("pocket-shopdupe-P", pocket_page(search="copper", selected="create:copper_ingot",
                                                stock=[("minecraft:copper_ingot", 200), ("create:copper_ingot", 30)],
                                                title="Pocket SHOP, two ids share COPPER INGOT"))]
+
+
+def saved_canvas(cv, entries, revision=1, page="supplies", draft=None, totals=None, stacks=None, list_page=1):
+    w, h = cv.w, cv.h
+    section(cv, 2, 3, w - 2, "LISTS", "")
+    selected = next((row for row in entries if row["id"] == page), None)
+    if draft:
+        if draft.get("row"):
+            row = draft["value"]["items"][draft["row"] - 1]
+            cv.put(2, 5, row["item"][:w - 2], "0")
+            leader(cv, 2, 7, w - 2, "requested", str(row["count"]))
+            chip(cv, 2, 9, "-", "saved2:count-")
+            text = str(row["count"])[:2]
+            cv.put(7 + (2 - len(text)) // 2, 9, text, "0")
+            chip(cv, 10, 9, "+", "saved2:count+")
+            chip(cv, 2, h - 2, "REMOVE", "saved2:remove")
+            chip(cv, 2, h, "DONE", "saved2:done")
+            chip(cv, w - 6, h, "BACK", "saved2:back")
+            return
+        chip(cv, 2, 5, "NAME", "saved2:name")
+        cv.put(2, 6, draft["value"]["name"][:w - 2], "0")
+        selected = draft["value"]
+    elif selected:
+        cv.put(2, 4, selected["name"][:w - 2], "0")
+    if selected:
+        top, step = (8, 2) if draft else (6, 4 if w < 24 else 3)
+        per = max(1, min(4, (h - 2 - top) // step))
+        pages = max(1, math.ceil(len(selected["items"]) / per))
+        list_page = max(1, min(list_page, pages))
+        for i in range((list_page - 1) * per, min(len(selected["items"]), list_page * per)):
+            row = selected["items"][i]
+            y = top + (i - (list_page - 1) * per) * step
+            label = row["item"].split(":", 1)[-1].replace("_", " ").upper()
+            cv.put(2, y, label[:w - 2], "0")
+            leader(cv, 2, y + 1, w - 2, "requested", str(row["count"]))
+            if draft:
+                cv.hit("saved2:row:%d" % (i + 1), 2, y, w - 2, 2)
+            else:
+                available = (totals or {}).get(row["item"])
+                leader(cv, 2, y + 2, w - 2 if w < 24 else w - 11, "available",
+                       str(available) if available is not None else "-", "0" if available is not None else "8")
+                stack = (stacks or {}).get(row["item"])
+                order_y = y + (3 if w < 24 else 2)
+                if available and stack and row["count"] <= stack:
+                    cv.put(w - 8, order_y, "[", "8")
+                    cv.put(w - 7, order_y, "ORDER", "0")
+                    cv.put(w - 2, order_y, "]", "8")
+                    cv.hit("saved2:order:%d:%s:%s" % (revision, selected["id"], row["item"]), w - 8, order_y, 7, 1, "ORDER")
+        if pages > 1:
+            chip(cv, 2, h - 2, "◄", "saved2:prev")
+            cv.put(6, h - 2, "%d/%d" % (list_page, pages), "8")
+            chip(cv, 10, h - 2, "►", "saved2:next")
+        if draft:
+            chip(cv, 2, h - 1, "DELETE", "saved2:delete")
+            chip(cv, 2, h, "SAVE", "saved2:save")
+        else:
+            chip(cv, 2, h, "EDIT", "saved2:edit:%d:%s" % (revision, selected["id"]))
+    else:
+        per = max(1, h - 6)
+        pages = max(1, math.ceil(len(entries) / per))
+        list_page = max(1, min(list_page, pages))
+        for i in range((list_page - 1) * per, min(len(entries), list_page * per)):
+            row, y = entries[i], 5 + i - (list_page - 1) * per
+            leader(cv, 2, y, w - 2, row["name"], str(len(row["items"])))
+            cv.hit("saved2:open:%d:%s" % (revision, row["id"]), 2, y, w - 2, 1)
+        if pages > 1:
+            chip(cv, 2, h - 2, "◄", "saved2:prev")
+            cv.put(6, h - 2, "%d/%d" % (list_page, pages), "8")
+            chip(cv, 10, h - 2, "►", "saved2:next")
+        if len(entries) < 16:
+            chip(cv, 2, h, "NEW", "saved2:new")
+    chip(cv, w - 6, h, "BACK", "saved2:back")
+
+
+def saved_pocket(page="supplies", editing=False, row=None, w=26, h=20):
+    import pocket as PK
+    item = "minecraft:iron_ingot"
+    entries = [dict(id="supplies", name="Supplies", items=[dict(item=item, count=37)])]
+    cv = Canvas(w, h, "Pocket shared shopping lists")
+    PK.tabs(cv, "shop", False)
+    draft = dict(value=entries[0], row=row) if editing else None
+    saved_canvas(cv, entries, page=page, draft=draft, totals={item: 42}, stacks={item: 64})
+    return cv
+
+
+FIXTURES += [
+    ("pocket-shoplists-P", lambda: saved_pocket(page="index")),
+    ("pocket-shoplist-P", saved_pocket),
+    ("pocket-shoplist-edit-P", lambda: saved_pocket(editing=True)),
+    ("pocket-shoplist-row-P", lambda: saved_pocket(editing=True, row=1)),
+]

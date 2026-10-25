@@ -315,11 +315,24 @@ def saved_minimum(saved, item):
     return saved.get("minimums", {}).get(item["name"], min(16, item["stack"]))
 
 
-def saved_controls(cv, saved, item, x, y, width):
+def saved_controls(cv, saved, item, x, y, width, lists=False):
     nx = chip(cv, x, y, "MIN %d" % saved_minimum(saved, item),
               "saved:min:%d:%s" % (saved.get("revision", 0), item["name"])) + 1
     if nx + 9 <= x + width:
         watch_control(cv, saved, item["name"], nx, y)
+    saved_nav(cv, saved, item["name"], x, y + 1, width, lists)
+
+
+def saved_nav(cv, saved, item, x, y, width, lists=False):
+    nx = x
+    if item:
+        pinned = item in saved.get("pins", [])
+        nx = chip(cv, nx, y, "UNPIN" if pinned else "PIN",
+                  "saved2:pin:%d:%s" % (saved.get("pinRevision", 0), item)) + 1
+    if (not item or lists) and nx + 7 <= x + width:
+        nx = chip(cv, nx, y, "LISTS", "saved2:lists") + 1
+    if item and nx + 5 <= x + width:
+        chip(cv, nx, y, "ADD", "saved2:add:" + item)
 
 
 def saved_editor(item="minecraft:iron_ingot", value=16, saved=None, w=26, h=20):
@@ -357,6 +370,9 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
     for i, f in enumerate(("all", "low", "empty")):
         chip(cv, 2 + i * (cw + 1), y, f, "show:" + f, "on" if f == show else "plain", cw)
     y += 1
+    if saved is not None:
+        saved_nav(cv, saved, None, 2, y, w - 2)
+        y += 1
     if not found:
         flag(cv, 2, y, w - 2, "storage room not found")
     if found and stale:
@@ -369,20 +385,22 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
     else:
         items = [i for i in lows(search, stock, saved.get("minimums", {}) if saved is not None else None)
                  if i["state"] == show]
+    if not search and show == "all" and saved and saved.get("pins"):
+        items = [i for i in items if i["name"] == saved["pins"][0]][:1]
     labels = shared(stock)
     items = [tag(i, labels) for i in items]
     if found and not items:
         cv.put(2, y, "no stock" if not search and show == "all" else "none " + show if show != "all" else "no match", "8")
 
     def grow(item):
-        return (3 if item and item["count"] > 0 else 0) + (1 if saved is not None else 0)
+        return (3 if item and item["count"] > 0 else 0) + (2 if saved is not None else 0)
 
     def pick(lst):
         return next((i for i in lst if i["name"] == selected), lst[0] if lst else None)
 
     bottom, lst = h - 2, items
     if len(items) + grow(pick(items)) > bottom - y + 1:
-        per = max(1, bottom - y - 3 - (1 if saved is not None else 0))
+        per = max(1, bottom - y - 3 - (2 if saved is not None else 0))
         pages = -(-len(items) // per)
         page = max(1, min(page, pages))
         lst = items[(page - 1) * per:page * per]
@@ -400,7 +418,7 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         y += 1
         if item is shown and saved is not None:
             saved_controls(cv, saved, item, 2, y, w - 2)
-            y += 1
+            y += 2
         if item is shown and item["count"] > 0:
             half = (w - 3) // 2
             if qty is None:

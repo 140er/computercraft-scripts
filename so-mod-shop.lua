@@ -211,24 +211,62 @@ end
 S.itemId = function(id)
   return type(id) == "string" and #id <= 128 and id:match("^[a-z0-9_.-]+:[a-z0-9_./-]+$") ~= nil
 end
+S.dense = function(t, limit, valid)
+  if type(t) ~= "table" then return false end
+  local n = 0
+  for key, value in pairs(t) do
+    n = n+1
+    if not S.integer(key,1,limit) or not valid(value) then return false end
+  end
+  if n > limit then return false end
+  for i = 1,n do if t[i] == nil then return false end end
+  return true
+end
+S.allowedKeys = function(t, allowed)
+  if type(t) ~= "table" then return false end
+  for key in pairs(t) do if not allowed[key] then return false end end
+  return true
+end
 S.savedValid = function(v, kind)
-  if type(v) ~= "table" or v.v ~= 1 or v.kind ~= kind or not S.integer(v.revision, 0, 2147483647)
-      or type(v.entries) ~= "table" then return false end
-  for key in pairs(v) do
-    if key ~= "v" and key ~= "kind" and key ~= "revision" and key ~= "entries" then return false end
+  if type(v) ~= "table" or v.v ~= 1 or v.kind ~= kind or not S.integer(v.revision,0,2147483647)
+      or type(v.entries) ~= "table" or not S.allowedKeys(v,{v=true,kind=true,revision=true,entries=true}) then return false end
+  local seen, names = {}, {}
+  if kind == "minimums" then
+    local n = 0
+    for item, count in pairs(v.entries) do
+      n = n+1
+      if n > 256 or not S.itemId(item) or not S.integer(count,1,4096) then return false end
+    end
+    return true
+  elseif kind == "watches" or kind == "pins" then
+    return S.dense(v.entries,kind == "pins" and 4 or 256,function(item)
+      if not S.itemId(item) or seen[item] then return false end
+      seen[item] = true
+      return true
+    end)
+  elseif kind == "lists" then
+    return S.dense(v.entries,16,function(list)
+      if not S.allowedKeys(list,{id=true,name=true,items=true}) or type(list.id) ~= "string"
+          or #list.id < 1 or #list.id > 32 or not list.id:match("^[a-z0-9_-]+$") or seen[list.id]
+          or type(list.name) ~= "string" or #list.name < 1 or #list.name > 32
+          or list.name:find("[^ -~]") or names[list.name] then return false end
+      seen[list.id], names[list.name] = true,true
+      local items = {}
+      return S.dense(list.items,32,function(row)
+        if not S.allowedKeys(row,{item=true,count=true}) or not S.itemId(row.item)
+            or items[row.item] or not S.integer(row.count,1,64) then return false end
+        items[row.item] = true
+        return true
+      end)
+    end)
   end
-  local n, seen = 0, {}
-  for key, value in pairs(v.entries) do
-    n = n + 1
-    if kind == "minimums" then
-      if not S.itemId(key) or not S.integer(value, 1, 4096) then return false end
-    elseif kind == "watches" then
-      if not S.integer(key, 1, 256) or not S.itemId(value) or seen[value] then return false end
-      seen[value] = true
-    else return false end
-  end
-  if n > 256 then return false end
-  if kind == "watches" then for i = 1, n do if v.entries[i] == nil then return false end end end
+  return false
+end
+S.savedEqual = function(a, b)
+  if type(a) ~= type(b) then return false end
+  if type(a) ~= "table" then return a == b end
+  for key, value in pairs(a) do if not S.savedEqual(value,b[key]) then return false end end
+  for key in pairs(b) do if a[key] == nil then return false end end
   return true
 end
 S.savedPreflight = function(kind)
@@ -250,9 +288,7 @@ S.savedCommitted = function(kind, current)
   if not ok then return false end
   if not value then return current.revision == 0 and next(current.entries) == nil end
   if value.revision ~= current.revision then return false end
-  for item, count in pairs(current.entries) do if value.entries[item] ~= count then return false end end
-  for item, count in pairs(value.entries) do if current.entries[item] ~= count then return false end end
-  return true
+  return S.savedEqual(value.entries,current.entries)
 end
 S.savedBlock = function(kind, box)
   box.blocked = true
@@ -275,7 +311,7 @@ S.savedRestore = function(kind, box)
 end
 S.savedBox = function(kind)
   if not S.savedEnabled() then return nil, "off" end
-  if kind ~= "minimums" and kind ~= "watches" then return nil, "invalid" end
+  if kind ~= "minimums" and kind ~= "watches" and kind ~= "lists" and kind ~= "pins" then return nil, "invalid" end
   if S.savedBoxes[kind] == nil then
     if not S.savedPreflight(kind) then S.savedBoxes[kind] = false return nil,"save unavailable" end
     local ok, box = pcall(SO.store.store, "so-data/shop-" .. kind,
@@ -325,21 +361,16 @@ S.watchAlerts = function(fresh)
     end
   end
 end
-S.savedEdit = function(kind, item, value, revision)
+S.savedChange = function(kind, revision, edit)
   local box, err = S.savedBox(kind)
   if not box then return false, err end
   if box.blocked then return false,"save unavailable" end
   if not S.savedPreflight(kind) then S.savedBlock(kind,box) return false,"save unavailable" end
   if not S.integer(revision, 0, 2147483647) or revision ~= box.current.revision then return false, "changed" end
   if revision == 2147483647 then return false, "save unavailable" end
-  if not S.itemId(item) then return false, "invalid" end
   local data = SO.store.copy(box.current)
-  if kind == "minimums" then data.entries[item] = value
-  else
-    if type(value) ~= "boolean" then return false, "invalid" end
-    for i = #data.entries, 1, -1 do if data.entries[i] == item then table.remove(data.entries, i) end end
-    if value then data.entries[#data.entries + 1] = item end
-  end
+  local ok, why = edit(data.entries)
+  if not ok then return false, why or "invalid" end
   data.revision = revision + 1
   if not S.savedValid(data, kind) then return false, "invalid" end
   if not box.present then
@@ -352,6 +383,256 @@ S.savedEdit = function(kind, item, value, revision)
   end
   box.current = data
   if kind == "watches" then S.watchAlerts(S.heardAt ~= nil and SO.now() - S.heardAt < 30000) end
+  return true
+end
+
+S.savedEdit = function(kind, item, value, revision)
+  return S.savedChange(kind,revision,function(entries)
+    if not S.itemId(item) then return false end
+    if kind == "minimums" then entries[item] = value
+    else
+      if type(value) ~= "boolean" then return false end
+      for i = #entries,1,-1 do if entries[i] == item then table.remove(entries,i) end end
+      if value then entries[#entries+1] = item end
+    end
+    return true
+  end)
+end
+S.setList = function(id, list, revision)
+  return S.savedChange("lists",revision,function(entries)
+    local found
+    for i, saved in ipairs(entries) do if saved.id == id then found = i break end end
+    if list ~= nil then
+      if type(list) ~= "table" or list.id ~= id then return false end
+      local candidate = {v=1,kind="lists",revision=0,entries={list}}
+      if not S.savedValid(candidate,"lists") then return false end
+      for _, row in ipairs(list.items) do
+        local stack = S.stacks[row.item]
+        if not stack then return false,"stack unknown" end
+        if row.count > stack then return false,"bad count" end
+      end
+      entries[found or #entries+1] = SO.store.copy(list)
+    elseif found then table.remove(entries,found)
+    else return false,"changed" end
+    return true
+  end)
+end
+S.listOrder = function(id, item, revision, view)
+  local data, why = S.saved("lists")
+  if not data then return nil,why end
+  if data.revision ~= revision then return nil,"changed" end
+  for _, list in ipairs(data.entries) do
+    if list.id == id then
+      for _, row in ipairs(list.items) do
+        if row.item == item then
+          if not S.stacks[item] then return nil,"stack unknown" end
+          if row.count > S.stacks[item] then return nil,"bad count" end
+          local room = S.status()
+          if not room.found then return nil,"storage room missing" end
+          if room.stale then return nil,"stock stale" end
+          if S.totals[item] == nil then return nil,"stock unknown" end
+          return S.order(item,row.count,view)
+        end
+      end
+    end
+  end
+  return nil,"changed"
+end
+S.firstPin = function()
+  local pins = S.saved("pins")
+  return pins and pins.entries[1]
+end
+
+S.savedNav = function(c, _state, item, x, y, width, lists)
+  local pins, why = S.saved("pins")
+  if why == "off" then return end
+  local nx = x
+  if item then
+    local pinned = false
+    for _, id in ipairs(pins and pins.entries or {}) do pinned = pinned or id == item end
+    if pins then nx = c.chip(nx,y,pinned and "UNPIN" or "PIN","saved2:pin:"..pins.revision..":"..item)+1 end
+  end
+  if (not item or lists) and nx+7 <= x+width then nx = c.chip(nx,y,"LISTS","saved2:lists")+1 end
+  if item and nx+5 <= x+width then c.chip(nx,y,"ADD","saved2:add:"..item) end
+end
+S.savedRecord = function(state, frame)
+  state.extraDrawn = {}
+  for _, b in ipairs(frame.buttons) do
+    if b.id:match("^saved2:") then state.extraDrawn[b.id] = b end
+  end
+end
+S.savedCanvas = function(c, state, w, h)
+  local data, why = S.saved("lists")
+  local page, draft = state.savedPage, state.listDraft
+  c.section(2,3,w-2,"LISTS",state.savedResult or why or "")
+  local back = function() c.chip(w-6,h,"BACK","saved2:back") end
+  if not data then back() return end
+  local list
+  for _, row in ipairs(data.entries) do if row.id == page then list = row end end
+  if draft then
+    if draft.row then
+      local row = draft.value.items[draft.row]
+      c.put(2,5,row.item:sub(1,w-2),"0")
+      c.leader(2,7,w-2,"requested",tostring(row.count))
+      U.stepper(c,2,9,row.count,"saved2:count",2)
+      c.chip(2,h-2,"REMOVE","saved2:remove")
+      c.chip(2,h,"DONE","saved2:done")
+      back()
+      return
+    end
+    c.chip(2,5,"NAME","saved2:name")
+    c.put(2,6,draft.value.name:sub(1,w-2),"0")
+    list = draft.value
+  elseif list then c.put(2,4,list.name:sub(1,w-2),"0") end
+  if list then
+    local top, step = draft and 8 or 6, draft and 2 or w < 24 and 4 or 3
+    local per = math.max(1,math.min(4,math.floor((h-2-top)/step)))
+    local pages = math.max(1,math.ceil(#list.items/per))
+    state.listPage = math.max(1,math.min(state.listPage or 1,pages))
+    for i = (state.listPage-1)*per+1,math.min(#list.items,state.listPage*per) do
+      local row = list.items[i]
+      local y = top+(i-(state.listPage-1)*per-1)*step
+      c.put(2,y,S.label(row.item):upper():sub(1,w-2),"0")
+      if draft then
+        c.leader(2,y+1,w-2,"requested",tostring(row.count))
+        c.hit("saved2:row:"..i,2,y,w-2,2)
+      else
+        local stack, room = S.stacks[row.item], S.status()
+        local available = room.found and not room.stale and S.totals[row.item]
+        c.leader(2,y+1,w-2,"requested",tostring(row.count))
+        c.leader(2,y+2,w < 24 and w-2 or w-11,"available",available ~= nil and tostring(available) or "-",available ~= nil and "0" or "8")
+        local orderY = y+(w < 24 and 3 or 2)
+        if available and available > 0 and stack and row.count <= stack then
+          c.put(w-8,orderY,"[","8"); c.put(w-7,orderY,"ORDER","0"); c.put(w-2,orderY,"]","8")
+          c.hit("saved2:order:"..data.revision..":"..list.id..":"..row.item,w-8,orderY,7,1,"ORDER")
+        end
+      end
+    end
+    if pages > 1 then
+      c.chip(2,h-2,U.g.left,"saved2:prev")
+      c.put(6,h-2,state.listPage.."/"..pages,"8")
+      c.chip(10,h-2,U.g.right,"saved2:next")
+    end
+    if draft then
+      if draft.confirm and SO.now()-(draft.confirmAt or 0) > 5000 then U.confirm(draft,nil,SO.now()) end
+      local control = U.confirmChip(draft,"delete","DELETE","saved2:delete","plain")
+      c.chip(2,h-1,control[1],control[2],control[3])
+      c.chip(2,h,"SAVE","saved2:save")
+    else c.chip(2,h,"EDIT","saved2:edit:"..data.revision..":"..list.id) end
+  else
+    local per = math.max(1,h-6)
+    local pages = math.max(1,math.ceil(#data.entries/per))
+    state.listPage = math.max(1,math.min(state.listPage or 1,pages))
+    for i = (state.listPage-1)*per+1,math.min(#data.entries,state.listPage*per) do
+      local row,y = data.entries[i],4+i-(state.listPage-1)*per
+      c.leader(2,y,w-2,row.name,tostring(#row.items))
+      c.hit("saved2:open:"..data.revision..":"..row.id,2,y,w-2,1)
+    end
+    if pages > 1 then
+      c.chip(2,h-2,U.g.left,"saved2:prev")
+      c.put(6,h-2,state.listPage.."/"..pages,"8")
+      c.chip(10,h-2,U.g.right,"saved2:next")
+    end
+    if #data.entries < 16 then c.chip(2,h,"NEW","saved2:new") end
+  end
+  if state.listOrder then
+    local status = tostring(state.order or ""):match("^Order: (%a+)") or "sent"
+    c.put(2,h-1,(state.listOrder.." "..status):sub(1,w-2),status == "failed" and "e" or "d")
+  end
+  back()
+end
+S.savedInput = function(event, state)
+  local id, draft = event.id, state.listDraft
+  if type(event.text) == "string" and state.savedPage then
+    if S.savedEnabled() and draft then
+      if draft.row then
+        local n = tonumber(event.text)
+        if S.integer(n,1,64) then draft.value.items[draft.row].count = n end
+      elseif #event.text >= 1 and #event.text <= 32 and not event.text:find("[^ -~]") then draft.value.name = event.text end
+    end
+    return true
+  end
+  if type(id) ~= "string" or not id:match("^saved2:") then return false end
+  local b = state.extraDrawn and state.extraDrawn[id]
+  if not b or type(event.x) ~= "number" or type(event.y) ~= "number" or event.x < b.x
+      or event.x >= b.x+b.w or event.y < b.y or event.y >= b.y+(b.h or 1) then return true end
+  state.extraDrawn = nil
+  if not S.savedEnabled() then return true end
+  state.savedResult, state.listOrder = nil,nil
+  if draft and id ~= "saved2:delete" then U.confirm(draft,nil,SO.now()) end
+  local pinRev, item = id:match("^saved2:pin:(%d+):(.+)$")
+  if pinRev then
+    local pins = S.saved("pins")
+    local on = true
+    for _, name in ipairs(pins and pins.entries or {}) do if name == item then on = false end end
+    local ok, err = S.savedEdit("pins",item,on,tonumber(pinRev))
+    state.savedResult = not ok and err or nil
+    return true
+  end
+  if id == "saved2:lists" or id:match("^saved2:add:") then
+    state.savedPage,state.listDraft,state.listPage,state.addItem = "index",nil,1,id:match("^saved2:add:(.+)$")
+    return true
+  end
+  if id == "saved2:back" then
+    if draft and draft.row then draft.row = nil
+    elseif draft then state.listDraft = nil
+    elseif state.savedPage ~= "index" then state.savedPage,state.listPage = "index",1
+    else state.savedPage,state.addItem = nil,nil end
+    return true
+  end
+  local data, why = S.saved("lists")
+  if not data then state.savedResult = why return true end
+  local action, revision, listId = id:match("^saved2:(%a+):(%d+):([a-z0-9_-]+)$")
+  local orderRev, orderList, orderItem = id:match("^saved2:order:(%d+):([a-z0-9_-]+):(.+)$")
+  if orderRev then
+    local name, result = S.listOrder(orderList,orderItem,tonumber(orderRev),state)
+    if name then state.listOrder = result else state.savedResult = result end
+    return true
+  end
+  if action then
+    if tonumber(revision) ~= data.revision then state.savedResult = "changed" return true end
+    for _, list in ipairs(data.entries) do
+      if list.id == listId then
+        state.savedPage,state.listPage = listId,1
+        if action == "edit" or state.addItem then
+          state.listDraft = {revision=data.revision,value=SO.store.copy(list)}
+          if state.addItem then
+            local found
+            for _, row in ipairs(state.listDraft.value.items) do if row.item == state.addItem then found = true end end
+            if not found then table.insert(state.listDraft.value.items,{item=state.addItem,count=1}) end
+            state.addItem = nil
+          end
+        end
+        break
+      end
+    end
+  elseif id == "saved2:new" then
+    local used, n = {},1
+    for _, list in ipairs(data.entries) do used[list.id],used[list.name] = true,true end
+    while used["list-"..n] or used["List "..n] do n = n+1 end
+    state.listDraft = {revision=data.revision,value={id="list-"..n,name="List "..n,items={}}}
+    if state.addItem then state.listDraft.value.items={{item=state.addItem,count=1}} state.addItem = nil end
+  elseif id == "saved2:prev" or id == "saved2:next" then
+    state.listPage = math.max(1,(state.listPage or 1)+(id == "saved2:next" and 1 or -1))
+  elseif draft then
+    if id == "saved2:delete" then
+      if U.confirm(draft,"delete",SO.now()) then
+        local ok, err = S.setList(draft.value.id,nil,draft.revision)
+        if ok then state.savedPage,state.listDraft = "index",nil else state.savedResult = err end
+      end
+      return true
+    end
+    local row = tonumber(id:match("^saved2:row:(%d+)$"))
+    if row and draft.value.items[row] then draft.row = row
+    elseif id == "saved2:done" then draft.row = nil
+    elseif id == "saved2:remove" and draft.row then table.remove(draft.value.items,draft.row) draft.row = nil
+    elseif id == "saved2:count-" and draft.row then draft.value.items[draft.row].count = math.max(1,draft.value.items[draft.row].count-1)
+    elseif id == "saved2:count+" and draft.row then draft.value.items[draft.row].count = math.min(64,draft.value.items[draft.row].count+1)
+    elseif id == "saved2:save" then
+      local ok, err = S.setList(draft.value.id,draft.value,draft.revision)
+      if ok then state.savedPage,state.listDraft = draft.value.id,nil else state.savedResult = err end
+    end
+  end
   return true
 end
 
@@ -926,7 +1207,7 @@ S.chip = function(C, x, y, label, id, on, width)
 end
 
 -- The item: name, facts as leaders, ORDER chips, then the recent orders.
-S.pane = function(C, m, item, x, y, pw, bottom, close)
+S.pane = function(C, m, item, x, y, pw, bottom, close, view)
   local tall = bottom - y + 1 >= 13
   C.put(x, y, item.label:upper():sub(1, pw - (close and 3 or 0)), "0")
   if close then
@@ -959,6 +1240,7 @@ S.pane = function(C, m, item, x, y, pw, bottom, close)
       m.found and (n ~= "all" or item.count > 0), cw2)
   end
   y = y + (tall and 4 or 3)
+  if view and S.savedEnabled() and y <= bottom then S.savedNav(C,view,item.name,x,y,pw) y = y+1 end
   for _, e in ipairs(m.recent) do
     if y > bottom then break end
     C.put(x, y, U.g.bullet, S.marks[e.status] or "e")
@@ -1039,9 +1321,14 @@ S.layout = function(m, view, w, h, most)
   S.head(C, m, view, w)
   local gap = h >= 16 and 1 or 0
   local y, bottom, wide, item = 2 + gap, h - 1 - gap, w >= 52, m.selected
+  if S.savedEnabled() then
+    if view.savedPage then S.savedCanvas(C,view,w,h) return C.frame() end
+    S.savedNav(C,view,nil,2,y,w-2)
+    y = y+1
+  else view.savedPage,view.listDraft = nil,nil end
   view.capacity = nil
   if item and not wide then
-    S.pane(C, m, item, 2, y, w - 2, bottom, false)
+    S.pane(C, m, item, 2, y, w - 2, bottom, false, view)
     S.note(C, m, C.chip(2, h, "back", "items") + 1, h)
     return C.frame()
   end
@@ -1054,7 +1341,7 @@ S.layout = function(m, view, w, h, most)
   local cols, cw, trend, top, rx, last
   if item then
     rx = w - math.min(40, math.max(24, math.floor(w * 0.42))) - 2
-    last = S.pane(C, m, item, rx + 2, y, w - rx - 2, bottom, true)
+    last = S.pane(C, m, item, rx + 2, y, w - rx - 2, bottom, true, view)
     cols, cw, trend, top = 1, rx - 3, false, y
   else
     cols = w >= 90 and 2 or 1
@@ -1101,6 +1388,7 @@ S.render = function(w, h, session)
     most = most - 8
     frame = S.layout(m, view, w, h, most)
   end
+  S.savedRecord(view,frame)
   return frame
 end
 
@@ -1157,6 +1445,7 @@ end
 S.input = function(event)
   local client = event.session or event.from
   local view = S.view(client)
+  if S.savedInput(event,view) then return end
   if type(event.text) == "string" then
     view.search = (event.text == " " or event.text == "*") and "" or event.text:sub(1, 32)
     view.page, view.selected, view.pick, view.keys = 1, nil, nil, false
@@ -1232,6 +1521,14 @@ return {
   minimum = S.minimum,
   setMinimum = function(item, value, revision) return S.savedEdit("minimums", item, value, revision) end,
   setWatch = function(item, value, revision) return S.savedEdit("watches", item, value, revision) end,
+  setPin = function(item, value, revision) return S.savedEdit("pins", item, value, revision) end,
+  setList = S.setList,
+  listOrder = S.listOrder,
+  firstPin = S.firstPin,
+  savedNav = S.savedNav,
+  savedCanvas = S.savedCanvas,
+  savedRecord = S.savedRecord,
+  savedInput = S.savedInput,
   fuelConfig = S.fuelConfig,
   fuelEmpty = S.fuelEmpty,
   fuelAvailable = S.fuelAvailable,
