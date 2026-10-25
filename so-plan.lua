@@ -247,6 +247,32 @@ function P.assess(from, steps, checks)
   return { ok=true, limit=checks.limit }
 end
 
+function P.rankPaths(from, to, opts, assess)
+  opts = opts or {}
+  local valid = P.assess(from,{})
+  if not valid.ok then return {},valid end
+  local orders = opts.alternateAxisOrders == true and {"yxz","yzx","xyz","xzy","zxy","zyx"} or {"yxz"}
+  local paths, refusal = {}, nil
+  for index, order in ipairs(orders) do
+    local path = P.path(from,to,{order=order,dig=opts.dig})
+    local check = assess(from,path.steps,{clear=not opts.dig})
+    if check.ok then
+      path.order, path.rank, path.moves, path.turns = order, index, #path.cells, 0
+      for _, step in ipairs(path.steps) do
+        if P.turns[step.op] then path.turns = path.turns + 1 end
+      end
+      paths[#paths+1] = path
+    else refusal = refusal or check end
+  end
+  table.sort(paths,function(a,b)
+    if a.rank == 1 or b.rank == 1 then return a.rank < b.rank end
+    if a.moves ~= b.moves then return a.moves < b.moves end
+    if a.turns ~= b.turns then return a.turns < b.turns end
+    return a.rank < b.rank
+  end)
+  return paths, refusal
+end
+
 function P.inRange(lease, id, cells)
   if type(lease) ~= "table" or type(lease.inRange) ~= "function" then return true end
   for _, cell in ipairs(cells) do

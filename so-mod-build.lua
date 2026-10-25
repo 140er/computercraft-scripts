@@ -178,19 +178,23 @@ local sendCauses = {
 local function returning()
   return j.completion and j.completion.phase=="returning"
 end
+local function storageTrip()
+  return config.alternateAxisOrders == true and j.service and j.service.kind=="storage"
+end
 local function journalPose(p)
   return type(p)=="table" and whole(p.x) and whole(p.y) and whole(p.z)
     and whole(p.f) and p.f>=0 and p.f<=3
 end
 local function returnReady(stat, recover)
   local row=j.turtle
+  local trip=storageTrip() and "storage trip" or "return"
   if not row or not S.safe[row.id] or not stat.parkBatch or not stat.setupFence or not stat.journal then
-    return false,"update worker for fenced builder return","worker_safety"
+    return false,"update worker for fenced builder "..trip,"worker_safety"
   end
   if stat.uncertain or not journalPose(stat.pose) or not (row.frame or recover and row.anchor)
     or not P.assess(row.pose,{}).ok
     or not recover and (S.recover or stat.lost or not P.samePose(row.pose,P.toWorld(row.frame,stat.pose))) then
-    return false,"return needs a certain pose and facing","pose_uncertain"
+    return false,trip.." needs a certain pose and facing","pose_uncertain"
   end
   return true
 end
@@ -203,16 +207,17 @@ local function send(steps, action, recover)
   if S.pending or not lease.send or lease.status(j.turtle.id).open then return false end
   if not recover and lease.restartReady and not lease.restartReady() then return false end
   if not recover and not S.safe[j.turtle.id] then alert("update worker for builder safety", "worker_safety") return false end
-  local returning = returning()
+  local returning, storageTrip = returning(), storageTrip()
   local stat=lease.status(j.turtle.id)
-  if returning then
+  if returning or storageTrip then
     local ready,why,cause=returnReady(stat,recover)
     if not ready then alert(why,cause) return false end
   end
-  local boundary = returning or lease.boundaries and lease.boundaries()
+  if storageTrip and not recover and lease.restartReady and not lease.restartReady() then return false end
+  local boundary = returning or storageTrip or lease.boundaries and lease.boundaries()
   if boundary then
     steps = P.boundary({from=j.turtle.pose,steps=steps}).steps
-    local check = lease.assess(j.turtle.id,j.turtle.pose,steps,{owner="build"})
+    local check = lease.assess(j.turtle.id,j.turtle.pose,steps,{owner="build",clear=storageTrip and not recover})
     if not check.ok then alert(check.reason,"path") return false end
   end
   steps[1].park = true
@@ -244,8 +249,9 @@ local function send(steps, action, recover)
   if action=="place" then j.placement={cursor=j.cursor,material=j.material} end
   if not save() then return false end
   local id
-  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at,frame=j.turtle.frame,journal=returning and stat.journal or nil,
-    intent={action=action,steps=steps,pose=start,boundary=boundary and not recover,returning=returning,journal=returning and stat.journal or nil}})
+  local journal = (returning or storageTrip) and stat.journal or nil
+  id, err = lease.send(j.turtle.id,steps,{owner="build",recover=recover==true,pose=at,frame=j.turtle.frame,journal=journal,clear=storageTrip and not recover,
+    intent={action=action,steps=steps,pose=start,boundary=boundary and not recover,returning=returning,storageTrip=storageTrip,journal=journal}})
   if not id then
     j.intent = nil
     if action=="place" then j.placement=nil end
@@ -254,7 +260,7 @@ local function send(steps, action, recover)
     alert("lease " .. tostring(err), cause)
     return false
   end
-  S.pending = { id=id, action=action, steps=steps, pose=start, boundary=boundary and not recover, returning=returning, journal=returning and stat.journal or nil }
+  S.pending = { id=id, action=action, steps=steps, pose=start, boundary=boundary and not recover, returning=returning, storageTrip=storageTrip, journal=journal }
   return true
 end
 local function item()
@@ -267,6 +273,33 @@ local function empty()
 end
 local function route(target)
   local p = j.turtle.pose
+  if storageTrip() then
+    local lease=module("lease")
+    local ready,why,cause=returnReady(lease.status(j.turtle.id))
+    if not ready then alert(why,cause) return false end
+    local need=math.abs(target.x-p.x)+math.abs(target.y-p.y)+math.abs(target.z-p.z)
+    if j.fuel~="unlimited" and (type(j.fuel)~="number" or j.fuel<need) then
+      alert("out of fuel for storage trip","fuel") return false
+    end
+    local bounded={dim=p.dim,x=p.x,y=p.y,z=p.z}
+    for _,axis in ipairs({"x","y","z"}) do
+      bounded[axis]=p[axis]+math.max(-16,math.min(16,target[axis]-p[axis]))
+    end
+    local paths,refusal=P.rankPaths(p,bounded,{alternateAxisOrders=true},function(from,steps,opts)
+      opts.owner="build"
+      local check=lease.assess(j.turtle.id,from,steps,opts)
+      if not check.ok then return check end
+      local at=from
+      if lane(at) then return {ok=false,reason="mining lane"} end
+      for _,step in ipairs(steps) do
+        at=P.apply(at,step.op)
+        if lane(at) then return {ok=false,reason="mining lane"} end
+      end
+      return check
+    end)
+    if not paths[1] then alert(refusal and refusal.reason or "no safe storage route","path") return false end
+    if #paths[1].steps>0 then send(paths[1].steps,"move") return false end
+  end
   if same(p,target) then
     if target.facing ~= nil and p.facing ~= target.facing then
       send({{op=(target.facing-p.facing)%4 == 3 and "turnLeft" or "turnRight"}},"move")
@@ -432,10 +465,10 @@ local function report(id, turtleId, results, lease)
     return
   end
   local facts = lease.report
-  if pending.returning and (facts.uncertain or type(facts.journal)~="string" or facts.journal==pending.journal or not journalPose(facts.pose)
+  if (pending.returning or pending.storageTrip) and (facts.uncertain or type(facts.journal)~="string" or facts.journal==pending.journal or not journalPose(facts.pose)
     or #results~=#pending.steps or results[1] and results[1].err=="journal changed") then
     S.recover=true
-    alert("return report unconfirmed; reservations held","pose_uncertain")
+    alert((pending.returning and "return" or "storage").." report unconfirmed; reservations held","pose_uncertain")
     return
   end
   if pending.boundary and (facts.uncertain or not j.turtle.frame
