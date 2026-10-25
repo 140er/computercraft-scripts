@@ -899,11 +899,15 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
             rows.append(dict(time=duration(now - e["at"]), kind=name, text=text or "",
                              fg="e" if role == "alerts" else mark(e["kind"] + (" " + text if text else ""))))
         count = max(1, capacity)
+        first_count = count
+        if len(rows) > count and footer_rows(w, "HOLD", "") == 2:
+            first_count = max(1, capacity - 1)
         if (page > 1 or len(rows) > count) and footer_rows(w, left[0], note) == 2:
             foot, capacity = 2, max(0, capacity - 1)
             count = max(1, capacity)
-        more = len(rows) > page * count
-        rows = rows[(page - 1) * count:page * count]
+        start = 0 if page == 1 else first_count + (page - 2) * count
+        more = len(rows) > start + count
+        rows = rows[start:start + count]
     total_rows = len(rows)
     if not history:
         rows = rows[(page-1)*max(1, capacity):page*max(1, capacity)]

@@ -1,0 +1,6 @@
+clock 50000000
+local-display 91 0
+turtles 40
+turtle mining b10 184 -58 -369 412 10 1000
+events 30
+event 21:14 a long lane wait after returning from the mining branch
