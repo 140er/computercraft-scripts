@@ -1,6 +1,6 @@
 local P = dofile("so-plan.lua")
 local L = dofile("so-lumber-plan.lua")
-local S = { wired = false, callback = false }
+local S = { wired = false, callback = false, lastLease = {} }
 S.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
 S.scanNow = SO.store.read and (SO.store.read("so-server.cfg") or {}).lumberScan == true
 S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
@@ -21,6 +21,15 @@ S.possible = function(previous, flight)
   return out
 end
 
+S.invalidateProof = function(row)
+  local service = row.service
+  if not service or service.burnIntent then return end
+  local changed = service.emptyProof ~= nil or service.checked ~= nil or service.stage == "burnLogs"
+  service.emptyProof, service.checked = nil, nil
+  if service.stage == "burnLogs" then service.stage = "check" end
+  return changed
+end
+
 S.valid = function(job)
   return type(job) == "table" and type(job.spots) == "table" and type(job.dim) == "string"
 end
@@ -29,6 +38,7 @@ S.job = S.box.value or { dim = "minecraft:overworld", spots = {}, running = fals
 S.job.turtles = S.job.turtles or {}
 S.job.cycleMode = S.job.cycleMode or "repeat"
 if S.job.species == nil then S.job.species = false end
+S.job.burnLogs = S.job.burnLogs == true
 if S.job.cycle then
   S.job.candidates = S.job.cycle.candidates
   S.job.cycle.parked = {}
@@ -48,6 +58,9 @@ for id, row in pairs(S.job.turtles) do
     S.pauseCleared=true
   end
   if row.inflight then row.uncertain = S.possible(row.uncertain, row.inflight) end
+  S.invalidateProof(row)
+  if S.job.burnLogs and row.service and not row.service.burnIntent
+    and (row.service.stage == "take" or row.service.stage == "suck") then row.service.stage = "check" end
   row.recover, row.pending, row.motion, row.parkConfirmed = true, nil, nil, nil
 end
 S.job.visited = S.job.visited or {}
@@ -153,6 +166,77 @@ S.acceptFuel = function()
   j.service.stage = S.rejectedItem() and "returnFuelItem" or "refuel"
   return true
 end
+S.fuelChestKey = function(point)
+  return table.concat({S.job.dim, tostring(point.id), point.x, point.y, point.z, point.side or "front"}, ":")
+end
+S.proofHere = function(proof)
+  local j, service = S.row, S.row.service
+  return proof and service and service.access and P.samePose(proof.pose, j.turtle.pose)
+    and service.access.x == j.turtle.pose.x and service.access.y == j.turtle.pose.y
+    and service.access.z == j.turtle.pose.z
+    and (service.access.facing == nil or service.access.facing == j.turtle.pose.facing)
+    and proof.chest == S.fuelChestKey(service.point)
+end
+S.reconcileBurn = function(report)
+  local j, service = S.row, S.row.service
+  local intent = service and service.burnIntent
+  if not intent then return true end
+  if type(report.inv) ~= "table" or type(report.fuel) ~= "number"
+    or not (report.fuel >= 0 and report.fuel < math.huge) or report.uncertain
+    or not P.samePose(intent.pose, j.turtle.pose) then
+    j.recover = true
+    S.alert("fuel refuel unconfirmed; recovery required")
+    return false
+  end
+  local after = 0
+  for _, item in ipairs(report.inv) do
+    if item.slot == intent.slot then
+      if item.name ~= intent.name then after = -1 else after = item.count end
+    end
+  end
+  local consumed, gained = intent.before - after, report.fuel - intent.fuel
+  if after < 0 or consumed < 0 or consumed > intent.n or gained < 0 or gained > consumed * intent.value
+    or consumed == 0 and gained ~= 0 or consumed > 0 and gained == 0 then
+    j.recover = true
+    S.alert("fuel refuel unconfirmed; recovery required")
+    return false
+  end
+  service.burnIntent, service.emptyProof = nil, nil
+  if report.fuel >= intent.need then
+    service.stage, service.logReturnHold = "return", true
+  elseif consumed == intent.n and gained == consumed * intent.value then
+    service.stage = "check"
+  else
+    service.stage, service.logReturnHold = "check", consumed > 0 or service.logReturnHold
+    S.fuelWait("log refuel incomplete; fix cause, then start")
+  end
+  return true
+end
+S.burnLogs = function()
+  local j, service = S.row, S.row.service
+  if service.burnIntent then j.recover = true return end
+  local usable, reason = S.usable(service.point)
+  if not usable or not S.job.burnLogs or not S.proofHere(service.emptyProof) or service.emptyProof.empty ~= true
+    or service.emptyProof.lease ~= S.lastLease[j.turtle.id] or service.logReturnHold
+    or S.fuelItem() or S.rejectedItem() or type(j.fuel) ~= "number" or not (j.fuel >= 0 and j.fuel < math.huge) then
+    service.emptyProof, service.stage = nil, "check"
+    S.fuelWait(reason or "empty proof required")
+    return
+  end
+  local need = S.fuelNeed(service.access, service.back)
+  if j.fuel >= need then service.stage, service.logReturnHold = "return", true S.save() return end
+  local item = S.slot(function(name) return (P.burnValue(name) or 0) > 0 end)
+  if not item then S.fuelWait("no usable logs") return end
+  local value = P.burnValue(item.name)
+  -- Reports omit capacity. Bound requests to the basic turtle capacity; workers enforce lower configured limits.
+  local capacity = 20000
+  local n = math.min(item.count, math.ceil((need - j.fuel) / value), math.max(0, math.ceil((capacity - j.fuel) / value)))
+  if n == 0 then S.fuelWait("fuel capacity reached") return end
+  service.burnIntent = { slot = item.slot, name = item.name, before = item.count,
+    fuel = j.fuel, n = n, value = value, need = need, pose = SO.store.copy(j.turtle.pose) }
+  if not S.save() then return end
+  S.send({ { op = "select", slot = item.slot }, { op = "refuel", n = n } }, "burnLogs")
+end
 S.dimensionError = function(dim, y)
   local config=dim ~= "minecraft:overworld" and SO.store.read and SO.store.read("so-server.cfg")
   return P.dimensionError(dim, config) or P.heightError(dim, y)
@@ -237,18 +321,22 @@ S.junk = function()
     end
   end
 end
-S.fuelNeed = function()
-  local j, drops = S.row, S.module("drops")
-  local dim = S.dropDim()
-  local p = j.turtle.pose
-  local picked = dim ~= nil and type(drops.choose) == "function" and drops.choose("fuel", { dim = dim, x = p.x, y = p.y, z = p.z })
-  local point = picked and picked.point
-  if not point then return 32 end
-  local access = L.access(point, p)
-  if not access then return 32 end
+S.reserve = function(p, access)
   local flight = S.job.ground + 2
   return math.abs(p.y - flight) + math.abs(p.x - access.x) + math.abs(p.z - access.z)
     + math.abs(access.y - flight) + 32
+end
+S.fuelNeed = function(access, from)
+  local j, drops = S.row, S.module("drops")
+  local dim = S.dropDim()
+  local p = from or j.turtle.pose
+  if not access then
+    local picked = dim ~= nil and type(drops.choose) == "function" and drops.choose("fuel", { dim = dim, x = p.x, y = p.y, z = p.z })
+    local point = picked and picked.point
+    if point then access = L.access(point, p) end
+  end
+  if not access then return 32 end
+  return S.reserve(p, access)
 end
 S.owner = function() return "lumber:" .. tostring(S.row.turtle.id) end
 S.release = function()
@@ -566,6 +654,7 @@ end
 
 S.send = function(steps, action, cells, recover, ms, route)
   local j, lease = S.row, S.module("lease")
+  if action ~= "suck" and action ~= "burnLogs" then S.invalidateProof(j) end
   if not j.turtle or type(lease.send) ~= "function" or type(lease.status) ~= "function" then return false end
   if S.row.pending or lease.status(j.turtle.id).open then return false end
   local once = S.once() and S.member(j)
@@ -665,6 +754,7 @@ S.send = function(steps, action, cells, recover, ms, route)
     S.alert("lease " .. tostring(err))
     return false
   end
+  S.lastLease[j.turtle.id] = id
   S.row.pending = { id = id, action = action, steps = steps, pose = j.turtle.pose,
     boundary = boundary and not recover, route = route, journal = once and status.journal or nil }
   S.row.idlePark = action == "park" or action == "recover"
@@ -828,6 +918,10 @@ S.report = function(id, turtleId, results, lease)
   if not pending or pending.id ~= id then return end
   S.row.pending = nil
   if not results then
+    if j.service and pending.action == "suck" then
+      j.service.emptyProof, j.service.checked = nil, nil
+      if S.job.burnLogs then j.service.stage = "check" end
+    end
     if S.member(j) then S.job.cycle.parked[tostring(turtleId)] = nil end
     j.parkConfirmed=nil
     j.uncertain = S.possible(j.uncertain, pending)
@@ -950,6 +1044,9 @@ S.report = function(id, turtleId, results, lease)
   elseif S.workerPark and action == "park" and j.paused then
     j.parkConfirmed=true
   elseif action == "recover" then
+    S.invalidateProof(j)
+    local burning = j.service and j.service.burnIntent
+    if not S.reconcileBurn(report) then S.save() return end
     if j.delivery then
       if not report.inv then S.alert("missing inventory") S.save() return end
       local after = S.count(function(name) return name:match("_log$") ~= nil end)
@@ -963,7 +1060,8 @@ S.report = function(id, turtleId, results, lease)
       if j.tree and j.phase == "plantPlace" then j.phase = "plant" end
     end
     if j.service then j.service.suspended = nil end
-    j.blocked = nil
+    if not (burning and j.service.stage == "check")
+      and not (j.service and j.service.logReturnHold and j.blocked == "fuel") then j.blocked = nil end
     S.prune()
   elseif type(action) == "table" and action.kind == "path" then
     local block = result.ok and result.data or nil
@@ -1063,8 +1161,12 @@ S.report = function(id, turtleId, results, lease)
     if ok or not S.once() then S.finishTarget() else j.blocked = "hold" S.alert("replant failed") end
   elseif action == "supplyCheck" then
     if j.service then
+      j.service.checked, j.service.emptyProof = nil, nil
       if S.noteChest(j.service.point, result) then
         j.service.stage = "take"
+        if S.job.burnLogs and j.service.kind == "fuel" and not report.uncertain then
+          j.service.checked = { pose = SO.store.copy(j.turtle.pose), chest = S.fuelChestKey(j.service.point) }
+        end
       else
         j.blocked = "hold"
         S.chestAlert(j.service.kind, "broken", j.service.point)
@@ -1084,8 +1186,21 @@ S.report = function(id, turtleId, results, lease)
         service.stage = "restock"
       end
     elseif service then
-      if not ok then j.blocked="fuel" S.chestAlert("fuel",P.transferFailure("fuel",result),service.point)
+      local empty = S.job.burnLogs and S.job.running and not j.paused and not service.logReturnHold and #results == #pending.steps and results[1].ok
+        and result.ok == false and result.err == "No items to take" and not report.uncertain
+        and type(report.inv) == "table" and type(report.fuel) == "number"
+        and S.proofHere(service.checked) and service.takeSlot and not S.takenItem()
+        and not S.fuelItem() and not S.rejectedItem()
+      if empty then
+        service.emptyProof = { pose = SO.store.copy(j.turtle.pose), chest = S.fuelChestKey(service.point),
+          slot = service.takeSlot, lease = id, empty = true }
+        service.checked, service.stage = nil, "burnLogs"
+        S.chestAlert("fuel", "empty", service.point)
+      elseif not ok then
+        service.emptyProof, service.checked = nil, nil
+        j.blocked="fuel" S.chestAlert("fuel",P.transferFailure("fuel",result),service.point)
       else
+        service.emptyProof, service.checked = nil, nil
         local rejected = S.rememberFuelPickup()
         if not S.acceptFuel() then
           service.stage = "check"
@@ -1102,9 +1217,11 @@ S.report = function(id, turtleId, results, lease)
     else S.fuelWait(not inspected and "broken" or "non-fuel return failed") end
   elseif action == "restock" then
     if not ok then j.blocked = "hold" S.alert("sapling return failed") end
+  elseif action == "burnLogs" then
+    if not S.reconcileBurn(report) then S.save() return end
   elseif action == "refuel" then
     if j.service then
-      if not ok then S.fuelWait("no usable fuel") else S.clearFuelAlert() j.service.stage = "return" end
+      if not ok then S.fuelWait("no usable fuel") else S.clearFuelAlert() j.service.stage, j.service.logReturnHold = "return", nil end
     end
   elseif action == "junk" then
     if not ok then j.blocked = "hold" S.chestAlert("wood", inspected and P.transferFailure("wood",result) or "broken", j.service.point) end
@@ -1143,7 +1260,10 @@ S.workService = function()
     S.prune()
     S.save()
   end
-  if not S.queueService() then return end
+  if not S.queueService() then
+    if S.invalidateProof(j) then S.save() end
+    return
+  end
   if service.kind == "saplings" and not service.point.id then
     local saved = S.saplingPoint(service.point)
     if not saved then
@@ -1153,7 +1273,8 @@ S.workService = function()
     end
     service.point.id = saved.id
   end
-  if service.kind == "fuel" and service.stage ~= "travel" and service.stage ~= "return" then
+  if service.burnIntent then j.recover = true return end
+  if service.kind == "fuel" and service.stage ~= "travel" and service.stage ~= "return" and service.stage ~= "burnLogs" then
     local rejected = S.rememberFuelPickup()
     if not S.acceptFuel() and rejected then service.stage = "check" S.fuelWait("non-fuel items") return end
   end
@@ -1184,6 +1305,7 @@ S.workService = function()
   end
   if service.stage == "check" or service.stage == "suck" then
     service.stage = "check"
+    service.emptyProof, service.checked = nil, nil
     S.op(service.point.side == "down" and "inspectDown" or "inspect", "supplyCheck")
   elseif service.stage == "take" then
     local slot = S.empty()
@@ -1199,11 +1321,11 @@ S.workService = function()
       return
     end
     if service.kind == "fuel" then
-      service.takeSlot, service.takeOrder = nil, nil
+      service.takeSlot, service.takeOrder, service.emptyProof = nil, nil, nil
       local auto, policy = S.autoFuel()
-      if auto then
+      if auto or S.job.burnLogs then
         service.takeSlot = slot
-        service.takeOrder = policy.waiting and policy.waiting.rid or false
+        if auto then service.takeOrder = policy.waiting and policy.waiting.rid or false end
         if not S.save() then return end
       end
     end
@@ -1254,6 +1376,8 @@ S.workService = function()
     S.send({{op="select",slot=item.slot},
       {op=service.point.side == "down" and "inspectDown" or "inspect"},
       {op=service.point.side == "down" and "dropDown" or "drop",n=item.count}},"returnFuelItem")
+  elseif service.stage == "burnLogs" then
+    S.burnLogs()
   elseif service.stage == "refuel" then
     local item = S.fuelItem()
     if not item then S.fuelWait("no usable fuel") return end
@@ -1261,7 +1385,11 @@ S.workService = function()
   elseif service.stage == "return" then
     if service.back and not S.move(service.back) then return end
     j.phase = service.resume
-    j.service = nil
+    if service.logReturnHold then
+      service.stage, j.blocked = "travel", "fuel"
+      S.invalidateProof(j)
+      if S.autoFuel() then j.fuelRetry = j.fuelRetry or SO.now() + 60000 end
+    else j.service = nil end
     S.prune()
     S.save()
   end
@@ -1428,7 +1556,12 @@ S.input = function(ev)
       table.sort(selection)
     end
     j.species = selection
-  elseif words[1] == "stop" and #words == 1 then S.clearAlert() j.running=false
+  elseif words[1] == "burnLogs" and #words == 2 and (words[2] == "true" or words[2] == "false") then
+    if j.running or S.anyPending() then S.alert("stop before configuring") return end
+    j.burnLogs = words[2] == "true"
+  elseif words[1] == "stop" and #words == 1 then
+    for _, row in pairs(j.turtles) do S.invalidateProof(row) end
+    S.clearAlert() j.running=false
   elseif words[1] == "scan" and #words == 1 and S.scanNow then
     if S.once() or j.cycleMode == "once" then return end
     if not j.running or not j.area or j.ground == nil then return end
@@ -1461,6 +1594,7 @@ S.input = function(ev)
     j.running, j.blocked, j.noSaplings, j.alert, j.failures = true, nil, false, nil, nil
     if type(state.get)=="function" and state.get("lumber.alert") then S.emit("lumber.alert",false) end
     for _, row in pairs(j.turtles) do
+      S.invalidateProof(row)
       row.blocked, row.noSaplings, row.alert, row.failures, row.recover, row.paused = nil, false, nil, nil, true, S.workerPark and row.paused or nil
       if S.member(row) then
         S.job.cycle.parked[tostring(row.turtle.id)] = nil
@@ -1472,6 +1606,7 @@ S.input = function(ev)
     local row=id and j.turtles[tostring(id)]
     if not row then S.alert("unknown turtle") return end
     if row.turtle.forgotten then S.alert("device forgotten; re-pair and re-add turtle") return end
+    S.invalidateProof(row)
     if words[1]=="resume" then
       local cells,p=S.module("cells"),row.turtle.pose
       if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)=="gps:"..id then
@@ -1488,6 +1623,7 @@ S.input = function(ev)
     local id = integer(2)
     local row = id and j.turtles[tostring(id)]
     if not row then S.alert("unknown turtle") return end
+    S.invalidateProof(row)
     row.paused, row.motion, row.wait = true, nil, nil
   elseif words[1] == "area" and (#words == 6 or #words == 7) then
     if j.running or S.anyPending() then S.alert("stop before configuring") return end
@@ -2049,15 +2185,17 @@ S.tickRow = function(row, now)
         S.save()
         return
       end
-      j.blocked, j.alert, j.fuelRetry = nil, nil, nil
-      if j.service.stage ~= "returnFuelItem" then j.service.stage = "check" end
-      S.emit("lumber.alert",false)
+      j.blocked, j.fuelRetry = nil, nil
+      if j.service.stage ~= "returnFuelItem" and not (j.service.logReturnHold and j.service.stage == "travel") then
+        j.service.stage = "check"
+      end
+      if not j.service.logReturnHold then j.alert = nil S.emit("lumber.alert",false) end
       S.save()
     end
   end
   if type(lease.ensureTool) == "function" then
     local equipped, reason = lease.ensureTool(j.turtle.id,"axe")
-    if not equipped then S.alert(reason) S.park() return end
+    if not equipped then S.invalidateProof(j) S.alert(reason) S.park() return end
     if j.alert and (j.alert == "needs axe" or j.alert:match("^tool swap failed:")) then j.alert=nil S.save() end
   end
   if S.job.dim ~= "minecraft:overworld" then

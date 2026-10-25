@@ -68,7 +68,7 @@ local function onceFixture(options)
   local saved, callbacks, reservations, serial = copy(job), {}, {}, 0
   local mods = {}
   local env = setmetatable({SO={now=function() return s.clock end,pair={key=function() return 'paired' end},mods=mods,
-    store={copy=copy,read=function() return {lumberScan=true} end,
+    store={copy=copy,read=function() return {lumberScan=true,workerPark=options.workerPark} end,
       store=function()
         local value=copy(saved) s.job=value
         return {value=value,save=function(v)
@@ -164,11 +164,29 @@ local function onceFixture(options)
         if s.blockUnload then r={ok=false,err='No space for items'} else
           for _,item in ipairs(w.inv) do if item.slot==w.selected then item.count=math.max(0,item.count-(step.n or item.count)) end end
         end
+      elseif op=='refuel' and s.fuelChest then
+        local item
+        for _,v in ipairs(w.inv) do if v.slot==w.selected then item=v end end
+        local value=item and (P.burnValue(item.name) or P.fuelValue(item.name))
+        if s.refuelFailure or not value or value==0 or w.fuel >= (s.fuelLimit or 20000) then
+          r={ok=false,err='Unable to refuel'}
+        else
+          local n=math.min(step.n,item.count,s.partialBurn or step.n,
+            math.ceil(((s.fuelLimit or 20000)-w.fuel)/value))
+          item.count=item.count-n w.fuel=math.min(s.fuelLimit or 20000,w.fuel+n*value)
+          if P.burnValue(item.name) then w.burned=(w.burned or 0)+n end
+        end
       elseif op=='suckDown' or op=='suck' then
-        if s.noSaplings then r={ok=false,err='No items to take'} else add('minecraft:oak_sapling',step.n or 8) end
+        if s.fuelChest then
+          if s.fuelChest=='empty' then r={ok=false,err='No items to take'}
+          elseif s.fuelChest=='timeout' then r={ok=false,err='timeout'}
+          else add(s.fuelChest,step.n or 8) s.pickups=(s.pickups or 0)+1 end
+        elseif s.noSaplings then r={ok=false,err='No items to take'} else add('minecraft:oak_sapling',step.n or 8) end
       elseif P.moves[op] then
         local dest=P.apply(w.pose,op)
-        if s.world[key(dest)] then r={ok=false,err='Movement obstructed'} else w.pose=dest end
+        if s.world[key(dest)] then r={ok=false,err='Movement obstructed'}
+        elseif s.consumeFuel and w.fuel==0 then r={ok=false,err='Out of fuel'}
+        else w.pose=dest if s.consumeFuel then w.fuel=w.fuel-1 end end
       elseif P.turns[op] then w.pose=P.apply(w.pose,op)
       end
       results[i]=r
@@ -191,7 +209,400 @@ local function onceFixture(options)
   return s
 end
 
+local function burnFixture(enabled, options)
+  options=options or {}
+  local s=onceFixture({workerPark=options.workerPark})
+  local row,w=s.row(),s.workers[2]
+  local pose={dim='minecraft:overworld',x=-4,y=2,z=-2,facing=1}
+  local back=copy(pose) back.x=pose.x+(options.distance or 10)
+  row.turtle.pose,w.pose=copy(pose),copy(pose)
+  row.fuel,w.fuel=options.fuel or 10,options.fuel or 10
+  local inv=options.inv or {{slot=1,name='minecraft:oak_log',count=20}}
+  row.inv,w.inv=copy(inv),copy(inv)
+  row.phase='waiting'
+  s.job.burnLogs,s.job.running,s.job.nextRound=enabled,true,600000
+  row.service={kind='fuel',stage='check',resume='waiting',point=copy(s.mods.drops.list()[2]),
+    access=copy(pose),back=back}
+  s.fuelChest=options.chest or 'empty'
+  s.save() s.reload() s.reply(2)
+  function s.tickFuel() s.clock=s.clock+1 s.mod.tick(s.clock) return s.queued[2] end
+  function s.emptyProof()
+    s.tickFuel() assert(s.row().pending.action=='supplyCheck') s.reply(2)
+    s.tickFuel() assert(s.row().pending.action=='suck') s.reply(2)
+  end
+  return s
+end
+
 return function(test, equal)
+  test('B4-E-L old saves default burnLogs off and an empty fuel chest burns nothing',function()
+    local s=burnFixture(nil)
+    equal(s.job.burnLogs,false)
+    s.emptyProof()
+    equal(s.row().blocked,'fuel') equal(s.row().service.emptyProof,nil)
+    s.step(5) equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L burnLogs is saved explicitly and configuration waits for stopped commands',function()
+    local s=burnFixture(false)
+    s.input('burnLogs true') equal(s.job.burnLogs,false)
+    s.input('stop') s.input('burnLogs true') equal(s.job.burnLogs,true)
+    s.save() s.reload() s.reply(2) equal(s.job.burnLogs,true)
+    s.input('burnLogs false') equal(s.job.burnLogs,false)
+  end)
+
+  test('B4-E-L enabled without a saved empty proof never burns carried logs',function()
+    local s=burnFixture(true)
+    s.row().service.stage='burnLogs'
+    s.tickFuel()
+    equal(s.row().blocked,'fuel') equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L confirmed empty proof burns only the minimum logs for the existing return reserve',function()
+    local s=burnFixture(true)
+    s.emptyProof()
+    local proof=copy(s.row().service.emptyProof)
+    equal(proof.empty,true) equal(proof.slot,2) assert(proof.lease)
+    s.tickFuel()
+    local q=s.queued[2]
+    equal(q.steps,{{op='select',slot=1},{op='refuel',n=3}})
+    equal(s.row().service.burnIntent.need,42)
+    s.reply(2)
+    equal(s.row().fuel,55) equal(s.workers[2].burned,3)
+    equal(s.row().service.stage,'return') equal(s.row().service.burnIntent,nil)
+    equal(s.job.logs,nil)
+    s.save() s.reload() s.reply(2)
+    equal(s.workers[2].burned,3) equal(s.row().service.stage,'return')
+  end)
+
+  test('B4-E-L an existing reserve needs zero logs even with saved empty proof',function()
+    local s=burnFixture(true,{fuel=42})
+    s.emptyProof() s.tickFuel()
+    equal(s.queued[2],nil) equal(s.row().service.stage,'return')
+    equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L a chest made unusable after proof refuses burning',function()
+    local s=burnFixture(true)
+    s.emptyProof()
+    s.mods.drops.usable=function() return false,'broken' end
+    s.tickFuel()
+    equal(s.row().blocked,'fuel') equal(s.row().service.emptyProof,nil)
+    equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L a wrong-item chest refuses even when the wrong item is a burnable log',function()
+    local s=burnFixture(true,{chest='minecraft:birch_log'})
+    s.emptyProof()
+    equal(s.row().blocked,'fuel') equal(s.row().service.emptyProof,nil)
+    s.step(5) equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L a broken chest cannot establish empty proof',function()
+    local s=burnFixture(true)
+    s.world['-4,1,-2']=nil
+    s.tickFuel() s.reply(2)
+    equal(s.row().blocked,'hold') equal(s.row().service.emptyProof,nil)
+    s.step(5) equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L timeout and generic failed suck reports cannot establish empty proof',function()
+    for _,reason in ipairs({'timeout','failed','no inventory'}) do
+      local s=burnFixture(true,{chest='timeout'})
+      s.tickFuel() s.reply(2)
+      s.tickFuel()
+      local q=s.queued[2] s.queued[2]=nil
+      s.callbacks.lumber(q.id,2,{{ok=true},{ok=false,err=reason}},
+        {report={pose={x=-4,y=2,z=-2,f=1},inv=copy(s.workers[2].inv),fuel=10}})
+      equal(s.row().blocked,'fuel') equal(s.row().service.emptyProof,nil)
+      s.step(5) equal(s.workers[2].burned,nil)
+    end
+  end)
+
+  test('B4-E-L missing inventory or uncertain empty reports cannot establish proof',function()
+    for _,missing in ipairs({'inventory','uncertain'}) do
+      local s=burnFixture(true)
+      s.tickFuel() s.reply(2) s.tickFuel()
+      local q=s.reply(2,nil,true)
+      local report={pose={x=-4,y=2,z=-2,f=1},fuel=10,inv=copy(s.workers[2].inv),uncertain=missing=='uncertain'}
+      if missing=='inventory' then report.inv=nil end
+      s.callbacks.lumber(q.id,2,{{ok=true},{ok=false,err='No items to take'}},{report=report})
+      equal(s.row().service.emptyProof,nil)
+      s.step(3) equal(s.workers[2].burned,nil)
+    end
+  end)
+
+  test('B4-E-L a full inventory cannot prove an empty fuel chest',function()
+    local inv={}
+    for slot=1,16 do inv[slot]={slot=slot,name='minecraft:oak_log',count=20} end
+    local s=burnFixture(true,{inv=inv})
+    s.tickFuel() s.reply(2) s.tickFuel()
+    equal(s.queued[2],nil) equal(s.row().blocked,'full')
+    equal(s.row().service.emptyProof,nil) equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L a lost suck report then restart rechecks the chest without inferring empty',function()
+    local s=burnFixture(true)
+    s.tickFuel() s.reply(2) s.tickFuel()
+    local q=s.reply(2,nil,true)
+    s.callbacks.lumber(q.id,2,nil,{})
+    s.reload() s.reply(2)
+    equal(s.row().service.emptyProof,nil)
+    s.tickFuel() equal(s.row().pending.action,'supplyCheck')
+    equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L restart before dispatch discards proof and rechecks a refilled chest',function()
+    local s=burnFixture(true)
+    s.emptyProof() s.fuelChest='minecraft:coal'
+    s.reload() s.reply(2)
+    equal(s.row().service.emptyProof,nil) equal(s.row().service.stage,'check')
+    s.tickFuel() equal(s.row().pending.action,'supplyCheck') s.reply(2)
+    s.step(4)
+    equal(s.workers[2].burned,nil) equal(s.pickups,1)
+  end)
+
+  for _,path in ipairs({'stop/start','START','pause/resume','park lease','recovery'}) do
+    test('B4-E-L '..path..' before burn discards proof and rechecks a refilled chest',function()
+      local s=burnFixture(true,{workerPark=path=='pause/resume'})
+      s.emptyProof() s.fuelChest='minecraft:coal'
+      if path=='stop/start' then
+        s.input('stop') equal(s.row().service.emptyProof,nil)
+        s.input('start') s.tickFuel() equal(s.row().pending.action,'recover') s.reply(2)
+      elseif path=='START' then
+        s.input('start') equal(s.row().service.emptyProof,nil)
+        s.tickFuel() equal(s.row().pending.action,'recover') s.reply(2)
+      elseif path=='pause/resume' then
+        s.input('park 2') equal(s.row().service.emptyProof,nil)
+        s.tickFuel() equal(s.row().pending.action,'park') s.reply(2)
+        s.input('resume 2')
+      elseif path=='park lease' then
+        s.job.running=false
+        s.tickFuel() equal(s.row().pending.action,'park') s.reply(2)
+        s.job.running=true
+      else
+        s.row().recover=true
+        s.tickFuel() equal(s.row().pending.action,'recover') s.reply(2)
+      end
+      equal(s.row().service.emptyProof,nil) equal(s.row().service.stage,'check')
+      s.tickFuel() equal(s.row().pending.action,'supplyCheck') s.reply(2)
+      s.step(4)
+      equal(s.workers[2].burned,nil) equal(s.pickups,1)
+    end)
+  end
+
+  test('B4-E-L a lane wait discards proof before the chest is refilled',function()
+    local s=burnFixture(true)
+    s.emptyProof()
+    local reserve=s.mods.cells.reserveMany
+    s.row().service.lane=nil
+    s.mods.cells.reserveMany=function() return false end
+    s.tickFuel()
+    equal(s.queued[2],nil) equal(s.row().wait,'wait chest')
+    equal(s.row().service.emptyProof,nil) equal(s.row().service.stage,'check')
+    s.mods.cells.reserveMany=reserve s.fuelChest='minecraft:coal'
+    s.tickFuel() equal(s.row().pending.action,'supplyCheck') s.reply(2)
+    s.step(4) equal(s.workers[2].burned,nil) equal(s.pickups,1)
+  end)
+
+  test('B4-E-L a proof from an earlier suck lease cannot authorize a burn',function()
+    local s=burnFixture(true)
+    s.emptyProof()
+    s.row().service.emptyProof.lease=s.row().service.emptyProof.lease-1
+    s.tickFuel()
+    equal(s.queued[2],nil) equal(s.workers[2].burned,nil) equal(s.row().blocked,'fuel')
+  end)
+
+  test('B4-E-L a forty-move return holds after one burn and keeps the empty alert across retries',function()
+    local s=burnFixture(true,{distance=40}) s.consumeFuel=true
+    s.mods.shop={fuelConfig=function() return {auto=true} end,fuelEmpty=function() return true end}
+    s.emptyProof() s.tickFuel()
+    equal(s.queued[2].steps[2].n,5) equal(s.row().service.burnIntent.need,72)
+    s.reply(2)
+    local alert=s.row().alert
+    s.step(180)
+    equal(s.workers[2].pose.x,36) equal(s.workers[2].fuel,45)
+    equal(s.row().blocked,'fuel') equal(s.row().service.stage,'travel')
+    equal(s.workers[2].burned,5) equal(s.row().alert,alert)
+    s.save() s.reload() s.reply(2)
+    equal(s.row().blocked,'fuel')
+    s.step(100) equal(s.workers[2].burned,5)
+    s.clock=60001 s.step(180)
+    equal(s.row().blocked,'fuel') equal(s.workers[2].burned,5)
+    equal(s.row().alert,alert)
+    local empty,clear,burns=0,0,0
+    for _,event in ipairs(s.events) do
+      if event.kind=='lumber.alert' then
+        if event.data==false then clear=clear+1 elseif event.data.text==alert then empty=empty+1 end
+      end
+    end
+    for _,q in ipairs(s.sent) do for _,step in ipairs(q.steps) do if step.op=='refuel' then burns=burns+1 end end end
+    equal(empty,1) equal(clear,0) equal(burns,1)
+    s.fuelChest='minecraft:coal'
+    s.input('start') s.step(180)
+    equal(s.workers[2].burned,5) equal(s.row().blocked,nil) equal(s.row().service,nil)
+    equal(s.pickups,1) equal(s.row().alert,nil)
+  end)
+
+  test('B4-E-L the burn reserve uses the saved front access rather than choosing another neighbour',function()
+    local s=burnFixture(true)
+    local access={dim='minecraft:overworld',x=0,y=2,z=-1,facing=2}
+    local point=s.mods.drops.list()[2]
+    point.x,point.y,point.z,point.side=0,2,0,'front'
+    s.world['0,2,0']={name='minecraft:chest'}
+    s.workers[2].pose=copy(access) s.row().turtle.pose=copy(access)
+    local service=s.row().service
+    service.point,service.access=copy(point),copy(access)
+    service.back={dim='minecraft:overworld',x=10,y=2,z=0,facing=3}
+    s.emptyProof() s.tickFuel()
+    equal(service.burnIntent.need,43) equal(s.queued[2].steps[2].n,3)
+    s.reply(2) equal(s.workers[2].burned,3)
+  end)
+
+  test('B4-E-L burn commands stop at the conservative basic-turtle capacity',function()
+    local s=burnFixture(true,{distance=20000,fuel=19995})
+    s.fuelLimit=20000
+    s.emptyProof() s.tickFuel()
+    equal(s.queued[2].steps[2].n,1)
+    s.reply(2) equal(s.workers[2].fuel,20000) equal(s.workers[2].burned,1)
+    equal(s.row().blocked,'fuel')
+    s.step(5) equal(s.workers[2].burned,1)
+    s=burnFixture(true,{distance=20000,fuel=20000})
+    s.emptyProof() s.tickFuel()
+    equal(s.queued[2],nil) equal(s.row().blocked,'fuel') equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L interrupted refuel report then restart reconciles without double-burning',function()
+    local s=burnFixture(true)
+    s.emptyProof() s.tickFuel()
+    local q=s.reply(2,nil,true)
+    equal(s.workers[2].burned,3)
+    s.callbacks.lumber(q.id,2,nil,{})
+    s.reload() s.reply(2)
+    equal(s.row().service.burnIntent,nil) equal(s.row().service.stage,'return')
+    equal(s.row().fuel,55) equal(s.row().inv[1].count,17)
+    s.save() s.reload() s.reply(2)
+    equal(s.workers[2].burned,3) equal(s.row().service.stage,'return')
+  end)
+
+  test('B4-E-L restart after execution before the report reconciles the saved intent',function()
+    local s=burnFixture(true)
+    s.emptyProof() s.tickFuel() s.reply(2,nil,true)
+    s.reload() s.reply(2)
+    equal(s.workers[2].burned,3) equal(s.row().service.stage,'return')
+  end)
+
+  test('B4-E-L a failed report save then restart reconciles the durable intent once',function()
+    local s=burnFixture(true)
+    s.emptyProof() s.tickFuel() s.failSave=true s.reply(2)
+    equal(s.job.running,false) equal(s.workers[2].burned,3)
+    s.failSave=false s.reload() s.reply(2)
+    equal(s.row().service.stage,'return') equal(s.row().service.burnIntent,nil)
+    equal(s.workers[2].burned,3)
+  end)
+
+  test('B4-E-L missing refuel facts retain the intent until a recovery report confirms consumption',function()
+    local s=burnFixture(true)
+    s.emptyProof() s.tickFuel()
+    local q=s.reply(2,nil,true)
+    s.callbacks.lumber(q.id,2,{{ok=true},{ok=true}},
+      {report={pose={x=-4,y=2,z=-2,f=1},fuel=55}})
+    assert(s.row().service.burnIntent) equal(s.row().recover,true)
+    s.tickFuel() equal(s.row().pending.action,'recover') s.reply(2)
+    equal(s.row().service.stage,'return') equal(s.row().service.burnIntent,nil)
+    equal(s.workers[2].burned,3)
+  end)
+
+  test('B4-E-L inconsistent refuel inventory and fuel retain the intent and never burn again',function()
+    local s=burnFixture(true)
+    s.emptyProof() s.tickFuel() s.reply(2,nil,true)
+    s.workers[2].fuel=10
+    s.reload() s.reply(2)
+    assert(s.row().service.burnIntent) equal(s.row().recover,true)
+    s.step(3) equal(s.workers[2].burned,3)
+    s.workers[2].fuel=55 s.step(1)
+    equal(s.row().service.stage,'return') equal(s.row().service.burnIntent,nil)
+  end)
+
+  test('B4-E-L restart before refuel execution holds instead of resending the saved intent',function()
+    local s=burnFixture(true)
+    s.emptyProof() s.tickFuel() s.queued[2]=nil
+    s.reload() s.reply(2)
+    equal(s.row().blocked,'fuel') equal(s.workers[2].burned,nil)
+    equal(s.row().service.burnIntent,nil)
+    s.step(5) equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L refuel is capped by carried logs and continues across stacks for the same reserve',function()
+    local s=burnFixture(true,{inv={{slot=1,name='minecraft:oak_log',count=1},
+      {slot=3,name='minecraft:stripped_birch_wood',count=9}}})
+    s.emptyProof() s.tickFuel() equal(s.queued[2].steps[2].n,1) s.reply(2)
+    equal(s.row().service.stage,'check') equal(s.row().service.emptyProof,nil)
+    s.emptyProof()
+    s.tickFuel() equal(s.queued[2].steps[2].n,2) s.reply(2)
+    equal(s.workers[2].burned,3) equal(s.row().service.stage,'return')
+  end)
+
+  test('B4-E-L partial refuel at capacity reconciles actual fuel and holds below reserve',function()
+    local s=burnFixture(true) s.fuelLimit=25
+    s.emptyProof() s.tickFuel() s.reply(2)
+    equal(s.workers[2].burned,1) equal(s.row().fuel,25)
+    equal(s.row().blocked,'fuel') equal(s.row().service.burnIntent,nil)
+    s.step(5) equal(s.workers[2].burned,1)
+  end)
+
+  test('B4-E-L failure to refuel holds and never spends another log',function()
+    local s=burnFixture(true) s.refuelFailure=true
+    s.emptyProof() s.tickFuel() s.reply(2)
+    equal(s.row().blocked,'fuel') equal(s.workers[2].burned,nil)
+    s.step(5) equal(s.workers[2].burned,nil)
+  end)
+
+  test('B4-E-L only burnValue logs and woods qualify and carried ordinary fuel prevents proof',function()
+    for _,inv in ipairs({{{slot=1,name='minecraft:crimson_stem',count=20}},
+      {{slot=1,name='mod:oak_log',count=20}},
+      {{slot=1,name='minecraft:oak_log',count=20},{slot=3,name='minecraft:coal',count=1}}}) do
+      local s=burnFixture(true,{inv=inv})
+      if inv[2] then
+        s.tickFuel() equal(s.row().pending.action,'refuel')
+        equal(s.row().service.emptyProof,nil)
+      else s.emptyProof() s.tickFuel() end
+      equal(s.workers[2].burned,nil)
+    end
+  end)
+
+  test('B4-E-L saving proof or intent must succeed before any refuel command',function()
+    for _,cut in ipairs({'proof','intent'}) do
+      local s=burnFixture(true)
+      if cut=='proof' then
+        s.tickFuel() s.reply(2) s.tickFuel() s.failSave=true s.reply(2)
+      else s.emptyProof() s.failSave=true s.tickFuel() end
+      equal(s.job.running,false) equal(s.queued[2],nil) equal(s.workers[2].burned,nil)
+    end
+  end)
+
+  test('B4-E-L enabling log fuel preserves routes, reserve, targets and production credit',function()
+    local function run(enabled)
+      local s=burnFixture(enabled)
+      s.row().service=nil
+      s.workers[2].pose.x=6 s.row().turtle.pose.x=6
+      s.row().fuel,s.workers[2].fuel=40,40
+      s.row().target={x=0,y=2,z=0,index=1}
+      s.job.logs=19
+      s.tickFuel()
+      local service=copy(s.row().service)
+      local first=copy(s.queued[2])
+      for _=1,100 do
+        if s.queued[2] then s.reply(2) end
+        if s.row().service.stage=='take' then break end
+        s.tickFuel()
+      end
+      local steps={}
+      for _,q in ipairs(s.sent) do steps[#steps+1]=q.steps end
+      return {service=service,first=first.steps,steps=steps,target=copy(s.row().target),logs=s.job.logs}
+    end
+    equal(run(true),run(false))
+  end)
+
   test('B4-C ONCE drains saved and discovered candidates, accepted trees, claims, replant and unload before confirmed parking',function()
     local dim='minecraft:overworld'
     local s=onceFixture({candidates={{dim=dim,x=2,y=2,z=2},{dim=dim,x=2,y=2,z=2}}})
