@@ -16,6 +16,7 @@ local M = { planes = {}, keys = {}, columns = {}, layouts = {}, aux = {}, serial
   prefer = {"r","l","ur","dr","ul","dl","u","d"}, east = {"ur","dr","r","ul","dl","l"}, along = {"r","l","ur","dr"},
   drop = {"r","l","d","dr","dl","u","ur","ul"}, farm = {"u","ur","r"},
   compass = "\24N", hex = {}, bitsOf = {}, scenes = {}, trails = {}, trailVersion = 0, trailCursor = 0, trailLimit = 32,
+  finds = {items={}, head=0, cursor=0, version=0},
   -- The dimension chip (remoteDimensions only): its label and the next dimension.
   dimLabel = {["minecraft:overworld"]="OVER",["minecraft:the_nether"]="NETH",["minecraft:the_end"]="END"},
   nextDim = {["minecraft:overworld"]="minecraft:the_nether",["minecraft:the_nether"]="minecraft:the_end",
@@ -215,6 +216,46 @@ M.readTrail = function()
   end
   if count > M.trailLimit then M.trails[oldest] = nil M.trailVersion = M.trailVersion + 1 end
 end
+M.pruneFinds = function(now)
+  local ring = M.finds
+  for i, find in pairs(ring.items) do
+    if find.at <= now - 600000 or find.at > now then
+      ring.items[i] = nil
+      ring.version = ring.version + 1
+    end
+  end
+end
+M.readFinds = function(now)
+  M.pruneFinds(now)
+  local state, ring = SO.mods.state, M.finds
+  if not (state and state.history and type(state.history.page) == "function") then return end
+  local page = state.history.page({kind="mine.ore", from=ring.cursor, count=50})
+  for i, ev in ipairs(page.entries) do
+    if i > 50 then break end
+    if type(ev.seq) == "number" and ev.seq > ring.cursor and ev.seq < math.huge then
+      ring.cursor = ev.seq
+      local data = type(ev.data) == "table" and ev.data
+      local p = data and type(data.pos) == "table" and data.pos
+      local at = ev.gameAt
+      if at == nil then at = ev.at end
+      local dim = p and M.dim(p.dim)
+      local heights = dim and M.heights[dim]
+      local valid = ev.kind == "mine.ore" and p and p.dim ~= nil and heights
+        and type(at) == "number" and at > now - 600000 and at <= now
+        and type(data.count) == "number" and data.count > 0 and data.count < math.huge
+        and data.count % 1 == 0 and type(data.name) == "string" and #data.name <= 128
+      for _, axis in ipairs({"x","y","z"}) do
+        local n = p and p[axis]
+        if type(n) ~= "number" or n % 1 ~= 0 or math.abs(n) > 30000000 then valid = false end
+      end
+      if valid and p.y >= heights[1] and p.y <= heights[2] then
+        ring.head = ring.head % 256 + 1
+        ring.items[ring.head] = {dim=dim, x=p.x, y=p.y, z=p.z, at=at, seq=ev.seq}
+        ring.version = ring.version + 1
+      end
+    end
+  end
+end
 -- The scene a view shows: its own dimension with remoteDimensions on, else the server's.
 M.selected = function(v)
   if not (M.config and M.config.remoteDimensions == true and v.dim) then return M.scene end
@@ -225,6 +266,7 @@ end
 M.view = function(session)
   local v = session.map or {fit=true}
   session.map = v
+  v.oreFinds = v.oreFinds == true
   if type(v.level) ~= "number" then v.level = "all" end
   v.cx, v.cz = tonumber(v.cx) or 0, tonumber(v.cz) or 0
   -- Views saved before route A carry a zoom and no scale: they fit again.
@@ -626,10 +668,32 @@ M.trailCells = function(v, s)
   table.sort(out, function(a, b) return a.seq > b.seq end)
   return out
 end
+M.findCells = function(v, s)
+  local cells, out, held = {}, {}, {}
+  if not v.oreFinds then return out end
+  for _, p in ipairs(s.reserved) do
+    if v.level == "all" or p.y == v.level then
+      local cx, cy = M.cellOf(v, p.x, p.z)
+      if cx then held[cy * v.mw + cx] = true end
+    end
+  end
+  for _, p in pairs(M.finds.items) do
+    if p.dim == s.dim and (v.level == "all" or p.y == v.level) then
+      local cx, cy = M.cellOf(v, p.x, p.z)
+      if cx then
+        local key = cy * v.mw + cx
+        if not held[key] and (not cells[key] or cells[key].seq < p.seq) then cells[key] = {cx=cx, cy=cy, seq=p.seq} end
+      end
+    end
+  end
+  for _, cell in pairs(cells) do out[#out+1] = cell end
+  table.sort(out, function(a, b) return a.seq > b.seq end)
+  return out
+end
 
 -- Draws the map with its top-left cell at C (ox, oy). The view carries its cells (M.cells).
 -- Returns the marker cells, keyed cy * mw + cx.
-M.draw = function(C, v, s, ox, oy, pick, dropLabel, trails, limit)
+M.draw = function(C, v, s, ox, oy, pick, dropLabel, trails, limit, finds, findLimit)
   local mw, mh = v.mw, v.mh
   local occ, taken, placed = {}, {}, {}
   for i, c in pairs(v.base) do
@@ -640,6 +704,10 @@ M.draw = function(C, v, s, ox, oy, pick, dropLabel, trails, limit)
   for i, cell in ipairs(trails or M.trailCells(v, s)) do
     if limit and i > limit then break end
     C.put(ox + cell.cx, oy + cell.cy, U.g.dot, "8")
+  end
+  for i, cell in ipairs(finds or {}) do
+    if findLimit and i > findLimit then break end
+    C.put(ox + cell.cx, oy + cell.cy, "*", "4")
   end
   local farmLabel
   if M.farmOn(s, v.level) then
@@ -1045,6 +1113,7 @@ end
 M.render = function(w, h, session, tries)
   session = type(session)=="table" and session or {}
   M.seen = SO.now()
+  M.pruneFinds(M.seen)
   if not M.scene then M.scene = M.gather(M.seen) end
   local v = M.view(session)
   local s = M.selected(v)
@@ -1060,12 +1129,13 @@ M.render = function(w, h, session, tries)
       for _, part in ipairs(row[2]) do detail[#detail+1] = part[2] end
     else detail[#detail+1] = row[2] .. ":" .. row[3] end
   end
-  local fkey = table.concat({key, w, h, s.markers, M.trailVersion, table.concat(detail, ";"), tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
+  local fkey = table.concat({key, w, h, s.markers, M.trailVersion, M.finds.version, tostring(v.oreFinds), table.concat(detail, ";"), tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
   if v.frame and v.fkey == fkey then return v.frame end
   local trails = M.trailCells(v, s)
-  local function paint(limit)
+  local finds = M.findCells(v, s)
+  local function paint(limit, findLimit)
     local C = U.canvas(w, h)
-    v.taken = M.draw(C, v, s, L.mx, L.my, v.pick, nil, trails, limit)
+    v.taken = M.draw(C, v, s, L.mx, L.my, v.pick, nil, trails, limit, finds, findLimit or 0)
     v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken, got)
     M.controls(C, L, w, h, v, s)
     if L.roster then M.roster(C, L, w, s) end
@@ -1080,14 +1150,25 @@ M.render = function(w, h, session, tries)
     return M.render(w, h, session, (tries or 0) + 1)
   end
   -- Trails never choose or latch zoom. Keep a newest prefix that fits over the base frame.
+  local trailLimit = 0
   if #trails > 0 and bytes <= M.heavy then
-    local limit = #trails
+    trailLimit = #trails
+    while trailLimit > 0 do
+      local candidate = paint(trailLimit)
+      if not SO.proto or #SO.proto.ser(candidate) <= M.heavy then frame = candidate break end
+      trailLimit = math.floor(trailLimit / 2)
+    end
+    if trailLimit == 0 then frame = paint(0) end
+  end
+  -- Finds share the remaining budget after labels and trails, without choosing a zoom.
+  if #finds > 0 and bytes <= M.heavy then
+    local limit = #finds
     while limit > 0 do
-      local candidate = paint(limit)
+      local candidate = paint(trailLimit, limit)
       if not SO.proto or #SO.proto.ser(candidate) <= M.heavy then frame = candidate break end
       limit = math.floor(limit / 2)
     end
-    if limit == 0 then frame = paint(0) end
+    if limit == 0 then frame = paint(trailLimit) end
   end
   v.frame, v.fkey = frame, fkey
   return v.frame
@@ -1180,6 +1261,10 @@ end
 M.input = function(event)
   if not event.session then return end
   local v, id = M.view(event.session), event.id
+  if event.text == "ore finds on" or event.text == "ore finds off" then
+    v.oreFinds = event.text == "ore finds on"
+    return
+  elseif id == "map-ore" then v.oreFinds = not v.oreFinds return end
   local s = M.selected(v) or {}
   local g, surface = s.g, M.surface(s)
   local drop = type(id) == "string" and id:match("^map%-drop:(.+)$")
@@ -1234,6 +1319,7 @@ return {name="map",handlers={},render=M.render,input=M.input,thumb=M.thumb,crop=
       for _, dim in pairs(M.dimensions) do if dim ~= M.scene.dim then M.gather(now, dim) end end
     end
     M.readTrail()
+    M.readFinds(now)
     M.revalidate()
   end
 end}

@@ -187,6 +187,56 @@ local function recaller()
 end
 
 return function(test, equal)
+  for _, mode in ipairs({"off","confirmed","missing","wrong","failed","uncertain","recovered","recovered-missing"}) do
+    test("B4-D ore coordinates require saved dig and journal evidence: "..mode,function()
+      local f=miner()
+      equal(f.job.oreCoordinates,false,"legacy jobs default off")
+      if mode~="off" then f.input("orecoordinates on") end
+      local row=f.row(2)
+      local target={dim=f.job.dim,x=11,y=-2,z=-5}
+      row.frame={dim=f.job.dim,ox=10,oy=-2,oz=-5,rot=1}
+      row.route={copy(row.pose),target} row.index=2 f.job.running=true
+      f.mod.tick()
+      equal(f.calls[#f.calls].steps[1].op,"inspect")
+      local function facts(dug)
+        return {pose={x=0,y=0,z=0,f=0},fuel=4000,inv={},dug=dug}
+      end
+      f.report(2,{{ok=true,data={name="minecraft:diamond_ore"}}},facts())
+      equal(f.calls[#f.calls].steps[1].op,"dig")
+      local evidence={{x=0,y=0,z=-1}}
+      if mode=="missing" or mode=="recovered-missing" then evidence=nil
+      elseif mode=="wrong" then evidence={{x=1,y=0,z=0}} end
+      if mode=="recovered" or mode=="recovered-missing" then
+        f.restart()
+        equal(f.job.oreCoordinates,true,"option survives restart")
+        assert(f.calls[#f.calls].opts.recover)
+      end
+      local report=facts(evidence)
+      if mode=="uncertain" then report.uncertain=true end
+      f.report(2,{{ok=mode~="failed"}},report)
+      local ores={}
+      for _,ev in ipairs(f.events) do if ev.kind=="mine.ore" then ores[#ores+1]=ev.data end end
+      if mode=="failed" or mode=="uncertain" or mode=="recovered-missing" then equal(#ores,0)
+      else
+        equal(#ores,1)
+        local expected={id=2,name="minecraft:diamond_ore",count=1}
+        if mode=="confirmed" or mode=="recovered" then expected.pos=target end
+        equal(ores[1],expected,"counts remain compatible when coordinates cannot be proven")
+        f.report(2,{{ok=true}},facts(evidence))
+        local count=0 for _,ev in ipairs(f.events) do if ev.kind=="mine.ore" then count=count+1 end end
+        equal(count,1,"repeated report cannot credit the dig twice")
+      end
+    end)
+  end
+
+  test("B4-D coordinate option rolls back on save failure and can be disabled",function()
+    local f=miner()
+    f.input("orecoordinates on") equal(f.job.oreCoordinates,true)
+    f.saveOK=false f.input("orecoordinates off") equal(f.job.oreCoordinates,true)
+    f.saveOK=true f.input("orecoordinates off") equal(f.job.oreCoordinates,false)
+    f.restart() equal(f.job.oreCoordinates,false)
+  end)
+
   test("mine-done-return: a finished miner recovered away from its branch end returns there", function()
     local net = H.new()
     local server = net.machine({ id = 1, modem = true })
