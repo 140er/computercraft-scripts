@@ -5,7 +5,7 @@ the status model (status.py), tests/ui/system-scene.txt and tests/ui/panel-scene
 import hashlib
 
 from cc import Canvas
-from kit import actions, chip, flag, leader, rule, section
+from kit import actions, chip, leader, rule, section
 import pocket as PK
 import status as ST
 from scene import lines
@@ -97,7 +97,9 @@ def pager(cv, y, page, pages, prev, nxt):
     chip(cv, x + len(n) + 1, y, "►", nxt, kind)
 
 
-def shop_block(cv, x, y, cw, search, loaded=True):
+def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None):
+    """The search, its best match with the stock, 1, 16 and 64, then the last order (sent: line, colour)
+    and the shop's reply."""
     section(cv, x, y, cw, "SHOP", "" if loaded else "not loaded")
     if loaded:
         typed = search[-(cw - 3):] if cw > 3 else ""
@@ -105,13 +107,24 @@ def shop_block(cv, x, y, cw, search, loaded=True):
         cv.put(x + 2, y + 1, typed, "0")
         cv.put(x + 2 + len(typed), y + 1, "_", "9")
         cv.hit("search", x, y + 1, cw, 1)
+        # S.best: an exact id keeps its count, even zero; another search takes the first match in stock.
+        exact = [i for i in PK.matches(search, 99) if i["name"] == search]
+        best = exact or ([i for i in PK.matches(search, 1) if i["count"] > 0] if search else [])
+        if best:
+            leader(cv, x, y + 2, cw, best[0]["label"], str(best[0]["count"]), "1" if best[0]["count"] < 10 else "0")
+        elif search:
+            cv.put(x, y + 2, "no match", "8")
     third = (cw - 2) // 3
     for i, n in enumerate((1, 16, 64)):
         cx = x + i * (third + 1)
         if loaded:
-            chip(cv, cx, y + 2, str(n), "order:%d" % n, "plain", third)
+            chip(cv, cx, y + 3, str(n), "order:%d" % n, "plain", third)
         else:
-            PK.dead(cv, cx, y + 2, str(n), third)
+            PK.dead(cv, cx, y + 3, str(n), third)
+    if loaded and sent:
+        cv.put(x, y + 4, sent[0][:cw], sent[1])
+    if loaded and reply:
+        cv.put(x, y + 5, reply[:cw], "8")
 
 
 def fleet(m):
@@ -147,7 +160,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
         return MODES[row["mode"]] if f.get(role) is not None else "compact"
 
     def rows(row):
-        return max(3 if r == "shop" else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
+        return max(6 if r == "shop" else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
 
     def total():
         return sum(rows(row) + 1 for row in grid) - 1
@@ -178,17 +191,22 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
 
 
 def alerts(texts, w, h, title, page=0):
+    """The pocket's alert pages: each alert wraps to two rows, then a blank row."""
     cv = Canvas(w, h, title)
     header(cv, w, h)
     section(cv, 2, 3, w - 2, "ALERTS", len(texts), "e" if texts else "8")
-    capacity = max(1, h - 5)
-    pages = max(1, -(-len(texts) // capacity))
-    page %= pages
+    pages = PK.alert_pages([dict(text=t) for t in texts], w, h)
+    page %= max(1, len(pages))
     if not texts:
         cv.put(2, 4, "no alerts", "8")
-    for i, text in enumerate(texts[page * capacity:(page + 1) * capacity]):
-        flag(cv, 2, 4 + i, w - 2, (PK.wrap(text, w - 4) or [""])[0])
-    pager(cv, h, page, pages, "alert-prev", "alert-next")
+    y = 4
+    for rows in (pages[page] if pages else []):
+        cv.put(2, y, "!", "e")
+        for text, fg in rows:
+            cv.put(4, y, text, fg)
+            y += 1
+        y += 1
+    pager(cv, h, page, max(1, len(pages)), "alert-prev", "alert-next")
     back(cv, h, "panel-back")
     return cv
 
@@ -314,6 +332,9 @@ def code():
     return dict(code=PK.SYS["code"], left=PK.SYS["left"])
 
 
+# A long item name on the 26-column pocket: the count and status keep their room.
+LONG = [("minecraft:polished_deepslate_stairs", 120), ("minecraft:oak_stairs", 40)]
+
 FIXTURES = [
     ("panel-M", lambda: main(ST.model(), 57, 24, "Panel, room monitor 57x24", needs=SC["needs"])),
     ("panel-W", lambda: main(ST.model(), 100, 38, "Panel, wall 100x38", needs=SC["needs"])),
@@ -322,6 +343,9 @@ FIXTURES = [
     ("panel-XS", lambda: main(ST.model(), 15, 10, "Panel, smallest monitor 15x10", needs=SC["needs"])),
     ("panel-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20, quick order",
                              keyboard=True, search=PK.SYS["search"])),
+    ("pocket-shoplong-P", lambda: PK.shop(ST.model(), search="stairs", stock=LONG,
+                                          sent=(PK.order_line(1, "POLISHED DEEPSLATE STAIRS", "delivered", 24), "d"),
+                                          reply="Delivered 1 Polished Deepslate Stairs")),
     ("panelalerts-M", lambda: alerts(alert_texts(), 57, 24, "Panel ALERTS without the health module")),
     ("panelpair-P", lambda: pair(ST.model(), 26, 20, "Panel PAIR 26x20, no code")),
     ("panelcode-P", lambda: pair(ST.model(), 26, 20, "Panel PAIR 26x20 with a code", **code())),

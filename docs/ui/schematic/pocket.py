@@ -215,11 +215,11 @@ def jobs(m, w=26, h=20, f=None, title="Pocket JOBS"):
 
 # ---------------------------------------------------------------- shop
 
-def matches(search, limit):
+def matches(search, limit, stock=None):
     """so-mod-shop's matches: items whose id contains the search, most stock first, then by id."""
     q = search.lower().replace(" ", "_")
     items = [dict(name=n, count=c, label=n.split(":", 1)[-1].replace("_", " ").upper())
-             for n, c in SYS["stock"] if q in n.lower()]
+             for n, c in (SYS["stock"] if stock is None else stock) if q in n.lower()]
     items.sort(key=lambda i: (-i["count"], i["name"]))
     return items[:limit]
 
@@ -228,7 +228,17 @@ def count_fg(n):
     return "8" if n == 0 else "1" if n < 10 else "0"
 
 
-def shop(m, w=26, h=20, search=None, sent=None, selected=None):
+def order_line(n, label, status, width):
+    """P.orderLine: the count and status always show; a long label is cut and ends in "..."."""
+    head, tail = "%s " % n, " " + status
+    room = width - len(head) - len(tail)
+    if len(label) > room:
+        label = label[:room - 3].rstrip() + "..." if room > 3 else ""
+    return head + label + tail
+
+
+def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock=None):
+    """sent is the last order's line and colour; reply is the shop's reply under it."""
     cv = Canvas(w, h, "Pocket SHOP quick order")
     tabs(cv, "shop", len(m["flags"]) > 0)
     search = SYS["search"] if search is None else search
@@ -239,7 +249,7 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None):
     if search:
         chip(cv, w - 3, 3, "×", "clear", "off")
     rule(cv, 2, 4, w - 1)
-    items, y = matches(search, h), 5
+    items, y = matches(search, h, stock), 5
     shown = next((i for i in items if i["name"] == selected), items[0] if items else None)
     if not items:
         cv.put(2, y, "no match" if search else "no stock", "8")
@@ -252,19 +262,26 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None):
         cv.hit("pick:" + item["name"], 2, y, w - 2, 1)
         y += 1
         if item is shown:
-            cw = (w - 4) // 3
+            cw, half = (w - 4) // 3, (w - 3) // 2
             for i, n in enumerate((1, 16, 64)):
                 chip(cv, 2 + i * (cw + 1), y, str(n), "order:%d:%s" % (n, item["name"]), "plain", cw)
-            y += 2
+            chip(cv, 2, y + 1, "STACK", "order:stack:" + item["name"], "plain", half)
+            if item["count"] > 0:
+                chip(cv, 3 + half, y + 1, "ALL", "order:all:" + item["name"], "plain", half)
+            else:
+                dead(cv, 3 + half, y + 1, "ALL", half)
+            y += 3
     if sent:
         cv.put(2, h - 1, sent[0][:w - 2], sent[1])
+    if reply:
+        cv.put(2, h, reply[:w - 2], "8")
     return cv
 
 
 def shop_sent():
     n, name = SYS["order"]
     label = next(i["label"] for i in matches(name, 99) if i["name"] == name)
-    return shop(ST.model(), sent=("%d %s sent" % (n, label), "d"))
+    return shop(ST.model(), sent=(order_line(n, label, "sent", 24), "d"))
 
 
 # ---------------------------------------------------------------- pair

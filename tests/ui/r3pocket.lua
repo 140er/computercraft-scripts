@@ -203,4 +203,102 @@ return function(test, equal)
     equal(s.shop.order('stone',1),'minecraft:stone_bricks')
     equal(s.shop.order('nothing',1),nil);equal(s.shop.order('stone',5),nil)
   end)
+
+  -- UB-8: the shop's reply reaches the pocket that ordered.
+  test('R3 pocket orders show the reply: not in storage fails, Getting then Delivered, silence times out', function()
+    local s = setup()
+    s.tap('tab:shop');s.type('iron')
+    local function rows() return capture(s.render(),26,20).picture() end
+    local function order(amount, reply)
+      s.tap('order:'..amount..':minecraft:iron_ingot')
+      local rid = s.sends[#s.sends].body.rid
+      if reply then s.shop.listen.roomsorter(9,{rid=rid,reply}) end
+      return rid
+    end
+    order(16)
+    assert(rows().text[19]:find('16 IRON INGOT sent',1,true),rows().text[19])
+    s.shop.listen.roomsorter(9,{rid=s.sends[#s.sends].body.rid,'Not in storage: iron ingot'})
+    local p = rows()
+    assert(p.text[19]:find('16 IRON INGOT failed',1,true),p.text[19]);equal(p.fg[19]:sub(2,2),'e')
+    assert(p.text[20]:find('Not in storage: iron ing',1,true),p.text[20]);equal(p.fg[20]:sub(2,2),'8')
+    local rid = order(64,'Getting 64 Iron Ingot')
+    assert(rows().text[19]:find('64 IRON INGOT sent',1,true));assert(rows().text[20]:find('Getting 64',1,true))
+    s.shop.listen.roomsorter(9,{rid=rid,'Delivered 64 Iron Ingot'})
+    p = rows();assert(p.text[19]:find('64 IRON INGOT delivered',1,true),p.text[19]);equal(p.fg[19]:sub(2,2),'d')
+    -- A reply from another computer or for another order changes nothing.
+    order(1);rid = s.sends[#s.sends].body.rid
+    s.shop.listen.roomsorter(7,{rid=rid,'Not in storage'});s.shop.listen.roomsorter(9,{rid=rid+50,'Not in storage'})
+    assert(rows().text[19]:find('1 IRON INGOT sent',1,true),rows().text[19])
+    s.now = 120000;s.shop.tick(s.now)
+    p = rows();assert(p.text[19]:find('1 IRON INGOT failed',1,true),p.text[19]);assert(p.text[20]:find('timed out',1,true))
+  end)
+
+  -- UB-26: STACK and ALL use shop.order's count rules.
+  test('R3 pocket STACK sends the stack size and ALL the stock; ALL is grey at zero stock', function()
+    local s = setup()
+    s.shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:raw_iron']=48,
+      ['minecraft:ender_pearl']=40,['minecraft:iron_bars']=0},stacks={['minecraft:raw_iron']=64}})
+    s.tap('tab:shop');s.type('')
+    local function last() local b = s.sends[#s.sends].body;return b.cmd..' '..b.text..' '..b.n end
+    s.tap('pick:minecraft:raw_iron')
+    local f = s.render();local pick = find(f,'pick:minecraft:raw_iron')
+    equal(find(f,'order:stack:minecraft:raw_iron').y,pick.y+2);equal(find(f,'order:all:minecraft:raw_iron').y,pick.y+2)
+    s.tap('order:all:minecraft:raw_iron');equal(last(),'order minecraft:raw_iron 48')
+    assert(capture(s.render(),26,20).picture().text[19]:find('48 RAW IRON sent',1,true))
+    s.tap('order:stack:minecraft:raw_iron');equal(last(),'order minecraft:raw_iron 64')
+    s.tap('pick:minecraft:ender_pearl');s.tap('order:stack:minecraft:ender_pearl');equal(last(),'order minecraft:ender_pearl 16')
+    assert(capture(s.render(),26,20).picture().text[19]:find('16 ENDER PEARL sent',1,true))
+    local n = #s.sends
+    s.tap('pick:minecraft:iron_bars');f = s.render()
+    assert(find(f,'order:stack:minecraft:iron_bars') and not find(f,'order:all:minecraft:iron_bars'),'ALL has no target at 0')
+    s.tap('order:all:minecraft:iron_bars');s.tap('order:stack:minecraft:iron_bars');equal(#s.sends,n)
+    assert(capture(s.render(),26,20).picture().text[19]:find('not sent',1,true))
+    equal(s.shop.order('minecraft:raw_iron','all'),'minecraft:raw_iron');equal(select(2,s.shop.order('raw','stack')),64)
+    equal({s.shop.order('nothing','all')},{nil,'no match'});equal({s.shop.order('raw',48)},{nil,'bad count'})
+  end)
+
+  -- An order is never larger than one stack: ALL sends the stock up to the stack size.
+  test('R3 pocket ALL sends at most one stack: 1240 in stock sends 64, 10 in stock sends 10', function()
+    local s = setup()
+    s.shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:gold_ingot']=10}})
+    s.tap('tab:shop');s.type('ingot')
+    s.tap('order:all:minecraft:iron_ingot');equal(s.sends[#s.sends].body.n,64)
+    assert(capture(s.render(),26,20).picture().text[19]:find('64 IRON INGOT sent',1,true))
+    s.tap('pick:minecraft:gold_ingot');s.tap('order:all:minecraft:gold_ingot');equal(s.sends[#s.sends].body.n,10)
+    equal({s.shop.order('minecraft:iron_ingot','all')},{'minecraft:iron_ingot',64})
+    equal({s.shop.order('gold','all')},{'minecraft:gold_ingot',10})
+    for _,sent in ipairs(s.sends) do assert(sent.body.cmd ~= 'order' or sent.body.n <= 64,'over one stack') end
+  end)
+
+  -- A long item name never pushes the count or the status off the 26-column pocket.
+  test('R3 pocket order line cuts a long label and keeps the count and status', function()
+    local s = setup()
+    s.shop.listen.roomsorter_stock(9,{totals={['minecraft:polished_deepslate_stairs']=120,['minecraft:oak_stairs']=40}})
+    s.tap('tab:shop');s.type('stairs')
+    s.tap('order:1:minecraft:polished_deepslate_stairs')
+    equal(capture(s.render(),26,20).picture().text[19],' 1 POLISHED DEEPS... sent ')
+    s.shop.listen.roomsorter(9,{rid=s.sends[#s.sends].body.rid,'Delivered 1 Polished Deepslate Stairs'})
+    -- The scene has an alert, so FLEET carries the dot.
+    s.D.model.flags = {{text='ore chest full'}}
+    s.match('tests/ui/fixtures/pocket-shoplong-P.txt')
+  end)
+
+  -- UB-30: the panel reads only the job header; the rows below it are the job's own.
+  test('R3 the panel probe reads only the header row of each job screen', function()
+    local s = setup()
+    local P, reads = private(s.panel.tick,'P'), {}
+    for _,role in ipairs({'mining','lumber'}) do
+      local screen = s.display.screen(role)
+      s.display.screen(role,function(w,h,session)
+        local frame = screen.render(w,h,session)
+        local rows = frame.rows
+        frame.rows = setmetatable({rows[1],rows[2]},{__index=function(_,y) reads[#reads+1] = role..y;return rows[y] end})
+        return frame
+      end,screen.input)
+    end
+    s.panel.tick(0)
+    equal(reads,{});equal(P.facts,nil)
+    equal(P.states.mining,'running');equal(P.states.lumber,'stopped')
+    s.tap('tab:jobs');s.tap('lumber:start');equal(P.states.lumber,'running')
+  end)
 end
