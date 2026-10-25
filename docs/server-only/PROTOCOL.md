@@ -245,6 +245,19 @@ retains its secret. Tagged pending or wait under the locked share refreshes the
 660000 game-ms deadline. Timeout retains the attempt and secret for retry.
 A worker with a saved key skips enrollment at boot and keeps any existing enrollment file.
 
+An unpaired display attempts enrollment from `so-enroll` once at boot. Its kind
+is `pocket` on a pocket computer and `computer` on a wall computer. The pairing
+screen shows `Enroll <fp> <state>` while it waits. A paused `off` attempt resumes
+only after local token entry or an installer rerun. Pasting a token at the
+computer terminal or pocket screen saves it and starts another attempt.
+`monitor_touch` never enrolls, resumes or repairs. Failed enrollment leaves
+code pairing available.
+
+Optional nonnegative integer `so-display.cfg.server` selects the server for an unpaired
+join. Without it, the display uses its saved peer, then discovery. Saved keys
+govern paired boots; changing a keyed server requires REPAIR. `display.lua`
+reads this config but never writes it.
+
 Untagged errors can be forged because the envelope key is public. A quiet
 forged off can pause an attempt, but cannot make the device save a key.
 Anyone with the token is a token holder: it can ask to join
@@ -484,6 +497,26 @@ rid and picture signature, so it does not change `rev`. The server reserves
 room before fitting the picture. The challenge adds no further row or button
 cuts.
 
+`body.sound` optionally carries `{v=1,id,key,instrument="pling",volume=0.5,pitch=12}`.
+With `pocketTone=true`, a new pocket takeover can wait up to ten game seconds for
+`health.soundFacts()` to become ready and contain its severity 1 subject key.
+Keys are `drop/<pointId>`, `lost/<id>`, `pose/<id>` or `disk`. The pending tone
+can outlast the takeover screen, but a later takeover replaces it. Standing
+alerts restored at startup and snoozed takeovers produce no tone.
+Quiet hours are checked when sending; invalid `soundQuiet` values mute playback.
+
+The id is `<server id>-<boot clock>-<counter>` and contains no alert text.
+`view.get` replies retain that id for the next successful push. A failed push
+retains the tone until its deadline. A successful push consumes it; transport
+loss after that is not retried. The field does not change the picture revision
+or signature cache. Heartbeats and redraws after consumption omit it.
+
+After drawing an authenticated frame from its paired server, a pocket without
+a monitor plays the exact note through a speaker only if the envelope is fresh
+and the id is absent from its last 128 tone ids. Frames stamped before client
+boot and replayed envelopes cannot play it. Missing, busy or failing speakers
+skip playback. Older clients ignore the field.
+
 ### view.ack
 
 After drawing a challenged frame, the display sends a fresh authenticated
@@ -677,6 +710,26 @@ Retries require a running job and auto on. Leases and reservations continue
 through the existing job recovery path.
 
 Each item keeps at most 60 samples, one per minute. Its hourly change compares current stock with the oldest retained sample, about an hour ago once the history fills, scaled to an hour. Before an hour of history exists, it compares with the earliest available sample. An item absent for every retained sample is forgotten.
+
+With default-off `shopSaved=true`, lists and pins share saved state across
+shop, panel and pocket displays. `so-data/shop-lists` and `so-data/shop-pins`
+use `{v=1,kind,revision,entries}` with a 65536-byte generation limit.
+Lists have kind `lists` and entries `{{id,name,items={{item,count},...}},...}`.
+There are at most 16 lists, each with 32 unique exact item IDs. IDs are unique
+1..32-byte strings from `[a-z0-9_-]`; names are unique printable ASCII strings
+of 1..32 bytes. Counts are integers 1..64. Saving an edited list requires a
+known stack size for every item and refuses counts above it. Pins have kind
+`pins` and hold at most four unique exact item IDs in display order.
+Turning the flag off retains both files and hides their controls.
+
+LISTS sends no order when opened. Rows show requested and available counts;
+missing or stale stock shows `-`. ORDER rechecks the drawn list revision,
+exact item ID, known stack size and fresh positive stock before one `shop.order`
+call. A smaller stack size disables ORDER until the list is edited. Each drawn
+ORDER control accepts one tap. Authenticated `input` carries edits and taps.
+Stale edits return `changed`. Failed saves retain the previous revision or
+block further access if recovery fails. An empty panel or pocket search shows
+the first pin; panel order controls include that pin's exact ID.
 
 ### Managed room outputs
 
@@ -1029,7 +1082,7 @@ and the observation's game time. Rejected reports leave it unchanged. The result
 stays in memory until another result or restart.
 
 
-Lease IDs include the durable clock to distinguish batches across server boots.
+Lease IDs include the durable clock and a saved counter to prevent reuse across server boots.
 `lease.batch` carries `ttl`, the remaining game milliseconds at send time.
 The server's internal `expires` is a game-clock deadline. Wire `expires`
 remains UTC plus that remaining duration for old workers. Retries recompute
@@ -1057,18 +1110,18 @@ AR and map use `peek`; completed trails skip lease lookups entirely.
 range of 16 for unknown workers. `status(id)` still creates a row when missing.
 
 
-`lease.send(id, steps, opts)` sends 1..16 steps through `so-proto` without waiting. `opts` has optional `ms`, `owner`, `recover`, and `pose = { dim, x, y, z, facing }`. The default duration is 60000 ms. It returns a lease id `<id>-<n>`, or nil and a reason. An open lease returns `busy`. A beaconing turtle returns `lost` unless `opts.recover` is true. Recovery still refuses an open lease with `busy`. Invalid arguments, an absent pair key, or a failed send also return nil and a reason.
+`lease.send(id, steps, opts)` sends 1..16 steps through `so-proto` without waiting. `opts` has optional `ms`, `owner`, `recover`, and `pose = { dim, x, y, z, facing }`. The default duration is 60000 ms. It returns a lease id `<id>-<gameMs>-<counter>`, or nil and a reason. An open lease returns `busy`. A beaconing turtle returns `lost` unless `opts.recover` is true. Recovery still refuses an open lease with `busy`. Invalid arguments, an absent pair key or a failed persistence save return nil and a reason. A radio send failure still returns the saved lease id and leaves that lease open.
 
 `lease.onReport(owner, fn)` registers one callback for an owner tag. It receives `(leaseId, turtleId, results, lease)`. The lease record has `id`, `turtleId`, `steps`, `owner`, `pose`, `expires`, and `status`. Status is `reported` after a report and `expired` after silence. An accepted report stores `lease.report = { pose, journal, fuel, inv, dug }`. Each field is type-checked independently. A bad field is omitted while valid fields remain. These facts are stored for successful batches and batches with failed or expired steps. A later registration replaces the callback.
 
-An accepted `step.report` clears lost. A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once, before the `step.report` ack. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
+An accepted `step.report` clears lost unless the lease was restored. A matching report closes the open lease. Planner callbacks manage reservations; the lease module does not release them on report. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The accepted report saves before the callback and the `step.report` ack. Recovery may reconcile it again; callback side effects are not exactly-once. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
 
 `lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local game-millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in game milliseconds, or 0 before contact.
 
 `lease.cancelPark(id, "mine")` retires an open mining lease only when its sole
 step is `inspectDown`. It returns true when cancelled or already closed, otherwise
-false and `"turtle has open lease"`. Cancellation releases reservations owned by
-the lease and ignores later reports without calling the planner callback.
+false and `"turtle has open lease"`. Cancellation saves retirement through `ackOutcome` and ignores later reports
+without calling the planner callback. It does not release planner reservations.
 
 `lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. Range starts at 16 blocks. Known poses and successful batch reports can only increase it, including the first observation.
 
@@ -1078,7 +1131,48 @@ A `beacon` marks the authenticated sender lost, retains its journal id, and emit
 
 `tick(now)` closes a silent lease after `expires + 10000` and calls its owner with nil results. It keeps the cells reserved. The planner decides how to recover them. The module also answers wire `history.page` with `state.history.page(body)`, including SO1's sequence-based entries and cursor.
 
-Lease records, callbacks, beacon journals, and observed ranges live in memory. A server restart clears them. Planners must recover reservations before sending new work after a restart.
+Lease state persists in the generation store `so-data/cells/leases`, whose
+value is `{v=1,seq,records}`. At most 256 records are allowed, one per turtle.
+Each record contains its lease ID, turtle ID, owner, at most 16 steps, journal,
+pose, deadline and status. It may also contain caller intent and an accepted
+report. Open records save before transmission. If transmission fails, the
+record stays open and blocks replacement dispatch. Without an accepted report,
+recovery waits until after the saved deadline plus ten game seconds. Movement
+is never retried. A restored single-step `inspectDown` may retry for its report.
+Accepted reports and expiry save before callbacks.
+
+Startup restores open leases before planners dispatch. Corrupt main or backup
+generations block dispatch and keep GPS recovery cells, even when another
+generation is valid. An invalid uncommitted `leases.tmp` is discarded. Missing
+files retain conservative recovery of orphan reservations. Forget deletes the
+durable lease record while retaining possibly occupied cell reservations.
+A failed deletion leaves cleanup pending. A re-paired turtle can be explicitly
+re-added.
+
+`lease.outcome(turtleId)` copies a terminal record. The owner saves its
+reconciled intent and receipt before `lease.ackOutcome(leaseId)`. Failed receipt
+or acknowledgement saves keep dispatch blocked. Restored reports reconcile the
+acknowledged prefix. Expired and restored outcomes then require a certain,
+stationary `setupFence`/`parkBatch` observation before ordinary work resumes.
+The observation fences the current journal and parks on expiry. Reservations
+remain held. `lease.recoveryIds(owner)` lists retained worker IDs for recovery.
+`lease.status` adds `recovering`, a terminal `outcome` ID and `persistenceError`.
+Its `open` field includes restored open leases.
+
+Mining, lumber and build save lease receipts in job state. Setup saves its task
+and receipts in `so-data/cells/setup`. Interrupted visits keep their route and
+require new approval. A release report without task intent never replaces a
+failed setup task. An unconfirmed release keeps the task busy and saved for
+another release attempt. Drop points may save `checkedLease` so setup and supply
+inspections count each failure once.
+
+Lease persistence has no opt-out. Recovery continues with feature flags off
+for workers advertising both `setupFence` and `parkBatch`. Workers without
+those capabilities remain in recovery and need an update. Legacy recovery
+without those fences is a follow-up. Protection, alternate routing, delivery
+and setup flags keep their existing default-off settings. Callback functions,
+beacon observations and observed ranges remain in memory. Recovery is idempotent;
+it does not promise exactly-once callback side effects.
 
 `lease.world(id, dim)` returns `{ dim, x, y, z, facing? }`, or nil and a reason.
 It requires pairing, a GPS fix at most 60 seconds old and at least as new as the
@@ -1725,6 +1819,12 @@ in the End. FIT waits for visible dug planes before applying wire-budget zoom,
 so a cold frame cannot leave the map zoomed out because of column load order.
 
 
+The map draws a builder only at the confirmed pose from `build.mapView()` in
+the selected dimension. `build.assigned` suppresses registry fallback for that
+turtle. An unknown pose hides the marker while retaining the blueprint outline.
+The outline appears at ALL and at levels it spans, and FIT includes its bounds.
+Held builders show their hold and placement progress in labels and callouts.
+
 `so-mod-map.lua` is installed only on the server. It registers
 `display.screen("map", render, input)` during tick. It adds no wire type.
 The saved display role may be `map`; older role and far settings remain valid.
@@ -1913,6 +2013,18 @@ Use, expiry, five bad attempts or terminal cancellation restore that page.
 `panel-back` returns to the main panel.
 The fixtures `panel-*`, `panelpair-*`, `panelcode-*`, `paired-*` and `enroll-*` show every
 size. The pairing handshake and job planning are unchanged.
+
+Panel inputs `enroll-on`, `enroll-off`, `update:<id>`, `worker:<id>`,
+`worker-dim:world|nether|end`, `worker-swap:on|off` and `worker-back` require a
+paired display's own drawn frame, like FORGET. The panel PAIR page can save the
+enrollment switch through `SO.enroll.setEnabled`; ENROLL is inactive while off.
+With `panelUpdates=true`, stale paired turtles offer UPDATE where it fits.
+Requests still require the worker's update capability and `remoteUpdates`.
+An armed FORGET shows its job impact. With `workerSettings=true`, a turtle row
+opens confirmed dimension and tool-swap settings. Controls require an idle,
+capable worker with `settingsControl`; pending changes keep the confirmed
+values until a matched ack or newer hello. The main page shows BUILD facts
+without START or STOP controls.
 
 With `enroll = true`, PAIR splits its PAIRED row with an ENROLL button. ENROLL
 opens a window through `SO.enroll.open(id)` for a paired display session and
@@ -2627,8 +2739,8 @@ sender per ten minutes, including after eviction.
 ### Severity 1 sound
 
 Independent `so-server.cfg` flags `alarm` and `pocketTone` default to false.
-This server implementation plays the alarm; pocket playback remains a separate
-follow-up. `soundQuiet` defaults to false or accepts
+The server plays the alarm; speaker pockets can play takeover tones through
+`view.frame.body.sound`. `soundQuiet` defaults to false or accepts
 `{startMinute=1380,endMinute=420}`. Minutes are Amsterdam civil time, 0 through
 1439. Quiet hours include the start, exclude the end and can wrap midnight.
 Equal endpoints mute all day. Invalid hours mute sound and report a diagnostic.
@@ -2670,10 +2782,32 @@ once per 30 game seconds unless forced, so a power loss can discard recent
 unsaved records.
 The first record can save immediately. Save failures retain pending records and
 appear on HEALTH. `SO.errors.status()` returns `bytes`, `cap`, `count`, `pending`
-and `error`. The byte count includes current, backup and temporary files in the disk ledger.
+and `error`, plus memory-only `revision`. The revision starts at zero on open
+and advances on every record and successful clear. The byte count includes
+current, backup and temporary files in the disk ledger.
 `SO.errors.summary()` returns copied `{text,count,first,last}` rows grouped by
 exact retained text in first-appearance order. Times use the game clock. Pending
 records count too. Reading or editing the summary changes no ring or save state.
+
+`SO.errors.clear(expectedRevision)` rejects a missing or stale revision. It
+saves `{entries={}}` synchronously, bypassing the thirty-second flush interval.
+Only success empties the live ring, discards pending entries, clears failure
+state and advances the revision. A failed clear preserves the ring, pending
+entries and previous flush retry state.
+
+ERRORS offers CLEAR when entries exist. CONFIRM and CANCEL belong to one display
+session for ten game seconds. Confirmation binds the ring revision and a unique
+attempt ID; a new error requires a fresh confirmation. Cancel, expiry, leaving
+ERRORS and restart discard it. Success refreshes health facts, resets every
+ERRORS detail and confirmation, clamps paging and shows `no entries`. A failed
+save keeps the rows and shows `clear failed` with its cause. Standing job alerts,
+event history and reservations stay intact.
+
+A successful clear recovers an empty ring after restart; later errors start a
+fresh ring. A reported save failure can recover the previous ring or a newer
+verified empty temporary generation, depending on surviving generations.
+Backup generations follow the existing store policy. No tombstone or new saved
+field is added; old software can read the empty ring.
 
 ## Builder jobs
 
@@ -2832,8 +2966,9 @@ reject a mismatched id without running a step. They persist the next journal id
 before executing fenced work and refuse the batch if that save fails. RELEASE
 uses a fenced GPS step. Its report proves the worker advanced its journal, so a
 delayed setup batch with the previous id cannot move after reservations are
-released, including across a server restart. Older workers remain compatible
-with ordinary leases but cannot run chest setup.
+released, including across a server restart. Older workers can run ordinary leases but cannot run chest setup. After lease
+expiry or server restart, recovery requires both `setupFence` and `parkBatch`;
+workers without them need an update.
 
 The display dispatcher accepts a button id only when it appeared in that
 sender's last delivered frame for the current role. It records controls after
@@ -3227,7 +3362,10 @@ journal evidence, including interrupted-dig recovery. Without proof, the event
 keeps its count-only shape.
 
 Each map session defaults to `oreFinds=false`. Text commands `ore finds on`
-and `ore finds off` change only that session. Up to 50 history entries per active
+and `ore finds off` change only that session. The input callback accepts
+`map-ore`, but the Lua screen draws no button for it. Empty history leaves the
+screen and controls identical with either setting. Rendering prunes expired
+finds before reusing a cached frame. Up to 50 history entries per active
 tick feed a memory-only ring of 256 finds, deduplicated by event sequence.
 Restart rebuilds it from retained history. Accepted times are
 `(SO.now()-600000,SO.now()]`, using `gameAt` or legacy `at` when absent.

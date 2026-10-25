@@ -144,7 +144,8 @@ and listeners use `listener(sender, message)`.
   events; all four are absent with no retained entries. `state.diagnostics()`
   exposes the same bounds. Restart rebuilds them; pruning advances them.
 - [so-errors.lua](../so-errors.lua) opens with `open(store, now)` and returns
-  `record(text, force?)`, `flush(now?, force?)`, `entries()`, `summary()` and `status()`. It retains at most
+  `record(text, force?)`, `flush(now?, force?)`, `entries()`, `summary()`, `status()` and
+  `clear(expectedRevision)`. It retains at most
   128 errors in `so-data/errors`, with 2048 bytes per message. Each generation
   is at most 21000 bytes, so current, backup and temporary files fit within
   65536 bytes together. `status().bytes` counts every generation and is
@@ -152,6 +153,14 @@ and listeners use `listener(sender, message)`.
   game milliseconds unless forced. A failed save keeps pending records for retry,
   including forced saves. `SO.error(text, force?)` prints and records server errors.
   A true force argument bypasses the flush interval. The server forces its final stop line.
+  `status().revision` starts at zero on open and advances on records and
+  successful clears. `clear` rejects missing or stale revisions and saves the
+  empty ring before changing memory. It bypasses the flush interval. A failed
+  clear keeps pending records and retry state. ERRORS uses a per-display,
+  ten-game-second confirmation bound to that revision and a unique attempt ID.
+  Success resets every ERRORS detail and confirmation without clearing standing
+  alerts, event history or reservations. See [error clearing](server-only/PROTOCOL.md#visibility)
+  for restart outcomes after a reported save failure.
   `SO.errors` exposes this log. `SO.health` holds startup time and the last tick's game cadence, wall
   cadence and cost. Wall cadence is diagnostic only.
   `summary()` returns copied `{text,count,first,last}` rows for exact retained
@@ -335,6 +344,15 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   configured dimensions. Ender-modem jobs use it instead of geometric range.
   Remote movement steps carry destination height and dimension guards.
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
+  Lease records save before transmission and restore before planner dispatch.
+  `outcome(turtleId)` copies a terminal record; owners save reconciled intent
+  and receipts before `ackOutcome(leaseId)`. `recoveryIds(owner)` lists retained
+  worker IDs. Status adds `recovering`, terminal `outcome` and `persistenceError`.
+  A failed radio send leaves the saved lease open. Without an accepted report,
+  recovery waits until after its deadline plus ten game seconds. Restarts never
+  resend movement. Expired and restored work requires a stationary journal
+  fence with `setupFence` and `parkBatch` before ordinary dispatch. Reservations
+  remain held. Recovery is idempotent but callbacks are not exactly-once.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Unreported single-step `inspectDown` parks retry every game second with the
   same lease ID, a fresh envelope and the remaining duration. Reports stop retries.
@@ -649,6 +667,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Code frames use the display's own key; other displays never receive them.
   When a pocket opens PAIRED or ENROLL the panel draws them under the pocket's
   tabs (`P.render(w, h, session, dot)`). No saved panel file.
+  Panel PAIR offers a saved ENROLL ON/OFF switch. PAIRED marks a turtle on a
+  different known revision with an amber id. With `panelUpdates=true`, stale
+  rows offer UPDATE where space allows; refusals and unconfirmed updates stay
+  visible. Armed FORGET shows `SO.forgetImpact(id).text`, such as `parks 1 job`.
+  With `workerSettings=true`, a turtle row opens WORKER with confirmed dimension
+  and tool swap. WORLD, NETHER, END and SWAP call `lease.settings` only for a
+  change. Controls require an idle, capable worker with `settingsControl`.
+  Pending changes retain confirmed values until a matched ack or newer hello.
+  The main page adds a read-only BUILD block from `build.facts()`.
+  These controls require a paired display's own drawn frame. Displayed switches
+  can lag hand edits to config; update and settings calls recheck the file.
   See [panel](server-only/PROTOCOL.md#panel).
   Dug-storage requests appear above every role, including status, pocket,
   generic and unassigned.
@@ -698,6 +727,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   each order tap sends one order. Sent does not imply delivery.
   Stock goes stale after 30 seconds; five minutes without stock resumes discovery.
   The legacy room has no server-only pairing or selector setting.
+  With default-off `shopSaved`, `saved(kind)` accepts `lists` and `pins` and
+  returns copies. `setList(id,listOrNil,revision)` replaces or deletes a list;
+  `setPin(item,boolean,revision)` removes the pin and appends it when true.
+  `firstPin()` returns the first saved exact item ID or nil.
+  `listOrder(listId,item,revision,view?)` rechecks revision, stack size and fresh
+  exact stock before calling `order`. It returns item and count, or nil and a
+  refusal. Stale edits return `changed`; failed-save recovery retains the prior
+  revision or blocks access. Shared screens use `savedNav`, `savedCanvas`,
+  `savedRecord`, `savedHit` and `savedInput`. `savedRecord` retains content height;
+  `savedHit` checks the delivered-banner-adjusted coordinates; `savedInput`
+  consumes the drawn controls after a valid hit.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-build.lua](../so-mod-build.lua), `build`, builds opt-in blueprints on one
@@ -978,7 +1018,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws
-  `view.frame` and sends `input`. No exported API. It handles touch, clicks,
+  `view.frame` and sends `input`. No exported API. It enrolls unpaired pockets
+  and wall displays from `so-enroll` once at boot. Local terminal or pocket
+  paste resumes an off attempt; monitor taps never enroll, resume or repair.
+  `so-display.cfg.server` selects an unpaired join; saved keys govern paired
+  boots. The client reads but never writes that config.
+  A fresh authenticated frame may carry a one-shot pocket speaker tone.
+  The client keeps 128 tone ids and skips playback on monitors or replayed frames.
+  It handles touch, clicks,
   text and resize events, and retries when its frame becomes stale. Rows accept
   old blit strings or compact `{ text, runs = { { n, fg, bg }, ... } }` data.
   Compact text omits trailing spaces, which the client pads to the run width.
@@ -1103,8 +1150,8 @@ a token or selected-server install. Selection merges `server` into
 unrelated fields. A token updates an existing saved server selection to the token's
 server. Without a token or selection, config stays unchanged. These options stage client
 data. Unpaired workers honor the selected server even if discovery finds
-another. Saved keys govern paired boots. The current display client still uses
-code pairing. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
+another. Unpaired displays also honor the selected server and enroll from
+`so-enroll`. Saved keys govern paired boots. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
 then the role program. A fresh server install merges
 `pos = { dim = string, x = number, y = number, z = number }` into `so-server.cfg`.
 Rerunning it preserves unrelated settings, including `enroll`.
@@ -1268,6 +1315,21 @@ Do not save inside tight loops.
   begin above 960 KiB of retained segment bytes. They plan the new snapshot's
   `first` to leave at most 768 KiB of newer segments, then defer deletion to the
   previous snapshot's boundary.
+- `so-data/cells/leases` holds `{v=1,seq,records}`, at most 256 records and one
+  per turtle. The saved counter prevents lease ID reuse. Records hold steps,
+  owner intent, journal, pose, deadline, status and accepted report when present.
+  Corrupt main or backup generations block dispatch and keep GPS recovery cells,
+  even if another generation is valid. An invalid uncommitted `leases.tmp` is
+  discarded. Missing files retain orphan-reservation recovery. Forget saves
+  deletion of the lease record while retaining possibly occupied reservations.
+- `so-data/cells/setup` holds setup tasks and reconciliation receipts. Restart
+  discards visit approval but keeps the route. Unconfirmed release keeps the
+  failed task busy and available for another release attempt. Job stores retain
+  mining, lumber and build receipts. Drop points may save `checkedLease` to
+  count each setup or supply inspection failure once.
+- `so-data/shop-lists` and `so-data/shop-pins` use revisioned generation stores
+  with `shopSaved=true`. Limits and validation are in the [shop API](server-only/PROTOCOL.md#shop).
+  Disabling the flag retains the files.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
@@ -1303,12 +1365,15 @@ Do not save inside tight loops.
   optional `paused="off"`. Window closure and timeout retain the attempt.
   Explicit local token entry or installer rerun resumes a pause.
 
-Lease records, owner callbacks, observed ranges, lost flags and journal facts
-are memory-only. Reply/replay caches, display sessions and pictures, state
+Owner callback functions, observed ranges, lost flags and live journal
+observations are memory-only. Durable leases retain their own journal facts.
+Reply/replay caches, display sessions and pictures, state
 subscriptions and custom view functions, cell confirmation tokens, and shop
 stock, search, order replies and trend samples also clear on restart.
-Durable reservations survive. Planners must recover them with park leases
-before issuing new work after a server restart.
+Durable leases restore before planners dispatch. Owners reconcile the acknowledged
+prefix and save receipts before acknowledging outcomes. Restored and expired
+outcomes keep reservations until stationary fenced recovery permits more work.
+Lease persistence has no opt-out; existing feature flags keep their defaults.
 
 ## Tests and checks
 
@@ -1478,8 +1543,9 @@ eight sizes. `tests/parts/so-mod-panel.lua` runs it with ui3b and r3pocket.
 
 ## Open gaps
 
-- Lease state is memory-only. Planner recovery must use park leases and account
-  for reservations that survived the restart.
+- Workers without both `setupFence` and `parkBatch` remain in recovery after
+  expiry or restart, even with feature flags off. Update them before resuming.
+  Legacy worker recovery without those fences is a follow-up.
 - SO3 mining, SO7 lumber, SO9 installer and SO10 AR are implemented.
 
 ## Gate B C2 repair scenario
@@ -1563,8 +1629,11 @@ refusal totals, retained senders and the evicted count.
 attention keys, independent of output flags and display snoozes. `ready` follows
 the first complete gather. Default-off `alarm` enables server notes every
 300000 game milliseconds per standing key after a silent startup/enabling
-baseline. `pocketTone` is a separate default-off flag; pocket playback is a
-follow-up. `soundQuiet` uses Amsterdam civil minutes and defaults off. See
+baseline. Default-off `pocketTone` plays one note on a speaker pocket for a new
+stop-level takeover. It waits up to ten game seconds for the matching health key.
+`view.get` and the next successful push share the tone id; that push consumes it.
+Lost frames are not resent. Standing alerts after restart stay silent.
+`soundQuiet` uses Amsterdam civil minutes and defaults off. See
 [severity 1 sound](server-only/PROTOCOL.md#severity-1-sound) for quiet hours,
 speaker selection and skipped attempts. Sound settings refresh each tick.
 
@@ -1737,6 +1806,13 @@ It rechecks before each save and reports partial progress. `cells.keep(boxes?)`
 reads or saves up to 64 keep boxes in the dug policy. Any intersection retains
 the whole section, including at ALLOW recheck. Keeps grant no movement permission.
 See [release and retention](server-only/PROTOCOL.md#fenced-release-and-mark-retention).
+
+## Builder map drawing
+
+The map uses `build.mapView()` and `build.facts()` for the confirmed builder
+pose, blueprint bounds, placement progress and hold. `build.assigned` suppresses
+older registry poses for that turtle. Unknown poses have no marker. The outline
+remains, appears at ALL or a level it spans, and contributes to FIT bounds.
 
 ## Job options and ore finds
 
