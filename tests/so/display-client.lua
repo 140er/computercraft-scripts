@@ -731,6 +731,12 @@ return function(test,equal)
       assert(s.env.SO.enroll.open(50)); token=s.env.SO.enroll.view(50).token
       c.files["so-enroll"]=H.encode({token=token})
       if isPocket then c.env.pocket={} end
+      -- A real modem sends nothing until rednet.open.
+      local send=c.env.rednet.send
+      c.env.rednet.send=function(...)
+        if not c.env.rednet.isOpen() then return false end
+        return send(...)
+      end
       if off then assert(s.env.SO.enroll.setEnabled(false)) end
     end)
     return t,token

@@ -370,6 +370,7 @@ end
 -- Neither runs on monitor_touch.
 C.enroll = function()
   if C.pair.key(C.server) or not fs.exists("so-enroll") then return end
+  C.openModems()
   local id, why = C.pair.enroll(pocket and "pocket" or "computer", function(state, fp)
     C.pairError = "Enroll " .. fp .. " " .. state
     C.drawPair()
