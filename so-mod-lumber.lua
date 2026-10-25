@@ -659,7 +659,11 @@ S.send = function(steps, action, cells, recover, ms, route)
     j.nextDispatch = {steps=steps,action=action,cells=cells,recover=recover,ms=ms,route=route}
     return true
   end
-  if not recover and lease.restartReady and not lease.restartReady() then
+  local observation = true
+  for _, step in ipairs(steps) do
+    if step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" and step.op ~= "gps" then observation = false end
+  end
+  if not observation and not recover and lease.restartReady and not lease.restartReady() then
     j.nextDispatch = {steps=steps,action=action,cells=cells,recover=recover,ms=ms,route=route}
     return true
   end
@@ -2216,7 +2220,6 @@ S.tickRow = function(row, now)
     S.park(true)
     return
   end
-  if lease.restartReady and not lease.restartReady() then return end
   if S.workerPark and j.paused then
     if j.removeRequested and j.parkConfirmed then S.removeParked()
     elseif not j.parkConfirmed or not j.parkAt or now-j.parkAt>=540000 then S.park() end
@@ -2258,6 +2261,7 @@ S.tickRow = function(row, now)
     if not j.idlePark or not j.parkAt or now - j.parkAt >= 540000 then S.park() end
     return
   end
+  if lease.restartReady and not lease.restartReady() then return end
   if j.nextDispatch then
     local nextDispatch = j.nextDispatch
     j.nextDispatch = nil

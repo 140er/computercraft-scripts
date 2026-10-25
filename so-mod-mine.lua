@@ -1062,8 +1062,6 @@ plan = function(id,row)
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
-  local lease = mod("lease")
-  if lease.restartReady and not lease.restartReady() then return end
   if S.recall.worker(id) then S.recall.plan(id,row) return end
   if workerPark and row.paused then
     row.state=row.parkConfirmed and "parked" or "parking"
@@ -1071,6 +1069,8 @@ plan = function(id,row)
     else reservePose(id,row) park(id,row,false) end
     return
   end
+  local lease = mod("lease")
+  if lease.restartReady and not lease.restartReady() then return end
   local finishing = job.complete and row.route and row.counted == row.branch
     and not row.returning and not row.trip and not row.resumeTrip
   if row.stopRoute or not job.running and not finishing and row.route then clearRoute(row) save() end

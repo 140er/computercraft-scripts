@@ -889,7 +889,6 @@ local function tick()
     send({{op="inspectDown"}},"recover",true)
     return
   end
-  if lease.restartReady and not lease.restartReady() then return end
   if j.legacyHold then return end
   if S.workerPark and j.turtle.paused then
     if j.turtle.removeRequested and j.turtle.parkConfirmed then removeParked()
@@ -898,6 +897,7 @@ local function tick()
     end
     return
   end
+  if lease.restartReady and not lease.restartReady() then return end
   if returning() then
     if not j.running or j.blocked then return end
     local ready,why,cause=returnReady(stat)
