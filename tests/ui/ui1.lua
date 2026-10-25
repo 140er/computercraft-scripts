@@ -264,4 +264,74 @@ return function(test,equal)
     assert(not roles:match('worker = ([^}]+)'):find('so-ui.lua',1,true))
     assert(not roles:match('display = ([^}]+)'):find('so-ui.lua',1,true))
   end)
+  local function turtleRow(id,x,z,where)
+    return {id=id,facing=1,state='mining',tone='d',where=where,x=x,y=64,z=z,fuel=900,ore=3,ago=1000,lost=false}
+  end
+  test('UB-13 room turtle rows keep the branch and the full position at 52x22 and 57x24',function()
+    for _,size in ipairs({{52,22},{57,24}}) do
+      local m={turtles={turtleRow(12,-12345,-56789,'b12'),turtleRow(3,4,-2,'lane'),turtleRow(7,-12345,-56789,'b1000')}}
+      local frame=U.status(m,size[1],size[2])
+      capture(frame,size[1],size[2])
+      -- Raw rows: one byte per cell. The turtle column ends at w-23.
+      local row=frame.rows[4].text:sub(1,size[1]-23)
+      assert(row:find('b12',1,true),size[1]..': '..row)
+      assert(row:find('-12345,-56789',1,true),size[1]..': '..row)
+      assert(row:find('-12345,-56789 b12',1,true),size[1]..': '..row)
+      assert(frame.rows[5].text:sub(1,size[1]-23):find('4,-2 lane',1,true),size[1]..': '..frame.rows[5].text)
+      -- The whole branch shows: b100 would name another branch.
+      local last=frame.rows[6].text:sub(1,size[1]-23)
+      equal(last:sub(-19),'-12345,-56789 b1000')
+    end
+  end)
+  test('UB-13 wall turtle rows never cut the z coordinate',function()
+    local m={turtles={turtleRow(12,-12345,-56789,'b12'),turtleRow(3,4,-2,'lane')}}
+    local rows=U.status(m,100,38).rows
+    equal(rows[5].text:sub(24,39),'-12345,-56789   ')
+    equal(rows[6].text:sub(24,31),'4,64,-2 ')
+    -- x,z alone over 15 cells moves the position left; fuel no longer covers z.
+    m.turtles[3]=turtleRow(5,-1234567,-1234567,'b1000')
+    m.turtles[3].fuel=20000
+    rows=U.status(m,100,38).rows
+    local row=rows[7].text
+    assert(row:find(' -1234567,-1234567 20000',1,true),row)
+    assert(row:find(' b1000 ',1,true),row)
+    assert(rows[4].text:find(' position ',1,true))
+    equal(rows[4].text:find('position',1,true),row:find('-1234567',1,true))
+  end)
+  test('UB-15 room DROPS row draws broken drops first and ends with +N',function()
+    local m={drops={}}
+    for i=1,7 do m.drops[i]={id=i,kind=i==7 and 'saplings' or 'ore',broken=i==7,x=0,y=0,z=0} end
+    local frame=U.status(m,57,24)
+    local text
+    for y,row in ipairs(capture(frame,57,24).picture().text) do if row:find('DROPS',1,true) then
+      text=capture(frame,57,24).picture().text[y+1]
+    end end
+    assert(text:find('^ × 7 saplings'),text)
+    assert(text:find('%+%d+ *$'),text)
+    local shown=0
+    for _ in text:gmatch('%d+ %a+') do shown=shown+1 end
+    equal(tonumber(text:match('%+(%d+) *$')),7-shown)
+    local broken
+    for _,b in ipairs(frame.buttons) do if b.id=='broken' then broken=b end end
+    assert(broken and broken.x==2)
+    -- Five short drops all fit and need no +N.
+    m.drops={}
+    for i=1,5 do m.drops[i]={id=i,kind='ore',broken=false} end
+    for _,row in ipairs(capture(U.status(m,57,24),57,24).picture().text) do assert(not row:find('%+%d')) end
+  end)
+  test('U.confirm arms, confirms, expires and disarms on a tap elsewhere',function()
+    local s={}
+    equal(U.confirm(s,'remove',0),false) equal(s.confirm,'remove')
+    equal(U.confirmChip(s,'remove','REMOVE','turtle-remove','plain')[1],'CONFIRM')
+    equal(U.confirmChip(s,'remove','REMOVE','turtle-remove','plain')[3],'stop')
+    equal(U.confirm(s,'remove',1000),true) equal(s.confirm,nil)
+    equal(U.confirmChip(s,'remove','REMOVE','turtle-remove','plain')[1],'REMOVE')
+    U.confirm(s,'remove',2000)
+    equal(U.confirm(s,nil,2500),false) equal(s.confirm,nil)
+    equal(U.confirm(s,'remove',3000),false) equal(s.confirm,'remove')
+    -- Another two-tap control re-arms on its own key.
+    equal(U.confirm(s,'add',3100),false) equal(s.confirm,'add')
+    equal(U.confirm(s,'remove',3200),false) equal(s.confirm,'remove')
+    equal(U.confirm(s,'remove',9001),false) equal(s.confirm,'remove')
+  end)
 end

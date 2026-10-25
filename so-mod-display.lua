@@ -983,33 +983,31 @@ D.turtleInput = function(event,w,h)
   end
   D.gatherTurtles()
   local row = D.details[selected.id] or {}
-  if selected.confirmAt and D.now()-selected.confirmAt > 5000 then selected.confirm=nil end
+  -- Every drawn tap goes through U.confirm: REMOVE and the editor's save are two-tap, and any other
+  -- tap disarms them.
+  local key = id == "turtle-remove" and "remove" or id == "turtle-save" and selected.draft and row.uncertain and "add" or nil
+  local fire = U.confirm(selected, key, D.now())
   local screen = row.role and D.screens[row.role]
   local function command(text)
     if screen then screen.input({text=text,session=session,from=event.from,role=row.role}) end
     D.gatherTurtles()
   end
   if id == "turtle-back" then session.turtle=nil
-  elseif id == "turtle-cancel" then selected.draft,selected.confirm=nil,nil
+  elseif id == "turtle-cancel" then selected.draft=nil
   elseif id == "turtle-park" then command(row.role == "lumber" and ("park "..selected.id) or "stop")
   elseif id == "turtle-remove" then
-    if selected.confirm == "remove" then command("remove "..selected.id) selected.confirm=nil
-    else selected.confirm,selected.confirmAt="remove",D.now() end
+    if fire then command("remove "..selected.id) end
   elseif id == "turtle-add" and row.uncertain then
-    selected.confirm=nil
     selected.draft=Turtle.draft(row.pose or row.anchor)
   elseif selected.draft then
     local axis,delta=id:match("^pose:(%a+):(%-?%d+)$")
     if axis and selected.draft[axis] then
       selected.draft[axis]=selected.draft[axis]+tonumber(delta)
       if axis=="facing" then selected.draft.facing=selected.draft.facing%4 end
-      selected.confirm=nil
-    elseif id=="turtle-save" and row.uncertain then
-      if selected.confirm=="add" then
-        local p=selected.draft
-        command(string.format("add %s %d %d %d %s",selected.id,p.x,p.y,p.z,({[0]="n","e","s","w"})[p.facing]))
-        selected.draft,selected.confirm=nil,nil
-      else selected.confirm,selected.confirmAt="add",D.now() end
+    elseif key == "add" and fire then
+      local p=selected.draft
+      command(string.format("add %s %d %d %d %s",selected.id,p.x,p.y,p.z,({[0]="n","e","s","w"})[p.facing]))
+      selected.draft=nil
     end
   end
   return true

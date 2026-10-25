@@ -81,11 +81,20 @@ SCENE = scene()
 
 # ---------------------------------------------------------------- the so-ui.lua "Group other" block
 
-def flag_lines(cv, x, y, width, text, detail, n):
-    """! and the text wrapped over at most n rows, the detail muted after it when it fits, else on the
-    next row. Returns the rows drawn."""
-    rows, room, dy, dx = wrap(text or "", width - 2)[:n], width - 2, None, None
-    if detail:
+def flag_lines(cv, x, y, width, text, detail, n, first=False):
+    """! and the text wrapped over at most n rows, ... marking a cut. The detail is muted after the text
+    when it fits, else on the next row; with first it takes row 1 alone. Returns the rows drawn."""
+    rows, room, dy, dx = wrap(text or "", width - 2), width - 2, None, None
+    lead = bool(first and detail)
+    if lead:
+        rows.insert(0, "")
+        dy, dx = 1, 0
+    if len(rows) > n:
+        rows = rows[:n]
+        last = rows[-1]
+        if last:
+            rows[-1] = (last if len(last) + 3 <= room else fit(last, room - 3)) + "..."
+    if detail and not lead:
         if rows and len(rows[-1]) + 1 + len(detail) <= room:
             dy, dx = len(rows), len(rows[-1]) + 1
         elif len(rows) < n:
@@ -175,6 +184,11 @@ def detail_row():
                 seen=d["seen"], branch=d["branch"], done=d["done"], total=d["total"])
 
 
+def confirm_chip(sel, key, label, bid, kind):
+    """U.confirmChip: CONFIRM in coral while key is armed, else label as kind."""
+    return ("CONFIRM", bid, "stop") if sel.get("confirm") == key else (label, bid, kind)
+
+
 def turtle(w, h, title, sel=None, row=None, now=None):
     """U.turtle.render: the state word in the header, the error flag, leaders, progress, then the job's
     chips with BACK on the last row. With a draft it is the pose editor."""
@@ -195,8 +209,7 @@ def turtle(w, h, title, sel=None, row=None, now=None):
             chip(cv, w - 15, ry, "-", "pose:%s:-1" % axis)
             cv.put(w - 12 + (9 - len(value)) // 2, ry, value, "0")
             chip(cv, w - 3, ry, "+", "pose:%s:1" % axis)
-        armed = sel.get("confirm") == "add"
-        control_rows(cv, [("CONFIRM" if armed else "RE-ADD", "turtle-save", "stop" if armed else "primary")],
+        control_rows(cv, [confirm_chip(sel, "add", "RE-ADD", "turtle-save", "primary")],
                      ("BACK", "turtle-cancel", "plain"))
         return cv
     uncertain = row.get("uncertain")
@@ -210,14 +223,14 @@ def turtle(w, h, title, sel=None, row=None, now=None):
     if assigned:
         items.append(("PARK ALL" if role == "mining" else "PARK", "turtle-park", "plain"))
     if role == "mining":
-        items.append(("CONFIRM" if sel.get("confirm") == "remove" else "REMOVE", "turtle-remove", "stop"))
+        items.append(confirm_chip(sel, "remove", "REMOVE", "turtle-remove", "stop"))
     if assigned and uncertain:
         items.append(("RE-ADD", "turtle-add", "primary"))
     top = control_rows(cv, items, ("BACK", "turtle-back", "plain"))
     y, bottom = 2 + gap, top - 1 - gap
     retry = "retry %ds" % max(0, math.ceil((row["retry"] - now) / 1000)) if row.get("retry") is not None else ""
     if row.get("error") or retry:
-        y += flag_lines(cv, 2, y, w - 2, row.get("error") or "", retry, 2) + gap
+        y += flag_lines(cv, 2, y, w - 2, row.get("error") or "", retry, 3 if retry else 2, True) + gap
     inv = row.get("inv") or []
     fuel = row.get("fuel")
     seen = row.get("seen")
