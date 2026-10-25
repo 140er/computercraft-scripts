@@ -25,6 +25,9 @@ local function scene()
       elseif key == 'home' then b.home = { x = n(3), y = n(4), z = n(5), facing = n(6) }
       elseif key == 'cursor' or key == 'fuel' then b[key] = n(3)
       elseif key == 'running' then b.running = true
+      elseif key == 'slot' then
+        b.inv = b.inv or {}
+        b.inv[#b.inv + 1] = { slot = n(3), name = p[4], count = n(5) }
       else b[key] = rest(3) end
     elseif k == 'detail' then
       local d = s.detail
@@ -93,6 +96,10 @@ local FIXTURE = {
   ['build-26x20'] = 'tests/ui/fixtures/build-26x20.txt', ['build-29x12'] = 'tests/ui/fixtures/build-29x12.txt',
   ['build-57x24'] = 'tests/ui/fixtures/build-57x24.txt', ['buildsetup-26x20'] = 'tests/ui/fixtures/buildsetup-26x20.txt',
   ['buildsetup-29x12'] = 'tests/ui/fixtures/buildsetup-29x12.txt', ['buildsetup-57x24'] = 'tests/ui/fixtures/buildsetup-57x24.txt',
+  ['build-15x10'] = 'tests/ui/fixtures/build-15x10.txt', ['buildpick-26x20'] = 'tests/ui/fixtures/buildpick-26x20.txt',
+  ['buildpick-29x12'] = 'tests/ui/fixtures/buildpick-29x12.txt', ['buildpick2-29x12'] = 'tests/ui/fixtures/buildpick2-29x12.txt',
+  ['buildpicknone-26x20'] = 'tests/ui/fixtures/buildpicknone-26x20.txt',
+  ['buildpickempty-29x12'] = 'tests/ui/fixtures/buildpickempty-29x12.txt',
   ['health-26x20'] = 'tests/ui/fixtures/health-26x20.txt', ['health-29x12'] = 'tests/ui/fixtures/health-29x12.txt',
   ['health-57x24'] = 'tests/ui/fixtures/health-57x24.txt', ['attention-26x20'] = 'tests/ui/fixtures/attention-26x20.txt',
   ['attention-29x12'] = 'tests/ui/fixtures/attention-29x12.txt', ['alerts-26x20'] = 'tests/ui/fixtures/alerts-26x20.txt',
@@ -125,15 +132,19 @@ local function copy(v)
   return out
 end
 
--- The real build module with the scene's saved job.
-local function build()
+-- The real build module with the scene's saved job. options.inv replaces the reported inventory
+-- (options.noReport has none yet) and options.material the material.
+local function build(options)
+  options = options or {}
   local b, dim = scene().build, 'minecraft:overworld'
+  local inv = options.inv or b.inv or {}
+  if options.noReport then inv = nil end
   local pose = copy(b.turtle.pose)
   pose.dim = dim
   local area = copy(b.area)
   area.shape, area.dim = b.shape, dim
-  local saved = { dim = dim, cursor = b.cursor, running = b.running == true, phase = 'check', inv = {}, shape = b.shape,
-    material = b.material, blueprint = area, turtle = { id = b.turtle.id, pose = pose }, home = b.home, fuel = b.fuel,
+  local saved = { dim = dim, cursor = b.cursor, running = b.running == true, phase = 'check', inv = inv, shape = b.shape,
+    material = options.material or b.material, blueprint = area, turtle = { id = b.turtle.id, pose = pose }, home = b.home, fuel = b.fuel,
     blocked = b.blocked, alert = b.alert }
   local t = { saved = saved, open = 'lease-8' }
   local env = setmetatable({}, { __index = _G })
@@ -145,6 +156,20 @@ local function build()
   t.mod = assert(loadfile('so-mod-build.lua', 't', env))()
   t.mod.tick()
   return t
+end
+
+-- Every target covers its label: the label is drawn inside the target's own cells.
+local function labelled(frame, w, h, name)
+  capture(frame, w, h)
+  for _, b in ipairs(frame.buttons) do
+    assert(b.label ~= '', name .. ' ' .. b.id .. ' has no label')
+    local row = frame.rows[b.y].text .. string.rep(' ', w)
+    assert(row:sub(b.x, b.x + b.w - 1):find(b.label, 1, true), name .. ' ' .. b.id .. ' does not show ' .. b.label)
+  end
+end
+
+local function shown(frame, w, h)
+  return table.concat(capture(frame, w, h).picture().text, '\n')
 end
 
 -- The real health module over the scene's facts: machines, leases, the disk, the log, errors and history.
@@ -231,7 +256,93 @@ return function(test, equal)
       b = ids(frame)
       if size[1] >= 36 then assert(b['shape floor'] and b['shape walls'] and b['shape box'], name)
       else assert(b['shape-next'], name) end
+      assert(b['material-pick'], name)
     end
+    -- Under 24 columns the bar has no tabs and setup falls back to the job tab.
+    for _, setup in ipairs({ false, true }) do
+      local frame = t.render(15, 10, { buildSetup = setup })
+      match('build-15x10', frame)
+      local b = ids(frame)
+      assert(b.start and b.stop and not b['tab:setup'] and not b['material-pick'], '15x10')
+      labelled(frame, 15, 10, '15x10')
+    end
+  end)
+
+  test('F5-G2 the build material picker pages through j.inv and matches the schematic fixtures', function()
+    local t = build()
+    for _, size in ipairs({ { 26, 20 }, { 29, 12 } }) do
+      local session = {}
+      t.input({ id = 'tab:setup', session = session })
+      local frame = t.render(size[1], size[2], session)
+      labelled(frame, size[1], size[2], 'setup')
+      t.input({ id = 'material-pick', session = session })
+      frame = t.render(size[1], size[2], session)
+      match('buildpick-' .. size[1] .. 'x' .. size[2], frame)
+      labelled(frame, size[1], size[2], 'picker')
+      local b = ids(frame)
+      -- Ten names: one page at 26x20, so no pager there; two at 29x12.
+      equal(b.prev ~= nil and b.next ~= nil, size[1] == 29)
+      assert(b['material minecraft:bricks'] and b['material-back'], 'rows')
+      equal(b['material minecraft:bricks'].x, 1)
+      equal(b['material minecraft:bricks'].w, size[1])
+    end
+    -- 29x12 pages forward to stone and stops on the last page; BACK returns to setup.
+    t = build({ material = 'minecraft:stone' })
+    local session = { buildSetup = true }
+    t.input({ id = 'material-pick', session = session })
+    t.render(29, 12, session)
+    t.input({ id = 'next', session = session })
+    t.input({ id = 'next', session = session })
+    local frame = t.render(29, 12, session)
+    match('buildpick2-29x12', frame)
+    labelled(frame, 29, 12, 'page 2')
+    equal(session.buildPick.page, 2)
+    assert(ids(frame)['material minecraft:stone'] and not ids(frame)['material minecraft:bricks'], 'page 2 rows')
+    t.input({ id = 'prev', session = session })
+    assert(ids(t.render(29, 12, session))['material minecraft:bricks'], 'page 1 again')
+    t.input({ id = 'material-back', session = session })
+    equal(session.buildPick, nil)
+    assert(ids(t.render(29, 12, session))['material-pick'], 'setup again')
+  end)
+
+  test('F5-G2 the build material picker keeps no report and empty apart', function()
+    local session = { buildSetup = true, buildPick = { page = 1 } }
+    local frame = build({ noReport = true }).render(26, 20, session)
+    match('buildpicknone-26x20', frame)
+    local text = shown(frame, 26, 20)
+    assert(text:find('no report', 1, true) and not text:find('empty', 1, true), text)
+    session.buildPick = { page = 1 }
+    frame = build({ inv = {} }).render(29, 12, session)
+    match('buildpickempty-29x12', frame)
+    text = shown(frame, 29, 12)
+    assert(text:find('empty', 1, true) and not text:find('no report', 1, true), text)
+    -- The job tab says the same: carried is unknown before the first report and 0 when empty.
+    text = shown(build({ noReport = true }).render(29, 12, {}), 29, 12)
+    assert(text:find('carried %S+ unknown') and text:find('need %S+ 83'), text)
+    text = shown(build({ inv = {} }).render(29, 12, {}), 29, 12)
+    assert(text:find('carried %S+ 0') and not text:find('unknown', 1, true), text)
+  end)
+
+  test('F5-G2 a picked material keeps the cursor and closes the picker', function()
+    local t = build()
+    local session = { buildSetup = true }
+    t.input({ id = 'material-pick', session = session })
+    -- Running, the pick is refused and the picker stays open with the reason.
+    t.input({ id = 'material minecraft:oak_planks', session = session })
+    equal(t.saved.material, 'minecraft:cobblestone')
+    assert(session.buildPick, 'picker closed on a refusal')
+    assert(shown(t.render(29, 12, session), 29, 12):find('stop before configuring', 1, true))
+    t.open = nil
+    t.input({ id = 'stop', session = session })
+    t.input({ id = 'material minecraft:oak_planks', session = session })
+    equal(t.saved.material, 'minecraft:oak_planks')
+    equal(t.saved.cursor, 38)
+    equal(session.buildPick, nil)
+    local frame = t.render(26, 20, session)
+    equal(ids(frame)['material-pick'].label, 'oak_planks')
+    frame = t.render(26, 20, { buildSetup = true, buildPick = { page = 1 } })
+    local row = ids(frame)['material minecraft:oak_planks']
+    equal(frame.rows[row.y].text:sub(2, 2), U.g.bullet)
   end)
 
   test('RA2 build tabs and shape chips keep the old ids working', function()
@@ -352,7 +463,7 @@ return function(test, equal)
       equal(read(dir .. '/' .. name .. '.txt'), read(assert(FIXTURE[name], name)))
       count = count + 1
     end
-    equal(count, 23)
+    equal(count, 29)
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
 end

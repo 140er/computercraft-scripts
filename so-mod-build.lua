@@ -538,8 +538,14 @@ local function input(ev)
   if type(text) ~= "string" then return end
   S.feedback = nil
   local session = ev.session or S.view
-  if text == "setup" or text == "tab:setup" then session.buildSetup=true return end
-  if text == "build-back" or text == "tab:job" then session.buildSetup=false return end
+  if text == "setup" or text == "tab:setup" then session.buildSetup,session.buildPick=true,nil return end
+  if text == "build-back" or text == "tab:job" then session.buildSetup,session.buildPick=false,nil return end
+  if text == "material-pick" then session.buildPick={page=1} return end
+  if text == "material-back" then session.buildPick=nil return end
+  if session.buildPick and (text == "prev" or text == "next") then
+    session.buildPick.page=math.max(1,session.buildPick.page+(text == "next" and 1 or -1))
+    return
+  end
   if text == "from-here" or text == "to-here" or text == "home-here" then
     if not S.poseSetup then return end
     local row = j.turtle
@@ -646,7 +652,8 @@ local function input(ev)
     j.shape=w[2]
     if j.blueprint then j.blueprint.shape=w[2] S.targets=expand(j.blueprint) end
     j.cursor,j.phase,j.service=1,"check",nil
-  elseif w[1] == "material" and #w == 2 and material(w[2]) then j.material=material(w[2]) j.phase="check" j.service=nil
+  elseif w[1] == "material" and #w == 2 and material(w[2]) then
+    j.material,j.phase,j.service,session.buildPick=material(w[2]),"check",nil,nil
   elseif w[1] == "import" then
     local b,err=import(text:match("^%S+%s+(.+)$"))
     if not b then feedback(err) return end
@@ -710,9 +717,31 @@ local function input(ev)
   save()
 end
 S.view = {}
+-- The text cut to width, a cut marked with "..." as route A marks it (other.py cut).
+local function cut(text, width)
+  if #text <= width then return text end
+  if width < 4 then return text:sub(1,math.max(0,width)) end
+  return (U.fit(text,width-3):gsub("[%s%.]+$","")).."..."
+end
+-- The picker's rows from the last inventory report: one per item name with its summed count,
+-- sorted by the drawn name. nil before the first report, an empty list for an empty inventory.
+local function stock()
+  if j.inv == nil then return nil end
+  local counts,out={},{}
+  for _,v in ipairs(j.inv) do
+    if type(v.name) == "string" and type(v.count) == "number" and v.count > 0 then
+      if not counts[v.name] then out[#out+1]=v.name counts[v.name]=0 end
+      counts[v.name]=counts[v.name]+v.count
+    end
+  end
+  for i,name in ipairs(out) do out[i]={name=name,label=(name:gsub("^minecraft:","")),count=counts[name]} end
+  table.sort(out,function(a,b) return a.label < b.label or a.label == b.label and a.name < b.name end)
+  return out
+end
 -- Route A (docs/ui/schematic/other.py build): the job tab has the shape with its state, the cells
--- placed and the job's leaders; setup has the shape chips and the configured values. START and STOP
--- sit on the last row of both.
+-- placed, the material budget and the job's leaders; setup has the shape chips and the configured
+-- values, and its material chip opens a paged picker of the turtle's reported items. START and STOP
+-- sit on the last row of both. Under 24 columns the bar has no tabs and only the job tab draws.
 local function render(w,h,session)
   session=session or S.view
   local C=U.canvas(w,h)
@@ -725,11 +754,40 @@ local function render(w,h,session)
   local from=b and (b.x1 .. "," .. b.y1 .. "," .. b.z1)
   local to=b and (b.x2 .. "," .. b.y2 .. "," .. b.z2)
   local stuff=j.material and (j.material:gsub("^minecraft:",""))
-  U.roleBar(C,"BUILD",{"job","setup"},{"job","setup"},session.buildSetup and 2 or 1)
+  local narrow=w<24
+  local setup=session.buildSetup and not narrow
+  if narrow then C.bar("BUILD",{},nil)
+  else U.roleBar(C,"BUILD",{"job","setup"},{"job","setup"},setup and 2 or 1) end
   local y=2+gap
   local message=S.feedback and SO.now()<S.feedbackUntil and S.feedback or j.alert or j.legacyHold
   if message then y=y+U.flagLines(C,2,y,w-2,message,nil,2)+gap end
-  if session.buildSetup then
+  if setup and session.buildPick then
+    -- The picker: one whole-row target per reported item, the current material marked.
+    local items=stock()
+    C.section(2,y,lw,"MATERIAL")
+    local top=y+1+gap
+    local capacity=math.max(1,h-top)
+    local count=items and #items or 0
+    local pages=math.max(1,math.ceil(count/capacity))
+    local pick=session.buildPick
+    pick.page=math.max(1,math.min(pick.page,pages))
+    if not items then C.put(2,top,"no report","1")
+    elseif count == 0 then C.put(2,top,"empty","8") end
+    for i=1,capacity do
+      local item=items and items[(pick.page-1)*capacity+i]
+      if not item then break end
+      local ry,value=top+i-1,tostring(item.count)
+      local on=item.name == j.material
+      local label=cut(item.label,math.max(1,w-5-#value))
+      if on then C.put(2,ry,U.g.bullet,"0") end
+      C.leader(4,ry,w-4,label,value,on and "0" or "8",on and "0" or "8")
+      C.hit("material "..item.name,1,ry,w,1,label)
+    end
+    C.chip(2,h,"BACK","material-back")
+    if pages > 1 then U.pager(C,h,pick.page.."/"..pages,pick.page>1,pick.page<pages) end
+    return C.frame()
+  end
+  if setup then
     local cx=w>=36 and 13 or 11
     C.put(2,y,"shape","8")
     if cx+(S.solid and 28 or 20)<=w-1 then
@@ -737,28 +795,37 @@ local function render(w,h,session)
       for _,name in ipairs(S.solid and {"floor","walls","box","solid"} or {"floor","walls","box"}) do x=C.chip(x,y,name,"shape " .. name,name==shape and "plain" or "off")+1 end
     else C.chip(cx,y,shape,"shape-next") end
     local draft=session.buildCorner
-    local rows={{"from",draft and (draft.x..","..(draft.y-1)..","..draft.z) or from,"from-here"},
-      {"to",to,"to-here"},{"material",stuff},{"turtle",t and ("#" .. t.id)},{"home",j.home and U.turtle.pose(j.home),"home-here"}}
+    local rows={{"from",draft and (draft.x..","..(draft.y-1)..","..draft.z) or from,S.poseSetup and "from-here"},
+      {"to",to,S.poseSetup and "to-here"},{"material",stuff,"material-pick"},{"turtle",t and ("#" .. t.id)},
+      {"home",j.home and U.turtle.pose(j.home),S.poseSetup and "home-here"}}
     for i,r in ipairs(rows) do
       local ry=y+i*(h>=16 and 2 or 1)
       if ry<h-gap then
         C.put(2,ry,r[1],"8")
-        if S.poseSetup and r[3] then C.chip(cx,ry,(r[2] or "-"):sub(1,math.max(1,w-cx-3)),r[3],r[2] and "plain" or "off")
-        else C.put(cx,ry,(r[2] or "-"):sub(1,math.max(0,w-cx)),r[2] and "0" or "8") end
+        if r[3] then C.chip(cx,ry,cut(r[2] or "-",math.max(1,w-cx-3)),r[3],r[2] and "plain" or "off")
+        else C.put(cx,ry,cut(r[2] or "-",math.max(0,w-cx)),r[2] and "0" or "8") end
       end
     end
   else
     local total=S.targets and #S.targets or 0
     local done=math.min(j.cursor-1,total)
     local frac=done .. "/" .. total
-    C.section(2,y,lw,shape:upper(),state,tone)
+    local title=shape:upper()
+    if #title+#state+3<=lw then C.section(2,y,lw,title,state,tone) else C.put(2,y,cut(state,lw),tone) end
     C.progress(2,y+1,math.max(1,lw-1-#frac),done,total)
     if j.complete then C.put(2+lw-#frac,y+1,frac,"0") end
-    local facts={{"material",stuff},{"turtle",t and ("#" .. t.id)},{"position",t and U.turtle.pose(t.pose)},
+    local need=budget()
+    local carried=need.carried and tostring(need.carried) or "unknown"
+    local facts={{"material",stuff},{"need",b and tostring(need.remaining)},
+      {"carried",j.material and carried,need.carried==nil and "1"},
+      {"turtle",t and ("#" .. t.id)},{"position",t and U.turtle.pose(t.pose)},
       {"fuel",j.fuel and tostring(j.fuel)},{"from",from},{"to",to}}
     for i,f in ipairs(facts) do
       local ry=y+1+gap+i
-      if ry<h-gap then C.leader(2,ry,lw,f[1],f[2] or "-",f[2] and "0" or "8") end
+      local value,fg,room=f[2] or "-",f[3] or f[2] and "0" or "8",lw-#f[1]-2
+      -- Too narrow for the label beside the value: the value alone.
+      if ry<h-gap and (#value<=room or room>=4) then C.leader(2,ry,lw,f[1],cut(value,room),fg)
+      elseif ry<h-gap then C.put(2,ry,cut(value,lw),fg) end
     end
   end
   U.actions(C,h,{{"START","start",j.running and "muted" or "primary"},{"STOP","stop",j.running and "stop" or "muted"}})

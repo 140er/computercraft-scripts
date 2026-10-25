@@ -1,0 +1,37 @@
+29x12 Build material picker, page 1 of 2 at 29x12
+ BUILD   job   setup  -----  
+ ! out of material           
+ MATERIAL -----------------  
+   bricks ··············· 20 
+   chisel:stone ·········· 5 
+   coal ·················· 9 
+   create:andesite_alloy  32 
+   dirt ·················· 3 
+   glass ················ 33 
+   oak_planks ··········· 40 
+   polished_blackstone... 64 
+  BACK           1/2  ◄   ►  
+0000000088888000000000ccccc00
+0e000000000000000000000000000
+0888888880ccccccccccccccccc00
+0008888880ccccccccccccccc0880
+0008888888888880cccccccccc080
+00088880cccccccccccccccccc080
+00088888888888888888888800880
+00088880cccccccccccccccccc080
+000888880cccccccccccccccc0880
+00088888888880ccccccccccc0880
+00088888888888888888888880880
+00000000000000000888088800000
+ffffffffffffff7777777ffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777777ffffffffffffff777f777f

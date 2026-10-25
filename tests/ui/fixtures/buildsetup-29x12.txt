@@ -4,7 +4,7 @@
  shape     walls             
  from     10,64,-5           
  to       20,66,5            
- material cobblestone        
+ material  cobblestone       
  turtle   #8                 
  home     12,64,-5 E         
                              
@@ -28,7 +28,7 @@ fffffffffffffffffffffffffffff
 ffffffffff7777777ffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffff
+ffffffffff7777777777777ffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff

@@ -38,6 +38,8 @@ def scene():
                 b[key] = int(rest[1])
             elif key == "running":
                 b["running"] = True
+            elif key == "slot":
+                b.setdefault("inv", []).append(dict(slot=int(rest[1]), name=rest[2], count=int(rest[3])))
             else:
                 b[key] = " ".join(rest[1:])
         elif k == "detail":
@@ -399,10 +401,32 @@ def cells(b, shape):
     return n
 
 
-def build(w, h, title, setup=False):
-    """so-mod-build's render: tabs job and setup; START and STOP on the last row of both."""
+def stock(inv):
+    """The picker's rows: one per item name with its summed count, sorted by the drawn name. None
+    before the first report, an empty list for an empty inventory."""
+    if inv is None:
+        return None
+    counts = {}
+    for v in inv:
+        if v["count"] > 0:
+            counts[v["name"]] = counts.get(v["name"], 0) + v["count"]
+    rows = [dict(name=n, label=n.replace("minecraft:", "", 1) if n.startswith("minecraft:") else n, count=c)
+            for n, c in counts.items()]
+    return sorted(rows, key=lambda r: (r["label"], r["name"]))
+
+
+MISSING = object()
+
+
+def build(w, h, title, setup=False, pick=None, inv=MISSING, material=None):
+    """so-mod-build's render: tabs job and setup; START and STOP on the last row of both. The setup
+    material chip opens a paged picker of the reported items (pick is its page). Under 24 columns
+    the bar has no tabs and only the job tab draws."""
     cv = Canvas(w, h, title)
-    j = SCENE["build"]
+    j = dict(SCENE["build"])
+    j["inv"] = j.get("inv", []) if inv is MISSING else inv
+    if material:
+        j["material"] = material
     gap, lw = (1 if h >= 16 else 0), min(w - 2, 40)
     state = j.get("blocked") or ("running" if j.get("running") else "stopped")
     fg = tone(state)
@@ -414,10 +438,39 @@ def build(w, h, title, setup=False):
     to = "%d,%d,%d" % (b["x2"], b["y2"], b["z2"]) if b else None
     stuff = j["material"].replace("minecraft:", "", 1) if j.get("material", "").startswith("minecraft:") \
         else j.get("material")
-    role_bar(cv, "BUILD", ["job", "setup"], ["job", "setup"], 1 if setup else 0)
+    narrow = w < 24
+    setup = setup and not narrow
+    if narrow:
+        bar(cv, "BUILD")
+    else:
+        role_bar(cv, "BUILD", ["job", "setup"], ["job", "setup"], 1 if setup else 0)
     y = 2 + gap
     if j.get("alert"):
         y += flag_lines(cv, 2, y, w - 2, j["alert"], None, 2) + gap
+    if setup and pick:
+        items = stock(j["inv"])
+        section(cv, 2, y, lw, "MATERIAL")
+        top = y + 1 + gap
+        capacity = max(1, h - top)
+        count = len(items) if items is not None else 0
+        pages = max(1, -(-count // capacity))
+        page = max(1, min(pick, pages))
+        if items is None:
+            cv.put(2, top, "no report", "1")
+        elif count == 0:
+            cv.put(2, top, "empty", "8")
+        for i, item in enumerate((items or [])[(page - 1) * capacity:page * capacity]):
+            ry, value = top + i, str(item["count"])
+            on = item["name"] == j.get("material")
+            label = cut(item["label"], max(1, w - 5 - len(value)))
+            if on:
+                cv.put(2, ry, "•", "0")
+            leader(cv, 4, ry, w - 4, label, value, "0" if on else "8", "0" if on else "8")
+            cv.hit("material " + item["name"], 1, ry, w, 1, label)
+        chip(cv, 2, h, "BACK", "material-back")
+        if pages > 1:
+            pager(cv, h, "%d/%d" % (page, pages), page > 1, page < pages)
+        return cv
     if setup:
         cx = 13 if w >= 36 else 11
         cv.put(2, y, "shape", "8")
@@ -427,33 +480,51 @@ def build(w, h, title, setup=False):
                 x = chip(cv, x, y, name, "shape " + name, "plain" if name == shape else "off") + 1
         else:
             chip(cv, cx, y, shape, "shape-next")
-        rows = [("from", frm), ("to", to), ("material", stuff), ("turtle", t and "#%d" % t["id"]),
-                ("home", j.get("home") and pose_text(j["home"]))]
-        for i, (label, value) in enumerate(rows):
+        rows = [("from", frm, None), ("to", to, None), ("material", stuff, "material-pick"),
+                ("turtle", t and "#%d" % t["id"], None), ("home", j.get("home") and pose_text(j["home"]), None)]
+        for i, (label, value, bid) in enumerate(rows):
             ry = y + (i + 1) * (2 if h >= 16 else 1)
             if ry < h - gap:
                 cv.put(2, ry, label, "8")
-                cv.put(cx, ry, (value or "-")[:max(0, w - cx)], "0" if value else "8")
+                if bid:
+                    chip(cv, cx, ry, cut(value or "-", max(1, w - cx - 3)), bid, "plain" if value else "off")
+                else:
+                    cv.put(cx, ry, cut(value or "-", max(0, w - cx)), "0" if value else "8")
     else:
         total = cells(b, shape) if b else 0
         done = min(j.get("cursor", 1) - 1, total)
         frac = "%d/%d" % (done, total)
-        section(cv, 2, y, lw, shape.upper(), state, fg)
+        if len(shape) + len(state) + 3 <= lw:
+            section(cv, 2, y, lw, shape.upper(), state, fg)
+        else:
+            cv.put(2, y, cut(state, lw), fg)
         progress(cv, 2, y + 1, max(1, lw - 1 - len(frac)), done, total)
-        facts = [("material", stuff), ("turtle", t and "#%d" % t["id"]), ("position", t and pose_text(t["pose"])),
-                 ("fuel", str(j["fuel"]) if j.get("fuel") is not None else None), ("from", frm), ("to", to)]
-        for i, (label, value) in enumerate(facts):
+        # build.budget(): remaining is an upper bound; carried is unknown before the first report.
+        remaining = max(0, total - j.get("cursor", 1) + 1)
+        carried = None if j["inv"] is None else \
+            sum(v["count"] for v in j["inv"] if v["name"] == j.get("material"))
+        facts = [("material", stuff, None), ("need", b and str(remaining), None),
+                 ("carried", j.get("material") and ("unknown" if carried is None else str(carried)),
+                  "1" if carried is None else None),
+                 ("turtle", t and "#%d" % t["id"], None), ("position", t and pose_text(t["pose"]), None),
+                 ("fuel", str(j["fuel"]) if j.get("fuel") is not None else None, None), ("from", frm, None),
+                 ("to", to, None)]
+        for i, (label, value, vfg) in enumerate(facts):
             ry = y + 2 + gap + i
-            if ry < h - gap:
-                leader(cv, 2, ry, lw, label, value or "-", "0" if value else "8")
+            text, room = value or "-", lw - len(label) - 2
+            vfg = vfg or ("0" if value else "8")
+            if ry < h - gap and (len(text) <= room or room >= 4):
+                leader(cv, 2, ry, lw, label, cut(text, room), vfg)
+            elif ry < h - gap:
+                cv.put(2, ry, cut(text, lw), vfg)
     running = j.get("running")
     actions(cv, h, [("START", "start", "muted" if running else "primary"),
                     ("STOP", "stop", "stop" if running else "muted")])
     return cv
 
 
-def _build(w, h, title, setup=False):
-    return lambda: build(w, h, title, setup)
+def _build(w, h, title, setup=False, **options):
+    return lambda: build(w, h, title, setup, **options)
 
 
 # ---------------------------------------------------------------- health
@@ -928,6 +999,15 @@ FIXTURES = [
     ("buildsetup-26x20", _build(26, 20, "Build, setup tab at 26x20", True)),
     ("buildsetup-29x12", _build(29, 12, "Build, setup tab at 29x12", True)),
     ("buildsetup-57x24", _build(57, 24, "Build, setup tab, room monitor 57x24", True)),
+    ("build-15x10", _build(15, 10, "Build at 15x10: no tabs, the job tab only")),
+    ("buildpick-26x20", _build(26, 20, "Build material picker at 26x20", True, pick=1)),
+    ("buildpick-29x12", _build(29, 12, "Build material picker, page 1 of 2 at 29x12", True, pick=1)),
+    ("buildpick2-29x12", _build(29, 12, "Build material picker, page 2 with stone chosen at 29x12", True, pick=2,
+                                material="minecraft:stone")),
+    ("buildpicknone-26x20", _build(26, 20, "Build material picker before any report at 26x20", True, pick=1,
+                                   inv=None)),
+    ("buildpickempty-29x12", _build(29, 12, "Build material picker, empty inventory at 29x12", True, pick=1,
+                                    inv=[])),
     ("health-26x20", _health("health", 26, 20, "Health at 26x20")),
     ("health-29x12", _health("health", 29, 12, "Health at 29x12")),
     ("health-57x24", _health("health", 57, 24, "Health, room monitor 57x24")),

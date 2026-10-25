@@ -1,0 +1,37 @@
+29x12 Build material picker, page 2 with stone chosen at 29x12
+ BUILD   job   setup  -----  
+ ! out of material           
+ MATERIAL -----------------  
+ • stone ················ 76 
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+  BACK           2/2  ◄   ►  
+0000000088888000000000ccccc00
+0e000000000000000000000000000
+0888888880ccccccccccccccccc00
+000000000cccccccccccccccc0000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000888000008880
+ffffffffffffff7777777ffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777777ffffffffffffff777f777f
