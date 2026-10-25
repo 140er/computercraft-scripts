@@ -34,6 +34,9 @@ local S = {
     exists = "id exists",
     missing = "missing point",
   },
+  dimOf = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 },
+  -- The list's dimension filter, in tap order; ALL shows every point.
+  filters = { { "ALL" }, { "WORLD", 0 }, { "NETHER", -1 }, { "END", 1 } },
 }
 
 S.whole = function(n)
@@ -272,7 +275,9 @@ S.scan = function(kind, nearPos)
   return want, anyPoint, broken, off
 end
 
-S.pick = function(kind, nearPos)
+-- The chest a turtle at nearPos would use for kind, the fallback or HOLD. Reads only; pick and the
+-- setup page's PREVIEW share it.
+S.choose = function(kind, nearPos)
   if type(kind) ~= "string" or not S.kinds[kind] then return nil end
   if type(nearPos) ~= "table" or not S.whole(nearPos.dim) or not S.whole(nearPos.x)
     or not S.whole(nearPos.y) or not S.whole(nearPos.z) then
@@ -296,9 +301,16 @@ S.pick = function(kind, nearPos)
     reason, failedPoint = broken and "broken" or "none", broken and S.pub(broken) or nil
     alert = broken and (kind .. " #" .. broken.id .. " broken at " .. broken.x .. "," .. broken.y .. "," .. broken.z)
       or off and (kind .. " room chests off") or ("no " .. kind .. " chest set")
-    S.emit("drops.alert", { kind = kind, text = alert, reason = reason, point = failedPoint })
   end
   return { point = point, chain = chain, alert = alert, reason = reason, failedPoint = failedPoint }
+end
+
+S.pick = function(kind, nearPos)
+  local got = S.choose(kind, nearPos)
+  if got and not got.point then
+    S.emit("drops.alert", { kind = kind, text = got.alert, reason = got.reason, point = got.failedPoint })
+  end
+  return got
 end
 
 S.steps = function(point)
@@ -461,7 +473,7 @@ S.beginSetup = function(id, point, facing)
   end
   S.compass=nil
   local P=dofile("so-plan.lua")
-  local dim=({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[pose.dim]
+  local dim=S.dimOf[pose.dim]
   if not dim then S.message="unknown dimension" return end
   local steps={}
   if point then
@@ -538,9 +550,12 @@ S.beginSetup = function(id, point, facing)
   S.setupSend()
 end
 
-S.testPoint = function(id)
+-- TEST with the turtle chosen on the setup page, else the first idle one; beginSetup still refuses a
+-- turtle without the fuel, route or idle state for it.
+S.testPoint = function(id, turtle)
   local idx=S.find(id)
   if not idx then S.message="missing point" return end
+  if turtle then S.beginSetup(turtle,S.points[idx]) return end
   local lease=SO.mods.lease
   for _,turtleId in ipairs(lease and lease.candidates and lease.candidates() or {}) do
     local pose,err=S.freeTurtle(turtleId)
@@ -689,13 +704,24 @@ S.addDraft = function(view, tapped)
   end
   S.message = ok and "point added" or (S.errText[err] or tostring(err))
   if ok then view.drafted, view.edit = false, nil end
+  -- An editor opened from a FOUND chest goes back to chest setup, where the chest stays listed.
+  if ok and view.found then
+    view.found, view.editing, view.testing = nil, false, true
+    return true
+  end
+end
+
+-- A typed point is its list number or its id; a number past the list stays an id, so it reads as missing.
+S.pointId = function(word)
+  local n = word:match("^%d+$") and tonumber(word)
+  return n and S.points[n] and S.points[n].id or word
 end
 
 S.typed = function(text, view)
   local scan=text:match("^scan%s+(%d+)$")
   if scan then S.beginSetup(tonumber(scan)) return end
   local visit=text:match("^test%s+([%w_%-]+)$")
-  if visit then S.testPoint(visit) return end
+  if visit then S.testPoint(S.pointId(visit), view.turtle) return end
   local release=text:match("^release%s+(%d+)$")
   if release then S.releaseSetup(tonumber(release)) return end
   local words = {}
@@ -704,7 +730,7 @@ S.typed = function(text, view)
     if #words ~= 3 or words[3] ~= "on" and words[3] ~= "off" then S.message = "invalid room command" return end
     local ok, err
     if words[2] == "sink" then ok,err = S.setRoomSink(words[3] == "on")
-    else ok,err = S.roomMark(words[2],words[3] == "on") end
+    else ok,err = S.roomMark(S.pointId(words[2]),words[3] == "on") end
     S.message = ok and "room saved" or (S.errText[err] or tostring(err))
     return
   end
@@ -740,7 +766,7 @@ S.typed = function(text, view)
   view.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side, room = (kind == "ore" or kind == "wood") and d.room or nil }
   view.drafted = true
   S.message = nil
-  if direct then S.addDraft(view) end
+  if direct then return S.addDraft(view) end
 end
 
 -- Route A screen (docs/ui/SCHEMATIC-SPEC.md); docs/ui/schematic/jobs.py is the twin of S.gather
@@ -751,17 +777,40 @@ S.key = function(session, from)
   if type(session) == "table" then return session.id or session end
   return from or session
 end
+-- The selection stays inside the display's dimension filter.
+S.shown = function(view, p) return not view or view.dim == nil or p.dim == view.dim end
 S.selectedPoint = function(view)
-  if view and view.selected and S.find(view.selected) then return view.selected end
-  for _, p in ipairs(S.points) do if p.fails >= S.strikes then return p.id end end
-  return S.points[1] and S.points[1].id
+  local idx = view and view.selected and S.find(view.selected)
+  if idx and S.shown(view, S.points[idx]) then return view.selected end
+  for _, p in ipairs(S.points) do if p.fails >= S.strikes and S.shown(view, p) then return p.id end end
+  for _, p in ipairs(S.points) do if S.shown(view, p) then return p.id end end
+end
+S.previewKind = function(view)
+  local idx = S.find(S.selectedPoint(view) or "")
+  return view.previewKind or idx and S.points[idx].kind or "ore"
+end
+-- What PREVIEW shows for the chosen turtle: the chest pick would use, the fallback or HOLD.
+S.preview = function(view)
+  local id, kind = view.turtle, S.previewKind(view)
+  local out, lease = { id = id, kind = kind }, SO.mods.lease
+  local cfg = SO.store.read("so-server.cfg") or {}
+  local pose = lease and lease.world and lease.world(id, cfg.pos and cfg.pos.dim)
+  local dim = pose and (S.dimOf[pose.dim] or S.whole(pose.dim) and pose.dim)
+  if not dim then out.text = "position unknown" return out end
+  local got = S.choose(kind, { dim = dim, x = pose.x, y = pose.y, z = pose.z })
+  local p = got and (got.point or got.failedPoint)
+  local n = p and S.find(p.id)
+  if got and got.point then out.text, out.short = n .. " " .. p.kind .. " " .. S.at(p), n .. " " .. S.at(p)
+  elseif n then out.hold = n .. " broken"
+  else out.hold = got and got.alert or "position unknown" end
+  return out
 end
 S.fromTurtle = function(id, view)
   S.fromError = true
   local lease = SO.mods.lease
   local config = SO.store.read("so-server.cfg")
   local dim = config and config.pos and config.pos.dim
-  local number = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[dim]
+  local number = S.dimOf[dim]
   if not number or not lease or not lease.world then S.message = "turtle world pose unavailable" return end
   local p, err = lease.world(id, dim)
   if not p then S.message = err return end
@@ -798,10 +847,14 @@ S.context = function()
 end
 S.gather = function(view)
   local ctx, list = S.context(), {}
+  -- The list page shows only the filter's dimension; points keep their numbers.
+  local filter, dims = not view.editing and not view.testing and view.dim, {}
   for i, p in ipairs(S.points) do
-    list[i] = { n = i, id = p.id, dim = p.dim, kind = p.kind, x = p.x, y = p.y, z = p.z, side = p.side,
-      broken = p.fails >= S.strikes, verified = p.verified ~= nil, room = p.room == true }
+    dims[p.dim] = true
+    if not filter or p.dim == filter then list[#list + 1] = { n = i, id = p.id, dim = p.dim, kind = p.kind, x = p.x, y = p.y, z = p.z, side = p.side,
+      broken = p.fails >= S.strikes, verified = p.verified ~= nil, room = p.room == true } end
   end
+  local multi = next(dims) ~= nil and next(dims, next(dims)) ~= nil
   -- Unassigned turtles for the editor's from row and the setup tab's scans.
   local turtles, state, lease = {}, SO.mods.state, SO.mods.lease
   local machines = state and type(state.get) == "function" and state.get("machines") or {}
@@ -810,6 +863,8 @@ S.gather = function(view)
   end
   if lease and lease.candidates then turtles = lease.candidates() end
   table.sort(turtles)
+  local chosen = S.task ~= nil and view.turtle == S.task.id
+  for _, id in ipairs(turtles) do chosen = chosen or id == view.turtle end
   local edit = view.edit and S.find(view.edit)
   return { points = list, selected = S.selectedPoint(view), page = view.page, editing = view.editing,
     edit = view.editing and edit or nil,
@@ -819,7 +874,9 @@ S.gather = function(view)
     message = S.message, draft = view.draft or S.blank, roomSink = S.roomSink, turtles = turtles,
     from = view.fromPage or 0, compass = S.compass, found = S.candidates, task = S.task and S.task.id,
     failed = S.task and S.task.failed,
-    server = ctx.server, shaft = ctx.shaft, area = ctx.area }
+    server = ctx.server, shaft = ctx.shaft, area = ctx.area,
+    dim = view.dim, dims = view.dim ~= nil or multi,
+    turtle = chosen and view.turtle or nil, preview = chosen and view.testing and S.preview(view) or nil }
 end
 S.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
 -- The chests around home, one block per cell when they fit, labelled by number; the server, the
@@ -921,7 +978,13 @@ S.list = function(C, m)
   local page = math.min(m.page, pages)
   local right, roomy = tostring(#pts), w >= 30
   if pages > 1 then right = string.format(roomy and "    %d/%d    " or " %d/%d ", page, pages) end
-  C.bar(roomy and "DROP POINTS" or "DROPS", {}, nil, right, "8")
+  -- The dimension filter shows once points span two dimensions, or while it is set; it needs the
+  -- short title on narrow screens and is left out where even that is too wide.
+  local title, filter = roomy and "DROP POINTS" or "DROPS", nil
+  for _, f in ipairs(m.dims and S.filters or {}) do if f[2] == m.dim then filter = f[1] end end
+  if filter and #title + #filter + 4 > w - #right - 2 then title = "DROPS" end
+  C.bar(title, {}, nil, right, "8")
+  if filter and #title + #filter + 4 <= w - #right - 2 then C.chip(#title + 3, 1, filter, "dims", m.dim and "on" or "plain") end
   if pages > 1 then
     C.chip(w - #right, 1, U.g.left, "prev", "plain", roomy and 3 or 1)
     C.chip(w - (roomy and 3 or 1), 1, U.g.right, "next", "plain", roomy and 3 or 1)
@@ -1018,6 +1081,17 @@ S.setup = function(C, m)
     for i, label in ipairs({ "N", "E", "S", "W" }) do x = C.chip(x, y + 1, label, "facing:" .. (i - 1), "primary", 5) + 1 end
     C.chip(2, y + 3, "cancel", "facing-cancel", "plain")
   else
+    -- A chosen turtle is TEST's turtle, and PREVIEW shows the chest it would use for the kind.
+    local pv = m.preview
+    if pv and y + 1 < stop then
+      C.section(2, y, w - 2, "PREVIEW #" .. pv.id)
+      local x = C.chip(2, y + 1, pv.kind, "preview-kind", "plain") + 1
+      if pv.hold then
+        C.put(x, y + 1, "HOLD", "e")
+        C.put(x + 5, y + 1, pv.hold:sub(1, math.max(0, w - x - 5)), "8")
+      else C.put(x, y + 1, (#pv.text < w - x and pv.text or pv.short or pv.text):sub(1, math.max(0, w - x)), "0") end
+      y = y + 2
+    end
     local items, section = {}, nil
     local listed = false
     for _, id in ipairs(m.turtles) do items[#items + 1] = { "TURTLES", id } listed = listed or id == m.task end
@@ -1043,9 +1117,11 @@ S.setup = function(C, m)
         C.put(4, y, (S.at(it[3]) .. " " .. it[3].side):sub(1, math.max(0, w - 10)), "0")
         C.chip(w - 5, y, "add", "candidate:" .. it[2], "plain")
       elseif it[2] then
-        local busy = m.task == it[2]
-        C.put(2, y, U.g.bullet, busy and (m.failed and "e" or "1") or "d")
-        C.put(4, y, "#" .. it[2], "0")
+        local busy, bg = m.task == it[2], m.turtle == it[2] and "7" or nil
+        if bg then C.fill(1, y, w - 7, 1, bg) end
+        C.put(2, y, U.g.bullet, busy and (m.failed and "e" or "1") or "d", bg)
+        C.put(4, y, "#" .. it[2], "0", bg)
+        C.hit("turtle:" .. it[2], 1, y, w - 10, 1)
         if busy then C.chip(w - 9, y, "release", "release", "stop") else C.chip(w - 6, y, "scan", "scan:" .. it[2], "primary") end
       else C.put(4, y, "-", "8") end
       y, k = y + 1, k + 1
@@ -1106,10 +1182,10 @@ S.layout = function(model, w, h)
   if model.editing then S.editor(C, model) elseif model.testing then S.setup(C, model) else S.list(C, model) end
   return C.frame()
 end
-S.listSize = function(count, w, h)
-  local room = w >= 52 and h >= 22
+S.listSize = function(points, w, h)
+  local room, count = w >= 52 and h >= 22, #points
   local broken = 0
-  for _, p in ipairs(S.points) do if p.fails >= S.strikes then broken = broken + 1 end end
+  for _, p in ipairs(points) do if p.broken then broken = broken + 1 end end
   local nf = math.min(broken, h >= 19 and 2 or 1)
   local cap = math.max(1, math.min(24, (room and h - 1 or h) - 1 - (nf > 0 and nf + 1 or 0) - (h >= 14 and 4 or 3) - (room and 1 or 0) + 1))
   return { pages = math.max(1, math.ceil(count / cap)), capacity = cap }
@@ -1120,7 +1196,7 @@ S.render = function(w, h, session)
   w, h = w or 57, h or 24
   local view = S.view(S.key(session))
   local model = S.gather(view)
-  local size = S.listSize(#model.points, w, h)
+  local size = S.listSize(model.points, w, h)
   if view.focus then
     for i,p in ipairs(model.points) do if p.id==view.focus then model.page=math.floor((i-1)/size.capacity)+1 end end
     view.focus=nil
@@ -1148,7 +1224,7 @@ S.input = function(ev)
     return
   end
   if type(ev.text) == "string" then
-    S.typed(ev.text, view)
+    if S.typed(ev.text, view) then return end
     -- Typed scan, test and release follow on the setup tab; room changes leave the page alone.
     if U and (ev.text:match("^scan%s") or ev.text:match("^test%s") or ev.text:match("^release%s")) then
       view.testing, view.editing = true, false
@@ -1158,7 +1234,7 @@ S.input = function(ev)
   if type(ev.id) ~= "string" then return end
   -- NEW starts from the selected point, room mark included, unless this display has an unsaved draft.
   if ev.id == "new" then
-    view.editing, view.testing = true, false
+    view.editing, view.testing, view.found = true, false, nil
     if view.edit then view.edit, view.draft, view.drafted = nil, nil, false end
     local idx = S.find(S.selectedPoint(view) or "")
     if not view.drafted and idx then view.draft = S.copy(S.points[idx]) end
@@ -1174,7 +1250,7 @@ S.input = function(ev)
   if ev.id == "fix" or ev.id == "edit" then
     if not id then return end
     if view.edit ~= id or not view.drafted then view.draft, view.drafted = S.copy(S.points[S.find(id)]), false end
-    view.edit, view.selected, view.editing, view.testing = id, id, true, false
+    view.edit, view.selected, view.editing, view.testing, view.found = id, id, true, false, nil
     return
   end
   if ev.id == "save" then
@@ -1189,7 +1265,7 @@ S.input = function(ev)
   if ev.id == "facing-cancel" then S.compass = nil return end
   if ev.id == "list" then
     if not view.editing then S.compass = nil end
-    view.editing, view.testing = false, false return
+    view.editing, view.testing, view.found = false, view.editing and view.found or false, nil return
   end
   if ev.id == "testing" then view.editing, view.testing = false, true return end
   if ev.id == "room-sink" then
@@ -1206,15 +1282,16 @@ S.input = function(ev)
   end
   local facing=tonumber(ev.id:match("^facing:([0-3])$"))
   if facing and S.compass then local pick=S.compass S.beginSetup(pick.id,pick.point,facing) return end
-  if ev.id == "test" then if S.selectedPoint(view) then S.testPoint(S.selectedPoint(view)) end return end
+  if ev.id == "test" then if S.selectedPoint(view) then S.testPoint(S.selectedPoint(view), view.turtle) end return end
   if ev.id == "release" and S.task then S.releaseSetup(S.task.id) return end
   local scan=ev.id:match("^scan:(%d+)$")
   if scan then S.beginSetup(tonumber(scan)) return end
   local candidate=tonumber(ev.id:match("^candidate:(%d+)$"))
   if candidate and S.candidates[candidate] then
     local p=S.candidates[candidate]
-    view.draft,view.drafted,view.edit={dim=p.dim,x=p.x,y=p.y,z=p.z,side=p.side,kind="ore"},true,nil
-    view.testing,view.editing=false,true return
+    -- The chest opens with the kind of this display's last draft.
+    view.draft,view.drafted,view.edit={dim=p.dim,x=p.x,y=p.y,z=p.z,side=p.side,kind=view.draft and view.draft.kind or "ore"},true,nil
+    view.testing,view.editing,view.found=false,true,true return
   end
   if not U and (ev.id == "prev" or ev.id == "next") then
     view.page = math.max(1, math.min(view.pages, view.page + (ev.id == "next" and 1 or -1)))
@@ -1227,7 +1304,22 @@ S.input = function(ev)
   if from then S.fromTurtle(tonumber(from), view) return end
   local focused = ev.id:match("^focus:(.+)$")
   if focused and S.find(focused) then
+    if not S.shown(view,S.points[S.find(focused)]) then view.dim=nil end
     view.editing,view.testing,view.selected,view.focus=false,false,focused,focused return
+  end
+  if ev.id == "dims" then
+    local at = 1
+    for i, f in ipairs(S.filters) do if f[2] == view.dim then at = i end end
+    view.dim = S.filters[at % #S.filters + 1][2]
+    return
+  end
+  local turtle = tonumber(ev.id:match("^turtle:(%d+)$"))
+  if turtle then view.turtle = view.turtle ~= turtle and turtle or nil return end
+  if ev.id == "preview-kind" then
+    local at, kind = 1, S.previewKind(view)
+    for i, k in ipairs(S.kindOrder) do if k == kind then at = i end end
+    view.previewKind = S.kindOrder[at % #S.kindOrder + 1]
+    return
   end
   local selected = ev.id:match("^select:(.+)$")
   if selected and S.find(selected) then view.selected = selected return end
@@ -1263,7 +1355,7 @@ S.tick = function()
   local now = SO.now()
   for _, view in pairs(S.views) do
     if (view.draft or view.editing) and now - (view.touched or now) >= S.idle then
-      view.draft, view.drafted, view.edit, view.editing = nil, false, nil, false
+      view.draft, view.drafted, view.edit, view.editing, view.found = nil, false, nil, false, nil
     end
   end
   if not S.callback and SO.mods.lease and SO.mods.lease.onReport then
@@ -1296,6 +1388,7 @@ return {
     return out
   end,
   pick = S.pick,
+  choose = S.choose,
   steps = S.steps,
   add = S.add,
   remove = S.remove,

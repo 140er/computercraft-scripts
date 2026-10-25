@@ -1,0 +1,61 @@
+26x20 NETHER filter at 26x20
+ DROPS  NETHER -------- 1 
+                          
+ id kind    where         
+ 3  junk    123,64,-337 × 
+                          
+ ! 3 junk broken          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  FIX   DEL   ADD  SCAN   
+0000000ffffffffcccccccc080
+00000000000000000000000000
+08808888000088888000000000
+0e00eeee0000888888888880e0
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0999990eeeee00000000000000
+fffffff99999999fffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+7777777777777777777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777f77777f77777f77777ff
