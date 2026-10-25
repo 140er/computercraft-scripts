@@ -47,7 +47,8 @@ local function client(w, h)
     if path == "so-store.lua" then return {store=function() return {} end} end
     if path == "so-proto.lua" then
       return { build = function(_, t, body) return { t = t, body = body } end,
-        encode = function(msg) return msg end, decode = function(msg) return msg end, macOk = function() return true end }
+        encode = function(msg) return msg end, decode = function(msg) return msg end, macOk = function() return true end,
+        since = function() end, fresh = function() return true end }
     end
     error(path)
   end

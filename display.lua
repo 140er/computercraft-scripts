@@ -38,6 +38,7 @@ end
 
 C.pair = dofile("so-pair.lua")
 C.pair.open(C.proto, C.store, C.now)
+C.proto.since(os.epoch("utc"))
 
 local saved = C.store.store("so-keys", function(v)
   return type(v) == "table" and type(v.keys) == "table"
@@ -88,14 +89,7 @@ C.waitSeconds = function(id, attempt)
   if type(n) ~= "number" or n < 1 then n = 1 end
   n = math.floor(n)
   local base = 30
-  if n <= 5 then
-    base = 1
-    local step = 1
-    while step < n do
-      base = base * 2
-      step = step + 1
-    end
-  end
+  if n <= 5 then base = 2 ^ (n - 1) end
   local frac = ((id * 17 + n) % 50) / 100
   local gap = base * (0.5 + frac)
   if gap > 30 then gap = 30 end
@@ -285,6 +279,19 @@ C.onFrame = function(msg)
   C.clipDraw()
   if key == C.outputKey and type(ack) == "table" then C.send("view.ack", { v = 1, token = ack.token }) end
   C.arm(10)
+  C.tone(msg)
+end
+
+-- D11: a fresh frame's tone plays once on a pocket without a monitor.
+C.heard = {}
+C.tone = function(msg)
+  local t, h = msg.body.sound, C.heard
+  if type(t) ~= "table" or not pocket or C.monitor or t.v ~= 1 or type(t.id) ~= "string" or #t.id > 48
+    or type(t.key) ~= "string" or t.instrument ~= "pling" or t.volume ~= 0.5 or t.pitch ~= 12
+    or h[t.id] or not msg.fresh then return end
+  h[t.id], h[#h + 1] = true, t.id
+  if #h > 128 then h[table.remove(h, 1)] = nil end
+  pcall(function() peripheral.find("speaker").playNote("pling", 0.5, 12) end)
 end
 
 C.markStale = function()
@@ -502,6 +509,7 @@ C.loop = function()
       local msg = C.proto.decode(b)
       local key = C.pair.key(C.server)
       if msg and msg.t == "view.frame" and key and C.proto.macOk(key, msg) then
+        msg.fresh = C.proto.fresh(msg)
         if C.fix and C.fix.view then C.fix = nil end
         if not C.fix then C.onFrame(msg) end
       end

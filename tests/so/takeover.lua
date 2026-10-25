@@ -15,6 +15,8 @@ local function boot(values, opts)
     proto = { ser = H.encode, build = function(_, _, body) return body end, encode = opts.encode or function(body) return body end },
     error = function(line) s.errors[#s.errors + 1] = line end }
   if opts.peripheral then m.env.peripheral = opts.peripheral end
+  if opts.health then m.env.SO.health = opts.health end
+  if opts.facts then m.env.SO.mods.health = { soundFacts = function() return opts.facts end } end
   local d = m.env.dofile("so-mod-display.lua")
   s.d = d
   s.open = function(role, w, h, id)
@@ -315,5 +317,198 @@ return function(test, equal)
     equal(#s.m.sent - before, 3, "every wall gets the new thumbnail at once")
     assert(s.frame(11).rev > rev, "the new frame has a new rev")
     assert(s.text(11):find("Q", 1, true), "the frame shows the new thumbnail")
+  end)
+
+  -- B11-U (D11): the first sent frame of a new pocket takeover carries one tone.
+  local function copy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = copy(x) end
+    return out
+  end
+  local BROKEN = { kind = "ore", text = "ore #2 broken", reason = "broken", point = { id = "2", kind = "ore", x = 20, y = 65, z = 20 } }
+  local function toned(opts, values)
+    opts = opts or {}
+    opts.encode = copy
+    if opts.health == nil then opts.health = { started = 7000, config = { pocketTone = true } } end
+    if opts.facts == nil then opts.facts = { ready = true, quiet = false, keys = { "disk", "drop/2", "lost/5" } } end
+    local s = boot(values or {}, opts)
+    s.open("pocket", 26, 20)
+    s.at(0)
+    s.sounds = function(id)
+      local list = {}
+      for _, m in ipairs(s.m.sent) do
+        if m.id == (id or 2) and m.payload.sound then list[#list + 1] = m.payload.sound end
+      end
+      return list
+    end
+    return s
+  end
+  local function raise(s, key, value, at)
+    s.values[key] = value
+    s.at(at or 1000)
+  end
+
+  test("B11-U: a pocket takeover sounds once through countdown frames, heartbeats and redraws", function()
+    local s = toned()
+    raise(s, "drops.alert", BROKEN)
+    assert(s.takeover(), "the drop alert takes over")
+    local first = s.sounds()
+    equal(#first, 1)
+    local tone = first[1]
+    equal(tone.key, "drop/2")
+    equal({ v = tone.v, instrument = tone.instrument, volume = tone.volume, pitch = tone.pitch },
+      { v = 1, instrument = "pling", volume = 0.5, pitch = 12 })
+    assert(tone.id:match("^1%-7000%-%d+$"), tone.id)
+    assert(not tone.id:lower():find("broken", 1, true), "the id holds no alert text")
+    equal(s.m.sent[#s.m.sent].payload.sound, tone, "the takeover frame carries it")
+    for t = 1500, 40000, 500 do s.at(t) end
+    s.d.handlers.hello({ from = 2, body = { w = 26, h = 19 } })
+    s.at(41000)
+    s.d.handlers["view.sub"]({ from = 2 })
+    s.at(42000)
+    equal(#s.sounds(), 1, "countdown, heartbeat, resize and resubscribe frames stay silent")
+  end)
+
+  test("B11-U: turtle and disk subjects map to their exact health keys; no match is silent", function()
+    local s = toned()
+    raise(s, "mine.alert", { id = 5, text = "T5 needs pickaxe" })
+    equal(#s.sounds(), 1)
+    equal(s.sounds()[1].key, "lost/5")
+    raise(s, "disk.alert", { text = "Disk 85% full" }, 32000)
+    assert(s.takeover())
+    equal(#s.sounds(), 2)
+    equal(s.sounds()[2].key, "disk")
+    raise(s, "lumber.alert", { id = 9, text = "T9 saplings" }, 63000)
+    assert(s.takeover(), "the unmatched alert still takes over")
+    raise(s, "shop.alert", { text = "out of sand" }, 94000)
+    assert(s.takeover())
+    equal(#s.sounds(), 2, "a turtle without a stop-level key and a subjectless alert stay silent")
+    assert(s.sounds()[1].id ~= s.sounds()[2].id, "each occurrence has its own id")
+  end)
+
+  test("B11-U: pocketTone off or missing, quiet hours and an unready snapshot are silent", function()
+    local cases = {
+      { health = { started = 1, config = { pocketTone = false } } },
+      { health = { started = 1, config = { alarm = true } } },
+      { health = false },
+      { facts = { ready = true, quiet = true, keys = { "drop/2" } } },
+      { facts = { ready = false, quiet = false, keys = { "drop/2" } } },
+      { facts = { ready = true, quiet = false, keys = { "drop/3", "fuel/1" } } },
+    }
+    -- The unready and unmatched snapshots stay unready and unmatched for the whole 10 s.
+    for i, opts in ipairs(cases) do
+      if opts.health == false then opts.health = {} end
+      local s = toned(opts)
+      raise(s, "drops.alert", BROKEN)
+      assert(s.takeover(), "case " .. i .. " still takes over")
+      for t = 1500, 12000, 500 do s.at(t) end
+      equal(#s.sounds(), 0, "case " .. i)
+    end
+  end)
+
+  test("B11-U: a key health gathers within 10 s still sounds once on the pocket, never on a wall", function()
+    local s = toned()
+    s.open("status", 39, 13, 3)
+    s.at(500)
+    local facts = { ready = true, quiet = false, keys = {} }
+    s.m.env.SO.mods.health.soundFacts = function() return facts end
+    raise(s, "drops.alert", BROKEN)
+    assert(s.takeover(2) and s.takeover(3))
+    s.at(4000)
+    equal(#s.sounds(2), 0)
+    facts.keys = { "drop/2" }
+    s.at(6000)
+    equal(#s.sounds(2), 1, "the pending tone rides the next frame after health gathers")
+    equal(s.sounds(2)[1].key, "drop/2")
+    for t = 6500, 40000, 500 do s.at(t) end
+    equal(#s.sounds(2), 1)
+    equal(#s.sounds(3), 0, "a wall never sounds")
+  end)
+
+  test("B11-U: a key gathered after 10 s, or after the next takeover, is silent and opens nothing", function()
+    local s = toned()
+    local facts = { ready = true, quiet = false, keys = {} }
+    s.m.env.SO.mods.health.soundFacts = function() return facts end
+    raise(s, "drops.alert", BROKEN)
+    for t = 1500, 11000, 500 do s.at(t) end
+    facts.keys = { "drop/2" }
+    for t = 11500, 30000, 500 do s.at(t) end
+    equal(#s.sounds(), 0)
+    equal(s.takeover(), nil, "gaining the key reopened nothing")
+    facts.keys = {}
+    raise(s, "mine.alert", { id = 5, text = "T5 lost" }, 31500)
+    assert(s.takeover())
+    raise(s, "lumber.alert", { id = 6, text = "T6 lost" }, 62000)
+    facts.keys = { "lost/5" }
+    for t = 62500, 65000, 500 do s.at(t) end
+    equal(#s.sounds(), 0, "the replaced takeover's tone is gone")
+  end)
+
+  test("B11-U: quiet hours are checked when the frame goes out, not from health's last tick", function()
+    for _, hours in ipairs({ "now", { startMinute = 10, endMinute = 10 }, { startMinute = 1, endMinute = 2000 }, "x" }) do
+      local s = toned()
+      if hours == "now" then
+        local civil = s.m.env.dofile("so-ui.lua").clock(s.m.env.os.epoch("utc"))
+        local minute = civil.h * 60 + civil.m
+        hours = { startMinute = minute, endMinute = (minute + 1) % 1440 }
+      end
+      s.m.env.SO.health.config.soundQuiet = hours
+      raise(s, "drops.alert", BROKEN)
+      assert(s.takeover())
+      for t = 1500, 12000, 500 do s.at(t) end
+      equal(#s.sounds(), 0, "health still said quiet=false: " .. H.encode(hours))
+    end
+    local s = toned()
+    s.m.env.SO.health.config.soundQuiet = false
+    raise(s, "drops.alert", BROKEN)
+    equal(#s.sounds(), 1, "quiet off sounds")
+  end)
+
+  test("B11-U: a standing alert through a restart takes over silently", function()
+    local s = toned({}, { ["drops.alert"] = BROKEN })
+    s.at(1000)
+    assert(s.takeover(), "the standing alert takes over once")
+    equal(#s.sounds(), 0)
+  end)
+
+  test("B11-U: a failed send keeps the tone for the next sent frame only", function()
+    local s = toned()
+    local send, fail = s.m.env.rednet.send, true
+    s.m.env.rednet.send = function(...)
+      if fail then return false end
+      return send(...)
+    end
+    raise(s, "drops.alert", BROKEN)
+    equal(#s.sounds(), 0)
+    fail = false
+    s.at(1500)
+    equal(#s.sounds(), 1, "the first frame that went out carries it")
+    for t = 2000, 6000, 500 do s.at(t) end
+    equal(#s.sounds(), 1)
+  end)
+
+  test("B11-U: a view.get reply cannot use up the tone; the next push repeats its id once", function()
+    local s = toned()
+    s.values["drops.alert"] = BROKEN
+    s.clock = 1000
+    local replies = {}
+    s.d.handlers["view.get"]({ from = 2, rid = "r1" }, function(kind, body) replies[#replies + 1] = copy(body) end)
+    equal(#replies, 1)
+    local tone = assert(replies[1].sound, "the reply carries the tone")
+    equal(tone.key, "drop/2")
+    for t = 1000, 6000, 500 do s.at(t) end
+    equal(s.sounds(), { tone }, "a lost reply still sounds: the next push carries the same id, once")
+    s.d.handlers["view.get"]({ from = 2, rid = "r2" }, function(kind, body) replies[#replies + 1] = copy(body) end)
+    equal(replies[2].sound, nil, "a later reply is silent")
+  end)
+
+  test("B11-U: a snoozed pocket gets no takeover and no tone", function()
+    local s = toned()
+    raise(s, "a.alert", { text = "alpha" })
+    s.d.handlers.input({ from = 2, body = { id = "snooze", x = 1, y = 1 } })
+    raise(s, "drops.alert", BROKEN, 40000)
+    equal(s.takeover(), nil)
+    equal(#s.sounds(), 0)
   end)
 end

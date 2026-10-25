@@ -1,5 +1,7 @@
+display.lua	C.proto.since(os.epoch("utc"))
 so-mod-daily.lua	local now = os.epoch("utc")
 so-mod-display.lua	local model = { time = U and U.clock(os.epoch("utc")).hm or "",
+so-mod-display.lua	local civil = U.clock(os.epoch("utc"))
 so-mod-lease.lua	expires = os.epoch("utc") + math.max(0, lease.expires - SO.now()), steps = lease.steps,
 so-mod-lease.lua	expires = os.epoch("utc") + math.max(0, lease.expires - now), steps = lease.steps,
 so-mod-panel.lua	P.time = function() return U and U.clock(os.epoch("utc")).hm or "" end
