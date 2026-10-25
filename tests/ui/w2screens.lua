@@ -480,7 +480,7 @@ return function(test,equal)
     local frame=U.turtle.render(26,20,{id='7'},{role='worker',workerPark=true,state='parked'},1000)
     equal(#frame.buttons,1) equal(frame.buttons[1].id,'turtle-back')
   end)
-  test('a blocked lumber worker that is parked still shows PARK: lumber exports no park flag',function()
+  test('a blocked lumber worker that is parked shows RESUME from its confirmed park',function()
     local s=setup(26,20,{workerPark=true}) lumberWorkers(s)
     s.press('turtle:5') s.press('turtle-park')
     local row=s.lumber.turtles['5']
@@ -489,7 +489,6 @@ return function(test,equal)
     assert(ids()['turtle-resume'],'parked lumber worker has no RESUME')
     row.blocked='path blocked' s.display.tick(s.now)
     local b=ids()
-    -- Pinned: the view's state word is the block, so the page cannot tell the park was confirmed.
-    assert(b['turtle-park'] and not b['turtle-resume'] and b['turtle-remove'])
+    assert(b['turtle-resume'] and not b['turtle-park'] and b['turtle-remove'])
   end)
 end

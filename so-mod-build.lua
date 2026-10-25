@@ -6,6 +6,7 @@ local config = SO.store.read and SO.store.read("so-server.cfg") or {}
 S.workerPark = config.workerPark == true
 S.fuelTrips = config.builderFuelTrips == true
 S.solid = config.builderSolid == true
+S.poseSetup = config.jobPoseSetup == true
 local shapes = { floor = true, platform = true, wall = true, walls = true, box = true, solid = S.solid }
 local dimensions = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 }
 local function whole(n)
@@ -70,6 +71,10 @@ local box = SO.store.store("so-data/build/job", function(j)
 end)
 local j = box.value or { dim="minecraft:overworld", cursor=1, running=false, phase="check" }
 j.fuel=normalizeFuel(j.fuel)
+if j.blueprint then
+  S.targets=expand(j.blueprint)
+  if S.targets and #S.targets>0 and j.cursor>#S.targets then j.running,j.complete=false,true end
+end
 if not j.placement and j.intent and j.intent.action=="place" then
   j.placement={cursor=j.cursor,material=j.material}
 end
@@ -87,9 +92,17 @@ local function publish()
   end
 end
 local function save()
+  local announce = j.complete and not j.announced
+  if announce then j.announced=true end
   local ok, err = box.save(j)
-  if not ok then j.running, j.alert = false, "save failed: " .. tostring(err) end
+  if not ok then
+    if announce then j.announced=nil end
+    j.running, j.alert = false, "save failed: " .. tostring(err)
+  end
   publish()
+  if ok and announce and module("state").emit then
+    module("state").emit("build.alert",{text="build complete",done=j.cursor-1,total=#S.targets,id=j.turtle and j.turtle.id})
+  end
   return ok
 end
 local function alert(text, blocked)
@@ -302,7 +315,7 @@ local function budget()
 end
 local function advance()
   j.cursor, j.phase = j.cursor+1, "check"
-  if j.cursor > #S.targets then j.running, j.alert = false, nil end
+  if j.cursor > #S.targets then j.running, j.alert, j.blocked, j.complete = false, nil, nil, true end
 end
 local function reconcile(last)
   local pending=j.placement
@@ -416,6 +429,21 @@ local function input(ev)
   local session = ev.session or S.view
   if text == "setup" or text == "tab:setup" then session.buildSetup=true return end
   if text == "build-back" or text == "tab:job" then session.buildSetup=false return end
+  if text == "from-here" or text == "to-here" or text == "home-here" then
+    if not S.poseSetup then return end
+    local row = j.turtle
+    local stat = row and module("lease").status and module("lease").status(row.id)
+    local p = row and row.pose
+    if not p or row.forgotten or not SO.pair or not SO.pair.key(row.id) or S.recover
+      or not stat or stat.open or stat.lost or stat.uncertain or j.running or S.pending then alert("paired pose unavailable") return end
+    if p.dim ~= j.dim or not whole(p.x) or not whole(p.y) or not whole(p.z)
+      or not whole(p.facing) or p.facing<0 or p.facing>3 then alert("paired pose unavailable") return end
+    if text == "home-here" then j.home=SO.store.copy(p) save() return end
+    if text == "from-here" then session.buildCorner=SO.store.copy(p) return end
+    local first = session.buildCorner
+    if not first or first.dim ~= p.dim or p.dim ~= j.dim then alert("set first corner") return end
+    text=table.concat({"area",first.x,first.y-1,first.z,p.x,p.y-1,p.z}," ")
+  end
   if text == "shape-next" then
     local order=S.solid and {"floor","walls","box","solid"} or {"floor","walls","box"}
     local nextShape={floor=2,platform=2,wall=3,walls=3,box=S.solid and 4 or 1,solid=1}
@@ -452,7 +480,7 @@ local function input(ev)
     if not j.blueprint or not j.turtle or not j.material then alert("configure area, material, turtle") return end
     S.targets, err = expand(j.blueprint)
     if not S.targets then alert(err) return end
-    if j.cursor > #S.targets then alert("build complete") return end
+    if j.cursor > #S.targets then j.running=false save() return end
     local missing=P.missing(readiness())
     if #missing>0 then alert(table.concat(missing,"; ")) return end
     j.running,j.blocked,j.alert,j.phase=true,nil,nil,"check"
@@ -535,6 +563,7 @@ local function input(ev)
     end
     return
   else alert("invalid command") return end
+  if w[1]=="area" or w[1]=="shape" or w[1]=="import" then j.complete,j.announced=nil,nil end
   j.blocked,j.alert=nil,nil
   save()
 end
@@ -546,7 +575,7 @@ local function render(w,h,session)
   session=session or S.view
   local C=U.canvas(w,h)
   local gap,lw=h>=16 and 1 or 0,math.min(w-2,40)
-  local state=j.blocked or (j.running and "running" or "stopped")
+  local state=j.blocked or (j.complete and "COMPLETE" or j.running and "running" or "stopped")
   local tone=U.tone(state)
   if j.blocked and tone~="e" then tone="1" end
   local shape=({platform="floor",wall="walls"})[j.shape] or j.shape or "floor"
@@ -564,12 +593,15 @@ local function render(w,h,session)
       local x=cx
       for _,name in ipairs(S.solid and {"floor","walls","box","solid"} or {"floor","walls","box"}) do x=C.chip(x,y,name,"shape " .. name,name==shape and "plain" or "off")+1 end
     else C.chip(cx,y,shape,"shape-next") end
-    local rows={{"from",from},{"to",to},{"material",stuff},{"turtle",t and ("#" .. t.id)},{"home",j.home and U.turtle.pose(j.home)}}
+    local draft=session.buildCorner
+    local rows={{"from",draft and (draft.x..","..(draft.y-1)..","..draft.z) or from,"from-here"},
+      {"to",to,"to-here"},{"material",stuff},{"turtle",t and ("#" .. t.id)},{"home",j.home and U.turtle.pose(j.home),"home-here"}}
     for i,r in ipairs(rows) do
       local ry=y+i*(h>=16 and 2 or 1)
       if ry<h-gap then
         C.put(2,ry,r[1],"8")
-        C.put(cx,ry,(r[2] or "-"):sub(1,math.max(0,w-cx)),r[2] and "0" or "8")
+        if S.poseSetup and r[3] then C.chip(cx,ry,(r[2] or "-"):sub(1,math.max(1,w-cx-3)),r[3],r[2] and "plain" or "off")
+        else C.put(cx,ry,(r[2] or "-"):sub(1,math.max(0,w-cx)),r[2] and "0" or "8") end
       end
     end
   else
@@ -578,6 +610,7 @@ local function render(w,h,session)
     local frac=done .. "/" .. total
     C.section(2,y,lw,shape:upper(),state,tone)
     C.progress(2,y+1,math.max(1,lw-1-#frac),done,total)
+    if j.complete then C.put(2+lw-#frac,y+1,frac,"0") end
     local facts={{"material",stuff},{"turtle",t and ("#" .. t.id)},{"position",t and U.turtle.pose(t.pose)},
       {"fuel",j.fuel and tostring(j.fuel)},{"from",from},{"to",to}}
     for i,f in ipairs(facts) do
@@ -589,6 +622,7 @@ local function render(w,h,session)
   return C.frame()
 end
 local function tick()
+  if j.complete and not j.announced and not save() then return end
   if S.pauseCleared then
     if not save() then return end
     S.pauseCleared=nil
@@ -656,7 +690,7 @@ local function tick()
   if not j.running or j.blocked then return end
   S.targets=S.targets or expand(j.blueprint)
   local target=S.targets and S.targets[j.cursor]
-  if not target then j.running=false save() return end
+  if not target then j.running,j.complete=false,true save() return end
   if j.service then
     local service=j.service
     if service.stage == "travel" then
@@ -696,4 +730,12 @@ local function forget(id)
   S.pending, S.recover = nil, true
   return save()
 end
-return {name="build",forget=forget,assigned=function(id) return j.turtle and not j.turtle.forgotten and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,budget=budget,expand=expand,import=import,dugProtection=protect}
+local function turtleView()
+  if not j.turtle or j.turtle.forgotten then return {} end
+  local totals=budget()
+  return {[tostring(j.turtle.id)]={role="build",pose=SO.store.copy(j.turtle.pose),anchor=SO.store.copy(j.turtle.anchor),
+    state=j.turtle.state or j.blocked or (j.complete and "complete" or j.running and "running" or "stopped"),
+    paused=j.turtle.paused,parkConfirmed=j.turtle.parkConfirmed,inv=SO.store.copy(j.inv or {}),fuel=j.fuel,
+    done=totals.total-totals.remaining,total=totals.total,error=j.alert,step=S.pending and S.pending.action}}
+end
+return {name="build",forget=forget,assigned=function(id) return j.turtle and not j.turtle.forgotten and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,budget=budget,expand=expand,import=import,dugProtection=protect,turtleView=turtleView}

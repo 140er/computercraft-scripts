@@ -3,6 +3,7 @@ local L = dofile("so-lumber-plan.lua")
 local S = { wired = false, callback = false }
 S.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
 S.scanNow = SO.store.read and (SO.store.read("so-server.cfg") or {}).lumberScan == true
+S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
 
 S.possible = function(previous, flight)
   local out, seen = {}, {}
@@ -187,7 +188,7 @@ S.readiness = function()
   end
   paired, fueled = #rows > 0 and paired, #rows > 0 and fueled
   checks[#checks+1]={ok=paired, text=paired and "paired turtle ready" or "paired turtle missing"}
-  checks[#checks+1]={ok=fueled,text=fueled and (#rows == 1 and ("fuel "..rows[1].fuel) or "fuel ready") or "fuel missing"}
+  if #rows > 0 then checks[#checks+1]={ok=fueled,text=fueled and (#rows == 1 and ("fuel "..rows[1].fuel) or "fuel ready") or "fuel missing"} end
   return checks
 end
 S.count = function(predicate)
@@ -608,6 +609,11 @@ S.noteChest = function(point, result)
   if point and point.id and type(drops.note) == "function" then drops.note(point.id, name) end
   return type(name) == "string" and name ~= ""
 end
+S.usable = function(point)
+  local drops = S.module("drops")
+  if type(drops.usable) == "function" then return drops.usable(point.id) end
+  return not point.broken, "broken"
+end
 
 S.service = function(kind, resume)
   local j = S.row
@@ -616,9 +622,11 @@ S.service = function(kind, resume)
     point = S.job.saplings
     if point then
       local saved = S.saplingPoint(point)
-      if not saved or saved.broken then
+      local usable, reason
+      if saved then usable, reason = S.usable(saved) end
+      if not saved or not usable then
         j.blocked = "hold"
-        S.chestAlert("saplings", saved and "broken" or "unavailable", saved or point)
+        S.chestAlert("saplings", reason or "unavailable", saved or point)
         return false
       end
       point = { id = saved.id, dim = S.job.dim, x = point.x, y = point.y, z = point.z, side = point.side }
@@ -937,12 +945,20 @@ S.workService = function()
   if not S.queueService() then return end
   if service.kind == "saplings" and not service.point.id then
     local saved = S.saplingPoint(service.point)
-    if not saved or saved.broken then
+    if not saved then
       j.blocked = "hold"
-      S.chestAlert("saplings", saved and "broken" or "unavailable", saved or service.point)
+      S.chestAlert("saplings", "unavailable", service.point)
       return
     end
     service.point.id = saved.id
+  end
+  if service.kind == "saplings" and service.stage ~= "return" then
+    local usable, reason = S.usable(service.point)
+    if not usable then
+      j.blocked = "hold"
+      S.chestAlert("saplings",reason,service.point)
+      return
+    end
   end
   if service.kind == "fuel" and service.stage ~= "travel" and service.stage ~= "return" then
     local rejected = S.rememberFuelPickup()
@@ -1115,6 +1131,24 @@ S.input = function(ev)
     if id == "lumber-back" or id == "tab:overview" or id == "tab:main" then v.page = "main" return end
     if id == "setup-next" then v.offset = (v.offset or 0) + 1 return end
     if id == "turtles-next" then v.workers = (v.workers or 0) + 1 return end
+    if S.poseSetup and id == "pose-next" then S.screen.pose(v,true) return end
+    if S.poseSetup and (id == "from-here" or id == "to-here") then
+      local row = S.screen.pose(v)
+      local lease = S.module("lease")
+      local status = row and lease.status and lease.status(row.turtle.id)
+      local p = row and row.turtle.pose
+      if not p or row.recover or not status or status.open or status.lost or status.uncertain
+        or S.job.running or S.anyPending() then S.alert("paired pose unavailable") return end
+      for _, key in ipairs({"x","y","z"}) do
+        local n=p[key]
+        if type(n) ~= "number" or n%1 ~= 0 or math.abs(n)>=30000000 then S.alert("paired pose unavailable") return end
+      end
+      if id == "from-here" then v.corner=SO.store.copy(p) return end
+      local first = v.corner
+      if not first or first.dim ~= p.dim or p.dim ~= S.job.dim then S.alert("set first corner") return end
+      S.input({text=table.concat({"area",first.x,first.z,p.x,p.z,first.y-1}," ")})
+      return
+    end
     if type(id) == "string" and id:match("^here:%d+$") then S.input({ text = "add " .. id:match("%d+$") }) return end
     if id ~= "start" and id ~= "stop" and id ~= "scan" then return end
     text = id
@@ -1311,6 +1345,17 @@ A.view = function(session)
   if type(session) ~= "table" then return A end
   session.lumber = session.lumber or { page = "main" }
   return session.lumber
+end
+A.pose = function(v, cycle)
+  local rows = {}
+  for _, row in ipairs(S.rows()) do
+    if not row.turtle.forgotten and SO.pair and SO.pair.key(row.turtle.id) then rows[#rows+1]=row end
+  end
+  local index = cycle and #rows > 1 and 2 or 1
+  for i, row in ipairs(rows) do if row.turtle.id == v.poseId then index=cycle and i % #rows + 1 or i break end end
+  local row=rows[index]
+  v.poseId=row and row.turtle.id
+  return row
 end
 A.dims = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 }
 A.near = function(area, p)
@@ -1580,6 +1625,10 @@ A.setup = function(C, m)
     { "ground", { m.ground and tostring(m.ground) or "-" } },
     { "saplings", { c and (A.at(c) .. " " .. tostring(c.side)) or "-" } },
     { #ts > 1 and "turtles" or "turtle", #ts > 0 and ts or { "-" } } }
+  if S.poseSetup then
+    rows[1][3]="corners"
+    rows[4] = {"turtle",{m.poseId and ("#"..m.poseId) or "-"},"pose-next"}
+  end
   -- Narrow screens put each value on its own line under its label.
   local narrow = w < 36 and h >= 14
   local function values(y, stop)
@@ -1591,7 +1640,16 @@ A.setup = function(C, m)
       for i, v in ipairs(row[2]) do
         local vy = y + i - (narrow and 0 or 1)
         if vy > stop then break end
-        if narrow then C.put(4, vy, v:sub(1, w - 4), v ~= "-" and "0" or "8")
+        local x = narrow and 4 or vx
+        if row[3] == "corners" then
+          local right=math.min(w-1,rx-3)
+          local width=math.max(1,math.floor((right-x-5)/2))
+          local first=m.corner and (m.corner.x..","..m.corner.z) or a and (a.x1..","..a.z1) or "from"
+          local last=a and (a.x2..","..a.z2) or "to"
+          local nx=C.chip(x,vy,first:sub(1,width),"from-here",m.corner and "on" or "plain")+1
+          C.chip(nx,vy,last:sub(1,width),"to-here")
+        elseif row[3] then C.chip(x,vy,v,row[3])
+        elseif narrow then C.put(4, vy, v:sub(1, w - 4), v ~= "-" and "0" or "8")
         else C.put(vx, vy, v:sub(1, math.min(w - 1, rx - 3) - vx + 1), v ~= "-" and "0" or "8") end
         last = vy
       end
@@ -1649,7 +1707,7 @@ S.render = function(w, h, session)
   if type(session) == "table" and session.id == nil and w == 120 and h == 18 then return A.probe(A.gather()) end
   local v, m = A.view(session), A.gather()
   m.workerPage, m.setupPage = v.workers, v.offset
-  if v.page == "setup" then A.setupFacts(m) end
+  if v.page == "setup" then A.pose(v) m.poseId,m.corner=v.poseId,v.corner A.setupFacts(m) end
   return A.layout(m, w, h, v.page == "setup")
 end
 -- Job facts for other screens (the pocket's JOBS page); pure reads.
@@ -1701,6 +1759,13 @@ S.tickRow = function(row, now)
     local shop = S.module("shop")
     local policy = shop.fuelConfig and shop.fuelConfig()
     if policy and policy.auto and j.service and j.service.kind == "fuel" then
+      local usable, reason = S.usable(j.service.point)
+      if not usable then
+        j.fuelRetry=now+60000
+        S.chestAlert("fuel",reason,j.service.point)
+        S.save()
+        return
+      end
       j.blocked, j.alert, j.fuelRetry = nil, nil, nil
       if j.service.stage ~= "returnFuelItem" then j.service.stage = "check" end
       S.emit("lumber.alert",false)
@@ -1801,7 +1866,8 @@ S.turtleView = function()
     local row = S.job.turtles[tostring(worker.id)]
     local action = row.pending and row.pending.action
     out[tostring(worker.id)] = { role="lumber", pose=SO.store.copy(row.turtle.pose),
-      anchor=SO.store.copy(row.turtle.anchor), state=worker.state, fuel=row.fuel,
+      anchor=SO.store.copy(row.turtle.anchor), state=row.paused and row.parkConfirmed and "parked" or worker.state, fuel=row.fuel,
+      parkConfirmed=row.parkConfirmed, paused=row.paused,
       inv=SO.store.copy(row.inv or {}), done=model.planted, total=model.total,
       error=row.alert or S.admission or S.job.alert, step=type(action)=="table" and action.kind or action }
   end

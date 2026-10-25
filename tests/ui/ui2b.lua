@@ -208,7 +208,7 @@ end
     for _,text in ipairs({'','wat','start extra','stop extra','area 0','saplings 0'}) do cmd(text,'invalid command') end
     cmd('add 2','turtle already assigned')
     for _,missing in ipairs({'area','turtles','ground'}) do
-      local bad=job();bad[missing]=missing=="turtles" and {} or nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,missing=='area' and 'area not set' or missing=='ground' and 'ground not set' or 'paired turtle missing; fuel missing')
+      local bad=job();bad[missing]=missing=="turtles" and {} or nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,missing=='area' and 'area not set' or missing=='ground' and 'ground not set' or 'paired turtle missing')
     end
   end)
   test('UI2b gather keeps missing timers and daily counters stale',function()
