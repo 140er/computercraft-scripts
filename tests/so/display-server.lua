@@ -48,8 +48,9 @@ local function boot(opts)
       get = function(key) if key == "machines" then return s.machines end end },
       lease = { status = function(id) return { lost = s.lost[id] } end } },
     store = m.env.dofile("so-store.lua"), pair = { key = function() return "key" end },
-    proto = { ser = H.encode, build = function(_, _, body) return body end, encode = function(body) return body end },
+    proto = opts.proto or { ser = H.encode, build = function(_, _, body) return body end, encode = function(body) return body end },
     error = function() end }
+  if opts.cfg then m.files["so-server.cfg"] = H.encode(opts.cfg) end
   if opts.monitor then
     m.env.peripheral = { find = function(kind) if kind == "monitor" then return opts.monitor.target end end,
       getName = function() return "top" end }
@@ -306,5 +307,342 @@ return function(test, equal)
     end
     equal(count, 3)
     assert(os.execute("rm -r '" .. dir .. "'"))
+  end)
+
+  -- B7-U (D7): frame acknowledgements behind so-server.cfg displayAck.
+  local function capable(s, id, w, h)
+    s.d.handlers.hello({ from = id, body = { w = w or 39, h = h or 13, capabilities = { frameAck = 1 } } })
+    assert(s.d.assign(id, "status"))
+    s.d.handlers["view.sub"]({ from = id })
+  end
+  local function ack(s, id, token, extra)
+    local body = { v = 1, token = token }
+    for k, v in pairs(extra or {}) do body[k] = v end
+    s.d.handlers["view.ack"]({ from = id, body = body })
+  end
+  -- The R list rows by id, as the terminal's role mode draws them.
+  local function roles(s)
+    s.m.env.SO.terminal = { mode = "role", log = {} }
+    s.m.env.term = screen(51, 19).target
+    s.m.env.term.isColor = function() return true end
+    s.d.drawTerminal(s.clock)
+    local rows = {}
+    for _, row in ipairs(s.m.env.SO.terminal.displays) do rows[row.id] = row end
+    return rows
+  end
+  local function private(s) return dofile("tests/ui/scene.lua").private(s.d.handlers.hello, "D") end
+
+  test("B7-U: displayAck off: a frameAck display gets no challenge and freshness stays send-based", function()
+    local s = boot()
+    capable(s, 2)
+    s.at(1000)
+    equal(s.frame(2).ack, nil, "no challenge with the flag off")
+    ack(s, 2, "x")
+    for ms = 2000, 30000, 1000 do s.at(ms) end
+    equal(s.frame(2).ack, nil)
+    equal(s.d.statusModel().tiles[7].sub, "all fresh", "frames still sent keep it fresh")
+    equal(roles(s)[2].state, nil, "no ACK column")
+    equal(s.d.statusModel().terminal.stale, nil)
+  end)
+
+  test("B7-U: displayAck on: an old client gets no challenge and reads unverified", function()
+    local s = boot({ cfg = { displayAck = true } })
+    s.open("status", 39, 13, 2)
+    s.at(1000)
+    equal(s.frame(2).ack, nil, "no capability, no challenge")
+    for ms = 2000, 30000, 1000 do s.at(ms) end
+    equal(s.d.statusModel().tiles[7].sub, "1 unverified")
+    equal(roles(s)[2].state, "unverified")
+    equal(roles(s)[2].stale, nil)
+  end)
+
+  test("B7-U: waiting until the first ACK, fresh after it, stale 10 s after the last ACK", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    local first = s.frame(2).ack
+    equal(first.v, 1)
+    assert(type(first.token) == "string" and #first.token >= 1 and #first.token <= 64, tostring(first.token))
+    s.at(1000)
+    equal(roles(s)[2].state, "waiting")
+    ack(s, 2, first.token)
+    s.at(2500)
+    equal(roles(s)[2].state, "1s")
+    equal(roles(s)[2].stale, false)
+    -- Heartbeats repeat the unchanged picture with a new token each time; none is acknowledged.
+    local seen = { [first.token] = true }
+    for ms = 2000, 10000, 1000 do
+      s.at(ms)
+      local token = s.frame(2).ack.token
+      if not seen[token] then seen[token] = ms end
+    end
+    local count = 0
+    for _ in pairs(seen) do count = count + 1 end
+    assert(count >= 3, "each heartbeat carries a fresh token")
+    s.at(10999)
+    equal(s.d.statusModel().tiles[7].sub, "all fresh")
+    -- Hello and input never refresh heard.
+    capable(s, 2)
+    s.d.handlers.input({ from = 2, body = { id = "x", x = 1, y = 1 } })
+    s.at(11000)
+    equal(s.d.statusModel().tiles[7].sub, "#2 stale")
+    equal(s.d.statusModel().terminal.stale, 1)
+    equal(roles(s)[2].state, "stale 10s")
+    equal(roles(s)[2].stale, true)
+    equal(s.d.statusModel().displays[1].ago, 10000)
+    ack(s, 2, s.frame(2).ack.token)
+    s.at(11100)
+    equal(s.d.statusModel().tiles[7].sub, "all fresh", "a later ACK makes it fresh again")
+  end)
+
+  test("B7-U: a display that never acknowledges goes stale 10 s after its hello", function()
+    local s = boot({ cfg = { displayAck = true } })
+    s.clock = 500
+    capable(s, 2)
+    s.at(10499)
+    equal(roles(s)[2].state, "waiting")
+    s.at(10500)
+    equal(roles(s)[2].state, "stale 10s")
+    equal(s.d.statusModel().tiles[7].sub, "#2 stale")
+  end)
+
+  test("B7-U: forged, foreign, malformed, expired and repeated ACKs are ignored", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    capable(s, 3)
+    local token = s.frame(2).ack.token
+    s.clock = 1000
+    ack(s, 3, token)
+    ack(s, 2, "deadbeef")
+    ack(s, 2, token, { v = 2 })
+    ack(s, 2, token, { extra = 1 })
+    ack(s, 2, "")
+    ack(s, 2, string.rep("a", 65))
+    ack(s, 2, nil)
+    s.d.handlers["view.ack"]({ from = 2, body = { token = token } })
+    s.d.handlers["view.ack"]({ from = 4, body = { v = 1, token = token } })
+    s.at(2000)
+    equal(roles(s)[2].state, "waiting", "no bad ACK sets heard")
+    equal(roles(s)[3].state, "waiting", "a foreign token does not count for its sender")
+    ack(s, 2, token)
+    s.at(2000)
+    equal(roles(s)[2].state, "0s")
+    s.clock = 9000
+    ack(s, 2, token)
+    s.at(12000)
+    equal(roles(s)[2].state, "stale 10s", "a repeated token is spent")
+    -- A token is good for less than 10 s.
+    s.clock = 20000
+    s.d.handlers["view.sub"]({ from = 2 })
+    local late = s.frame(2).ack.token
+    s.clock = 30000
+    ack(s, 2, late)
+    s.at(30000)
+    equal(roles(s)[2].state, "stale 28s", "an expired token is ignored")
+    s.d.handlers["view.sub"]({ from = 2 })
+    local good = s.frame(2).ack.token
+    s.clock = 39999
+    ack(s, 2, good)
+    s.at(39999)
+    equal(roles(s)[2].state, "0s")
+  end)
+
+  test("B7-U: at most four tokens wait, and a failed send keeps none", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    local D = private(s)
+    local tokens = { s.frame(2).ack.token }
+    for i = 2, 5 do
+      s.d.handlers["view.sub"]({ from = 2 })
+      tokens[i] = s.frame(2).ack.token
+      assert(tokens[i] ~= tokens[i - 1], "each frame has its own token")
+    end
+    equal(#D.sessions[2].ack.pending, 4)
+    ack(s, 2, tokens[1])
+    equal(D.sessions[2].ack.heard, nil, "the oldest gave way to the fifth")
+    local send = s.m.env.rednet.send
+    s.m.env.rednet.send = function() return false end
+    s.d.handlers["view.sub"]({ from = 2 })
+    s.m.env.rednet.send = send
+    equal(#D.sessions[2].ack.pending, 4, "an unsent token is not kept")
+    equal(D.sessions[2].ack.pending[4].token, tokens[5])
+    s.clock = 100
+    ack(s, 2, tokens[2])
+    equal(D.sessions[2].ack.heard, 100)
+    equal(#D.sessions[2].ack.pending, 3)
+  end)
+
+  test("B7-U: a restart or forget drops the ACK state", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    ack(s, 2, s.frame(2).ack.token)
+    s.d.forget(2)
+    s.at(1000)
+    equal(roles(s)[2].state, nil, "only the saved role is left")
+    local again = boot({ cfg = { displayAck = true } })
+    again.open("status", 39, 13, 2)
+    equal(roles(again)[2].state, "unverified")
+  end)
+
+  -- A proto whose envelope fails over a byte limit, with the frame's rid and body kept.
+  local function sized(limit)
+    return { ser = H.encode, build = function(_, t, body, rid)
+      return { v = 1, t = t, rid = rid or string.rep("1", 20), from = 1, at = 1700000000000, mac = string.rep("0", 64), body = body }
+    end, encode = function(msg) if #H.encode(msg) <= limit then return msg end end }
+  end
+  local function big(s)
+    local rows = {}
+    for n = 1, 13 do rows[n] = { text = string.rep(string.char(64 + n), 39) } end
+    s.d.screen("generic", function() return { rows = rows, buttons = {} } end, function() end)
+  end
+
+  test("B7-U: the challenge has room kept in the envelope, so it sheds nothing, on view.sub and view.get", function()
+    local limit = 1100
+    local plain = boot({ proto = sized(limit) })
+    big(plain)
+    plain.open("generic", 39, 13, 2)
+    local s = boot({ cfg = { displayAck = true }, proto = sized(limit) })
+    big(s)
+    s.open("generic", 39, 13, 5)
+    s.d.handlers.hello({ from = 2, body = { w = 39, h = 13, capabilities = { frameAck = 1 } } })
+    assert(s.d.assign(2, "generic"))
+    s.d.handlers["view.sub"]({ from = 2 })
+    local old, new = s.frame(5).body, s.frame(2).body
+    equal(old.ack, nil)
+    assert(new.ack and new.ack.token, "the frame carries its challenge")
+    equal(#new.rows, #old.rows, "a challenge sheds no row beyond an old client's frame")
+    assert(#new.rows < 13, "the picture really was over the limit")
+    assert(#plain.frame(2).body.rows >= #new.rows, "displayAck off fits as before")
+    local room = { v = 1, t = "view.frame", rid = string.rep("0", 64), from = 1, at = 1700000000000,
+      mac = string.rep("0", 64), body = new }
+    new.ack = { v = 1, token = string.rep("0", 64) }
+    assert(#H.encode(room) <= limit, "the largest challenge fits too")
+    -- view.get: the challenge goes in before reply signs under the request's rid.
+    local replied
+    s.d.handlers["view.get"]({ from = 2, rid = "2-1-1" }, function(t, body)
+      replied = sized(limit).encode(sized(limit).build("key", t, body, "2-1-1"))
+    end)
+    assert(replied, "the view.get frame fits")
+    assert(replied.body.ack.token ~= "2-1-1", "the token is not the request rid")
+    equal(#replied.body.rows, #old.rows)
+    local D = private(s)
+    equal(D.sessions[2].ack.pending[#D.sessions[2].ack.pending].token, replied.body.ack.token)
+    s.clock = 10
+    ack(s, 2, replied.body.ack.token)
+    equal(D.sessions[2].ack.heard, 10, "the view.get token is accepted once")
+  end)
+
+  test("B7-U: the server monitor's last good draw is its freshness", function()
+    local mon = screen(39, 13)
+    local s = boot({ cfg = { displayAck = true }, monitor = mon })
+    s.at(1000)
+    s.at(3500)
+    equal(roles(s)[1].state, "0s")
+  end)
+
+  test("B7-U: the R list and the stale leader match their twins", function()
+    local frame = boot().d.terminal({ tiles = {} }, { id = 1, uptime = "up 3h12", mode = "role", input = "", notice = "",
+      displays = { { id = 1, size = "57x24", role = "status", label = "server", state = "0s", stale = false },
+        { id = 2, size = "26x20", role = "pocket", state = "waiting", stale = false },
+        { id = 5, size = "57x24", role = "mining", label = "mine entrance west", state = "4s", stale = false },
+        { id = 6, size = "57x24", role = "unassigned", state = "unverified" },
+        { id = 7, size = "15x10", role = "status", label = "hall", state = "stale 12s", stale = true },
+        { id = 9, size = "-", role = "drops" } } }, 51, 19)
+    match("tests/ui/fixtures/rolesack-T.txt", frame)
+    local S = dofile("tests/ui/scene.lua")
+    local sc = S.new()
+    local log = sc.env.SO.terminal.log
+    for i = #log, 1, -1 do log[i] = nil end
+    for i, line in ipairs(sc.sys.log) do log[i] = line end
+    local term = R.capture(51, 19)
+    sc.env.term = term
+    sc.D.model = sc.D.gather()
+    sc.D.model.terminal.stale = 1
+    sc.d.drawTerminal(sc.now)
+    equal(R.diff(R.load("tests/ui/fixtures/serverstale-T.txt"), term), {})
+  end)
+
+  test("B7-U: a view.get reply that may not have gone out never pushes out a sent token", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    local D = private(s)
+    local sent = { s.frame(2).ack.token }
+    for i = 2, 4 do s.d.handlers["view.sub"]({ from = 2 }); sent[i] = s.frame(2).ack.token end
+    -- The production reply returns nothing whether or not the frame went out.
+    local lost
+    s.d.handlers["view.get"]({ from = 2, rid = "2-9-1" }, function(_, body) lost = body.ack.token end)
+    assert(lost, "view.get still carries a challenge")
+    equal(#D.sessions[2].ack.pending, 4)
+    for i = 1, 4 do equal(D.sessions[2].ack.pending[i].token, sent[i]) end
+    ack(s, 2, sent[1])
+    equal(D.sessions[2].ack.heard, 0, "the oldest sent token still counts")
+    -- Below the limit a view.get token waits provisionally; the next sent frame pushes it out first.
+    s.d.handlers["view.get"]({ from = 2, rid = "2-9-2" }, function(_, body) lost = body.ack.token end)
+    s.d.handlers["view.sub"]({ from = 2 })
+    local tokens = {}
+    for _, p in ipairs(D.sessions[2].ack.pending) do tokens[p.token] = true end
+    assert(not tokens[lost], "the provisional token went first")
+    for i = 2, 4 do assert(tokens[sent[i]], "sent token " .. i .. " kept") end
+  end)
+
+  test("B7-U: a near-limit view.get with an escaped 64-byte rid still fits once signed", function()
+    local rid = string.rep('"', 32) .. string.rep("\\", 32)
+    for limit = 900, 1400, 7 do
+      local s = boot({ cfg = { displayAck = true }, proto = sized(limit) })
+      big(s)
+      s.d.handlers.hello({ from = 2, body = { w = 39, h = 13, capabilities = { frameAck = 1 } } })
+      assert(s.d.assign(2, "generic"))
+      local replied, called
+      s.d.handlers["view.get"]({ from = 2, rid = rid }, function(t, body)
+        called = true
+        replied = sized(limit).encode(sized(limit).build("key", t, body, rid))
+      end)
+      assert(not called or replied, "limit " .. limit .. ": the reply fit the probe but not the envelope")
+      assert(called, "limit " .. limit .. ": no reply")
+    end
+  end)
+
+  test("B7-U: route A rows carry stale, waiting and unverified, and fresh rows their ACK age", function()
+    local s = boot({ cfg = { displayAck = true } })
+    capable(s, 2)
+    capable(s, 3)
+    s.open("status", 39, 13, 4)
+    s.clock = 1000
+    ack(s, 3, s.frame(3).ack.token)
+    s.at(3000)
+    local rows = {}
+    for _, row in ipairs(s.d.statusModel().displays) do rows[row.id] = row end
+    equal({ rows[2].state, rows[3].state, rows[4].state }, { "waiting", nil, "unverified" })
+    equal(rows[3].ago, 0)
+    equal({ s.d.statusModel().staleDisplays, s.d.statusModel().unverifiedDisplays }, { 0, 1 })
+    s.at(11000)
+    rows = {}
+    for _, row in ipairs(s.d.statusModel().displays) do rows[row.id] = row end
+    equal({ rows[2].state, rows[3].state }, { "stale", "stale" })
+    equal(rows[3].ago, 10000)
+    equal(s.d.statusModel().staleDisplays, 2)
+    local off = boot()
+    off.open("status", 39, 13, 4)
+    off.at(1000)
+    equal(off.d.statusModel().displays[1].state, nil, "flag off: no state")
+    equal(off.d.statusModel().staleDisplays, nil)
+  end)
+
+  test("B7-U: the status leaders and the wall list match their twins", function()
+    local U = dofile("so-ui.lua")
+    local sc = dofile("tests/ui/scene.lua").new()
+    local model = sc.D.gather()
+    local copy = {}
+    for k, v in pairs(model) do copy[k] = v end
+    copy.staleDisplays, copy.unverifiedDisplays, copy.thumb = 1, 1, nil
+    local states = { { "stale", 70000 }, { "waiting", 0 }, { "unverified", 0 } }
+    copy.displays = {}
+    for i, d in ipairs(model.displays) do
+      local row = {}
+      for k, v in pairs(d) do row[k] = v end
+      if states[i] then row.state, row.ago = states[i][1], states[i][2] end
+      copy.displays[i] = row
+    end
+    match("tests/ui/fixtures/statusack-M.txt", U.status(copy, 57, 24))
+    match("tests/ui/fixtures/statusack-W.txt", U.status(copy, 100, 38))
   end)
 end

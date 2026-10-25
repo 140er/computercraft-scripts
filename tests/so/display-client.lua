@@ -23,9 +23,10 @@ local function grid(w,h)
   g.text=function() local a={} for n=1,h do a[n]=g.line(n) end return table.concat(a,"\n") end
   return g
 end
-local function setup(w,h,wall,absent,cfg)
+local function setup(w,h,wall,absent,cfg,server)
   local n=H.new()
   local s=n.machine({id=1,modem=true}); install(s,true)
+  if server then s.files["so-server.cfg"]=H.encode(server) end
   if not absent then s.boot("so-server.lua"); n.flush() end
   local c=n.machine({id=2,modem=true,capacity=1000000}); install(c)
   if cfg then c.files["so-display.cfg"]=H.encode(cfg) end
@@ -648,5 +649,76 @@ return function(test,equal)
     assert(shows(t.own,"Pair failed") and shows(t.own,"[X] CANCEL"),t.own.text())
     assert(shows(t.own,"Server 3"),"the swallowed x cancelled: "..t.own.text())
     equal(t.c.files["so-keys"],old)
+  end)
+
+  -- B7-U (D7): the display echoes a frame's challenge only after drawing all of it.
+  local ACK={pos={dim="minecraft:overworld",x=0,y=0,z=0},displayAck=true}
+  local function acks(t)
+    local list={}
+    for _,m in ipairs(t.c.sent) do if m.payload.t=="view.ack" then list[#list+1]=m.payload end end
+    return list
+  end
+  local function challenges(t)
+    local list={}
+    for _,m in ipairs(t.s.sent) do
+      local b=m.payload.body
+      if m.payload.t=="view.frame" and b.ack then list[#list+1]={token=b.ack.token,rid=m.payload.rid} end
+    end
+    return list
+  end
+  local function heard(t)
+    local D=dofile("tests/ui/scene.lua").private(t.s.env.SO.mods.display.handlers.hello,"D")
+    return D.sessions[2].ack and D.sessions[2].ack.heard
+  end
+  test("B7-U: each drawn frame is acknowledged once, unchanged heartbeats included",function()
+    local t=setup(29,12,true,false,nil,ACK); pair(t); t.n.advance(2)
+    equal(last(t,"hello").body.capabilities,{frameAck=1})
+    local before=#challenges(t)
+    t.n.advance(13)
+    local sent,got=challenges(t),acks(t)
+    assert(#sent-before>=3,"heartbeats carry new challenges")
+    equal(#got,#sent,"one ACK per challenged frame")
+    for i,a in ipairs(got) do
+      equal(a.body,{v=1,token=sent[i].token})
+      assert(a.rid~=sent[i].rid,"the ACK has its own rid")
+    end
+    assert(heard(t),"the server heard the display")
+    -- A redraw without a new challenge (typing) sends no ACK.
+    local n=#acks(t)
+    event(t,"char","a")
+    equal(#acks(t),n)
+  end)
+  test("B7-U: an output change while a frame is drawn sends no ACK",function()
+    local t=setup(29,12,true,false,nil,ACK)
+    t.face.setTextScale=function() end
+    pair(t); t.n.advance(2)
+    local n=#acks(t)
+    assert(n>0)
+    local before=#challenges(t)
+    local find=t.c.env.peripheral.find
+    t.c.env.peripheral.find=function(kind) if kind~="monitor" then return find(kind) end end
+    t.n.advance(8)
+    local done={}
+    for _,a in ipairs(acks(t)) do done[a.body.token]=true end
+    local sent=challenges(t)
+    assert(#sent>before+1)
+    assert(not done[sent[before+1].token],"the frame that switched to the terminal is not acknowledged")
+    assert(done[sent[#sent].token],"a later frame on the terminal is")
+    assert(t.own.text():find("display 2",1,true),t.own.text())
+  end)
+  test("B7-U: a draw error sends no ACK",function()
+    local t=setup(29,12,true,false,nil,ACK); pair(t); t.n.advance(2)
+    local n=#acks(t)
+    local before=#challenges(t)
+    t.face.write=function() error("monitor failed") end
+    t.n.advance(5)
+    assert(#challenges(t)>before,"a challenged frame arrived")
+    equal(#acks(t),n)
+  end)
+  test("B7-U: a new display on a server without displayAck sends no ACK",function()
+    local t=setup(29,12,true); pair(t); t.n.advance(10)
+    equal(#challenges(t),0)
+    equal(#acks(t),0)
+    assert(t.face.text():find("display 2",1,true),t.face.text())
   end)
 end

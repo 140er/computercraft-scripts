@@ -242,8 +242,12 @@ def terminal(m, view, w=51, h=19, title="Server terminal"):
             cv.put(2, y, "%3s" % r["id"], "0")
             cv.put(7, y, r.get("size", "-"), "8")
             cv.put(17, y, r["role"][:w - 17], "8" if r["role"] == "unassigned" else "0")
+            # displayAck: the ACK age, waiting, unverified or amber stale at the right; the label gives way.
+            state = r.get("state", "") if w >= 40 else ""
             if r.get("label") and w > 29:
-                cv.put(28, y, r["label"][:w - 29], "0")
+                cv.put(28, y, r["label"][:max(0, w - 29 - (len(state) + 1 if state else 0))], "0")
+            if state:
+                cv.put(w - len(state), y, state, "1" if r.get("stale") else "8")
         for r in range(lines):
             cv.put(2, h - lines + r, notice[r * width:(r + 1) * width], "8")
         typed = view.get("input", "")
@@ -276,7 +280,9 @@ def terminal(m, view, w=51, h=19, title="Server terminal"):
         leader(cv, 2, y + 1, lw, "turtles", ok + lost)
         if lost:
             cv.put(2 + lw - len(lost) + 3, y + 1, lost[3:], "e")
-        leader(cv, 2, y + 2, lw, "displays", str(len(m["displays"])))
+        stale = m.get("stale", 0)
+        shown = "%d · %d stale" % (len(m["displays"]), stale) if stale else str(len(m["displays"]))
+        leader(cv, 2, y + 2, lw, "displays", shown, "1" if stale else "0")
         leader(cv, 2, y + 3, lw, "leases", str(m["leases"]))
         d = m.get("disk")
         pct, fg = ST.disk_value(d)
@@ -302,7 +308,32 @@ def terminal(m, view, w=51, h=19, title="Server terminal"):
 
 
 # tests/so/display-server.lua checks these against so-mod-display.lua and this generator.
+# The R list with displayAck on: the server monitor's last draw, a display before its first ACK,
+# a fresh one, an old client, one 12 s past its last ACK and a saved display that is not connected.
+ROLES_ACK = [dict(id=1, size="57x24", role="status", label="server", state="0s"),
+             dict(id=2, size="26x20", role="pocket", state="waiting"),
+             dict(id=5, size="57x24", role="mining", label="mine entrance west", state="4s"),
+             dict(id=6, size="57x24", role="unassigned", state="unverified"),
+             dict(id=7, size="15x10", role="status", label="hall", state="stale 12s", stale=True),
+             dict(id=9, size="-", role="drops")]
+
+def acked(m):
+    """The status model with displayAck: the first display stale for 70 s, the next waiting, the third unverified."""
+    m = dict(m, staleDisplays=1, unverifiedDisplays=1)
+    states = [("stale", 70000), ("waiting", 0), ("unverified", 0)]
+    m["displays"] = [dict(d, state=st, ago=ago) for d, (st, ago) in zip(m["displays"], states)] + m["displays"][3:]
+    return m
+
+
 FIXTURES = [
+    ("statusack-M", lambda: ST.status(acked(ST.model()), 57, 24, "Status with displayAck, one display stale")),
+    ("statusack-W", lambda: ST.status(acked(ST.model()), 100, 38, "Status wall with displayAck, no map")),
+    ("rolesack-T", lambda: terminal(ST.model(), dict(id=1, uptime="up 3h12", mode="role", log=SYS["log"], offset=0,
+                                                     input="", notice="", displays=ROLES_ACK),
+                                    title="Server terminal, roles (R) with displayAck")),
+    ("serverstale-T", lambda: terminal(dict(ST.model(), stale=1), dict(id=1, uptime="up 3h12", mode="normal",
+                                                                      log=SYS["log"], offset=0),
+                                       title="Server terminal, one display stale (displayAck)")),
     ("alertlist-M", lambda: alert_list(ALERTS, 57, 24, title="Status ALERTS, room monitor 57x24")),
     ("alertlist-XS", lambda: alert_list(ALERTS_XS, 15, 10, title="Status ALERTS, smallest monitor, 7 alerts")),
     ("alertlist-XS2", lambda: alert_list(ALERTS_XS, 15, 10, 1, "Status ALERTS, smallest monitor, page 2")),

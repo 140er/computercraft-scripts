@@ -210,7 +210,7 @@ def room(cv, m):
     section(cv, rx, top + 5, 19, "SERVER")
     disk(cv, rx, top + 6, 19, m.get("disk"))
     leader(cv, rx, top + 7, 19, "leases", str(m["leases"]))
-    leader(cv, rx, top + 8, 19, "displays", str(len(m["displays"])))
+    leader(cv, rx, top + 8, 19, "displays", *display_count(m, 19))
     leader(cv, rx, top + 9, 19, "up", m["server"]["up"])
     dy = max(jy + 2, top + 9) + 2
     section(cv, 2, dy, w - 2, "DROPS", len(m["drops"]))
@@ -278,7 +278,7 @@ def wall(cv, m):
     d = m.get("disk")
     disk(cv, 31, fy + 1, 25, d, d and "%.1f/%d MB" % (d["used"] / 1e6, d["cap"] // 1000000))
     leader(cv, 31, fy + 2, 25, "leases", str(m["leases"]))
-    leader(cv, 31, fy + 3, 25, "displays", str(len(m["displays"])))
+    leader(cv, 31, fy + 3, 25, "displays", *display_count(m, 25))
     leader(cv, 31, fy + 4, 25, "up", m["server"]["up"])
     dy = fy + 7
     ds = m["drops"]
@@ -318,7 +318,14 @@ def wall(cv, m):
         cv.put(rx, y, "%2d" % s["id"], "0")
         cv.put(rx + 4, y, s["role"][:7], "0")
         cv.put(rx + 12, y, s["size"], "8")
-        cv.put(rx + 21, y, age(s["ago"]), "8" if s["ago"] < 10000 else "1")
+        # displayAck: waiting and unverified in words, stale in amber with its age from a minute on.
+        state = s.get("state")
+        late = state == "stale" or (not state and s["ago"] >= 10000)
+        if state == "stale":
+            text = "stale" if s["ago"] < 60000 else "stale " + age(s["ago"])
+        else:
+            text = state or age(s["ago"])
+        cv.put(rx + 21, y, text, "1" if late else "8")
     # The rule stops with the content: every ruled row costs about 140 frame bytes.
     for y in range(3, max(bottom, dy + len(shown)) + 1):
         cv.put(58, y, "|", "c")
@@ -417,3 +424,15 @@ def status(m, w, h, title=""):
     else:
         tiny(cv, m)
     return cv
+
+
+def display_count(m, width):
+    """so-ui.lua U.st.shown: the displays leader value and colour, with stale or unverified (displayAck)."""
+    n, k, u = len(m["displays"]), m.get("staleDisplays", 0), m.get("unverifiedDisplays", 0)
+    if not k and not u:
+        return str(n), "0"
+    count, word = (k, "stale") if k else (u, "unverified")
+    for v in ("%d · %d %s" % (n, count, word), "%d %s" % (count, word)):
+        if len(v) + 9 <= width:
+            return v, "1" if k else "8"
+    return str(n), "0"
