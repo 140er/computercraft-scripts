@@ -71,7 +71,11 @@ return function(w,h)
   f.configure=function(shape,x,y,z)
     f.command("area 0 0 0 "..(x-1).." "..(y-1).." "..(z-1))
     f.command("shape "..shape) f.command("material stone") f.command("add 2 -2 4 0 e")
-    f.advance(1)
+    for _=1,40 do
+      if f.job().fuel~=nil then break end
+      f.advance(0.25)
+    end
+    assert(f.job().fuel~=nil,"builder recovery did not report fuel within 10 game seconds")
   end
   if w then
     assert(server.env.SO.pair.remember(3,key))

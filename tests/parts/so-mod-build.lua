@@ -372,4 +372,12 @@ return function(test,equal)
     f.run() equal(f.count(),1)
   end)
 
+  test("builder paired worker START accepts its first recovery report",function()
+    local f=dofile("tests/so/build-world-fixture.lua")()
+    f.configure("floor",1,1,1)
+    f.command("start")
+    assert(f.job().running,tostring(f.job().alert))
+    f.finish() equal(f.places,1)
+  end)
+
 end
