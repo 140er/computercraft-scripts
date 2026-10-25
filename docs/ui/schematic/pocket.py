@@ -215,13 +215,33 @@ def jobs(m, w=26, h=20, f=None, title="Pocket JOBS"):
 
 # ---------------------------------------------------------------- shop
 
+# so-mod-shop's stack sizes for the scene's items: tools stack to 1, the rest to 64.
+STACKS = {"minecraft:iron_pickaxe": 1}
+
+
 def matches(search, limit, stock=None):
     """so-mod-shop's matches: items whose id contains the search, most stock first, then by id."""
     q = search.lower().replace(" ", "_")
-    items = [dict(name=n, count=c, label=n.split(":", 1)[-1].replace("_", " ").upper())
+    items = [dict(name=n, count=c, label=n.split(":", 1)[-1].replace("_", " ").upper(), stack=STACKS.get(n, 64))
              for n, c in (SYS["stock"] if stock is None else stock) if q in n.lower()]
     items.sort(key=lambda i: (-i["count"], i["name"]))
     return items[:limit]
+
+
+def lows(search, stock=None):
+    """so-mod-shop's lows: low (under 16) and empty items whose id contains the search, emptiest first."""
+    items = [dict(i, state="empty" if i["count"] == 0 else "low") for i in matches(search, 999, stock)
+             if i["count"] < min(16, i["stack"])]
+    items.sort(key=lambda i: (i["count"], i["name"]))
+    return items
+
+
+def split(text):
+    """P.split: a typed search may end in a quantity ("sand 37")."""
+    head, _, tail = text.rpartition(" ")
+    if head.strip() and tail.isdigit():
+        return head.rstrip(), int(tail)
+    return text, None
 
 
 def count_fg(n):
@@ -237,45 +257,89 @@ def order_line(n, label, status, width):
     return head + label + tail
 
 
-def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock=None):
-    """sent is the last order's line and colour; reply is the shop's reply under it."""
-    cv = Canvas(w, h, "Pocket SHOP quick order")
+def pager(cv, y, note, back, forward):
+    """U.pager: a muted note, then the left and right chips at the right end."""
+    chip(cv, cv.w - 7, y, "◄", "prev", "plain" if back else "muted")
+    chip(cv, cv.w - 3, y, "►", "next", "plain" if forward else "muted")
+    cv.put(cv.w - 8 - len(note), y, note, "8")
+
+
+def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock=None, found=True, stale=False,
+         show="all", page=1, title="Pocket SHOP quick order"):
+    """sent is the last order's line and colour; reply is the shop's reply under it. show is the all, low
+    or empty chip; page is the result page when the matches need a pager on row h-2."""
+    cv = Canvas(w, h, title)
     tabs(cv, "shop", len(m["flags"]) > 0)
-    search = SYS["search"] if search is None else search
+    raw = SYS["search"] if search is None else search
+    search, qty = split(raw)
     width = w - 8
     cv.put(2, 3, ">", "8")
-    cv.put(4, 3, search[-width:], "0")
-    cv.put(4 + len(search[-width:]), 3, "_", "9")
-    if search:
+    cv.put(4, 3, raw[-width:], "0")
+    cv.put(4 + len(raw[-width:]), 3, "_", "9")
+    if raw:
         chip(cv, w - 3, 3, "×", "clear", "off")
-    rule(cv, 2, 4, w - 1)
-    items, y = matches(search, h, stock), 5
-    shown = next((i for i in items if i["name"] == selected), items[0] if items else None)
-    if not items:
-        cv.put(2, y, "no match" if search else "no stock", "8")
-    for item in items:
-        if y > h - 2 - (2 if item is shown else 0):
+    cw, y = (w - 4) // 3, 4
+    for i, f in enumerate(("all", "low", "empty")):
+        chip(cv, 2 + i * (cw + 1), y, f, "show:" + f, "on" if f == show else "plain", cw)
+    y += 1
+    if not found:
+        flag(cv, 2, y, w - 2, "storage room not found")
+    if found and stale:
+        cv.put(2, y, "stock stale", "1")
+        y += 1
+    if not found:
+        items = []
+    elif show == "all":
+        items = matches(search, 256, stock)
+    else:
+        items = [i for i in lows(search, stock) if i["state"] == show]
+    if found and not items:
+        cv.put(2, y, "no stock" if not search and show == "all" else "none " + show if show != "all" else "no match", "8")
+
+    def grow(item):
+        return 3 if item and item["count"] > 0 else 0
+
+    def pick(lst):
+        return next((i for i in lst if i["name"] == selected), lst[0] if lst else None)
+
+    bottom, lst = h - 2, items
+    if len(items) + grow(pick(items)) > bottom - y + 1:
+        per = max(1, bottom - y - 3)
+        pages = -(-len(items) // per)
+        page = max(1, min(page, pages))
+        lst = items[(page - 1) * per:page * per]
+        pager(cv, bottom, "%d/%d" % (page, pages), page > 1, page < pages)
+        bottom -= 1
+    shown = pick(lst)
+    for item in lst:
+        if y > bottom - (2 if item is shown and grow(item) else 0):
             break
         if item is shown:
             cv.fill(1, y, w, 1, "7")
         leader(cv, 2, y, w - 2, item["label"], str(item["count"]), count_fg(item["count"]), "0")
         cv.hit("pick:" + item["name"], 2, y, w - 2, 1)
         y += 1
-        if item is shown:
-            cw, half = (w - 4) // 3, (w - 3) // 2
-            for i, n in enumerate((1, 16, 64)):
-                chip(cv, 2 + i * (cw + 1), y, str(n), "order:%d:%s" % (n, item["name"]), "plain", cw)
-            chip(cv, 2, y + 1, "STACK", "order:stack:" + item["name"], "plain", half)
-            if item["count"] > 0:
-                chip(cv, 3 + half, y + 1, "ALL", "order:all:" + item["name"], "plain", half)
+        if item is shown and item["count"] > 0:
+            half = (w - 3) // 2
+            if qty is None:
+                for i, n in enumerate((1, 16, 64)):
+                    chip(cv, 2 + i * (cw + 1), y, str(n), "order:%d:%s" % (n, item["name"]), "plain", cw)
+            elif 1 <= qty <= item["stack"]:
+                chip(cv, 2, y, "ORDER %d" % qty, "order:%d:%s" % (qty, item["name"]), "plain", w - 2)
             else:
-                dead(cv, 3 + half, y + 1, "ALL", half)
+                dead(cv, 2, y, "MAX %d" % item["stack"], w - 2)
+            chip(cv, 2, y + 1, "STACK", "order:stack:" + item["name"], "plain", half)
+            chip(cv, 3 + half, y + 1, "ALL", "order:all:" + item["name"], "plain", half)
             y += 3
     if sent:
         cv.put(2, h - 1, sent[0][:w - 2], sent[1])
     if reply:
         cv.put(2, h, reply[:w - 2], "8")
     return cv
+
+
+# A 40-item search for paging: ITEM 01 to ITEM 40, 790 down to 10.
+FORTY = [("mod:item_%02d" % i, 810 - i * 20) for i in range(1, 41)]
 
 
 def shop_sent():

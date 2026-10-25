@@ -222,7 +222,8 @@ def pane(cv, m, v, it, x, y, pw, bottom, close):
     on = m["found"]
     cw, cw2 = (pw - 2) // 3, (pw - 1) // 2
     for i, n in enumerate(("1", "16", "64")):
-        chip(cv, x + i * (cw + 1), y + 1, n, "order:%s:%s" % (n, it["name"]), "plain" if on else "muted", cw)
+        ok = on and int(n) <= it["stack"]
+        chip(cv, x + i * (cw + 1), y + 1, n, "order:%s:%s" % (n, it["name"]), "plain" if ok else "muted", cw)
     for i, n in enumerate(("stack", "all")):
         ok = on and (n != "all" or it["count"] > 0)
         chip(cv, x + i * (cw2 + 1), y + 2, n, "order:%s:%s" % (n, it["name"]), "plain" if ok else "muted", cw2)
@@ -377,3 +378,22 @@ FIXTURES += [(old, page(name, KW[name][1], w, h, "Shop %s, %s %dx%d" % (KW[name]
                                             ("shop-compact", "browse", 29, 12, "compact monitor"),
                                             ("shop-pocket", "browse", 26, 20, "pocket"),
                                             ("shop-large", "browse", 100, 38, "large wall"))]
+
+
+def pocket_page(**kw):
+    """The pocket SHOP page (pocket.py) for the shop's own states: paging, the low chip and no room."""
+    def make():
+        import pocket as PK
+        import status as ST
+        if kw.get("stock") == "forty":
+            kw["stock"] = PK.FORTY
+        return PK.shop(ST.model(), **kw)
+    return make
+
+
+FIXTURES += [("pocket-shoppage-P", pocket_page(search="item", stock="forty", page=2,
+                                               title="Pocket SHOP, a 40-item search on page 2")),
+             ("pocket-shoplow-P", pocket_page(search="iron", show="low", title="Pocket SHOP, low iron items")),
+             ("pocket-shopqty-P", pocket_page(search="iron 37", title="Pocket SHOP, a typed quantity of 37")),
+             ("pocket-shopnoroom-P", pocket_page(search="iron", found=False,
+                                                 title="Pocket SHOP without a storage room"))]

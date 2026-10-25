@@ -355,7 +355,7 @@ return function(test, equal)
   test("UI2c one tap sends one order for 1, 16, 64, a stack and all", function()
     for _, size in ipairs({ { 57, 24 }, { 26, 20 } }) do
       local w, h = size[1], size[2]
-      for _, case in ipairs({ { "1", 1 }, { "16", 16 }, { "64", 64 }, { "stack", 16 }, { "all", 6 } }) do
+      for _, case in ipairs({ { "1", 1 }, { "16", 16 }, { "stack", 16 }, { "all", 6 } }) do
         local s = loaded()
         if w < WIDE then tap(s, w, h, "pick:cats") end
         tap(s, w, h, "cat:mobs")
@@ -428,7 +428,7 @@ return function(test, equal)
     equal(s.mod.order("iron_c", 64), "iron_c")
     equal(#s.sends, 2); equal(s.sends[1].body.text, "iron_a"); equal(s.sends[2].body.n, 64)
     equal(s.render(57, 24, { id = 2 }), before)
-    for _, case in ipairs({ { "missing", 16 }, { "iron", 0 }, { "iron", 5 }, { false, 16 }, { "iron", "16" } }) do
+    for _, case in ipairs({ { "missing", 16 }, { "iron", 0 }, { "iron", 65 }, { false, 16 }, { "iron", "16" } }) do
       equal(s.mod.order(case[1], case[2]), nil)
     end
     equal(#s.sends, 2)

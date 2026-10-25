@@ -1,0 +1,61 @@
+26x20 Pocket SHOP, a 40-item search on page 2
+ FLEET• JOBS  SHOP  PAIR  
+                          
+ > item_               ×  
+   all     low    empty   
+ ITEM 11 ············ 590 
+    1      16      64     
+    STACK        ALL      
+                          
+ ITEM 12 ············ 570 
+ ITEM 13 ············ 550 
+ ITEM 14 ············ 530 
+ ITEM 15 ············ 510 
+ ITEM 16 ············ 490 
+ ITEM 17 ············ 470 
+ ITEM 18 ············ 450 
+ ITEM 19 ············ 430 
+ ITEM 20 ············ 410 
+              2/4  ◄   ►  
+                          
+                          
+888888e8888880000008888880
+00000000000000000000000000
+08000009000000000000008880
+0fffffff000000000000000000
+000000000cccccccccccc00000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+000000000cccccccccccc00000
+00000000000000888000000000
+00000000000000000000000000
+00000000000000000000000000
+fffffffffffff777777fffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f9999999f7777777f7777777ff
+77777777777777777777777777
+f7777777f7777777f7777777ff
+f77777777777f77777777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffff777f777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

@@ -201,7 +201,7 @@ return function(test, equal)
     equal(names,{'minecraft:stone_bricks=900=STONE BRICKS','minecraft:stone=10=STONE'})
     equal(s.shop.order('minecraft:stone',16),'minecraft:stone');equal(s.sends[#s.sends].body.text,'minecraft:stone')
     equal(s.shop.order('stone',1),'minecraft:stone_bricks')
-    equal(s.shop.order('nothing',1),nil);equal(s.shop.order('stone',5),nil)
+    equal(s.shop.order('nothing',1),nil);equal(s.shop.order('stone',65),nil)
   end)
 
   -- UB-8: the shop's reply reaches the pocket that ordered.
@@ -250,11 +250,11 @@ return function(test, equal)
     assert(capture(s.render(),26,20).picture().text[19]:find('16 ENDER PEARL sent',1,true))
     local n = #s.sends
     s.tap('pick:minecraft:iron_bars');f = s.render()
-    assert(find(f,'order:stack:minecraft:iron_bars') and not find(f,'order:all:minecraft:iron_bars'),'ALL has no target at 0')
+    assert(not find(f,'order:stack:minecraft:iron_bars') and not find(f,'order:all:minecraft:iron_bars'),'no order chips at 0')
     s.tap('order:all:minecraft:iron_bars');s.tap('order:stack:minecraft:iron_bars');equal(#s.sends,n)
     assert(capture(s.render(),26,20).picture().text[19]:find('not sent',1,true))
     equal(s.shop.order('minecraft:raw_iron','all'),'minecraft:raw_iron');equal(select(2,s.shop.order('raw','stack')),64)
-    equal({s.shop.order('nothing','all')},{nil,'no match'});equal({s.shop.order('raw',48)},{nil,'bad count'})
+    equal({s.shop.order('nothing','all')},{nil,'no match'});equal({s.shop.order('raw',65)},{nil,'bad count'})
   end)
 
   -- An order is never larger than one stack: ALL sends the stock up to the stack size.
