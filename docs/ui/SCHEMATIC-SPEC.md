@@ -366,7 +366,8 @@ FLEET.
 ## 19. Mining
 
 `so-mod-mine.lua` draws it; `schematic/jobs.py` is the twin. Fixtures `mining-M/W/L/P/XS`,
-`miningempty-M/W` (before the first branch), `miningsetup-M/L/P` and `miningores-M/P`.
+`miningempty-M/W` (before the first branch), `miningsetup-M/L/P/29x12` and
+`miningores-M/P/29x12`.
 
 - **Header:** `MINING overview setup`, the state word at the right in its tone. Narrow
   screens use the short tabs `main setup` and drop the state word into the first leader.
@@ -390,11 +391,19 @@ FLEET.
 - **Setup:** label column at 2, controls at 13 (10 below 36 columns). `home` is a value;
   `bottom` and `length` are steppers (`Y -58`, `64`); `mode` is a pair of chips, the
   active one plain and the other off; `ores` shows `all` or the list with an `edit` chip
-  (on while open); `turtles` lists ids. Room monitors draw a preview of the first ten
-  branches and the footprint (`40 × 64`) behind a rule, or the ore chips while the list
-  is open. Narrow screens wrap the ore chips under the ores row. A branch count and
-  turtle add or remove are text commands only: the job has no branch limit, and adding
-  a turtle needs its position.
+  (on while open); `turtles` lists ids. SINGLE and CONTINUOUS chips send `continuous off`
+  and `continuous on`; the active chip is plain and the other off. Continuous mode shows
+  a branch-count stepper with `set-branches-` and `set-branches+`, one branch per tap,
+  bounded from 1 to 4096. Row 2 shows muted `fuel ~N` for the configured branch budget
+  and shaft round trip. Room monitors draw a preview of the first ten branches and the
+  footprint (`40 × 64`) behind a rule, or the ore chips while the list is open. The ore
+  editor has coal, copper, iron, gold, redstone, lapis, diamond, quartz, nether_gold and
+  ancient_debris chips. Tapping a chip preserves the other selected ores; an empty filter
+  starts with every supported ore selected. Narrow screens wrap the ore chips under the
+  ores row. If the inline ore list would clip, SETUP uses a dedicated ore editor with
+  BACK. All ten filters remain reachable at 29x12, including while an alert is visible.
+  Older saves without an ore filter use the empty filter. Turtle add or remove are text
+  commands only; adding a turtle needs its position.
 
 ## 20. Lumber
 
@@ -422,11 +431,17 @@ FLEET.
   and ADD sit on the last row and act on the selection. At most 24 rows per page.
 - **Plan (room monitors):** behind a rule, the chests around home at one block per cell
   when they fit, labelled by row number, with `@ server`, `º shaft` and the farm edge for
-  context. The selected chest is inverted. Every chest is a one-cell target that
-  selects it. At most 48 by 32 cells.
+  context. Both farm corners are in the fit, so the edge is always drawn. The selected
+  chest is inverted. Every chest is a one-cell target that selects it. At most 48 by 32
+  cells.
 - **Editor:** `ADD DROP POINT`, chips for kind and side, steppers for dim, x, y and z,
   ADD and BACK. Room monitors draw the plan with the draft as an inverted teal `•`.
   Results show in the row above the actions: `point added` in green, errors as a flag.
+- **Chest setup:** `CHEST SETUP`, the selected point, then TURTLES with a `scan` chip each
+  and FOUND with an `add` chip each. The setup turtle's bullet is amber, or coral after
+  a failed step, with a `release` chip. A turtle without a facing shows `FACING #id` with
+  N E S W chips and a `cancel` chip two rows down. TEST, FIX and BACK sit on the last row.
+  BACK and `cancel` drop the prompt.
 
 ## 22. Panel
 
