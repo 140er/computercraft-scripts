@@ -86,6 +86,43 @@ local function setup(legacy)
   return s
 end
 
+local H = dofile("tests/so/harness.lua")
+local function savedShop(files, enabled, values)
+  local m = H.new().machine({id=1, capacity=16000000})
+  m.install({"so-store.lua","so-ui.lua","so-mod-shop.lua","so-mod-panel.lua"})
+  for name, bytes in pairs(files or {}) do m.files[name] = bytes end
+  m.files["so-server.cfg"] = H.encode({shopSaved=enabled == true})
+  local e, s = m.env, {machine=m, now=1000, values=values or {}, events={}, screens={}}
+  e.SO = {store=e.dofile("so-store.lua"), now=function() return s.now end, mods={}}
+  e.SO.mods.state = {
+    get=function(key) return s.values[key] end,
+    view=function() return {values=s.values} end,
+    emit=function(key,value) s.values[key]=value s.events[#s.events+1]={key,value} return true end,
+  }
+  e.SO.mods.display = {screen=function(name,render,input)
+    if render then s.screens[name]={render=render,input=input} end
+    return s.screens[name]
+  end}
+  s.shop=e.dofile("so-mod-shop.lua") e.SO.mods.shop=s.shop
+  s.shop.tick(s.now)
+  s.panel=e.dofile("so-mod-panel.lua") e.SO.mods.panel=s.panel s.panel.tick()
+  s.stock=function(totals) s.shop.listen.roomsorter_stock(9,{totals=totals}) end
+  s.config=function(on) m.files["so-server.cfg"]=H.encode({shopSaved=on}) s.shop.tick(s.now) end
+  s.frame=function(session,role,w,h) return s.screens[role or "pocket"].render(w or 26,h or 20,session) end
+  s.tap=function(session,id,role)
+    local frame=s.frame(session,role)
+    for _,b in ipairs(frame.buttons) do
+      if b.id==id then s.screens[role or "pocket"].input({session=session,id=id,x=b.x,y=b.y}) return end
+    end
+    error("control not drawn: "..id)
+  end
+  s.saved=function(kind) return assert(e.SO.store.read("so-data/shop-"..kind)).value end
+  return s
+end
+local function savedGeneration(kind, entries, revision)
+  return H.encode({schema=1,generation=1,value={v=1,kind=kind,revision=revision or 0,entries=entries}})
+end
+
 return function(test, equal)
   test("shop P-U2-14 full stock raises one standing alert and clears on false or missing full", function()
     local s = setup()
@@ -340,4 +377,205 @@ return function(test, equal)
     match("panelnoroom")
     for _, b in ipairs(s.view(POCKET).buttons) do assert(not b.id:match("^order:"), b.id) end
   end)
+  test("P-U2-5 and P-U2-11 default off creates no saved files, controls or watch alerts", function()
+    local s=savedShop()
+    s.stock({["minecraft:iron_ingot"]=0})
+    equal({s.shop.setMinimum("minecraft:iron_ingot",32,0)},{false,"off"})
+    equal({s.shop.setWatch("minecraft:iron_ingot",true,0)},{false,"off"})
+    local session={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    for _,b in ipairs(s.frame(session).buttons) do assert(not b.id:match("^saved:")) end
+    for path in pairs(s.machine.files) do assert(not path:match("so%-data/shop%-"),path) end
+    equal(#s.events,0)
+  end)
+
+  test("P-U2-5 shared minimums survive restart, bind revisions and keep old data on save failure", function()
+    local s=savedShop(nil,true)
+    s.stock({["minecraft:iron_ingot"]=24,["minecraft:ender_pearl"]=16})
+    equal(#s.shop.lows(10),0)
+    assert(s.shop.setMinimum("minecraft:iron_ingot",32,0))
+    equal(s.shop.lows(10)[1].name,"minecraft:iron_ingot")
+    equal({s.shop.setMinimum("minecraft:ender_pearl",20,0)},{false,"changed"})
+    local copy=s.shop.saved("minimums") copy.entries["minecraft:iron_ingot"]=1
+    equal(s.shop.minimum("minecraft:iron_ingot"),32)
+    for _,value in ipairs({0/0,math.huge,-math.huge}) do
+      equal({s.shop.setMinimum("minecraft:iron_ingot",value,1)},{false,"invalid"})
+    end
+    s.machine.capacity=0
+    equal({s.shop.setMinimum("minecraft:iron_ingot",64,1)},{false,"save unavailable"})
+    equal({s.shop.minimum("minecraft:iron_ingot"),s.shop.saved("minimums").revision},{32,1})
+    s=savedShop(s.machine.files,true)
+    equal({s.shop.minimum("minecraft:iron_ingot"),s.shop.saved("minimums").revision},{32,1})
+    assert(s.shop.setMinimum("minecraft:iron_ingot",nil,1))
+    equal(s.shop.minimum("minecraft:iron_ingot"),16)
+    s.config(false)
+    equal(s.shop.minimum("minecraft:ender_pearl"),16)
+    s.config(true)
+    equal(s.shop.saved("minimums").revision,2)
+  end)
+
+  test("D6 validator rejects malformed envelopes and recovers a valid generation", function()
+    local item="minecraft:iron_ingot"
+    local bad={
+      {v=2,kind="minimums",revision=0,entries={}},
+      {v=1,kind="minimums",revision=0,entries={},extra=true},
+      {v=1,kind="watches",revision=0,entries={}},
+      {v=1,kind="minimums",revision=-1,entries={}},
+      {v=1,kind="minimums",revision=2147483648,entries={}},
+      {v=1,kind="minimums",revision=0,entries={[item]=4097}},
+      {v=1,kind="minimums",revision=0,entries={[item]=1.5}},
+      {v=1,kind="minimums",revision=0,entries={[item]=0}},
+      {v=1,kind="minimums",revision=0,entries={["Bad:Id"]=1}},
+      {v=1,kind="minimums",revision=0,entries={["mod:"..string.rep("x",125)]=1}},
+    }
+    for _,v in ipairs(bad) do
+      local bytes=H.encode({schema=1,generation=1,value=v})
+      local s=savedShop({["so-data/shop-minimums"]=bytes},true)
+      equal({s.shop.saved("minimums")},{nil,"save unavailable"})
+      equal({s.shop.setMinimum(item,32,0)},{false,"save unavailable"})
+      equal(s.machine.files["so-data/shop-minimums"],bytes)
+    end
+    for _,entries in ipairs({{item,item},{[2]=item},{["x"]=item},{"bad"}}) do
+      local s=savedShop({["so-data/shop-watches"]=savedGeneration("watches",entries)},true)
+      equal({s.shop.saved("watches")},{nil,"save unavailable"})
+    end
+    local s=savedShop({["so-data/shop-minimums"]="broken",
+      ["so-data/shop-minimums.bak"]=savedGeneration("minimums",{[item]=31},4)},true)
+    equal(s.shop.minimum(item),31)
+    assert(s.shop.setMinimum(item,32,4))
+    equal(s.saved("minimums").revision,5)
+    s=savedShop({["so-data/shop-minimums"]=savedGeneration("minimums",{},2147483647)},true)
+    equal({s.shop.setMinimum(item,1,2147483647)},{false,"save unavailable"})
+  end)
+
+  test("D6 caps both stores at 256 exact IDs and keeps generations below 64 KiB", function()
+    local minimums,watches={},{}
+    for i=1,256 do
+      local id="mod:"..string.rep("x",120)..i
+      minimums[id],watches[i]=4096,id
+    end
+    local s=savedShop({["so-data/shop-minimums"]=savedGeneration("minimums",minimums),
+      ["so-data/shop-watches"]=savedGeneration("watches",watches)},true)
+    assert(s.shop.setMinimum(watches[1],1,0))
+    assert(s.shop.setWatch(watches[1],false,0))
+    assert(s.shop.setWatch(watches[1],true,1))
+    equal({s.shop.setMinimum("mod:overflow",1,1)},{false,"invalid"})
+    equal({s.shop.setWatch("mod:overflow",true,2)},{false,"invalid"})
+    for path,bytes in pairs(s.machine.files) do
+      if path:match("so%-data/shop%-") then assert(#bytes<=65536,path) end
+    end
+  end)
+
+  test("P-U2-11 two zero watches give independent ALERTS rows and clear with false", function()
+    local a,b="minecraft:iron_ingot","minecraft:gold_ingot"
+    local ka,kb="shop.watch."..a..".alert","shop.watch."..b..".alert"
+    local s=savedShop(nil,true)
+    assert(s.shop.setWatch(a,true,0)) assert(s.shop.setWatch(b,true,1))
+    s.stock({[a]=0,[b]=0})
+    equal(#s.events,2)
+    s.stock({[a]=0,[b]=0}) equal(#s.events,2)
+    s.panel.tick()
+    local session={id=7,panel={page="alerts",search=""}}
+    local lines={}
+    for _,row in ipairs(s.frame(session,"panel",57,24).rows) do lines[#lines+1]=row.text end
+    local text=table.concat(lines,"\n")
+    assert(text:find(a.." empty",1,true) and text:find(b.." empty",1,true))
+    s.stock({[a]=1,[b]=0}) equal(s.values[ka],false) assert(s.values[kb])
+    s.machine.capacity=0
+    equal({s.shop.setWatch(b,false,2)},{false,"save unavailable"}) assert(s.values[kb])
+    s.machine.capacity=16000000
+    assert(s.shop.setWatch(b,false,2)) equal(s.values[kb],false)
+    s.stock({[a]=0,[b]=0}) assert(s.values[ka]) equal(s.values[kb],false)
+    s.config(false) equal(s.values[ka],false)
+  end)
+
+  test("P-U2-11 boot reconciles restored watch keys on the first explicit fresh sample", function()
+    local a,b="minecraft:iron_ingot","minecraft:gold_ingot"
+    local ka,kb="shop.watch."..a..".alert","shop.watch."..b..".alert"
+    local files={["so-data/shop-watches"]=savedGeneration("watches",{a,b})}
+    local s=savedShop(files,true,{[ka]={text=a.." empty"},[kb]={text=b.." empty"},
+      ["shop.watch.mod:removed.alert"]={text="old"}})
+    s.stock({[a]=0,[b]=3})
+    equal(s.values[kb],false) equal(s.values["shop.watch.mod:removed.alert"],false)
+    equal(s.values[ka],{text=a.." empty"})
+    assert(s.shop.setWatch("mod:unknown",true,0))
+    s.stock({}) equal(s.values["shop.watch.mod:unknown.alert"],nil)
+    s.stock({["mod:stale"]=0})
+    s.now=s.now+30000
+    assert(s.shop.setWatch("mod:stale",true,1))
+    equal(s.values["shop.watch.mod:stale.alert"],nil)
+    s=savedShop(files,true) s.stock({[a]=0}) assert(s.values[ka])
+    s=savedShop(files,false,s.values) equal(s.values[ka],false)
+  end)
+
+  test("P-U2-5 panel and pocket controls share minimums and reject stale rendered edits", function()
+    local s=savedShop(nil,true)
+    local item="minecraft:iron_ingot"
+    s.stock({[item]=24})
+    local pocket={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    local panel={id=8,keyboard=true,panel={page="main",search="iron"}}
+    s.tap(pocket,"saved:min:0:"..item)
+    s.tap(panel,"saved:min:0:"..item,"panel")
+    s.screens.pocket.input({session=pocket,text="32"})
+    s.tap(pocket,"saved:save")
+    s.screens.panel.input({session=panel,text="64"})
+    s.tap(panel,"saved:save","panel")
+    equal(panel.panel.savedResult,"changed")
+    equal(s.shop.minimum(item),32)
+    s.tap(panel,"saved:back","panel")
+    s.tap(pocket,"saved:watch:0:"..item)
+    equal(s.shop.saved("watches").entries,{item})
+    s.tap(panel,"saved:watch:1:"..item,"panel")
+    equal(s.shop.saved("watches").entries,{})
+    s.tap(pocket,"saved:min:1:"..item)
+    s.tap(pocket,"saved:default") equal(s.shop.minimum(item),16)
+    for _,size in ipairs({{26,20},{29,12},{57,24},{15,12}}) do
+      local frame=s.frame(pocket,"pocket",size[1],size[2])
+      for _,b in ipairs(frame.buttons) do
+        if b.id:match("^saved:") then assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=size[1] and b.y<=size[2],b.id) end
+      end
+    end
+  end)
+
+  test("D6 enabled pocket and minimum editor match their route A twins", function()
+    local s=savedShop(nil,true)
+    s.stock({["minecraft:iron_ingot"]=24})
+    local session={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    local function match(path)
+      local fixture=R.load(path)
+      local diff=R.diff(fixture,Scene.capture(s.frame(session),fixture.w,fixture.h))
+      assert(#diff==0,path.."\n"..table.concat(diff,"\n"))
+    end
+    match("tests/ui/fixtures/pocket-shopsaved-P.txt")
+    s.tap(session,"saved:min:0:minecraft:iron_ingot")
+    match("tests/ui/fixtures/pocket-shopminimum-P.txt")
+    s.tap(session,"tab:jobs")
+    equal({session.pocket.page,session.pocket.minimumDraft},{"jobs",nil})
+    s.tap(session,"tab:shop")
+    s.tap(session,"saved:min:0:minecraft:iron_ingot")
+    s.config(false)
+    for _,b in ipairs(s.frame(session).buttons) do assert(not b.id:match("^saved:")) end
+  end)
+
+  test("D6 stale watch taps return changed and disabled drafts cannot save", function()
+    local s=savedShop(nil,true)
+    local item="minecraft:iron_ingot"
+    s.stock({[item]=0})
+    local session={id=7,keyboard=true,pocket={page="shop",search="iron"}}
+    local id="saved:watch:0:"..item
+    local tapped
+    for _,b in ipairs(s.frame(session).buttons) do if b.id==id then tapped=b end end
+    assert(tapped)
+    assert(s.shop.setWatch("mod:other",true,0))
+    s.screens.pocket.input({session=session,id=id,x=tapped.x,y=tapped.y})
+    equal(session.pocket.savedResult,"changed")
+    equal(s.shop.saved("watches").entries,{"mod:other"})
+    s.tap(session,"saved:min:0:"..item)
+    local frame=s.frame(session)
+    for _,b in ipairs(frame.buttons) do if b.id=="saved:save" then tapped=b end end
+    s.config(false)
+    s.screens.pocket.input({session=session,id="saved:save",x=tapped.x,y=tapped.y})
+    equal(s.machine.files["so-data/shop-minimums"],nil)
+    for _,b in ipairs(s.frame(session).buttons) do assert(not b.id:match("^saved:")) end
+  end)
+
 end
