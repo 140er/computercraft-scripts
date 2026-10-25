@@ -314,9 +314,11 @@ another role with the server's own id. Roles survive restarts.
 The panel PAIR page has an ENROLL ON/OFF switch. With `panelUpdates=true`, stale
 paired turtles offer UPDATE where space allows; worker opt-in is still required.
 FORGET confirmation shows its job impact. With `workerSettings=true`, tap a
-turtle row for confirmed dimension and tool-swap settings. Changes stay pending
-until a matched acknowledgement or newer hello. The panel also shows a read-only
-BUILD block when the build module is available.
+turtle row for confirmed dimension and tool-swap settings. Confirmed values stay
+unchanged while changes are pending. A matched acknowledgement or a newer hello
+confirms the settings; a rejection or a 15-game-second timeout clears the pending
+state. The panel also shows a read-only BUILD block when the build module is
+available.
 
 ## Map
 

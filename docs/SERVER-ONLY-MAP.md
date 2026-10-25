@@ -736,7 +736,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   refusal. Stale edits return `changed`; failed-save recovery retains the prior
   revision or blocks access. Shared screens use `savedNav`, `savedCanvas`,
   `savedRecord`, `savedHit` and `savedInput`. `savedRecord` retains content height;
-  `savedHit` normalizes delivered-banner coordinates and consumes each control.
+  `savedHit` checks the delivered-banner-adjusted coordinates; `savedInput`
+  consumes the drawn controls after a valid hit.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-build.lua](../so-mod-build.lua), `build`, builds opt-in blueprints on one
