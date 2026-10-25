@@ -52,6 +52,8 @@ spot 104 -344 ready
 spot 107 -350 ready
 spot 107 -347 growing
 spot 107 -344 ready
+blueprint the_nether 140 64 -330 152 66 -322 4 40 held 2 Build needs material
+builder 8 146 65 -326 1 760 120000
 view map-57x24 57x24 all fit
 view map-100x38 100x38 all fit
 view map-26x20 26x20 all fit

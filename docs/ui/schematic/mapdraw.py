@@ -4,14 +4,62 @@ This is the twin of the drawing half of so-mod-map.lua; tests/so/map.lua compare
 cell through the fixtures. North is up at every size: x grows to the right and z downwards, and the
 two axes only scale. The axis the branches step along snaps to the branch gap.
 """
-from kit import age, box, chip, leader
-from scene import S
+from kit import age, box, chip, leader, tone
+from scene import S, lines
 
 ARROW = {0: "▲", 1: "►", 2: "▼", 3: "◄"}
 SX = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64]  # cells along a free axis
 SN = [1, 2, 4, 8, 16, 32, 64]  # cells along the branch axis: divisors and multiples of the gap
 MARGIN = 7  # blocks read past the view, so a cut dig still counts its full size (up to 6)
 PLAN, DUG, HELD, NEXT = 1, 2, 4, 8  # NEXT: the branch a running job starts next
+
+
+def load_build():
+    """The builder from tests/ui/map-scene.txt, or None. The map shows the overworld, so a builder
+    in another dimension draws nothing; tests/so/map.lua moves it to compare the two twins."""
+    b = None
+    for p in lines("map-scene.txt"):
+        if p[0] == "blueprint":
+            # blueprint DIM X1 Y1 Z1 X2 Y2 Z2 DONE TOTAL STATE [SEVERITY TEXT...]
+            x1, y1, z1, x2, y2, z2, done, total = map(int, p[2:10])
+            b = dict(dim=p[1], x1=x1, y1=y1, z1=z1, x2=x2, y2=y2, z2=z2, done=done, total=total, state=p[10],
+                     alert=dict(severity=int(p[11]), text=" ".join(p[12:])) if len(p) > 11 else None, turtle=None)
+        elif p[0] == "builder" and b:
+            # builder ID X Y Z F FUEL AGO; no line means the pose is unknown
+            x, y, z, f, fuel, ago = map(int, p[2:8])
+            b["turtle"] = dict(id=p[1], x=x, y=y, z=z, f=f, fuel=fuel, ago=ago)
+    return b
+
+
+BUILD = load_build()
+
+
+def held(alert):
+    """A held builder's colour: red for a safety hold (severity 1), amber for supply and legacy holds."""
+    return "e" if alert and alert["severity"] == 1 else "1"
+
+
+def progress(b):
+    return "%d/%d" % (b["done"], b["total"]) if b["total"] > 0 else "-"
+
+
+def build_on(level):
+    b = BUILD
+    if b is None or b["dim"] != "overworld":
+        return False
+    return level == "all" or min(b["y1"], b["y2"]) <= level <= max(b["y1"], b["y2"])
+
+
+def turtles():
+    """The scene's turtles, plus the builder's at its confirmed pose in the shown dimension."""
+    ts = list(S["turtles"])
+    b = BUILD
+    if b and b["dim"] == "overworld" and b["turtle"]:
+        t = b["turtle"]
+        col = held(b["alert"]) if b["state"] == "held" else tone(b["state"])
+        ts.append(dict(t, state=b["state"], col=col, ore=None, lease="-", build=b))
+        ts.sort(key=lambda t: int(t["id"]))
+    return ts
 
 
 def snapped(g):
@@ -61,7 +109,9 @@ def bounds(level):
     if farm_on(level):
         x1, z1, x2, z2 = area()
         pts += [(x1, z1), (x2, z2)]
-    for p in S["drops"] + [server()] + S["turtles"]:
+    if build_on(level):
+        pts += [(BUILD["x1"], BUILD["z1"]), (BUILD["x2"], BUILD["z2"])]
+    for p in S["drops"] + [server()] + turtles():
         if near(p, level):
             pts.append((p["x"], p["z"]))
     xs, zs = [p[0] for p in pts], [p[1] for p in pts]
@@ -227,7 +277,7 @@ def label_of(t, sx):
 def markers(v, drop_label="kind"):
     """Turtles, then drops and the server, then the shaft: (cell, glyph, fg, label, lfg, kind, ref)."""
     level, out = v["level"], []
-    for t in S["turtles"]:
+    for t in turtles():
         p = cell(v, t["x"], t["z"])
         if p and near(t, level):
             out.append((p, ARROW.get(t["f"], "•"), t["col"], label_of(t, v["sx"]), t["col"], "turtle", t))
@@ -300,6 +350,24 @@ def draw(cv, v, ox, oy, select=None, labels=True, drop_label="kind", select_drop
                 occ[p] = "tree"
         if cell(v, fx1, fz1):
             farm_label = ("farm %d/%d" % (ready, len(S["spots"])), (c1[0] - 1, c1[1]))
+    # The blueprint outline, in the builder's hold colour while held; its label always shows then.
+    build_label = None
+    if build_on(v["level"]):
+        b = BUILD
+        is_held = b["state"] == "held"
+        fg = held(b["alert"]) if is_held else "9"
+        bx1, bz1 = min(b["x1"], b["x2"]), min(b["z1"], b["z2"])
+        c1 = ((bx1 - v["left"]) // v["sx"], (bz1 - v["top"]) // v["sz"])
+        c2 = ((max(b["x1"], b["x2"]) - v["left"]) // v["sx"], (max(b["z1"], b["z2"]) - v["top"]) // v["sz"])
+        for y in range(max(c1[1], 0), min(c2[1], v["mh"] - 1) + 1):
+            for x in range(max(c1[0], 0), min(c2[0], v["mw"] - 1) + 1):
+                ex, ey = x in (c1[0], c2[0]), y in (c1[1], c2[1])
+                if ex or ey:
+                    cv.put(ox + x, oy + y, "+" if ex and ey else "-" if ey else "|", fg)
+                    occ[(x, y)] = "build"
+        if cell(v, bx1, bz1) and (is_held or v["sx"] < 3):
+            text = "build held" if is_held else "build " + progress(b)
+            build_label = (text, (c1[0] - 1, c1[1]), fg if is_held else "8")
     marks = markers(v, drop_label)
     taken = {}
     # A broken chest is a beacon: it wins its cell over a turtle; labels keep the marker order.
@@ -330,7 +398,7 @@ def draw(cv, v, ox, oy, select=None, labels=True, drop_label="kind", select_drop
                         bad = True
                         break
                     if q in occ:
-                        cost += 30 if occ[q] in ("line", "tree") else 10
+                        cost += 30 if occ[q] in ("line", "tree", "build") else 10
                 elif q in placed or (q in taken and q != at):
                     bad = True
                     break
@@ -361,6 +429,8 @@ def draw(cv, v, ox, oy, select=None, labels=True, drop_label="kind", select_drop
             place(m[3], m[0], m[4], pref)
         if farm_label and v["sx"] < 3:
             place(farm_label[0], farm_label[1], "8", ["u", "ur", "r"])
+        if build_label:
+            place(build_label[0], build_label[1], build_label[2], ["u", "ur", "r", "dr", "ul", "dl", "l", "d"])
     numbers(cv, v, ox, oy, occ, taken, placed)
     return taken, occ
 
@@ -422,18 +492,21 @@ def callout_lines(pick, v):
     or ('chip', label, id)."""
     k = pick[0]
     if k == "turtle":
-        t = next((t for t in S["turtles"] if t["id"] == str(pick[1])), None)
+        t = next((t for t in turtles() if t["id"] == str(pick[1])), None)
         if not t:
             return None
         st = t["col"] if t["col"] != "d" else "0"
         when = age(t["ago"], True)
-        return t["col"], (t["x"], t["z"]), [
+        b = t.get("build")
+        rows = [
             ("text", [(0, "#" + t["id"], "0"), (len(t["id"]) + 2, t["state"], st), (-len(when), when, "8")]),
             ("text", [(0, "%d,%d,%d" % (t["x"], t["y"], t["z"]), "8")]),
             ("leader", "fuel", str(t["fuel"]), "1" if isinstance(t["fuel"], int) and t["fuel"] < 500 else "0"),
-            ("leader", "ore", str(t["ore"]), "0"),
-            ("leader", "lease", t["lease"], "e" if t["lease"] == "expired" else "0" if t["lease"] == "open" else "8"),
-            ("chip", "DETAILS", "turtle:" + t["id"])]
+            ("leader", "build", progress(b), "0") if b else ("leader", "ore", str(t["ore"]), "0"),
+            ("leader", "lease", t["lease"], "e" if t["lease"] == "expired" else "0" if t["lease"] == "open" else "8")]
+        if b and b["alert"]:
+            rows.append(("text", [(0, b["alert"]["text"], held(b["alert"]))]))
+        return t["col"], (t["x"], t["z"]), rows + [("chip", "DETAILS", "turtle:" + t["id"])]
     if k == "drop":
         d = next((d for d in S["drops"] if did(d) == str(pick[1])), None)
         if not d:
