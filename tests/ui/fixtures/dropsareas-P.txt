@@ -1,0 +1,61 @@
+26x20 Protected and keep boxes, CLEAR MARKS armed at 26x20
+ AREAS  ----------------  
+ OVW 110,64,-340          
+     126,80,-330          
+  x1   110          -  +  
+                          
+ PROTECTED 2 -----------  
+ p1 100,60,-350  remove   
+ p2 -20,40,10    remove   
+ KEEP 1 ----------------  
+ k1 140,-60,-38  remove   
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+ ! 2 sections             
+  PROTECT   KEEP          
+  CONFIRM           BACK  
+00000000cccccccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0888888888880ccccccccccc00
+0000000000000000eeeeeeee00
+0000000000000000eeeeeeee00
+08888880cccccccccccccccc00
+0000000000000000eeeeeeee00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0e000000000000000000000000
+09999999990999999000000000
+0eeeeeeeee0000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777fffffffffffff777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffff77777777ff
+ffffffffffffffff77777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffff77777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777777f777777fffffffff
+f777777777fffffffff777777f

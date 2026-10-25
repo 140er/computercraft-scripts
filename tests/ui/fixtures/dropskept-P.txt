@@ -1,0 +1,61 @@
+26x20 Kept setup routes, RELEASE armed at 26x20
+ SETUP  ----------------  
+                          
+ point 3 123,64,-337      
+                          
+ TURTLES ---------------  
+ • #12              scan  
+ KEPT ------------------  
+ • #9 6 WAIT GPS          
+ • #14 3 HELD    release  
+ • #21 11        CONFIRM  
+ FOUND -----------------  
+ • 121,64,-340 down  add  
+                          
+                          
+                          
+                          
+                          
+                          
+  TEST   FIX   AREAS      
+                    BACK  
+00000000cccccccccccccccc00
+00000000000000000000000000
+0888880eeeeeeeeeeeee000000
+00000000000000000000000000
+088888880ccccccccccccccc00
+0d000000000000000009999990
+088880cccccccccccccccccc00
+08000000000000000000000000
+0e00000000000000eeeeeeeee0
+0800000000000000eeeeeeeee0
+0888880ccccccccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999990999990000000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffffffff777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffff777777777f
+ffffffffffffffff777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffff77777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777f77777f7777777fffff
+fffffffffffffffffff777777f

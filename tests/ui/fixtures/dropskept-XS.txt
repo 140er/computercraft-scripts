@@ -1,0 +1,31 @@
+15x10 Kept setup routes at 15x10
+ SETUP  --- +  
+               
+ point 3 123,  
+               
+ TURTLES ----  
+ • #12   scan  
+               
+  TEST   FIX   
+  AREAS        
+         BACK  
+00000000ccc0000
+000000000000000
+0888880eeeeee00
+000000000000000
+088888880cccc00
+0d0000009999990
+000000000000000
+099999909999900
+000000000000000
+000000000000000
+fffffffffff777f
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+ffffffff777777f
+fffffffffffffff
+f777777f77777ff
+f7777777fffffff
+ffffffff777777f

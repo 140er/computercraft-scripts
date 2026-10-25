@@ -304,6 +304,43 @@ A.render = function(id, state, w, h, options)
     view.fromPage=state=='found' and 1 or 0
     view.queueFeedback=state=='feedback' and 'selection unavailable' or nil
     return t.render(w,h,session),t.input,session
+  elseif id=='drops-kept' or id=='drops-areas' then
+    local session={id=7}
+    local t=once(function()
+      local t=J.drops()
+      local env=S.private(t.mod.tick,'_ENV')
+      local read=env.SO.store.read
+      env.SO.store.read=function(path)
+        local value=read(path)
+        if path=='so-server.cfg' then
+          value.worldEdits=state~='protect'
+          value.protectedAreas=id=='drops-areas' and state~='keep'
+        end
+        return value
+      end
+      env.SO.mods.cells={
+        counts=function() return {reserved={['setup:9']=6,['setup:14']=3,['setup:21']=11,['mine:3']=40}} end,
+        releaseStatus=function(who) return ({['setup:9']={status='pending'},['setup:14']={status='held'}})[who] end,
+        releaseRequest=function() return {status='confirm',token='t'} end,
+        clearMarks=function() return {status='confirm',token='t',sections=2} end,
+        protect=function() return true end,
+        protected=function() return {boxes={{id='p1',dim='minecraft:overworld',x1=100,y1=60,z1=-350,x2=130,y2=90,z2=-320},
+          {id='p2',dim='minecraft:the_nether',x1=-20,y1=40,z1=10,x2=-10,y2=50,z2=20}}} end,
+        keep=function() return {{id='k1',dim='minecraft:overworld',x1=140,y1=-60,z1=-380,x2=170,y2=-40,z2=-360}} end,
+      }
+      t.S.views={}
+      t.tap(session,'testing')
+      if id=='drops-areas' then
+        t.tap(session,'areas')
+        t.S.views[7].box={dim='minecraft:overworld',x1=110,y1=64,z1=-340,x2=126,y2=80,z2=-330}
+        t.tap(session,'area-field')
+        if state=='confirm' then t.tap(session,'clear-marks') end
+        if state=='list' then t.tap(session,'area-list') end
+      elseif state=='confirm' then t.tap(session,'kept:21')
+      elseif state=='page' then for _=1,3 do t.tap(session,'from-next') end end
+      return t
+    end)
+    return t.render(w,h,session),t.input,session
   elseif id:match('^drops') then
     local t,session=once(J.drops),{id=7}
     t.S.views={}

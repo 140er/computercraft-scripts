@@ -124,6 +124,58 @@ local function capture(frame, w, h)
   return out
 end
 
+-- B3-U: the real cells, lease and drops modules on one server, with worker 9 paired, fenced and
+-- silent for five minutes. cfg is so-server.cfg; reboot keeps the files.
+local function cellsRig(cfg, files)
+  local net = H.new()
+  local m = net.machine({id=1, directories=true, capacity=16000000})
+  m.install({"so-store.lua", "so-ui.lua", "so-plan.lua", "so-mod-cells.lua", "so-mod-lease.lua", "so-mod-drops.lua"})
+  for path, bytes in pairs(files or {}) do m.files[path] = bytes end
+  cfg.pos = cfg.pos or {dim="minecraft:overworld", x=0, y=64, z=0}
+  m.files["so-server.cfg"] = H.encode(cfg)
+  local e, t = m.env, {net=net, m=m, sent={}}
+  e.rednet.send = function(_, wire) t.sent[#t.sent+1] = wire return true end
+  e.SO = {now=function() return net.time end, mods={}, store=e.dofile("so-store.lua"), breathe=function() end,
+    pair={key=function() return "key" end},
+    proto={build=function(_, kind, body) return {t=kind, body=body} end, encode=function(v) return v end}}
+  e.SO.mods.state = {emit=function() end}
+  e.SO.mods.display = {screen=function(_, render, input) t.render, t.input = render, input end}
+  t.cells = e.dofile("so-mod-cells.lua") e.SO.mods.cells = t.cells
+  t.lease = e.dofile("so-mod-lease.lua") e.SO.mods.lease = t.lease
+  t.mod = e.dofile("so-mod-drops.lua") e.SO.mods.drops = t.mod
+  t.lease.handlers.hello({from=9, body={role="worker", dim="minecraft:overworld",
+    capabilities={setupFence=true, parkBatch=true}, journal={id="before", pose={x=0,y=0,z=0,f=0}}}})
+  net.time = net.time + 300000
+  t.mod.tick()
+  t.report = function(lid, change)
+    local body = {lease=lid, journal="after", pose={x=0,y=0,z=0,f=0},
+      results={{ok=true, data={dim="minecraft:overworld", x=4, y=5, z=6}}}}
+    if change then change(body) end
+    t.lease.handlers["step.report"]({from=9, body=body}, function() end)
+    t.mod.tick()
+  end
+  t.config = function(next)
+    next.pos = cfg.pos
+    m.files["so-server.cfg"] = H.encode(next)
+    for i = 1, 30 do
+      local name, value = debug.getupvalue(t.mod.tick, i)
+      if name == "S" then value.ctx = nil end
+    end
+  end
+  t.tap = function(session, id) t.input({id=id, session=session, from=session.id}) end
+  t.ids = function(session, w, h)
+    local out = {}
+    for _, b in ipairs(t.render(w or 26, h or 20, session).buttons) do out[b.id] = b end
+    return out
+  end
+  t.text = function(session, w, h)
+    local out = {}
+    for y, row in ipairs(t.render(w or 26, h or 20, session).rows) do out[y] = row.text end
+    return table.concat(out, "\n")
+  end
+  return t
+end
+
 return function(test, equal)
   for _, size in ipairs({{26,20}, {29,12}}) do
     test("paged drop editor and typed input at " .. size[1] .. "x" .. size[2], function()
@@ -494,6 +546,247 @@ return function(test, equal)
       end
       assert(found,"FOUND unreachable")
     end
+  end)
+
+
+  test("B3-U a kept setup route RELEASE waits for the fenced GPS fix and keeps the route until then", function()
+    local t, a = cellsRig({worldEdits=true}), {id=7}
+    assert(t.cells.reserveMany("setup:9", {{"minecraft:overworld",4,5,6}, {"minecraft:overworld",7,5,6}}))
+    t.tap(a, "testing")
+    equal(t.ids(a)["kept:9"].label, "release")
+    assert(t.text(a):find("KEPT", 1, true) and t.text(a):find("#9 2", 1, true), t.text(a))
+    -- The first tap takes the cells module's token and sends nothing; another tap disarms.
+    t.tap(a, "kept:9")
+    equal(#t.sent, 0)
+    equal(t.ids(a)["kept:9"].label, "CONFIRM")
+    t.tap(a, "turtle:9")
+    equal(t.ids(a)["kept:9"].label, "release")
+    t.tap(a, "kept:9")
+    equal(#t.sent, 0)
+    t.tap(a, "kept:9")
+    equal(#t.sent, 1)
+    equal(t.sent[1].body.steps, {{op="gps", park=true}})
+    equal(t.cells.owner(7,5,6), "setup:9")
+    equal(t.cells.owner(4,5,6), "setup:9")
+    assert(t.text(a):find("#9 2 WAIT GPS", 1, true), t.text(a))
+    equal(t.ids(a)["kept:9"], nil)
+    t.report(t.sent[1].body.lease)
+    equal(t.cells.owner(7,5,6), nil)
+    equal(t.cells.owner(4,5,6), "gps:9")
+    assert(not t.text(a):find("KEPT", 1, true), t.text(a))
+  end)
+
+  test("B3-U a failed fenced GPS fix keeps the kept route and offers RELEASE again", function()
+    local t, a = cellsRig({worldEdits=true}), {id=7}
+    assert(t.cells.reserveMany("setup:9", {{"minecraft:overworld",4,5,6}, {"minecraft:overworld",7,5,6}}))
+    t.tap(a, "testing")
+    t.tap(a, "kept:9")
+    t.tap(a, "kept:9")
+    t.report(t.sent[1].body.lease, function(body) body.journal = "before" end)
+    equal(t.cells.owner(7,5,6), "setup:9")
+    equal(t.cells.owner(4,5,6), "setup:9")
+    assert(t.text(a):find("#9 2 HELD", 1, true), t.text(a))
+    equal(t.ids(a)["kept:9"].label, "release")
+  end)
+
+  test("B3-U no kept route, AREAS or box control is drawn or acts while its flag is off", function()
+    local t, a = cellsRig({}), {id=7}
+    assert(t.cells.reserveMany("setup:9", {{"minecraft:overworld",4,5,6}}))
+    t.tap(a, "testing")
+    local ids = t.ids(a)
+    equal(ids["kept:9"], nil)
+    equal(ids.areas, nil)
+    assert(not t.text(a):find("KEPT", 1, true))
+    t.tap(a, "kept:9") t.tap(a, "kept:9")
+    t.tap(a, "areas")
+    equal(t.ids(a)["area-protect"], nil)
+    t.tap(a, "area-protect") t.tap(a, "area-keep") t.tap(a, "clear-marks") t.tap(a, "clear-marks")
+    equal(#t.sent, 0)
+    equal(t.cells.owner(4,5,6), "setup:9")
+    equal(#t.cells.protected().boxes, 0)
+    equal(#t.cells.keep(), 0)
+    -- protectedAreas alone draws PROTECT, not KEEP, CLEAR MARKS or the kept list.
+    t.config({protectedAreas=true})
+    ids = t.ids(a)
+    equal(ids["kept:9"], nil)
+    t.tap(a, "areas")
+    ids = t.ids(a)
+    assert(ids["area-protect"])
+    equal(ids["area-keep"], nil)
+    equal(ids["clear-marks"], nil)
+    t.tap(a, "area-keep")
+    equal(#t.cells.keep(), 0)
+  end)
+
+  test("B3-U AREAS protects, keeps and clears marks with two-tap removal and the cells confirmation", function()
+    local t, a = cellsRig({protectedAreas=true, worldEdits=true}), {id=7}
+    t.tap(a, "testing")
+    t.tap(a, "areas")
+    -- The draft starts at 0,64,0; z2 moves to 1.
+    for _ = 1, 6 do t.tap(a, "area-field") end
+    t.tap(a, "area+")
+    t.tap(a, "area-protect")
+    local boxes = t.cells.protected().boxes
+    equal(#boxes, 1)
+    equal({boxes[1].id, boxes[1].x1, boxes[1].y1, boxes[1].z1, boxes[1].z2}, {"p1", 0, 64, 0, 1})
+    assert(t.text(a):find("PROTECTED 1", 1, true), t.text(a))
+    t.tap(a, "unprotect:p1")
+    equal(#t.cells.protected().boxes, 1)
+    equal(t.ids(a)["unprotect:p1"].label, "CONFIRM")
+    t.tap(a, "unprotect:p1")
+    equal(#t.cells.protected().boxes, 0)
+    t.tap(a, "area-keep")
+    equal(t.cells.keep()[1].id, "k1")
+    t.tap(a, "unkeep:k1")
+    t.tap(a, "area-field")
+    t.tap(a, "unkeep:k1")
+    equal(#t.cells.keep(), 1)
+    t.tap(a, "unkeep:k1") t.tap(a, "unkeep:k1")
+    equal(#t.cells.keep(), 0)
+    assert(t.cells.markDug(0, 64, 1))
+    t.cells.tick(t.net.time)
+    t.tap(a, "clear-marks")
+    equal(t.cells.isDug(0, 64, 1), true)
+    equal(t.ids(a)["clear-marks"].label, "CONFIRM")
+    t.tap(a, "clear-marks")
+    equal(t.cells.isDug(0, 64, 1), false)
+    assert(t.text(a):find("marks cleared", 1, true), t.text(a))
+  end)
+
+
+  test("B3-U kept-route and AREAS screens match the twin fixtures", function()
+    local s3 = dofile("tests/ui/s3.lua")
+    local drops
+    for i = 1, 40 do local k, v = debug.getupvalue(s3, i) if k == "drops" then drops = v end end
+    local function rig(flags)
+      local t, env = assert(drops)(), nil
+      for j = 1, 30 do local k, v = debug.getupvalue(t.mod.tick, j) if k == "_ENV" then env = v end end
+      local read = env.SO.store.read
+      env.SO.store.read = function(path)
+        local value = read(path)
+        if path == "so-server.cfg" then for k, v in pairs(flags) do value[k] = v end end
+        return value
+      end
+      env.SO.mods.cells = {
+        counts = function() return {reserved={["setup:9"]=6, ["setup:14"]=3, ["setup:21"]=11, ["mine:3"]=40}} end,
+        releaseStatus = function(who) return ({["setup:9"]={status="pending"}, ["setup:14"]={status="held"}})[who] end,
+        releaseRequest = function() return {status="confirm", token="t"} end,
+        clearMarks = function() return {status="confirm", token="t", sections=2} end,
+        protect = function() return true end,
+        protected = function() return {boxes={{id="p1", dim="minecraft:overworld", x1=100, y1=60, z1=-350, x2=130, y2=90, z2=-320},
+          {id="p2", dim="minecraft:the_nether", x1=-20, y1=40, z1=10, x2=-10, y2=50, z2=20}}} end,
+        keep = function() return {{id="k1", dim="minecraft:overworld", x1=140, y1=-60, z1=-380, x2=170, y2=-40, z2=-360}} end,
+      }
+      return t
+    end
+    local cases = {{"dropskept-M", 57, 24, false, "tests/ui/fixtures/dropskept-M.txt"},
+      {"dropskept-P", 26, 20, true, "tests/ui/fixtures/dropskept-P.txt"},
+      {"dropskept-XS", 15, 10, false, "tests/ui/fixtures/dropskept-XS.txt"},
+      {"dropsareas-M", 57, 24, false, "tests/ui/fixtures/dropsareas-M.txt"},
+      {"dropsareas-P", 26, 20, true, "tests/ui/fixtures/dropsareas-P.txt"},
+      {"dropsareas-XS", 15, 10, false, "tests/ui/fixtures/dropsareas-XS.txt"},
+      {"dropskept-page-XS", 15, 10, "page", "tests/ui/fixtures/dropskept-page-XS.txt"},
+      {"dropsareas-list-XS", 15, 10, "list", "tests/ui/fixtures/dropsareas-list-XS.txt"}}
+    for _, c in ipairs(cases) do
+      local areas = c[1]:match("areas") ~= nil
+      local t, a = rig(areas and {protectedAreas=true, worldEdits=true} or {worldEdits=true}), {id=7}
+      t.tap(a, "testing")
+      if areas then
+        t.tap(a, "areas")
+        t.S.views[7].box = {dim="minecraft:overworld", x1=110, y1=64, z1=-340, x2=126, y2=80, z2=-330}
+        t.tap(a, "area-field")
+        if c[4] == true then t.tap(a, "clear-marks") elseif c[4] then t.tap(a, "area-list") end
+      elseif c[4] == true then t.tap(a, "kept:21")
+      elseif c[4] then for _ = 1, 3 do t.tap(a, "from-next") end end
+      local frame = t.render(c[2], c[3], a)
+      equal(R.diff(c[5], capture(frame, c[2], c[3])), {})
+      assert(#H.encode(frame) < 16000, "oversized frame")
+      for _, b in ipairs(frame.buttons) do
+        assert(b.x >= 1 and b.y >= 1 and b.x+b.w-1 <= c[2] and b.y <= c[3], b.id)
+        for _, other in ipairs(frame.buttons) do
+          assert(b == other or b.y ~= other.y or b.x+b.w <= other.x or other.x+other.w <= b.x, b.id .. " overlaps " .. other.id)
+        end
+      end
+    end
+    local started, pipe = pcall(io.popen, "pwd")
+    local root = started and pipe and pipe:read("*l")
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1, 1) ~= "/" or not os.execute("python3 -V > /dev/null 2>&1") then
+      return dofile("tests/skips.lua").record("B3-U drops generator", "needs host processes, a POSIX shell and python3")
+    end
+    local dir = os.tmpname()
+    os.remove(dir)
+    local names = {}
+    for _, c in ipairs(cases) do names[#names+1] = c[1] end
+    assert(os.execute("python3 -I '" .. root .. "/docs/ui/schematic/screens.py' --fixtures '" .. dir .. "' " .. table.concat(names, " ") .. " > /dev/null"))
+    for _, c in ipairs(cases) do
+      local f1, f2 = assert(io.open(dir .. "/" .. c[1] .. ".txt", "rb")), assert(io.open(c[5], "rb"))
+      equal(f1:read("*a"), f2:read("*a"))
+      f1:close()
+      f2:close()
+    end
+    assert(os.execute("rm -r '" .. dir .. "'"))
+  end)
+
+
+  test("B3-U at 15x10 every kept route is reachable past turtles and found chests, with RELEASE", function()
+    local t, a = cellsRig({worldEdits=true}), {id=7}
+    local S
+    for i = 1, 30 do local k, v = debug.getupvalue(t.mod.tick, i) if k == "S" then S = v end end
+    S.candidates = {{dim=0, x=1, y=64, z=1, side="front"}, {dim=0, x=2, y=64, z=1, side="front"}}
+    assert(t.cells.reserveMany("setup:9", {{"minecraft:overworld",4,5,6}}))
+    assert(t.cells.reserveMany("setup:31", {{"minecraft:overworld",8,5,6}}))
+    t.tap(a, "testing")
+    local seen = {}
+    for _ = 1, 8 do
+      local ids, drawn = t.ids(a, 15, 10), false
+      assert(ids["from-next"], "no pager")
+      for id in pairs(ids) do
+        if id:match("^kept:") then seen[id] = ids[id].label drawn = true end
+        drawn = drawn or id:match("^candidate:") or id:match("^turtle:")
+      end
+      assert(drawn, "a page without its current item")
+      t.tap(a, "from-next")
+    end
+    equal(seen, {["kept:9"]="release", ["kept:31"]="release"})
+    while not t.ids(a, 15, 10)["kept:9"] do t.tap(a, "from-next") end
+    t.tap(a, "kept:9")
+    t.tap(a, "kept:9")
+    equal(#t.sent, 1)
+    equal(t.cells.owner(4,5,6), "setup:9")
+  end)
+
+  test("B3-U at 15x10 saved boxes open behind BOXES and keep their two-tap remove", function()
+    local t, a = cellsRig({protectedAreas=true, worldEdits=true}), {id=7}
+    t.tap(a, "testing")
+    t.tap(a, "areas")
+    t.tap(a, "area-protect")
+    t.tap(a, "area-keep")
+    local wide = t.ids(a, 26, 20)
+    assert(wide["unprotect:p1"] and wide["unkeep:k1"] and not wide["area-list"])
+    local ids = t.ids(a, 15, 10)
+    equal(ids["unprotect:p1"], nil)
+    assert(ids["area-list"] and ids["area-protect"] and ids["area-keep"] and ids["clear-marks"])
+    t.tap(a, "area-list")
+    ids = t.ids(a, 15, 10)
+    assert(ids["unprotect:p1"] and ids["unkeep:k1"] and ids["area-edit"])
+    t.tap(a, "unprotect:p1")
+    equal(t.ids(a, 15, 10)["unprotect:p1"].label, "CONFIRM")
+    t.tap(a, "unprotect:p1")
+    equal(#t.cells.protected().boxes, 0)
+    t.tap(a, "area-edit")
+    assert(t.ids(a, 15, 10)["area-field"])
+  end)
+
+  test("B3-U KEPT counts a setup route beyond the 4096-cell reservation list", function()
+    local t, a = cellsRig({worldEdits=true}), {id=7}
+    local cells = {}
+    for i = 1, 4100 do cells[i] = {"minecraft:overworld", i % 64, 70 + math.floor(i / 4096), math.floor(i / 64) % 64} end
+    assert(t.cells.reserveMany("mine:5", {{"minecraft:overworld", 900, 5, 900}}))
+    assert(t.cells.reserveMany("setup:9", cells))
+    t.tap(a, "testing")
+    assert(t.text(a):find("#9 4100", 1, true), t.text(a))
+    equal(t.ids(a)["kept:9"].label, "release")
   end)
 
 end

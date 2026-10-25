@@ -1,0 +1,31 @@
+15x10 Kept route #21 paged to at 15x10
+ SETUP  --- +  
+               
+ point 3 123,  
+               
+ KEPT -------  
+ • #21 release 
+               
+  TEST   FIX   
+  AREAS        
+         BACK  
+00000000ccc0000
+000000000000000
+0888880eeeeee00
+000000000000000
+088880ccccccc00
+080000eeeeeeeee
+000000000000000
+099999909999900
+000000000000000
+000000000000000
+fffffffffff777f
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+ffffff777777777
+fffffffffffffff
+f777777f77777ff
+f7777777fffffff
+ffffffff777777f

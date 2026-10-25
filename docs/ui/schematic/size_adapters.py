@@ -101,6 +101,8 @@ register("pocket-lists", "stock", [16, 24, 36, 52], [10, 16], ("scene", "list", 
 register("pocket-minimum", "stock", [16, 24, 26], [10, 12], ("scene",))
 
 register("attention-lost", "other", [20, 23, 30, 40], [16], ("scene", "detail"))
+register("drops-kept", "jobs", [18, 24, 30, 36, 52], [12, 14, 19, 22], ("scene", "confirm", "page"))
+register("drops-areas", "jobs", [18, 24, 30, 36, 52], [12, 14, 19, 22], ("scene", "confirm", "protect", "keep", "list"))
 
 
 def status_canvas(m, w, h, draw=None):
@@ -282,6 +284,16 @@ def render(ident, state, w, h):
         m = J.drops_model(testing=True, saved=True)
         m.update(queueEnabled=True, queueTools=True, task=12 if state == "release" else None,
                  start=1 if state == "found" else 0)
+        return J.drops(m, w, h)
+    if ident == "drops-kept":
+        return J.dropskept(w, h, "", state == "confirm", 3 if state == "page" else 0)()
+    if ident == "drops-areas":
+        m = J.area_model("clear-marks" if state == "confirm" else None, "2 sections" if state == "confirm" else None,
+                         state == "list")
+        if state == "protect":
+            m["areas"]["keep"] = None
+        if state == "keep":
+            m["areas"]["protect"] = None
         return J.drops(m, w, h)
     if ident.startswith("drops"):
         m = J.drops_model(editing=ident == "drops-add", edit=ident == "drops-edit",
