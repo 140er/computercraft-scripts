@@ -104,24 +104,27 @@ local function choose()
   local monitor = peripheral.find("monitor")
   local out = monitor or term
   local list, selected = roleButtons(out), monitor and 2 or 1
-  local role
-  while not role do
-    drawRoleButtons(out, list, selected)
-    local ev, a, x, y = os.pullEvent()
-    if ev == "key" then
-      if a == keys.up or a == keys.down then selected = 3 - selected end
-      if a == keys.enter then role = list[selected].role end
-    elseif (ev == "mouse_click" and not monitor) or
-      (ev == "monitor_touch" and monitor and a == peripheral.getName(monitor)) then
-      for _, b in ipairs(list) do
-        if x >= b.x1 and x <= b.x2 and y >= b.y1 and y <= b.y2 then role = b.role end
+  -- Reset the screen even when the picker is terminated or fails, then pass the error on.
+  local ok, role = pcall(function()
+    while true do
+      drawRoleButtons(out, list, selected)
+      local ev, a, x, y = os.pullEvent()
+      if ev == "key" then
+        if a == keys.up or a == keys.down then selected = 3 - selected end
+        if a == keys.enter then return list[selected].role end
+      elseif (ev == "mouse_click" and not monitor) or
+        (ev == "monitor_touch" and monitor and a == peripheral.getName(monitor)) then
+        for _, b in ipairs(list) do
+          if x >= b.x1 and x <= b.x2 and y >= b.y1 and y <= b.y2 then return b.role end
+        end
       end
     end
-  end
+  end)
   out.setBackgroundColor(colors.black)
   out.setTextColor(colors.white)
   out.clear()
   out.setCursorPos(1, 1)
+  if not ok then error(role, 0) end
   return role
 end
 local function position()

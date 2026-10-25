@@ -619,13 +619,15 @@ return function(test, equal, read)
     end
   end)
   -- A cell grid term of a fixed size that fails on any write outside it.
-  local function pickRole(w, h, events, monitor)
+  -- An event may be a function; it runs when pulled and may set up a failure.
+  -- With aborts set, the run must fail and the error and final screen are returned.
+  local function pickRole(w, h, events, monitor, aborts)
     local m = machine("server")
-    local grid, frames, cx, cy, bg = {}, {}, 1, 1, nil
+    local grid, frames, cx, cy, bg, fg, failWrite = {}, {}, 1, 1, nil, nil, false
     local out = {
       getSize = function() return w, h end,
       isColor = function() return true end,
-      setTextColor = function() end,
+      setTextColor = function(c) fg = c end,
       setBackgroundColor = function(c) bg = c end,
       setCursorPos = function(x, y) cx, cy = x, y end,
       getCursorPos = function() return cx, cy end,
@@ -636,6 +638,7 @@ return function(test, equal, read)
         end
       end,
       write = function(text)
+        if failWrite then error("draw failed", 0) end
         for i = 1, #text do
           assert(cx >= 1 and cx <= w and cy >= 1 and cy <= h, "write outside " .. w .. "x" .. h .. " at " .. cx .. "," .. cy)
           grid[cy][cx] = { text:sub(i, i), bg }
@@ -655,10 +658,16 @@ return function(test, equal, read)
       for y = 1, h do frame[y] = {} for x = 1, w do frame[y][x] = grid[y][x] end end
       frames[#frames + 1] = frame
       local ev = assert(table.remove(queue, 1), "chooser did not return")
+      if type(ev) == "function" then return ev(function() failWrite = true end) end
       return table.unpack(ev)
     end
-    m.run()
-    return m.files[".so-role"], #queue, frames
+    if not aborts then
+      m.run()
+      return m.files[".so-role"], #queue, frames
+    end
+    local ok, err = pcall(m.run)
+    assert(not ok, "picker did not fail")
+    return err, { bg = bg, fg = fg, x = cx, y = cy, grid = grid }
   end
   -- Reads button boxes back from a frame: runs of rows with non-black cells.
   local function boxes(frame, w, h)
@@ -772,6 +781,26 @@ return function(test, equal, read)
         assert(text:find(want, 1, true), want)
         local _, count = text:gsub("> ", "")
         equal(count, 1)
+      end
+    end
+  end)
+  test("SO9 a terminated or failing role picker resets the screen and passes the error on", function()
+    local cases = {
+      { "Terminated", function() error("Terminated", 0) end },
+      { "draw failed", function(failDraw) failDraw(); return "key", 2 end },
+    }
+    for _, size in ipairs(sizes) do
+      local w, h = size[1], size[2]
+      for _, monitor in ipairs({ false, true }) do
+        for _, case in ipairs(cases) do
+          local err, screen = pickRole(w, h, { { "key", 2 }, case[2] }, monitor, true)
+          equal(err, case[1])
+          equal(screen.bg, 32768); equal(screen.fg, 1)
+          equal(screen.x, 1); equal(screen.y, 1)
+          for y = 1, h do
+            for x = 1, w do equal(screen.grid[y][x], { " ", 32768 }, x .. "," .. y) end
+          end
+        end
       end
     end
   end)
