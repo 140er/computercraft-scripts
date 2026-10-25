@@ -747,6 +747,104 @@ S.recall.finish = function()
   else job.recall.phase="staged" job.running=false end
   if not save() then job.recall=pending pending.phase=oldPhase end
 end
+S.recall.resumeReady = function(id,worker)
+  if not M.inLane(job,worker.cursor.pose) then return true end
+  for other,peer in pairs(job.recall.workers) do
+    if other~=tostring(id) and peer.phase~="resumed" then
+      if not M.inLane(job,peer.cursor.pose) then return false end
+      for _,cell in ipairs(peer.outbound or {}) do
+        if M.same(cell,worker.cursor.pose) then return false end
+      end
+    end
+  end
+  return true
+end
+S.recall.reanchor = function(id,row,status)
+  local worker=S.recall.worker(id)
+  local pending=worker and worker.reanchor
+  if not pending then return true end
+  if status.uncertain then
+    local ok,why=call("lease","reanchor",id,pending.pose)
+    row.error=not ok and why or "pose reconciliation pending"
+    return false
+  end
+  local actual=status.pose and {dim=job.dim,x=status.pose.x,y=status.pose.y,z=status.pose.z,facing=status.pose.f}
+  if status.journal==pending.journal or not P.samePose(actual,pending.pose) then
+    row.error="pose reconciliation pending" return false
+  end
+  row.anchor,row.pose=SO.store.copy(pending.pose),SO.store.copy(pending.pose)
+  row.frame=P.frame(row.anchor,status.pose)
+  row.recover,row.parkUntil=true,nil
+  worker.reanchor=nil
+  if not save() then worker.reanchor=pending return false end
+  return true
+end
+S.recall.servicePlan = function(id,row,worker)
+  local service=worker.service
+  if not service then return false end
+  if service.stage~="back" then
+    local usable,reason=call("drops","usable",service.point.id)
+    if usable==false then
+      worker.phase,worker.error="fuel","recall fuel "..tostring(reason or "unavailable")
+      worker.retryAfter=SO.now()+60000
+      row.state,row.error="hold",worker.error
+      save() park(id,row,false) return true
+    end
+  end
+  local goal=service.stage=="back" and service.back or service.stand
+  local remaining=M.travel(row.pose,goal,service.point,job,{trip=service})
+  local why=not remaining and "fuel pose outside confirmed service route"
+  for _,cell in ipairs(remaining or {}) do
+    if S.recall.clear(cell)~=false then why="recall fuel route not clear" break end
+  end
+  if why then
+    worker.phase,worker.error,row.state,row.error="blocked",why,"blocked",why
+    save() park(id,row,false) return true
+  end
+  worker.remaining={SO.store.copy(row.pose)}
+  for _,cell in ipairs(remaining) do worker.remaining[#worker.remaining+1]=cell end
+  worker.phase,row.state,worker.error,row.error="fuel","fuel",nil,nil
+  local fuel=type(row.fuel)=="number" and (row.fuel<0 and math.huge or row.fuel) or 0
+  local required=service.stage=="back" and #remaining or service.need or #service.path+64
+  if fuel<required then
+    for _,item in ipairs(row.inv or {}) do
+      local value=P.fuelValue(item.name)
+      if value>0 then
+        local n=math.min(item.count,math.max(1,math.ceil((required-fuel)/value)))
+        if send(id,row,{kind="recallFuel",steps={{op="select",slot=item.slot},{op="refuel",n=n}},cells={}}) then return true end
+      end
+    end
+  end
+  if #remaining>0 then
+    if fuel>=#remaining then
+      if send(id,row,M.recallStep(row.pose,remaining[1])) then return true end
+    else row.error="recall fuel route needs fuel" end
+  else
+    local turn=M.recallStep(row.pose,goal)
+    if turn then
+      if send(id,row,turn) then return true end
+    elseif service.stage=="back" then
+      worker.service=nil
+      if not save() then worker.service=service return true end
+      return false
+    elseif fuel>=required then
+      service.stage="back"
+      if not save() then return true end
+      return S.recall.servicePlan(id,row,worker)
+    else
+      local occupied={} for _,item in ipairs(row.inv or {}) do occupied[item.slot]=true end
+      for slot=1,16 do
+        if not occupied[slot] then
+          local steps={{op=service.point.side=="down" and "inspectDown" or "inspect"},
+            {op="select",slot=slot},{op=service.point.side=="down" and "suckDown" or "suck",n=64}}
+          if send(id,row,{kind="recallFuel",steps=steps,cells={}}) then return true end
+          break
+        end
+      end
+    end
+  end
+  save() park(id,row,false) return true
+end
 S.recall.plan = function(id,row)
   local worker=S.recall.worker(id)
   local status=call("lease","status",id)
@@ -759,6 +857,10 @@ S.recall.plan = function(id,row)
     if S.recall.worker(id) then park(id,row,false) end
     return
   end
+  if job.recall.phase=="resuming" and not S.recall.resumeReady(id,worker) then
+    row.state,row.error="wait resume",nil
+    park(id,row,false) return
+  end
   if worker.phase=="draining" then
     worker.cursor=S.recall.cursor(row)
     worker.phase="returning"
@@ -769,6 +871,7 @@ S.recall.plan = function(id,row)
     park(id,row,false) return
   end
   worker.retryAfter=nil
+  if S.recall.servicePlan(id,row,worker) then return end
   local path,why=S.recall.route(row,worker)
   if not path then
     worker.phase,worker.error,row.state,row.error="blocked",why,"blocked",why
@@ -796,37 +899,11 @@ S.recall.plan = function(id,row)
         if send(id,row,{kind="recallFuel",steps={{op="select",slot=item.slot},{op="refuel",n=n}},cells={}}) then return end
       end
     end
-    -- A service trip needs a confirmed route and enough fuel to reach its chest.
-    if not worker.service then worker.service=S.recall.service(row,fuel) end
-    local service=worker.service
-    if service then
-      local servicePath=M.travel(row.pose,service.stand,service.point,job,{trip=service})
-      local remaining=servicePath and #servicePath or math.huge
-      local clear=true
-      for _,cell in ipairs(servicePath or {}) do if S.recall.clear(cell)~=false then clear=false break end end
-      if clear and fuel>=remaining then
-        if remaining>0 then
-          worker.remaining={SO.store.copy(row.pose)}
-          for _,cell in ipairs(servicePath) do worker.remaining[#worker.remaining+1]=cell end
-          local action=M.recallStep(row.pose,servicePath[1])
-          if send(id,row,action) then return end
-        else
-          local turn=service.point.side=="front" and M.turn(row.pose,service.stand.facing)
-          if turn then
-            if send(id,row,{kind="recall",steps={turn},cells={},pose=P.apply(row.pose,turn.op)}) then return end
-          else
-            local occupied={} for _,item in ipairs(row.inv or {}) do occupied[item.slot]=true end
-            for slot=1,16 do
-              if not occupied[slot] then
-                local steps={{op=service.point.side=="down" and "inspectDown" or "inspect"},
-                  {op="select",slot=slot},{op=service.point.side=="down" and "suckDown" or "suck",n=64}}
-                if send(id,row,{kind="recallFuel",steps=steps,cells={}}) then return end
-                break
-              end
-            end
-          end
-        end
-      end
+    worker.service=S.recall.service(row,fuel)
+    if worker.service then
+      worker.service.need=#path-1+#worker.service.path-1+64
+      if not save() then return end
+      if S.recall.servicePlan(id,row,worker) then return end
     end
     save() park(id,row,false) return
   end
@@ -926,6 +1003,7 @@ plan = function(id,row)
   if not status then return end
   local tool = P.toolCheck(status.tools,"pickaxe")
   call("lease", "describe", id, "mine", not tool.ok and tool.text or row.error or row.state or "idle")
+  if not S.recall.reanchor(id,row,status) then return end
   if status.uncertain then
     row.state, row.error = "hold", "pose uncertain: re-add turtle " .. id
     row.laneWait=nil
@@ -1803,7 +1881,7 @@ local function command(event)
     return
   end
   if job.recall and (cmd=="home" or cmd=="bottom" or cmd=="length" or cmd=="branches" or cmd=="continuous"
-      or cmd=="mode" or cmd=="add" or cmd=="remove" or cmd=="park" or cmd=="resume" or cmd=="staging") then
+      or cmd=="mode" or cmd=="add" and not (S.recall.worker(num(2)) and #a==6) or cmd=="remove" or cmd=="park" or cmd=="resume" or cmd=="staging") then
     S.error="finish recall before changing assignments or routes" return
   end
   local geometry = cmd=="home" or cmd=="bottom" or cmd=="length" or cmd=="branches" or cmd=="continuous" or cmd=="mode"
@@ -1898,6 +1976,19 @@ local function command(event)
     local err=dimensionError(num(4))
     if err then S.error=err return end
     local pose={dim=job.dim,x=num(3),y=num(4),z=num(5),facing=dirs[a[6]]}
+    local recalling=S.recall.worker(id)
+    if recalling then
+      if not uncertain or not SO.pair.key(id) then S.error="recall re-add needs an uncertain paired worker" return end
+      local row=job.turtles[tostring(id)]
+      local reserved,why=call("cells","reserve",owner(id),pose.x,pose.y,pose.z,pose.dim)
+      if not reserved then S.error=why or "reconciliation cell unavailable" return end
+      local previous,recover=recalling.reanchor,row.recover
+      recalling.reanchor,row.recover={pose=pose,journal=status.journal},true
+      if not save() then recalling.reanchor,row.recover=previous,recover return end
+      local ok,reason=call("lease","reanchor",id,pose)
+      S.error=not ok and reason or nil
+      return
+    end
     if uncertain or forgotten then
       if uncertain then
         local ok,err=call("lease","reanchor",id,pose)
