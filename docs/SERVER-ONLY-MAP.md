@@ -957,8 +957,10 @@ Run `install <full-sha>` or `install update <full-sha>` to select a full lowerca
 40-character commit in `server-only` history. Files stay pinned if the branch moves.
 Current installs
 check space for the bootstrap, then the pinned installer's complete role plan.
-Ordinary downloads try a failed file up to three times. Explicit-SHA
-installs and updates use one attempt per file. `install check` compares the installed revision
+Ordinary downloads try a failed file up to three times.
+Explicit-SHA installs and updates use one attempt for bootstrap downloads.
+With the current pinned installer, remaining files allow up to three attempts.
+Guarded worker updates use one attempt per file. `install check` compares the installed revision
 to the branch without writing files and reports an error if lookup fails.
 
 Updates fetch and execute the new installer first, so its role list applies in

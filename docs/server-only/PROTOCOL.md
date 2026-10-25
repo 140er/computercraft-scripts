@@ -2311,8 +2311,9 @@ Only local `key`, `char`, `paste` and `mouse_click` events advance the flow.
 
 The display calls `join(code, candidate, {replace=oldId})`. During the attempt,
 it sends nothing to the old server and ignores incoming repair hints and frames.
-Cancel, wrong code, timeout, failed save or two minutes without input retain
-the old key and resume the old server on its existing timer. Once the synchronous
+Wrong codes, exchange timeouts and failed saves keep the old key and leave
+REPAIR open for another attempt. Cancel, or two minutes without input, resumes
+the old server on its existing timer. Once the synchronous
 code exchange starts, the screen shows `Pairing...`; CANCEL is unavailable until
 it finishes. Success saves only the newly proven server. Repair hints never
 change keys or config.

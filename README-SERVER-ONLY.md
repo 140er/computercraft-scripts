@@ -163,7 +163,9 @@ an update to a full lowercase 40-character commit. All files come from that
 commit even if the branch moves. The installer verifies that the commit belongs
 to `server-only` history. It checks space before
 bootstrap downloads and again for the complete role plan. Ordinary downloads
-retry a failed file up to three times; explicit-SHA installs and updates try it once.
+retry a failed file up to three times. Explicit-SHA installs and updates use one attempt for bootstrap downloads.
+With the current pinned installer, remaining files allow up to three attempts.
+Guarded worker updates use one attempt per file.
 Run `install check` to compare the installed revision with the branch without
 changing files. Failed branch lookup reports an error. Rerunning the server
 installer updates its position and keeps other settings, including `enroll`.
@@ -603,8 +605,9 @@ Set `repairServer=true` in each display's `so-display.cfg`. It defaults off.
 While the keyed display is not live, press `r` at its own keyboard or click the
 top row on its own screen. Choose CHANGE SERVER, confirm the candidate id and
 type the new server's six-digit code from P. Wall taps only show the saved id.
-Cancel, failed proof, timeout or failed key save keep the old key. Two minutes
-without input also resumes the old server. During `Pairing...`, wait for the
+Wrong codes, exchange timeouts and failed saves keep the old key and leave
+REPAIR open for another attempt. Cancel, or two minutes without input, resumes
+the old server on its existing timer. During `Pairing...`, wait for the
 exchange to finish; CANCEL is unavailable. Success saves only the proven server.
 
 ### Managed room output recovery
