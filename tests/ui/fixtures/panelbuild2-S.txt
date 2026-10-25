@@ -1,0 +1,37 @@
+29x12 Panel 29x12 with the builder, page 2
+ PANEL  -------------- 21:14 
+                             
+ turtles ····· 4 ok · 1 lost 
+                             
+ BUILD --------------- held  
+ |||······· 37/120           
+ turtle ················· #6 
+ ! out of fuel               
+                             
+                             
+  ◄  2/2  ►                  
+  ALERTS   PAIR              
+00000000cccccccccccccc0888880
+00000000000000000000000000000
+088888880ccccc00000000eeeeee0
+00000000000000000000000000000
+0888880ccccccccccccccc0dddd00
+03338888888000000000000000000
+08888880ccccccccccccccccc0000
+0e000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000888000000000000000000000
+00000000000000000000000000000
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777fffff777fffffffffffffffff
+f77777777f777777fffffffffffff

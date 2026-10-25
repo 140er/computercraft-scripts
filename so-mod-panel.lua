@@ -94,6 +94,18 @@ P.drawn = function(event)
     and event.x >= b.x and event.x < b.x+b.w and event.y >= b.y and event.y < b.y+(b.h or 1)
 end
 
+-- A so-server.cfg switch as the server exposes it (SO.health.config); missing means off.
+P.flag = function(name)
+  local cfg = SO.health and SO.health.config
+  return type(cfg) == "table" and cfg[name] == true
+end
+P.turtle = function(machine) return machine.role == "turtle" or machine.role == "worker" end
+-- A turtle whose hello reports another full revision than the server's own; unknown is never stale.
+P.stale = function(machine)
+  local server = SO.health and SO.health.revision
+  return P.turtle(machine) and type(server) == "string" and type(machine.revision) == "string" and machine.revision ~= server
+end
+
 -- The panel role in route A; docs/ui/schematic/panel.py is its twin. Row 1 is the PANEL header (the
 -- pocket's tabs when a pocket opens PAIRED or ENROLL), pages have a section on row 3 and their
 -- actions on the last row. Every control is a one-row chip.
@@ -361,10 +373,33 @@ P.fuel = function(shop, room)
 end
 P.fuelRow = function(c, y, lw, value, fg) c.leader(2,y,lw,"fuel auto",value,fg) end
 
+-- The builder's read-only facts (build.facts()), or nil without the build module.
+P.buildFacts = function()
+  local build = SO.mods.build
+  if not build or type(build.facts) ~= "function" then return nil end
+  local ok,f = pcall(build.facts)
+  return ok and type(f) == "table" and f or nil
+end
+-- Rows of the BUILD block: the section, placements and the builder turtle, then its hold as a flag.
+P.buildRows = function(mode, reason) return (mode == "compact" and 1 or 3)+(reason and 1 or 0) end
+P.buildBlock = function(c, x, y, cw, f, mode, reason)
+  local word = P.word(tostring(f.state or "-"),cw-8)
+  c.section(x,y,cw,"BUILD",word,U.tone(word))
+  if mode ~= "compact" then
+    local frac = (f.done or 0).."/"..(f.total or 0)
+    c.progress(x,y+1,math.min(10,cw-#frac-1),f.done or 0,f.total or 0)
+    c.leader(x,y+2,cw,"turtle",f.turtleId and "#"..f.turtleId or "-",f.turtleId and "0" or "8")
+  end
+  if reason then c.flag(x,y+P.buildRows(mode,reason)-1,cw,P.wrap(reason,cw-2)[1] or "") end
+end
+
 -- Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule.
 -- When rows run out the lowest row of blocks gives up its spare row, then its facts.
 P.main = function(c, session, w, h)
-  local blocks,top = {"mining","lumber",session.keyboard and "shop" or nil},3
+  local build = P.buildFacts()
+  local blocks,top = {"mining","lumber"},3
+  if build then blocks[#blocks+1] = "build" end
+  if session.keyboard then blocks[#blocks+1] = "shop" end
   local lw = math.min(w-2,36)
   local fuel,fuelFg = P.fuel(P.states.shop ~= "not loaded" and SO.mods.shop,lw-11)
   if h < 12 then fuel = nil end
@@ -388,18 +423,23 @@ P.main = function(c, session, w, h)
   local cw = math.floor((w-2-(n-1)*3)/n)
   while n > 1 and cw < 16 do n = n-1;cw = math.floor((w-2-(n-1)*3)/n) end
   cw = math.min(cw,36)
-  local grid,modes,reasons,jobs = {},{"full","tight","compact"},P.reasons or {},{}
+  local grid,modes,reasons,jobs = {},{"full","tight","compact"},{},{build=build}
+  for role,text in pairs(P.reasons or {}) do reasons[role] = text end
+  reasons.build = build and type(build.alert) == "table" and tostring(build.alert.text or "") or nil
   for i,role in ipairs(blocks) do
     local r = math.ceil(i/n)
     grid[r] = grid[r] or {mode=1}
     grid[r][#grid[r]+1] = role
-    if role ~= "shop" then jobs[role] = P.liveJob(role) end
+    if role ~= "shop" and role ~= "build" then jobs[role] = P.liveJob(role) end
   end
   -- A job that is not loaded has no facts to show.
   local function mode(row, role) return jobs[role] and modes[row.mode] or "compact" end
   local function rows(row)
     local most = 0
-    for _,role in ipairs(row) do most = math.max(most,role == "shop" and (SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) ~= "off" and 8 or 6) or P.jobRows(mode(row,role),reasons[role])) end
+    for _,role in ipairs(row) do
+      most = math.max(most,role == "shop" and (SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) ~= "off" and 8 or 6)
+        or role == "build" and P.buildRows(mode(row,role),reasons.build) or P.jobRows(mode(row,role),reasons[role]))
+    end
     return most
   end
   local function total()
@@ -407,6 +447,20 @@ P.main = function(c, session, w, h)
     for _,row in ipairs(grid) do t = t+rows(row)+1 end
     return t
   end
+  -- Rows of blocks share pages when even their compact forms do not fit, so every block stays reachable;
+  -- the pager takes row h-1 and each page gives up spare rows as before.
+  local pages,used = {{}},-1
+  for _,row in ipairs(grid) do
+    row.mode = 3
+    local rh = rows(row)
+    row.mode = 1
+    if #pages[#pages] > 0 and used+rh+1 > h-1-top then pages[#pages+1],used = {},-1 end
+    table.insert(pages[#pages],row)
+    used = used+rh+1
+  end
+  local panel = session.panel
+  panel.jobPage = (panel.jobPage or 0) % #pages
+  grid = pages[panel.jobPage+1]
   local r = #grid
   while r > 0 and total() > h-1-top do
     if grid[r].mode < 3 then grid[r].mode = grid[r].mode+1 else r = r-1 end
@@ -419,10 +473,12 @@ P.main = function(c, session, w, h)
       local x = 2+(i-1)*(cw+3)
       if i > 1 then for j = y,y+rh-1 do c.put(x-2,j,"|","c") end end
       if role == "shop" then P.shopBlock(c,session,x,y,cw)
+      elseif role == "build" then P.buildBlock(c,x,y,cw,build,mode(row,role),reasons.build)
       else P.job(c,x,y,cw,role,jobs[role],mode(row,role),reasons[role]) end
     end
     y = y+rh+1
   end
+  if #pages > 1 then P.pager(c,h-1,panel.jobPage,#pages,"jobs-prev","jobs-next") end
   P.nav(c,h,{{"ALERTS","alerts","plain"},{"PAIR","pair","plain"}})
 end
 
@@ -462,8 +518,16 @@ P.pairedFrame = function(c, w, h, session)
   local capacity = math.max(1,math.floor((h-5)/step))
   local pages = math.max(1,math.ceil(#rows/capacity))
   panel.pairedPage = (panel.pairedPage or 0) % pages
-  c.section(2,3,w-2,"PAIRED",panel.forgetFailed and "save failed" or #rows,panel.forgetFailed and "e" or "8")
+  local note,noteFg = #rows,"8"
+  local update = panel.updateId and type(SO.workerUpdate) == "function" and SO.workerUpdate(panel.updateId)
+  if update and (update.state == "refused" or update.state == "unconfirmed") then
+    note,noteFg = "#"..panel.updateId.." "..tostring(update.text or update.state),"e"
+  end
+  if panel.updateFailed then note,noteFg = panel.updateFailed,"e" end
+  if panel.forgetFailed then note,noteFg = "save failed","e" end
+  c.section(2,3,w-2,"PAIRED",tostring(note):sub(1,math.max(0,w-11)),noteFg)
   if panel.confirm and P.now() >= panel.confirm.expires then panel.confirm = nil end
+  local updates,settings = P.flag("panelUpdates") and type(SO.updateWorker) == "function",P.flag("workerSettings")
   for i=1,capacity do
     local row = rows[panel.pairedPage*capacity+i]
     if row then
@@ -472,23 +536,78 @@ P.pairedFrame = function(c, w, h, session)
       local kind = tostring(machine.role or machine.kind or ""):gsub("[%c]", " ")
       local age = machine.seen and math.max(0,math.floor((P.now()-machine.seen)/1000))
       age = age and (age < 60 and age.."s" or math.floor(age/60).."m") or "-"
-      c.put(2,y,id,"0")
+      local stale,ay,ax = P.stale(machine),y+step-1,step == 1 and 24 or 2
+      local confirm = row.id ~= session.id and panel.confirm and panel.confirm.id == row.id
+      local impact = confirm and type(SO.forgetImpact) == "function" and SO.forgetImpact(row.id).text
+      -- An armed FORGET names what it parks in place of the age; on one row it takes the fingerprint too when short of room.
+      if impact and step == 1 and ax+#impact > w-10 then ax = 18 end
+      -- A turtle on another revision than the server has its id in amber.
+      c.put(2,y,id,stale and "1" or "0")
       if step == 1 then
         if #kind <= 9 then c.put(8,y,kind,"8") end
-        c.put(18,y,row.fingerprint,"0");c.put(24,y,age,"8")
+        if ax > 18 then c.put(18,y,row.fingerprint,"0") end
       else
         if 2+#id+#kind <= w-6 then c.put(3+#id,y,kind,"8") end
-        c.put(w-4,y,row.fingerprint,"0");c.put(2,y+1,age,"8")
+        c.put(w-4,y,row.fingerprint,"0")
       end
+      if impact then c.put(ax,ay,impact:sub(1,math.max(0,w-10-ax)),"e") else c.put(ax,ay,age,"8") end
+      if settings and P.turtle(machine) and row.id ~= session.id then c.hit("worker:"..row.id,2,y,step == 1 and 15 or w-7,1) end
       if row.id ~= session.id then
-        local confirm = panel.confirm and panel.confirm.id == row.id
-        P.act(c,y+step-1,confirm and "CONFIRM" or "FORGET",
+        P.act(c,ay,confirm and "CONFIRM" or "FORGET",
           confirm and ("forget-confirm:"..row.id..":"..panel.confirm.token) or "forget:"..row.id,confirm and "e" or "0")
+      end
+      -- UPDATE sits left of FORGET on a stale turtle's row while it fits beside the age.
+      if updates and stale and not confirm and row.id ~= session.id and w-18 > ax+#age then
+        local state = type(SO.workerUpdate) == "function" and SO.workerUpdate(row.id)
+        if state and (state.state == "requested" or state.state == "awaiting reboot") then c.put(w-18,ay,"updating","1")
+        else P.act(c,ay,"UPDATE","update:"..row.id,"9",w-11) end
       end
     end
   end
   P.pager(c,h,panel.pairedPage,pages,"paired-prev","paired-next")
   P.back(c,h,"paired-back")
+end
+
+P.dims = {{"WORLD","minecraft:overworld"},{"NETHER","minecraft:the_nether"},{"END","minecraft:the_end"}}
+
+-- Why the turtle's settings cannot change now, or nil. lease.settings checks the same again and more.
+P.settingsBlock = function(id, status)
+  if not status.workerSettings or not status.settings then return "update required" end
+  if not status.settingsControl then return "settings off" end
+  if status.settingsPending then return "pending" end
+  if status.open or status.uncertain or status.lost or status.releasing or status.releaseHold then return "worker busy" end
+  for _,name in ipairs({"mine","lumber","build","drops"}) do
+    local mod = SO.mods[name]
+    local busy = mod and (name == "drops" and mod.busy or name ~= "drops" and mod.assigned)
+    if type(busy) == "function" and busy(id) then return "worker busy" end
+  end
+end
+
+-- One turtle's confirmed dimension and tool swap from lease.status, opened from its PAIRED row. A tap
+-- asks the worker through lease.settings; the leaders change only once its ack or a newer hello confirms.
+P.workerFrame = function(c, w, h, session)
+  local panel = session.panel
+  local lease = SO.mods.lease
+  local status = lease and type(lease.status) == "function" and lease.status(panel.worker) or {}
+  local settings = status.settings or {}
+  local block = P.settingsBlock(panel.worker,status)
+  local note,fg = panel.workerFailed or status.settingsError,"e"
+  if not note and block == "pending" then note,fg = "pending","1" end
+  c.section(2,3,w-2,"WORKER #"..panel.worker,tostring(note or ""):sub(1,math.max(0,w-14)),fg)
+  local dim = "-"
+  for _,d in ipairs(P.dims) do if settings.dim == d[2] then dim = d[1] end end
+  local swap = status.settings and (settings.autoToolSwap and "on" or "off") or "-"
+  c.leader(2,4,w-2,"dimension",dim,dim == "-" and "8" or "0")
+  c.leader(2,5,w-2,"tool swap",swap,swap == "-" and "8" or "0")
+  if block and block ~= "pending" then c.put(2,7,block:sub(1,w-2),"8")
+  elseif not block then
+    local items = {}
+    for _,d in ipairs(P.dims) do items[#items+1] = {d[1],"worker-dim:"..d[1]:lower(),settings.dim == d[2] and "primary" or "plain"} end
+    P.nav(c,7,items)
+    P.nav(c,8,{{"SWAP ON","worker-swap:on",settings.autoToolSwap and "primary" or "plain"},
+      {"SWAP OFF","worker-swap:off",settings.autoToolSwap and "plain" or "primary"}})
+  end
+  P.back(c,h,"worker-back")
 end
 
 -- The enroll window: token, joined count, then one row per request with OK and NO, or two rows
@@ -537,9 +656,13 @@ P.render = function(w, h, session, dot)
   local c = U.canvas(w,h)
   local enroll = SO.enroll and SO.enroll.view(session.id)
   if session.panel.page == "enroll" and not (enroll and enroll.token) then session.panel.page = "pair" end
+  -- WORKER closes with its switch, and with the pairing of its turtle.
+  if session.panel.page == "worker" and not (P.flag("workerSettings") and session.panel.worker and SO.pair.key(session.panel.worker)) then
+    session.panel.page = "paired"
+  end
   local page = session.panel.page
   if page ~= "paired" then session.panel.confirm = nil end
-  if dot ~= nil then P.tabBar(c,"pair",dot) else P.header(c,w,h,page ~= "paired" and page ~= "enroll" and page ~= "pair" and page ~= "alerts") end
+  if dot ~= nil then P.tabBar(c,"pair",dot) else P.header(c,w,h,page ~= "paired" and page ~= "enroll" and page ~= "pair" and page ~= "alerts" and page ~= "worker") end
   session.panel.savedTargets = {}
   if SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) == "off" then
     session.panel.minimumDraft,session.panel.savedResult,session.panel.savedPage,session.panel.listDraft = nil,nil,nil,nil
@@ -547,6 +670,7 @@ P.render = function(w, h, session, dot)
   if session.panel.savedPage then SO.mods.shop.savedCanvas(c,session.panel,w,h)
   elseif session.panel.minimumDraft then P.savedFrame(c,session.panel,w,h)
   elseif page == "paired" then P.pairedFrame(c,w,h,session)
+  elseif page == "worker" then P.workerFrame(c,w,h,session)
   elseif page == "enroll" then P.enrollFrame(c,w,h,session,enroll)
   elseif page == "pair" then P.panelPair(c,session,w,h)
   elseif page == "alerts" then P.alertsFrame(c,session,w,h)
@@ -576,6 +700,11 @@ P.enrollInput = function(event, panel, id)
     if SO.enroll.open(owner) then panel.page, panel.enrollFailed = "enroll", nil end
     return
   end
+  if id == "enroll-on" or id == "enroll-off" then
+    if type(SO.enroll.setEnabled) ~= "function" then return end
+    if not SO.enroll.setEnabled(id == "enroll-on") then panel.extendFailed = "save failed" end
+    return
+  end
   if id == "enroll-extend" then
     local ok, err = SO.enroll.extend(owner)
     if not ok then panel.extendFailed = P.refusals[err] or tostring(err) end
@@ -600,6 +729,55 @@ P.enrollInput = function(event, panel, id)
   panel.enrollFailed = failed
 end
 
+-- PAIRED and WORKER taps from the paired display's own drawn frame. FORGET is two-tap through U.confirm:
+-- its record carries a fresh token and the key it would remove, so a late or replayed CONFIRM does nothing.
+P.pairedInput = function(panel, id, session, event)
+  local confirm = panel.confirm
+  panel.confirm, panel.drawn, panel.updateFailed, panel.workerFailed = nil, nil, nil, nil
+  local target = tonumber(id:match("^forget:(%d+)$"))
+  if target and target ~= session.id and SO.pair.key(target) then
+    P.confirmSeq = P.confirmSeq + 1
+    panel.confirm = {id=target,token=tostring(P.confirmSeq),expires=P.now()+15000,key=SO.pair.key(target)}
+    U.confirm(panel.confirm,"forget:"..target..":"..panel.confirm.token,P.now(),15000)
+    return
+  end
+  local device, token = id:match("^forget%-confirm:(%d+):(%d+)$")
+  target = tonumber(device)
+  if target then
+    if target ~= session.id and confirm and confirm.id == target and confirm.token == token and P.now() < confirm.expires
+      and U.confirm(confirm,"forget:"..target..":"..token,P.now(),15000)
+      and SO.pair.key(target) == confirm.key and type(SO.forgetDevice) == "function" then
+      panel.forgetFailed = not SO.forgetDevice(target,event.from) or nil
+    end
+    return
+  end
+  target = tonumber(id:match("^update:(%d+)$"))
+  if target and type(SO.updateWorker) == "function" then
+    local rid, err = SO.updateWorker(target)
+    panel.updateId, panel.updateFailed = rid and target or nil, not rid and "#"..target.." "..tostring(err) or nil
+    return
+  end
+  target = tonumber(id:match("^worker:(%d+)$"))
+  if target and target ~= session.id and SO.pair.key(target) then panel.page, panel.worker = "worker", target return end
+  local dim, swap = id:match("^worker%-dim:(%a+)$"), id:match("^worker%-swap:(%a+)$")
+  local lease = SO.mods.lease
+  if (dim or swap) and panel.page == "worker" and lease and type(lease.settings) == "function" then
+    local status = type(lease.status) == "function" and lease.status(panel.worker) or {}
+    local settings, changes = status.settings or {}, {}
+    for _,d in ipairs(P.dims) do if dim == d[1]:lower() and settings.dim ~= d[2] then changes.dim = d[2] end end
+    if swap and (swap == "on") ~= (settings.autoToolSwap == true) then changes.autoToolSwap = swap == "on" end
+    if next(changes) then
+      local rid, err = lease.settings(panel.worker,changes)
+      panel.workerFailed = not rid and tostring(err) or nil
+    end
+    return
+  end
+  if id == "paired" or id == "worker-back" then panel.page = "paired"
+  elseif id == "paired-back" then panel.page = "pair"
+  elseif id == "paired-prev" then panel.pairedPage = (panel.pairedPage or 0)-1
+  elseif id == "paired-next" then panel.pairedPage = (panel.pairedPage or 0)+1 end
+end
+
 P.input = function(event)
   local session = event.session
   if not session then return end
@@ -608,33 +786,9 @@ P.input = function(event)
   if P.savedInput(event,panel) then return end
   if type(id) == "string" and id:match("^enroll") then return P.enrollInput(event,panel,id) end
   if id == "paired" or id == "paired-back" or id == "paired-prev" or id == "paired-next"
-    or type(id) == "string" and id:match("^forget") then
+    or type(id) == "string" and (id:match("^forget") or id:match("^worker") or id:match("^update:")) then
     if event.from ~= session.id or not session.isDisplay or not session.w or not SO.pair.key(event.from) or not P.drawn(event) then return end
-    if id == "paired" then panel.page="paired"
-    elseif id == "paired-back" then panel.page="pair"
-    elseif id == "paired-prev" then panel.pairedPage=(panel.pairedPage or 0)-1
-    elseif id == "paired-next" then panel.pairedPage=(panel.pairedPage or 0)+1
-    else
-      local target = tonumber(id:match("^forget:(%d+)$"))
-      if target and target ~= session.id and SO.pair.key(target) then
-        P.confirmSeq = P.confirmSeq + 1
-        panel.confirm = {id=target,token=tostring(P.confirmSeq),expires=P.now()+15000,key=SO.pair.key(target)}
-        panel.drawn = nil
-        return
-      end
-      local device, token = id:match("^forget%-confirm:(%d+):(%d+)$")
-      target = tonumber(device)
-      local confirm = panel.confirm
-      panel.confirm, panel.drawn = nil, nil
-      if target and target ~= session.id and confirm and confirm.id == target and confirm.token == token and P.now() < confirm.expires
-        and SO.pair.key(target) == confirm.key and type(SO.forgetDevice) == "function" then
-        local ok = SO.forgetDevice(target,event.from)
-        if not ok then panel.forgetFailed = true else panel.forgetFailed = nil end
-      end
-      return
-    end
-    panel.confirm, panel.drawn = nil, nil
-    return
+    return P.pairedInput(panel,id,session,event)
   end
   if id == "panel-back" or id == "pair" or id == "alerts" or id == "lost" then panel.confirm, panel.drawn = nil, nil end
   if type(event.text) == "string" and session.keyboard then panel.search = event.text:sub(1,256);return end
@@ -647,6 +801,7 @@ P.input = function(event)
   elseif id == "pair-code" and panel.page == "pair" then P.requestCode(panel, event, session)
   elseif id == "alert-next" then panel.alertPage=(panel.alertPage or 0)+1
   elseif id == "alert-prev" then panel.alertPage=(panel.alertPage or 0)-1
+  elseif id == "jobs-next" or id == "jobs-prev" then panel.jobPage=(panel.jobPage or 0)+(id == "jobs-next" and 1 or -1)
   elseif panel.page == "main" then
     P.refresh()
     local role,cmd = (id or ""):match("^(%a+):(%a+)$")
@@ -981,17 +1136,24 @@ P.pairPage = function(c, session, state, w, h, g)
     local x = c.chip(2,g.list,"PAIRED","paired")+1
     if not SO.enroll then return end
     local enroll = SO.enroll.view(session.id)
-    if P.trusted(session) and (not enroll or enroll.token) then c.chip(x,g.list,"ENROLL","enroll","primary")
+    local on = type(SO.enroll.enabled) ~= "function" or SO.enroll.enabled()
+    if on and P.trusted(session) and (not enroll or enroll.token) then c.chip(x,g.list,"ENROLL","enroll","primary")
     else P.dead(c,x,g.list,"ENROLL",8) end
-    -- A refused EXTEND that closed the ENROLL page keeps its reason here until the next enroll tap.
-    if state.extendFailed then c.put(x+9,g.list,state.extendFailed:sub(1,math.max(0,w-x-9)),"e") end
+    x = x+9
+    -- The saved enroll switch: the chip names the state and a tap flips it.
+    if P.trusted(session) and type(SO.enroll.setEnabled) == "function" then
+      x = c.chip(x,g.list,on and "ON" or "OFF",on and "enroll-off" or "enroll-on",on and "primary" or "plain")+1
+    end
+    -- A refused EXTEND that closed the ENROLL page (or a failed switch) keeps its reason here until the next enroll tap.
+    if state.extendFailed then c.put(x,g.list,state.extendFailed:sub(1,math.max(0,w-x)),"e") end
     return
   end
   if not SO.enroll then c.chip(2,g.list,"PAIRED","paired","plain",w-2);return end
-  -- ENROLL has no target while another display holds the window.
+  -- ENROLL has no target while another display holds the window or enrollment is off.
   local enroll,bw = SO.enroll.view(session.id),math.floor((w-3)/2)
+  local on = type(SO.enroll.enabled) ~= "function" or SO.enroll.enabled()
   c.chip(2,g.list,"PAIRED","paired","plain",bw)
-  if P.trusted(session) and (not enroll or enroll.token) then c.chip(3+bw,g.list,"ENROLL","enroll","primary",bw)
+  if on and P.trusted(session) and (not enroll or enroll.token) then c.chip(3+bw,g.list,"ENROLL","enroll","primary",bw)
   else P.dead(c,3+bw,g.list,"ENROLL",bw) end
 end
 
@@ -1017,7 +1179,7 @@ P.pocket = function(w, h, session)
     return frame
   end
   if page == "panel" then
-    if panel and (panel.page == "paired" or panel.page == "enroll") then return P.render(w,h,session,#m.flags > 0) end
+    if panel and (panel.page == "paired" or panel.page == "enroll" or panel.page == "worker") then return P.render(w,h,session,#m.flags > 0) end
     state.page,page = "pair","pair"
   end
   if page == "fleet" or not page then P.fleetPage(c,m,w,h);return c.frame() end

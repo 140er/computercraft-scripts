@@ -1,0 +1,37 @@
+29x12 Panel PAIR 29x12, enrollment on
+ PANEL  -------------------  
+                             
+                             
+                             
+   --- --- --- --- --- ---   
+                             
+                             
+                             
+                             
+  PAIRED   ENROLL   ON       
+                             
+  NEW CODE             BACK  
+00000000ccccccccccccccccccc00
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00088808880888088808880888000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000009999999909999000000
+00000000000000000000000000000
+00000000000000000000000000000
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f77777777f77777777f7777ffffff
+fffffffffffffffffffffffffffff
+f7777777777fffffffffff777777f

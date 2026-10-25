@@ -1,0 +1,73 @@
+57x24 Panel 57x24 with the builder held for fuel
+ PANEL   HEALTH   NEEDS 2  ----------------------- 21:14 
+                                                         
+ turtles ·············· 4 ok · 1 lost                    
+                                                         
+ MINING  running  | LUMBER  running  | BUILD ---- held   
+ |||||||··· 7/10  | ♠♠♠♠♠♠♠♠♣♣♣ 9/12 | |||······ 37/120  
+ busy ······· 2/4 | next grow · 6:20 | turtle ······ #6  
+ lane ········ ▼4 | saplings ···· 14 | ! out of fuel     
+ min fuel  412 #6 | fuel ······ 1210 |                   
+                  |                  |                   
+  START    STOP   |  START    STOP   |                   
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+  ALERTS   PAIR                                          
+000000000000000000000000100ccccccccccccccccccccccc0888880
+000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccc00000000eeeeee00000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888800ddddddd00c088888800ddddddd00c0888880cccc0dddd000
+033333338880000000c0dddddddd888000000c0333888888000000000
+088880ccccccc00000c08888888880c000000c08888880cccccc00000
+088880cccccccc0bb0c0888888880cccc0000c0e00000000000000000
+088888888001111110c088880cccccc000000c0000000000000000000
+000000000000000000c000000000000000000c0000000000000000000
+0888888800eeeeeee0c0888888800eeeeeee0c0000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+ffffffff77777777f777777777fffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777ff7777777fff7777777ff7777777fffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777f777777fffffffffffffffffffffffffffffffffffffffff

@@ -5,7 +5,7 @@ the status model (status.py), tests/ui/system-scene.txt and tests/ui/panel-scene
 import hashlib
 
 from cc import Canvas
-from kit import actions, chip, leader, rule, section
+from kit import actions, chip, flag, leader, progress, rule, section, tone
 import pocket as PK
 import status as ST
 from scene import lines
@@ -148,21 +148,44 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None, found=T
         cv.put(x, y + 5 + offset, reply[:cw], "8")
 
 
+def build_rows(mode, reason):
+    """P.buildRows: the section, placements and the builder turtle, then its hold as a flag."""
+    return (1 if mode == "compact" else 3) + (1 if reason else 0)
+
+
+def build_block(cv, x, y, cw, f, mode, reason):
+    """P.buildBlock: build.facts() as the BUILD block, without chips."""
+    word = PK.state_word(str(f.get("state", "-")), cw - 8)
+    section(cv, x, y, cw, "BUILD", word, tone(word))
+    if mode != "compact":
+        frac = "%d/%d" % (f.get("done", 0), f.get("total", 0))
+        progress(cv, x, y + 1, min(10, cw - len(frac) - 1), f.get("done", 0), f.get("total", 0))
+        tid = f.get("turtleId")
+        leader(cv, x, y + 2, cw, "turtle", "#%d" % tid if tid is not None else "-", "0" if tid is not None else "8")
+    if reason:
+        flag(cv, x, y + build_rows(mode, reason) - 1, cw, (PK.wrap(reason, cw - 2) or [""])[0])
+
+
 def fleet(m):
     lost = sum(1 for t in m["turtles"] if t["lost"])
     return "%d ok · %d lost" % (len(m["turtles"]) - lost, lost), lost
 
 
 def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True, found=True,
-         fuel=None, stock=None, sent=None, again=None, saved=None):
+         fuel=None, stock=None, sent=None, again=None, saved=None, build=None, page=0):
     """Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule;
     the lowest row of blocks gives up its spare row, then its facts, when rows run out. fuel is the fuel
-    auto row (PK.fuel_value) under the turtles; "N lost" (`lost`) opens the panel's own ALERTS."""
+    auto row (PK.fuel_value) under the turtles; "N lost" (`lost`) opens the panel's own ALERTS. build is
+    build.facts() with the hold text as alert, drawn as a BUILD block after LUMBER. Rows of blocks share
+    pages when even their compact forms do not fit; page picks one and the pager takes row h-1."""
     cv = Canvas(w, h, title)
     header(cv, w, h, m["time"], needs)
     f = PK.facts(m) if f is None else f
-    reasons = reasons or {}
-    blocks = ["mining", "lumber"] + (["shop"] if keyboard else [])
+    reasons = dict(reasons or {})
+    blocks = ["mining", "lumber"] + (["build"] if build is not None else []) + (["shop"] if keyboard else [])
+    if build is not None:
+        f = dict(f, build=build)
+        reasons["build"] = build.get("alert")
     top, lw = 3, min(w - 2, 36)
     if show_fleet and m["turtles"] and h >= 12:
         text, lost = fleet(m)
@@ -188,11 +211,24 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
         return MODES[row["mode"]] if f.get(role) is not None else "compact"
 
     def rows(row):
-        return max((8 if saved is not None else 6) if r == "shop" else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
+        return max((8 if saved is not None else 6) if r == "shop" else build_rows(mode(row, r), reasons.get(r)) if r == "build"
+                   else PK.job_rows(mode(row, r), reasons.get(r)) for r in row["roles"])
 
     def total():
         return sum(rows(row) + 1 for row in grid) - 1
 
+    pages, used = [[]], -1
+    for row in grid:
+        row["mode"] = 2
+        rh = rows(row)
+        row["mode"] = 0
+        if pages[-1] and used + rh + 1 > h - 1 - top:
+            pages.append([])
+            used = -1
+        pages[-1].append(row)
+        used += rh + 1
+    page %= len(pages)
+    grid = pages[page]
     r = len(grid) - 1
     while r >= 0 and total() > h - 1 - top:
         if grid[r]["mode"] < 2:
@@ -211,9 +247,13 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
                     cv.put(x - 2, j, "|", "c")
             if role == "shop":
                 shop_block(cv, x, y, cw, search, found=found, stock=stock, sent=sent, again=again, saved=saved)
+            elif role == "build":
+                build_block(cv, x, y, cw, build, mode(row, role), reasons.get(role))
             else:
                 PK.job(cv, x, y, cw, role, f.get(role), mode(row, role), reasons.get(role))
         y += rh + 1
+    if len(pages) > 1:
+        pager(cv, h - 1, page, len(pages), "jobs-prev", "jobs-next")
     nav(cv, h, [("ALERTS", "alerts", "plain"), ("PAIR", "pair", "plain")])
     return cv
 
@@ -249,8 +289,9 @@ def code_fit(w, h):
     return dict(dw=dw, dh=dh, gap=gap) if dh >= 5 and dw >= 3 else None
 
 
-def pair(m, w, h, title, code=None, left=0, enroll=None, refused=None):
-    """refused is a refused EXTEND's reason, drawn after ENROLL once the ENROLL page has closed."""
+def pair(m, w, h, title, code=None, left=0, enroll=None, refused=None, switch=None):
+    """refused is a refused EXTEND's reason, drawn after ENROLL once the ENROLL page has closed. switch is
+    the saved enroll switch (SO.enroll.enabled()) as its ON or OFF chip, None without setEnabled."""
     cv = Canvas(w, h, title)
     header(cv, w, h)
     fit = code_fit(w, h)
@@ -261,8 +302,12 @@ def pair(m, w, h, title, code=None, left=0, enroll=None, refused=None):
     if w < 19:
         g["list"], g["new"] = h - 4, h - 2
     cv = PK.pair(m, w, h, code, left, enroll=enroll, g=g, cv=cv)
+    x = 20
+    if switch is not None:
+        x = chip(cv, x, g["list"], "ON" if switch else "OFF", "enroll-off" if switch else "enroll-on",
+                 "primary" if switch else "plain") + 1
     if refused:
-        cv.put(20, g["list"], refused[:max(0, w - 20)], "e")
+        cv.put(x, g["list"], refused[:max(0, w - x)], "e")
     return cv
 
 
@@ -273,9 +318,12 @@ def age(seen):
     return "%ds" % s if s < 60 else "%dm" % (s // 60)
 
 
-def paired(w, h, title, machines=True, me=None, confirm=None, page=0, tabs=None, failed=False):
+def paired(w, h, title, machines=True, me=None, confirm=None, page=0, tabs=None, failed=False, impact=None,
+           stale=(), updates=False, updating=(), settings=False, note=None):
     """The paired keys: one row each from 40 columns, else the age and the chip on a second row.
-    machines False draws them as a server that has seen none of them (tests/so/forget.lua)."""
+    machines False draws them as a server that has seen none of them (tests/so/forget.lua). impact is
+    SO.forgetImpact's text for the armed row; stale ids run another revision (amber id, and UPDATE with
+    updates, or "updating" for ids in updating); settings makes turtle rows open WORKER."""
     cv = Canvas(w, h, title)
     if tabs is None:
         header(cv, w, h)
@@ -287,29 +335,78 @@ def paired(w, h, title, machines=True, me=None, confirm=None, page=0, tabs=None,
     capacity = max(1, (h - 5) // step)
     pages = max(1, -(-len(rows) // capacity))
     page %= pages
-    section(cv, 2, 3, w - 2, "PAIRED", "save failed" if failed else len(rows), "e" if failed else "8")
+    text = "save failed" if failed else note if note else str(len(rows))
+    section(cv, 2, 3, w - 2, "PAIRED", text[:max(0, w - 11)], "e" if failed or note else "8")
     for i, row in enumerate(rows[page * capacity:(page + 1) * capacity]):
         y, ident = 4 + i * step, "#%d" % row["id"]
         kind = (row["kind"] or "") if machines else ""
         when = age(row["seen"]) if machines else "-"
         fp = fingerprint(row["id"])
-        cv.put(2, y, ident, "0")
+        old = row["id"] in stale and row["kind"] == "turtle"
+        armed = row["id"] != me and row["id"] == confirm
+        said = impact if armed else None
+        ay, ax = y + step - 1, 24 if step == 1 else 2
+        if said and step == 1 and ax + len(said) > w - 10:
+            ax = 18
+        cv.put(2, y, ident, "1" if old else "0")
         if step == 1:
             if len(kind) <= 9:
                 cv.put(8, y, kind, "8")
-            cv.put(18, y, fp, "0")
-            cv.put(24, y, when, "8")
+            if ax > 18:
+                cv.put(18, y, fp, "0")
         else:
             if 2 + len(ident) + len(kind) <= w - 6:
                 cv.put(3 + len(ident), y, kind, "8")
             cv.put(w - 4, y, fp, "0")
-            cv.put(2, y + 1, when, "8")
+        if said:
+            cv.put(ax, ay, said[:max(0, w - 10 - ax)], "e")
+        else:
+            cv.put(ax, ay, when, "8")
+        if settings and row["kind"] == "turtle" and row["id"] != me:
+            cv.hit("worker:%d" % row["id"], 2, y, 15 if step == 1 else w - 7, 1)
         if row["id"] != me:
-            armed = row["id"] == confirm
-            act(cv, y + step - 1, "CONFIRM" if armed else "FORGET",
+            act(cv, ay, "CONFIRM" if armed else "FORGET",
                 "forget-confirm:%d:1" % row["id"] if armed else "forget:%d" % row["id"], "e" if armed else "0")
+        if updates and old and not armed and row["id"] != me and w - 18 > ax + len(when):
+            if row["id"] in updating:
+                cv.put(w - 18, ay, "updating", "1")
+            else:
+                act(cv, ay, "UPDATE", "update:%d" % row["id"], "9", w - 11)
     pager(cv, h, page, pages, "paired-prev", "paired-next")
     back(cv, h, "paired-back")
+    return cv
+
+
+DIMS = (("WORLD", "minecraft:overworld"), ("NETHER", "minecraft:the_nether"), ("END", "minecraft:the_end"))
+
+
+def worker(w, h, title, ident, settings=None, block=None, note=None, tabs=None):
+    """P.workerFrame: one turtle's confirmed dimension and tool swap, then its controls. settings is
+    lease.status().settings (dim, autoToolSwap) or None; block is why the controls are missing, "pending"
+    while a request waits for its ack or a newer hello; note is a refusal or the worker's error."""
+    cv = Canvas(w, h, title)
+    if tabs is None:
+        header(cv, w, h)
+    else:
+        PK.tabs(cv, "pair", tabs)
+    fg = "e"
+    if not note and block == "pending":
+        note, fg = "pending", "1"
+    section(cv, 2, 3, w - 2, "WORKER #%d" % ident, (note or "")[:max(0, w - 14)], fg)
+    s = settings or {}
+    dim = next((label for label, name in DIMS if s.get("dim") == name), "-")
+    swap = ("on" if s.get("autoToolSwap") else "off") if settings is not None else "-"
+    leader(cv, 2, 4, w - 2, "dimension", dim, "8" if dim == "-" else "0")
+    leader(cv, 2, 5, w - 2, "tool swap", swap, "8" if swap == "-" else "0")
+    if block and block != "pending":
+        cv.put(2, 7, block[:w - 2], "8")
+    elif not block:
+        nav(cv, 7, [(label, "worker-dim:" + label.lower(), "primary" if s.get("dim") == name else "plain")
+                    for label, name in DIMS])
+        on = bool(s.get("autoToolSwap"))
+        nav(cv, 8, [("SWAP ON", "worker-swap:on", "primary" if on else "plain"),
+                    ("SWAP OFF", "worker-swap:off", "plain" if on else "primary")])
+    back(cv, h, "worker-back")
     return cv
 
 
@@ -365,6 +462,8 @@ def code():
     return dict(code=PK.SYS["code"], left=PK.SYS["left"])
 
 
+# build.facts() for a builder held for fuel at 37 of 120 placements, on turtle #6.
+BUILD = dict(state="held", done=37, total=120, turtleId=6, alert="out of fuel")
 # A long item name on the 26-column pocket: the count and status keep their room.
 LONG = [("minecraft:polished_deepslate_stairs", 120), ("minecraft:oak_stairs", 40)]
 # shop.fuelConfig() after a fuel order timed out, and with one order sent 45 seconds ago.
@@ -420,4 +519,28 @@ FIXTURES = [
     ("enroll-P", lambda: enroll(26, 20, "Pocket ENROLL", tabs=False)),
     ("enroll-S", lambda: enroll(29, 12, "Panel ENROLL 29x12")),
     ("enroll-M", lambda: enroll(57, 24, "Panel ENROLL 57x24")),
+    ("panelbuild-M", lambda: main(ST.model(), 57, 24, "Panel 57x24 with the builder held for fuel", needs=SC["needs"],
+                                  build=BUILD)),
+    ("panelbuild-S", lambda: main(ST.model(), 29, 12, "Panel 29x12 with the builder, page 1", build=BUILD)),
+    ("panelbuild2-S", lambda: main(ST.model(), 29, 12, "Panel 29x12 with the builder, page 2", build=BUILD, page=1)),
+    ("panelbuild-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20 with the builder and fuel, page 1",
+                                  keyboard=True, search=PK.SYS["search"], build=BUILD, fuel=PK.fuel_value(WAITING, 45000, 13))),
+    ("panelbuild2-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20 with the builder and fuel, page 2",
+                                   keyboard=True, search=PK.SYS["search"], build=BUILD, fuel=PK.fuel_value(WAITING, 45000, 13),
+                                   page=1)),
+    ("panelenroll-S", lambda: pair(ST.model(), 29, 12, "Panel PAIR 29x12, enrollment on", enroll=True, switch=True)),
+    ("panelenrolloff-S", lambda: pair(ST.model(), 29, 12, "Panel PAIR 29x12, enrollment off", enroll=False,
+                                      switch=False)),
+    ("pairedupdate-M", lambda: paired(57, 24, "Panel PAIRED 57x24, #4 and #6 stale, #6 updating", stale=(4, 6),
+                                      updates=True, updating=(6,), settings=True)),
+    ("pairedimpact-P", lambda: paired(26, 20, "Pocket PAIRED, FORGET armed on #4 names its job", tabs=False,
+                                      confirm=SC["confirm"], impact="parks 1 job")),
+    ("pairedimpact-M", lambda: paired(57, 24, "Panel PAIRED 57x24, a long impact takes the fingerprint",
+                                      confirm=SC["confirm"], impact="parks 1 job; holds 1 scan")),
+    ("worker-P", lambda: worker(26, 20, "Pocket WORKER #4 in the Nether", 4, tabs=False,
+                                settings={"dim": "minecraft:the_nether", "autoToolSwap": False})),
+    ("worker-S", lambda: worker(29, 12, "Panel WORKER #4, a change waiting for its ack", 4,
+                                settings={"dim": "minecraft:the_nether", "autoToolSwap": False}, block="pending")),
+    ("workerbusy-S", lambda: worker(29, 12, "Panel WORKER #5 on a job", 5,
+                                    settings={"dim": "minecraft:overworld", "autoToolSwap": True}, block="worker busy")),
 ]
