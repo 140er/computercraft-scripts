@@ -228,8 +228,9 @@ Use a trusted installed or manually supplied installer to run
 `install offline <mount>`. A kit runs its own installer. Only use disks from a
 trusted source. Digests detect changes relative to the manifest; they do not
 prove who supplied it. Offline installation verifies the role file list, sizes,
-both digests and Lua syntax before changing installed files. It disables HTTP and never falls
-back online. Older pinned installers without staged-update or offline-kit
+both digests and Lua syntax before changing installed files. The offline installation path uses kit files without download requests or online
+fallback. The kit installer runs with normal environment access, so only use kits
+from a trusted source. Older pinned installers without staged-update or offline-kit
 support are refused. Fresh machines pair afterward; updates preserve runtime
 files.
 
