@@ -1186,10 +1186,11 @@ facing. With `return off`, completion stays at the final target.
 builder storage trips choose another safe axis order. Every entered cell needs
 a known-clear mark in memory. Missing or evicted facts hold the trip.
 Each move or turn waits for journal and pose confirmation before replanning.
-A failed boundary retains reservations and requires stationary recovery.
-Its route hold survives restart and disabling the flag. Fix the cause, then
-use START after readiness checks pass. Waiting only for the fleet restart
-barrier resumes automatically when it clears.
+Reported failed or unconfirmed storage boundaries retain reservations and
+save a route hold. It survives restart and disabling the flag. Fix the cause,
+then use START after readiness checks pass. Expired leases or missing reports
+need stationary recovery and may then resume on their own. Waiting only for
+the fleet restart barrier resumes automatically when it clears.
 
 ## Lumber cycles, species and emergency fuel
 

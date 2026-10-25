@@ -3441,8 +3441,11 @@ Each move or turn ends a parked lease fenced to the current journal. The builder
 waits for its matching report, checks journal advance and certain expected world
 position and facing, then reassesses from that acknowledged pose. Failure or
 uncertainty retains reservations and requires stationary reconciliation.
-A failed storage boundary saves `service.hold={cause,text}` for that route.
-Stationary reconciliation restores the hold. Further trip leases wait until
-START passes readiness checks and clears it. Restart and disabling the flag
-preserve it. Restart recovery saves the durable outcome receipt before
-acknowledging it, restores the confirmed prefix and never replays its movement.
+Reported failed or unconfirmed storage boundaries save
+`service.hold={cause,text}` for that route. Stationary reconciliation restores
+the hold. Further trip leases wait until START passes readiness checks and
+clears it. Restart and disabling the flag preserve it. Expired leases or missing
+reports take the lost recovery path without saving a route hold. They require
+stationary recovery and may then resume on their own. Restart recovery saves
+the durable outcome receipt before acknowledging it, restores the confirmed
+prefix and never replays its movement.
