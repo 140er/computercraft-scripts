@@ -34,8 +34,8 @@ local function boot()
   return b
 end
 
-local function screen(b, w, h)
-  local frame = b.screens.ar.render(w, h)
+local function screen(b, w, h, session)
+  local frame = b.screens.ar.render(w, h, session)
   local out = R.capture(w, h)
   for y, row in ipairs(frame.rows) do
     local fg, bg = {}, {}
@@ -91,8 +91,10 @@ local function follow(config, saved, opts)
     end
   end
   b.saved = function() return e.SO.store.read('so-data/ar').value end
-  b.tap = function(id) screens.ar.input({ id = id }) end
-  b.text = function(w, h) return table.concat(screen(b, w or 57, h or 24), '\n') end
+  -- Display sessions as so-mod-display passes them; taps and renders use display 1 by default.
+  b.display = { id = 1 }
+  b.tap = function(id, session) screens.ar.input({ id = id, session = session or b.display }) end
+  b.text = function(w, h, session) return table.concat(screen(b, w or 57, h or 24, session or b.display), '\n') end
   b.load()
   return b
 end
@@ -402,7 +404,7 @@ return function(test, equal)
     b.tick(3000)
     equal(drawn(b, 'drop:'), 0)
     equal(drawn(b, 'turtle:'), 0)
-    local text, frame = screen(b, 57, 24)
+    local text, frame = screen(b, 57, 24, b.display)
     local row
     for _, button in ipairs(frame.buttons) do if button.id == 'ar-focus' then row = button.y end end
     assert(text[row]:find('[missing]', 1, true), text[row])
@@ -489,14 +491,14 @@ return function(test, equal)
     for n = 1, 8 do b.points[n] = { id = 'p' .. n, n = n, kind = 'ore', dim = OVER, x = n, y = 64, z = 0 } end
     b.tap('ar-turtle:12')
     b.tap('ar-focus')
-    check('ar-PM', 57, 24, b.screens.ar.render(57, 24))
+    check('ar-PM', 57, 24, b.screens.ar.render(57, 24, b.display))
     b.tap('ar-more')
-    check('ar-PXS', 15, 10, b.screens.ar.render(15, 10))
+    check('ar-PXS', 15, 10, b.screens.ar.render(15, 10, b.display))
     b.machines, b.points = {}, {}
     b.tap('ar-back')
     b.tap('ar-all')
     b.tap('ar-focus')
-    check('ar-PS', 29, 12, b.screens.ar.render(29, 12))
+    check('ar-PS', 29, 12, b.screens.ar.render(29, 12, b.display))
     -- The generator reproduces them.
     local started, pipe = pcall(io.popen, 'pwd')
     local root = started and pipe and pipe:read('*l')
@@ -515,5 +517,28 @@ return function(test, equal)
       a:close() c:close()
     end
     assert(os.execute("rm -r '" .. dir .. "'"))
+  end)
+
+  test('B13-U FOCUS on one display leaves the other display and the saved settings alone', function()
+    local b = follow(ON)
+    b.machines = { [12] = turtle(OVER), [7] = turtle(OVER) }
+    local a, other = { id = 1 }, { id = 2 }
+    local before = b.text(57, 24, other)
+    b.tap('ar-focus', a)
+    assert(b.text(57, 24, a):find('FOCUS', 1, true))
+    equal(b.text(57, 24, other), before)
+    b.tap('ar-more', a)
+    b.tap('ar-back', other)
+    assert(b.text(57, 24, a):find('FOCUS', 1, true))
+    equal(b.text(57, 24, other), before)
+    equal(b.saves, 0)
+    -- A choice on A saves for every display and closes only A's list.
+    b.tap('ar-focus', other)
+    b.tap('ar-turtle:12', a)
+    equal(b.saved().focus, { kind = 'turtle', id = 12 })
+    assert(b.text(57, 24, a):find('[#12]', 1, true))
+    assert(b.text(57, 24, other):find('FOCUS', 1, true))
+    b.tap('ar-back', other)
+    assert(b.text(57, 24, other):find('[#12]', 1, true))
   end)
 end

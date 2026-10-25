@@ -124,7 +124,7 @@ end
 A.find = function(focus, list)
   for _, t in ipairs(list or A.targets()) do if t.kind == focus.kind and t.key == focus.id then return t end end
 end
-A.gather = function()
+A.gather = function(session)
   local count = 0
   for _ in pairs(A.controllers) do count = count + 1 end
   local model = { count = count, layers = SO.store.copy(A.layers), alert = A.shown and SO.store.copy(A.shown) }
@@ -134,9 +134,11 @@ A.gather = function()
     model.follow = { focus = f.kind == "all" and "all" or not t and "missing"
       or t.kind == "turtle" and "#" .. t.key or "drop #" .. (t.n or t.key), missing = f.kind ~= "all" and not t,
       dims = A.remote and A.dimNames[A.dim] or nil }
-    if A.picker then
+    -- The FOCUS list is per display session; the saved settings are shared.
+    local picker = type(session) == "table" and session.arPicker
+    if picker then
       for _, item in ipairs(list) do item.on = item.kind == f.kind and (f.kind == "all" or item.key == f.id) end
-      model.picker = { page = A.picker.page, items = list }
+      model.picker = { page = picker.page, items = list }
     end
   end
   return model
@@ -216,9 +218,9 @@ A.pickLayout = function(model, w, h)
   end
   return C.frame()
 end
-A.render = function(w,h)
+A.render = function(w,h,session)
   if not U then return A.legacyRender() end
-  local model = A.gather()
+  local model = A.gather(session)
   return (model.picker and A.pickLayout or A.layout)(model, w or 57, h or 24)
 end
 -- Only the four layer rows and the checked follow-up controls reach a save; v, dim and focus
@@ -240,15 +242,16 @@ A.input = function(event)
   end
   if not A.follow then return end
   local dim, focus = id:match("^ar%-dim:(%a+)$"), nil
-  if id == "ar-focus" then A.picker = { page = 1 }
-  elseif id == "ar-back" then A.picker = nil
-  elseif id == "ar-more" then if A.picker then A.picker.page = A.picker.page + 1 end
+  local session = type(event.session) == "table" and event.session or {}
+  if id == "ar-focus" then session.arPicker = { page = 1 }
+  elseif id == "ar-back" then session.arPicker = nil
+  elseif id == "ar-more" then if session.arPicker then session.arPicker.page = session.arPicker.page + 1 end
   elseif dim then
     if not (A.remote and A.dimIds[dim]) then return end
     local nextSettings = A.v2()
     -- A new dimension resets focus to ALL in the same save.
     nextSettings.dim, nextSettings.focus = A.dimIds[dim], { kind = "all" }
-    if A.commit(nextSettings) then A.picker = nil end
+    if A.commit(nextSettings) then session.arPicker = nil end
   elseif id == "ar-all" then focus = { kind = "all" }
   elseif id:match("^ar%-turtle:%d+$") then focus = { kind = "turtle", id = tonumber(id:sub(11)) }
   elseif id:match("^ar%-drop:") then focus = { kind = "drop", id = id:sub(9) }
@@ -257,7 +260,7 @@ A.input = function(event)
   if not focus or not A.validFocus(focus) or focus.kind ~= "all" and not A.find(focus) then return end
   local nextSettings = A.v2()
   nextSettings.focus = focus
-  if A.commit(nextSettings) then A.picker = nil end
+  if A.commit(nextSettings) then session.arPicker = nil end
 end
 A.turtle = function(machine, status, now, inRange)
   local state = tostring(machine.state or "idle"):lower():gsub("_", " ")
