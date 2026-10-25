@@ -234,23 +234,16 @@ and listeners use `listener(sender, message)`.
   `stepper(C, x, y, value, id, vw?)` and `actions(C, y, items, gap?)` draw job headers
   with tabs, `- value +` steppers and equal action chips.
   `docs/ui/schematic/kit.py` mirrors them call for call.
-  `status(model, w, h)` is route A at every size. The Big Tiles calls below stay
-  for screens not ported yet. Calls are
+  `status(model, w, h)` is route A at every size. Calls are
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
-  `canvas(w, h, bg?)`, `status(model, w, h)`, `alert(model, w, h)`,
-  `chipRow(C, y, label, chips, x?, right?)` and `fleetRows(C, model, top, step)`.
-  `chipRow` draws a label and `{ text, bg }` chips right-aligned to `right`
-  (default `w - 1`). `fleetRows` draws status tiles 1-8 as chip rows, using a
-  tile's `chips` when present, and makes the ALERTS row the `alerts` target.
+  `canvas(w, h, bg?)` and `status(model, w, h)`.
   `branchProgress(job, row)` returns clamped branch distance and length in constant time.
   Incomplete poses return nil distance; screens show unknown progress as `-`.
-  `progress(canvas, x, y, width, done, total, color?)` draws a one-row bar.
   `turtle.render(w, h, selection, row, now)` returns a pure route A detail or pose-editor frame;
   `turtle.pose(pose)` formats coordinates and facing, or `-` for an incomplete pose.
   `turtle.draft(pose)` fills missing editor coordinates and facing with zero.
   Detail BACK uses the bottom-row coordinates without rendering the editor first.
-  `pocketHeader(canvas, title)` draws MORE and MAP beside the title; no screen uses it since
-  build, health and turtle detail moved to route A. Those screens add `wrap(text, width)`,
+  Build, health and turtle detail add `wrap(text, width)`,
   `fit(text, width)` (cut at a word), `flagLines` (a wrapped `!` flag), `tabRows` (tab groups that
   wrap to a second row), `pager` (the `prev` and `next` chips) and `controlRows` (chips flowed
   over the last rows with BACK at the right end of row h); `docs/ui/schematic/other.py` is their twin.
@@ -260,9 +253,8 @@ and listeners use `listener(sender, message)`.
   Durations keep their elapsed-time formats.
   `palette` (route A values) and `font` expose the spec tables. Grid returns one-based `{ x, w }`
   columns and a tile-row count. Glyph returns three blit rows with inverted cells.
-  Tiles accept an optional final height after the background. Six rows omit the sub-line; seven rows retain it. Titles and values have one cell of inner padding.
-  Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
-  `tile`, `button`, `listRow`, `search` and `frame`. Coordinates are one-based.
+  Canvas methods are `put`, `fill`, `center`, `hit`, `header`, `alert`,
+  `button` and `frame`, plus the route A calls. Coordinates are one-based.
   `frame()` returns compact rows, rectangular buttons and the palette.
   See [display](server-only/PROTOCOL.md#display) for the status model.
 
@@ -492,8 +484,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `far` saves a per-computer flag and returns success plus an optional save error.
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
   `render(w, h, session?)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
-  coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`
-  and `input`. The built-in screen is `status`. No tap
+  coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`,
+  `view.ack` and `input`. With default-off `displayAck=true`, displays offering
+  `frameAck=1` acknowledge drawn frames. Freshness uses accepted ack age, with
+  stale at 10000 game milliseconds and `unverified` for older clients. The local
+  monitor uses its last good draw. Without the flag, freshness uses sends.
+  The built-in screen is `status`. No tap
   or typed text changes a role, and no screen draws buttons to another role.
   Input includes sender ID `from`. Sessions retain the client ID as `id` and hello `keyboard == true` as `keyboard`.
   Monitor clients send false; older clients omit it and get touch controls.
@@ -588,8 +584,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   ERRORS rows preview the first line and open the full message with wrapping,
   paging and BACK. Each display keeps a stable selected message and list page.
   Truncation and wrapping preserve UTF-8 codepoints. The pages draw in route A:
-  tabs HEALTH and NEEDS n, then EVENTS ALERTS ERRORS, leaders or list rows, and the `prev` and
-  `next` chips on the last row ([schematic spec](ui/SCHEMATIC-SPEC.md#23-health-pages)).
+  tabs HEALTH and NEEDS n, then EVENTS ALERTS ERRORS. Narrow screens use
+  HLT, ! n, EVT, ALR and ERR. The last-row pager appears only with two or more
+  pages. Cut rows end in `...`. Multiple enabled flags get a count in cfg and
+  a FLAGS section. REFUSED carries the total above per-reason counts; peak tick
+  includes its age. See the [schematic spec](ui/SCHEMATIC-SPEC.md#24-health-pages).
   HEALTH starts with modules, skip, rev, cfg, pos and GPS gap rows. Revision
   shows eight characters or unknown; cfg lists recognized enabled startup flags.
   Module rows include load/tick status and errors. Storage uses KB and MB.
@@ -928,6 +927,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   stationary park. Workers advertise `capabilities.parkBatch=true` in hello and
   reports. Builder requires that capability. When the batch expires, the worker
   stays put and beacons every 30 seconds, retaining its move history.
+  An accepted complete report gets an authenticated ack bound to its request ID
+  and lease ID. After that ack, the lease duration becomes a server-silence
+  watchdog. Fresh authenticated contact resets its age. Hellos run at half the
+  duration, capped at 30 seconds. Healthy idle workers stay paired past the old
+  deadline. Full-duration silence still starts work recovery or stationary park
+  beacons. Without a matching ack, original expiry applies. Reusing the last
+  acknowledged lease ID returns `expired` for every step without execution.
   Paired boots retry discovery and hello with backoff capped at 30 seconds,
   using the saved server id if discovery fails. They show `waiting for server`
   until an authenticated reply arrives. Fresh turtles show `UNPAIRED`; failed
@@ -1476,7 +1482,11 @@ needed. Repair requires 20 TPS, the private wall/pocket/probe fixture and a
 native client. It checks monitor-touch isolation through repair, local terminal
 and pocket confirmation, new peer keys and fresh frames after reboot.
 Evidence includes observations, redacted credential snapshots and four native
-photos. This documents the driver, not a completed native run. See
+photos after successful repair and reboot. Before code exchange the driver
+discards the old frame. Photos require a live client with only the new peer
+and a fresh authenticated frame. Saved repair-frame and repaired-state files
+prove that ordering. The existing photo settling threshold stays unchanged.
+This documents the driver, not a completed native run. See
 [C2 repair](../tools/gateb/C2-repair.md) for the pinned-SHA command and evidence.
 
 ## Accelerated Gate B checks
@@ -1565,9 +1575,24 @@ before new work. Stopped completed-worker recovery only returns to its branch
 end. Build shows placed/total cells and does not repeat the notice after START
 or restart. Mining and lumber omit worker-fuel warnings for empty fleets.
 
-`build.turtleView()` returns copied rows keyed by worker ID, with `role="build"`,
-`pose`, `anchor`, `state`, `inv`, `fuel`, `done`, `total`, `step`, `error`,
-`paused` and `parkConfirmed`. Forgotten or removed workers have no row.
+`build.facts()` returns copied state, running status, cause-keyed alert,
+dimension, assigned worker, confirmed pose, inclusive blueprint bounds and
+confirmed placement counts. `build.turtleView()` returns copied worker rows
+with inventory, fuel, progress, pause confirmation, anchor, pending step and
+diagnostic error. It uses saved worker state when present, otherwise facts
+state. Forgotten or removed workers have no row. `build.mapView()` returns
+`{dim,bounds?,turtles}`. Unknown poses omit turtles but retain bounds. The map
+gathers builder facts only in their dimension; drawing remains B2-U work.
+Getters never expand geometry, save or change reservations.
+
+HEALTH gathers fixed `build:<cause>` NEEDS rows every five game seconds.
+Lease refusals map to their actual cause and keep the original diagnostic.
+Invalid commands and configuration refusals only show five-second feedback. Persistent `legacyHold`
+prevents automatic resume across recovery and restart until explicit START
+passes readiness. Supply retry timers keep fuel/material causes until confirmed
+resolution. A failed completion save stays a safety hold. See the
+[builder contract](server-only/PROTOCOL.md#builder-jobs) for causes and exports.
+
 `lumber.turtleView()` also exposes `paused` and `parkConfirmed`. A confirmed
 paused worker reports `parked` while retaining its error. The display consumer
 still gathers only mining and lumber; build detail controls remain a follow-up.

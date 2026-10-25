@@ -271,6 +271,8 @@ Kit-free frames retain the local input row. `body.keyboard` is true only when th
 client draws on its own terminal. Every monitor client reports false. Missing
 flags use touch panel controls. The display module reads these sizes.
 It does not treat `body.role` as the screen assignment.
+Optional `body.capabilities.frameAck=1` asks for frame challenges. The server
+sends them only with `so-server.cfg.displayAck=true` and that capability.
 
 A turtle also sends these fields.
 
@@ -402,6 +404,22 @@ The turtle sends `step.report` to the server.
 
 `body.pose` is `{ x, y, z, f }` in the journal frame after the last step. `body.journal` is the journal id. `body.fuel` is the numeric fuel level, or `-1` for unlimited. `body.inv` is the occupied-slot list `{ { slot, name, count }, ... }`. `body.dug` is the last 32 dug cells `{ { x, y, z }, ... }` in the journal frame. The worker reads these facts once after the batch, including when a step failed or expired.
 
+After accepting a complete report and calling its completion callback, the
+server replies `ack` with the report's request ID and
+`body={command="step.report",lease=<lease ID>}`. A matching authenticated ack
+closes the worker's report. It retains the lease duration as a server-silence
+watchdog. Fresh authenticated server contact resets the silence age. Hellos
+run at half that duration, capped at 30000 milliseconds. Healthy idle workers
+stay paired after the old deadline passes. Without a matching ack, the
+original lease expiry still applies.
+
+After a full lease duration without contact, work leases start fast beacons
+and backtracking. Park leases stay put and beacon every 30 seconds. Remote
+workers keep their stationary recovery rule. A retry or reused ID for the
+worker's last acknowledged lease gets `expired` for every requested step and
+executes nothing. That refusal report carries the refused lease ID without
+replacing another lease's pending report acknowledgement.
+
 ### beacon
 
 The turtle broadcasts `beacon`.
@@ -458,6 +476,27 @@ Unlabelled hits omit `label`; clients read a missing label as `""`.
 `x` and `y` are 1-based character coordinates. `w` is the width in characters. `h` is the height in rows and defaults to 1. Any cell inside the rectangle hits the button.
 
 `fg` and `bg` are CC blit strings. One character paints the whole row. A string the same length as `text` paints each character.
+
+`body.ack` is optional `{v=1,token=string}`. With `displayAck=true`, each
+transmitted frame to a capable display gets a fresh 1..64-byte token, including
+`view.get` answers and unchanged repeats. It is independent of the envelope
+rid and picture signature, so it does not change `rev`. The server reserves
+room before fitting the picture. The challenge adds no further row or button
+cuts.
+
+### view.ack
+
+After drawing a challenged frame, the display sends a fresh authenticated
+`view.ack` with exactly `body={v=1,token=string}`. It sends only after palette,
+scale and drawing succeed on the same output. Draw errors, output changes
+during drawing and local redraws without a new frame send no ack.
+
+The server keeps at most four pending tokens per display. Each expires after
+10000 game milliseconds and works once. A new sent token evicts the oldest
+provisional `view.get` token first, otherwise the oldest token. A provisional
+token cannot evict a sent token. Forged, foreign, expired, repeated and
+malformed acks are ignored without reply. Only an accepted ack refreshes the
+display's freshness time.
 
 ### input
 
@@ -1022,7 +1061,7 @@ range of 16 for unknown workers. `status(id)` still creates a row when missing.
 
 `lease.onReport(owner, fn)` registers one callback for an owner tag. It receives `(leaseId, turtleId, results, lease)`. The lease record has `id`, `turtleId`, `steps`, `owner`, `pose`, `expires`, and `status`. Status is `reported` after a report and `expired` after silence. An accepted report stores `lease.report = { pose, journal, fuel, inv, dug }`. Each field is type-checked independently. A bad field is omitted while valid fields remain. These facts are stored for successful batches and batches with failed or expired steps. A later registration replaces the callback.
 
-An accepted `step.report` clears lost. A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
+An accepted `step.report` clears lost. A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once, before the `step.report` ack. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
 
 `lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local game-millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in game milliseconds, or 0 before contact.
 
@@ -1425,6 +1464,15 @@ Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` 
 
 ### display
 
+With `so-server.cfg.displayAck=true`, default off, a capable display becomes
+stale 10000 game milliseconds after its last accepted `view.ack`. Before its
+first ack, age starts at the capability hello and reads `waiting` until stale.
+Displays without the capability read `unverified`. Hello, input and successful
+sends do not refresh ack age. The server's monitor uses its last good local
+draw. The DISPLAYS leaders, wall list and terminal fleet/role list show these
+states and ages. Ack state clears on restart, forget or a hello without the
+capability. With the flag off, freshness uses the last send.
+
 The DISK status control opens byte counts for every store and a persistent
 pressure or pending-event warning. AR keeps the disk warning visible until the
 condition clears, including with event alerts off.
@@ -1559,25 +1607,19 @@ the legacy status renderer.
 
 The server-only `so-ui.lua` kit exports `palette`, `font`, `clock(epochMs)`, `size(w, h)`,
 `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`, `canvas(w, h, bg?)`,
-`status(model, w, h)`, `alert(model, w, h)`, `chipRow(C, y, label, chips, x?, right?)`
-and `fleetRows(C, model, top, step)`. Sizes are P, T, M, L, XS or
+and `status(model, w, h)`. Sizes are P, T, M, L, XS or
 `generic`. Grid returns one-based `{ x, w }` columns and the tile-row count.
 Glyph returns three `{ text, fg, bg }` rows with inverted sextant cells.
 Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
-`fill(x,y,w,h,bg)`, `center(x,w,y,text,bg?)`, `big(x,y,w,text,bg)`,
+`fill(x,y,w,h,bg)`, `center(x,w,y,text,bg?)`,
 `hit(id,x,y,w,h,label?)`, `header(name,right?,bg?)`, `alert(text)`,
-`tile(x,y,w,label,value,sub,bg)`, `button(x,y,w,label,id,bg?,h?)`,
-`listRow(y,text,state)`, `search(x,y,w,text,id?)` and `frame()`.
+`button(x,y,w,label,id,bg?,h?)` and `frame()`.
 Route A adds `bar`, `section`, `rule`, `leader`, `ticks`, `progress`, `chip`,
 `flag`, `box` and `digits`, plus `U.tone`, `U.mark`, `U.age`, `U.arrow`,
 `U.filled`, `U.g`, `U.chips` and `U.stale`; [the schematic spec](../ui/SCHEMATIC-SPEC.md)
 lists their arguments. Tab chips use ids `tab:<name>`.
 Frame returns compact runs, buttons with height and the palette.
-`chipRow` draws a label at `x` (default 2) and `{ text, bg }` chips, each padded
-by one space, right-aligned to `right` (default `w - 1`); the label is cut to
-leave one blank column. `fleetRows` draws status tiles 1-8 as chip rows from
-`top`, `step` rows apart, using each tile's optional `chips`, and makes the
-ALERTS row an `alerts` target. Gathered TURTLES, LEASES, DISPLAYS and DROPS
+Gathered TURTLES, LEASES, DISPLAYS and DROPS
 tiles carry `chips`; a second chip (lost, stale, broken) appears only above zero.
 
 `so-ui.clock(epochMs)` returns `{ h, m, s, date, hm, hms }` in Amsterdam time.
@@ -2578,8 +2620,6 @@ expiry and eviction. All diagnostics reset at server restart and store no
 payloads or keys. Refused traffic writes zero durable ERRORS entries per
 sender per ten minutes, including after eviction.
 
-Lost attention rows include silence age and last world position when known.
-
 ### Severity 1 sound
 
 Independent `so-server.cfg` flags `alarm` and `pocketTone` default to false.
@@ -2678,6 +2718,71 @@ reservation conflicts, the fuel hold stays active and later ticks retry. Refuel 
 turtle to let the next probe refresh its fuel and resume the build. A zero-fuel report
 keeps the "out of fuel" hold and sends no movement. Failed movement reports "out of
 fuel" when the worker reports a fuel error or zero fuel.
+
+`build.facts()` returns a fresh
+`{state,running,alert?,dim,turtleId?,pose?,bounds?,done,total}` table.
+State is `idle`, `running`, `held`, `stopped`, `recovering` or `complete`.
+Counts describe confirmed placements. Without a blueprint, state is idle,
+bounds are absent and counts are zero. Bounds are inclusive
+`{x1,y1,z1,x2,y2,z2,dim}`. Confirmed world pose is `{x,y,z,f,dim}`.
+Recovery, loss, pose uncertainty and dimension mismatch omit pose.
+The getters copy data and use read-only lease facts. They never expand
+geometry, save jobs or change reservations.
+
+`build.turtleView()` returns rows keyed by the assigned worker's string ID.
+Rows retain `role`, `anchor`, `inv`, `fuel`, `done`, `total`, `paused`,
+`parkConfirmed`, diagnostic `error` and pending `step`. They add the facts
+alert and use the worker's saved state when present, otherwise the facts
+state. Confirmed pose also has `facing` for existing consumers. Forgotten or
+unassigned workers have no row. The shared detail consumer still gathers only
+mining and lumber.
+
+`build.mapView()` returns `{dim,bounds?,turtles}`. Each turtle row has
+`{id,dim,pose,state,alert?}` and exists only with a confirmed pose. Unknown
+poses leave blueprint bounds intact. The map gathers a separate copy only in
+the matching dimension. Builder markers and outlines remain B2-U work.
+
+An alert is `{key,severity,text,target,actions?}`. The key is `build:<cause>`;
+text is fixed per cause and target is `build`. Severity 2 causes are `fuel`,
+`material`, `storage_missing`, `storage_access`, `inventory_full` and
+`device_forgotten`. Severity 1 causes are `range`, `path`, `lost`,
+`pose_uncertain`, `save`, `reservation`, `cell_occupied`, `cell_unknown`,
+`placement`, `worker_safety`, `assignment_conflict` and `dimension_mismatch`.
+Forgotten-worker actions open BUILD setup. HEALTH gathers these facts every
+five game seconds and removes resolved rows on its next gather. Matching
+builder loss and pose causes replace duplicate fleet rows for that worker.
+Changing diagnostic text keeps the same key and fixed NEEDS text.
+
+Lease refusal reasons map to causes as follows. The original diagnostic stays
+visible.
+
+| Refusal | Cause |
+| --- | --- |
+| `DISK events pending` | `save` |
+| `pose uncertain`, invalid pose | `pose_uncertain` |
+| Lost worker, send failure | `lost` |
+| Busy worker | `assignment_conflict` |
+| Missing pairing | `device_forgotten` |
+| Invalid or disabled dimension, worker dimension mismatch, remote height boundary | `dimension_mismatch` |
+| Remote-worker capability failure, missing park-batch capability | `worker_safety` |
+| Invalid planner arguments, encoding size failure, unknown refusal | `path` |
+
+Invalid commands and configuration refusals show five-second BUILD feedback.
+They never replace a saved hold or publish a hold event. Legacy `pose uncertain` and `device forgotten`
+normalize to `pose_uncertain` and `device_forgotten`. Legacy `cells` and `lane`
+normalize to `reservation`; `fuelStock` becomes `fuel`.
+
+A generic legacy `hold` keeps its original diagnostic in durable `legacyHold`,
+separate from recovery diagnostics. It has no derived NEEDS severity and cannot
+automatically resume. It survives successful recovery, failed probes followed
+by successful probes, restarts and configuration edits. Only explicit START
+that passes readiness clears it. Completed legacy jobs discard stale holds.
+A failed completion save keeps `build:save` until a successful save.
+
+Supply retry timers permit another inspection or transfer. They keep
+`build:material` or `build:fuel` active through pending retry leases and clear
+it only after confirmed resolution. A partial refill keeps the fuel cause
+until fuel covers the planned trip or is unlimited.
 
 See [builder jobs](BUILD.md) for command conventions and proposed Gate B C15.
 
