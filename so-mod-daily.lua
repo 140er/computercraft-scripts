@@ -138,6 +138,27 @@ D.partial = function()
   D.value.partial = true
   for _, row in ipairs(D.value.previous) do row.partial = true end
 end
+D.same = function(a, b)
+  if type(a) ~= "table" then return a == b end
+  if type(b) ~= "table" then return false end
+  for key, value in pairs(a) do if not D.same(value, b[key]) then return false end end
+  for key in pairs(b) do if a[key] == nil then return false end end
+  return true
+end
+D.retireOversized = function()
+  local paths = {}
+  for _, suffix in ipairs({ ".bak", ".tmp" }) do
+    local path = "so-data/daily" .. suffix
+    if fs.exists(path) and fs.getSize(path) > 262144 then paths[#paths + 1] = path end
+  end
+  if #paths == 0 then return true end
+  local saved, bytes = SO.store.read("so-data/daily")
+  if type(saved) ~= "table" or saved.schema ~= 1 or not D.integer(saved.generation) or saved.generation < 1
+    or type(bytes) ~= "string" or #bytes > 262144
+    or not D.same(saved.value, D.value) then return false end
+  for _, path in ipairs(paths) do fs.delete(path) end
+  return true
+end
 D.tick = function(gameNow)
   local now = os.epoch("utc")
   local date = U.clock(SO.now()).date
@@ -197,6 +218,10 @@ D.tick = function(gameNow)
     if not ok and tostring(err):find("budget", 1, true) and next(D.value.recent) then
       D.value.recent = {}
       ok = D.box.save(D.value)
+    end
+    if ok and type(SO.store.read) == "function" then
+      local checked, retired = pcall(D.retireOversized)
+      ok = checked and retired
     end
     D.failed = not ok
     if ok then D.lastSave = gameNow end

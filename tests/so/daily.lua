@@ -39,6 +39,21 @@ end
 local function legacy(date)
   return {date=date,cursor=4,ore=7,oreByName={diamond=7},logs=9,recent={}}
 end
+local function oversizedLegacy()
+  local old = legacy("2026-10-25")
+  old.ore, old.logs, old.cursor, old.oreByName = 700, 91, 73, {}
+  for i=1,700 do old.oreByName[string.rep("x",1180)..tostring(i)] = 1 end
+  return old
+end
+local function boundedDisk(s)
+  local total = 0
+  for _, suffix in ipairs({"", ".bak", ".tmp"}) do
+    local size = #(s.m.files["so-data/daily"..suffix] or "")
+    assert(size <= 262144, "oversized daily generation survived migration")
+    total = total + size
+  end
+  assert(total <= 786432, "daily generations exceed the combined disk budget")
+end
 return function(test, equal)
   test("daily an old daily file still loads with unknown earlier days", function()
     local s = fixture(midnight[7]+1000,nil,legacy("2026-10-25"))
@@ -263,6 +278,72 @@ return function(test, equal)
       assert(#name<=128) total=total+count if name~="other" then exact=exact+1 end
     end
     equal(exact,128) equal(total,132) equal(s.saved().ore,132)
+  end)
+
+  test("daily migrating an oversized legacy generation bounds all disk generations", function()
+    for _, suffix in ipairs({"", ".bak", ".tmp"}) do
+      local seed = fixture(midnight[7],nil,oversizedLegacy())
+      local text = seed.m.files["so-data/daily"]
+      assert(#text > 786432, "legacy fixture does not exceed both disk limits")
+      local s = fixture(midnight[7],{["so-data/daily"..suffix]=text})
+      s.tick(s.now+60000)
+      equal(s.saved().ore,700) equal(s.saved().logs,91) equal(s.saved().cursor,73)
+      equal(s.saved().oreByName,{other=700})
+      boundedDisk(s)
+      local r = fixture(s.now,s.m.files)
+      equal(r.daily.today().ore,700) equal(r.daily.today().logs,91)
+      equal(r.saved().cursor,73)
+    end
+  end)
+
+  test("daily a failed migration save keeps oversized legacy data recoverable", function()
+    for _, suffix in ipairs({"", ".bak", ".tmp"}) do
+      local seed = fixture(midnight[7],nil,oversizedLegacy())
+      local text = seed.m.files["so-data/daily"]
+      local s = fixture(midnight[7],{["so-data/daily"..suffix]=text})
+      local open = s.e.fs.open
+      s.e.fs.open = function(path,mode)
+        if path=="so-data/daily.tmp" and mode=="w" then error("disk unavailable") end
+        return open(path,mode)
+      end
+      s.tick(s.now+60000)
+      local kept = false
+      for _, ending in ipairs({"", ".bak", ".tmp"}) do
+        if s.m.files["so-data/daily"..ending] == text then kept = true end
+      end
+      assert(kept, "failed save deleted the oversized legacy generation")
+      local r = fixture(s.now,s.m.files)
+      equal(r.daily.today().ore,700) equal(r.daily.today().logs,91)
+      s.e.fs.open = open
+      s.tick(s.now+1)
+      boundedDisk(s)
+      equal(s.saved().cursor,73)
+    end
+  end)
+
+  test("daily keeps oversized backups until normalized totals and cursor read back", function()
+    for _, field in ipairs({"ore", "cursor", "generation", "read error"}) do
+      local s = fixture(midnight[7],nil,oversizedLegacy())
+      local text = s.m.files["so-data/daily"]
+      local read = s.e.SO.store.read
+      s.e.SO.store.read = function(path)
+        local value, bytes = read(path)
+        if path=="so-data/daily" and value and #bytes<=262144 then
+          if field=="generation" then value.generation=0
+          elseif field=="read error" then error("read unavailable")
+          else value.value[field] = value.value[field]+1 end
+        end
+        return value, bytes
+      end
+      s.tick(s.now+60000)
+      equal(s.m.files["so-data/daily.bak"],text)
+      local r = fixture(s.now,s.m.files)
+      equal(r.daily.today().ore,700) equal(r.daily.today().logs,91)
+      equal(r.saved().cursor,73)
+      s.e.SO.store.read = read
+      s.tick(s.now+1)
+      boundedDisk(s)
+    end
   end)
 
 end
