@@ -456,8 +456,12 @@ return function(test, equal)
 
   test('B13-U the follow-up screens match their schematic fixtures', function()
     local b = follow(ON)
+    -- Literal paths, so part runs declare every fixture they read.
+    local paths = { ['ar-FM'] = 'tests/ui/fixtures/ar-FM.txt', ['ar-FS'] = 'tests/ui/fixtures/ar-FS.txt',
+      ['ar-FXS'] = 'tests/ui/fixtures/ar-FXS.txt', ['ar-PM'] = 'tests/ui/fixtures/ar-PM.txt',
+      ['ar-PXS'] = 'tests/ui/fixtures/ar-PXS.txt', ['ar-PS'] = 'tests/ui/fixtures/ar-PS.txt' }
     local function check(name, w, h, frame)
-      local fixture = R.load('tests/ui/fixtures/' .. name .. '.txt')
+      local fixture = R.load(paths[name])
       local out = R.capture(w, h)
       for y, row in ipairs(frame.rows) do
         local fg, bg = {}, {}
@@ -506,7 +510,7 @@ return function(test, equal)
     local names = { 'ar-FM', 'ar-FS', 'ar-FXS', 'ar-PM', 'ar-PXS', 'ar-PS' }
     assert(os.execute("python3 -I '" .. root .. "/docs/ui/schematic/screens.py' --fixtures '" .. dir .. "' " .. table.concat(names, ' ') .. ' > /dev/null'))
     for _, name in ipairs(names) do
-      local a, c = io.open(dir .. '/' .. name .. '.txt', 'rb'), io.open('tests/ui/fixtures/' .. name .. '.txt', 'rb')
+      local a, c = io.open(dir .. '/' .. name .. '.txt', 'rb'), io.open(paths[name], 'rb')
       equal(a:read('*a'), c:read('*a'))
       a:close() c:close()
     end
