@@ -2,6 +2,7 @@ local P = dofile("so-plan.lua")
 local L = dofile("so-lumber-plan.lua")
 local S = { wired = false, callback = false }
 S.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
+S.scanNow = SO.store.read and (SO.store.read("so-server.cfg") or {}).lumberScan == true
 
 S.possible = function(previous, flight)
   local out, seen = {}, {}
@@ -217,7 +218,7 @@ S.fuelNeed = function()
   local j, drops = S.row, S.module("drops")
   local dim = S.dropDim()
   local p = j.turtle.pose
-  local picked = dim ~= nil and type(drops.pick) == "function" and drops.pick("fuel", { dim = dim, x = p.x, y = p.y, z = p.z })
+  local picked = dim ~= nil and type(drops.choose) == "function" and drops.choose("fuel", { dim = dim, x = p.x, y = p.y, z = p.z })
   local point = picked and picked.point
   if not point then return 32 end
   local access = L.access(point, p)
@@ -615,7 +616,7 @@ S.service = function(kind, resume)
   else
     local drops = S.module("drops")
     local near = { dim = S.dropDim(), x = j.turtle.pose.x, y = j.turtle.pose.y, z = j.turtle.pose.z }
-    local picked = near.dim ~= nil and type(drops.pick) == "function" and drops.pick(kind, near)
+    local picked = near.dim ~= nil and type(drops.choose) == "function" and drops.choose(kind, near)
     if not picked or not picked.point then
       j.blocked = "hold"
       S.chestAlert(kind, picked and picked.reason or "none", picked and picked.failedPoint)
@@ -790,7 +791,7 @@ S.report = function(id, turtleId, results, lease)
             local duplicate = false
             for _, candidate in ipairs(S.job.candidates) do if candidate.x == x and candidate.z == z then duplicate = true end end
             local spot = S.job.spots[x .. "," .. z]
-            if not duplicate and (not spot or SO.now() - (spot.plantedAt or 0) >= 600000) then
+            if not duplicate and (S.scanNow and S.job.scanRound or not spot or SO.now() - (spot.plantedAt or 0) >= 600000) then
               S.job.candidates[#S.job.candidates + 1] = { dim = S.job.dim, x = x, y = S.job.ground + 2, z = z }
             end
           end
@@ -1053,6 +1054,10 @@ S.work = function(now)
     j.phase = "scan"
   end
   if j.phase == "scan" then
+    if S.scanNow and S.job.scanRequested and not j.target then
+      if not j.idlePark or not j.parkAt or now - j.parkAt >= 540000 then S.park() end
+      return
+    end
     if not j.target and not S.claimTarget() then
       j.phase = "roundEnd"
       S.save()
@@ -1100,7 +1105,7 @@ S.input = function(ev)
     if id == "setup-next" then v.offset = (v.offset or 0) + 1 return end
     if id == "turtles-next" then v.workers = (v.workers or 0) + 1 return end
     if type(id) == "string" and id:match("^here:%d+$") then S.input({ text = "add " .. id:match("%d+$") }) return end
-    if id ~= "start" and id ~= "stop" then return end
+    if id ~= "start" and id ~= "stop" and id ~= "scan" then return end
     text = id
   end
   local words = {}
@@ -1124,6 +1129,12 @@ S.input = function(ev)
     return
   end
   if words[1] == "stop" and #words == 1 then S.clearAlert() j.running=false
+  elseif words[1] == "scan" and #words == 1 and S.scanNow then
+    if not j.running or not j.area or j.ground == nil then return end
+    if j.scanRequested then return end
+    j.scanRequested = true
+    S.save()
+    return
   elseif words[1] == "start" and #words == 1 then
     local state = S.module("state")
     local ok, err = false, "disk guard unavailable"
@@ -1171,7 +1182,8 @@ S.input = function(ev)
     if dim~=j.dim then j.saplings,j.obstacles=nil,{} end
     j.dim=dim
     j.area = { x1 = math.min(x1, x2), z1 = math.min(z1, z2), x2 = math.max(x1, x2), z2 = math.max(z1, z2) }
-    j.ground, j.visited, j.candidates, j.spots, j.nextRound = ground, {}, {}, {}, nil
+    j.ground, j.visited, j.candidates, j.spots, j.nextRound, j.scanRequested = ground, {}, {}, {}, nil, nil
+    j.scanRound = nil
     for _, row in pairs(j.turtles) do
       row.phase, row.target, row.tree, row.service, row.probing, row.detour, row.motion = "scan", nil, nil, nil, nil, nil, nil
     end
@@ -1350,9 +1362,11 @@ A.facts = function(m)
     { "fuel", fuel and tostring(fuel) or "-", not fuel and "8" or fuel < 80 and "1" or "0" } }
 end
 A.fg = function(tone) return (tone == "1" or tone == "e" or tone == "8") and tone or "0" end
-A.run = function(C, y, m, gap)
+A.run = function(C, y, m, gap, setup)
   local run = m.state == "running"
-  S.ui.actions(C, y, { { "START", "start", run and "muted" or "primary" }, { "STOP", "stop", run and "stop" or "muted" } }, gap)
+  local items = { { "START", "start", run and "muted" or "primary" }, { "STOP", "stop", run and "stop" or "muted" } }
+  if S.scanNow and not setup and C.w >= 26 then items[#items + 1] = { "SCAN", "scan", S.job.scanRequested and "muted" or "primary" } end
+  S.ui.actions(C, y, items, gap)
 end
 A.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
 -- The farm at up to four columns per block, squeezed when it does not fit; trees, chests and the
@@ -1596,7 +1610,7 @@ A.setup = function(C, m)
     else values(3, ya - 2) end
   end
   if m.alert then C.flag(2, ya - (room and 2 or 1), w - 2, m.alert) end
-  A.run(C, ya, m, room and 3 or 1)
+  A.run(C, ya, m, room and 3 or 1, true)
 end
 A.layout = function(m, w, h, setup)
   local C = S.ui.canvas(w, h)
@@ -1702,7 +1716,7 @@ S.tickRow = function(row, now)
     if sent then j.motion = nil end
     return
   end
-  if type(j.fuel) == "number" and j.fuel >= 0 and j.fuel < S.fuelNeed() and not j.service then
+  if not j.service and type(j.fuel) == "number" and j.fuel >= 0 and j.fuel < S.fuelNeed() then
     if not S.service("fuel") then return end
   end
   S.work(now)
@@ -1717,13 +1731,17 @@ S.tick = function(now)
   if not S.callback and type(lease.onReport) == "function" then lease.onReport("lumber", S.report) S.callback = true end
   if not S.callback or type(lease.status) ~= "function" then return end
   local rows = S.rows()
-  if S.job.nextRound and now >= S.job.nextRound then
+  local requested = S.scanNow and S.job.scanRequested and S.job.running and S.job.area and S.job.ground ~= nil
+  if requested or S.job.nextRound and now >= S.job.nextRound then
     local active = false
     for _, row in ipairs(rows) do
-      if not row.blocked and (row.target or row.tree or row.service or row.motion) then active = true end
+      if (requested or not row.blocked) and (row.target or row.tree or row.service or row.motion
+        or requested and row.phase == "roundEnd") then active = true end
     end
     if not active then
       S.job.nextRound, S.job.visited, S.job.candidates = nil, {}, {}
+      S.job.scanRound = requested == true or nil
+      if requested then S.job.scanRequested = nil end
       for _, row in ipairs(rows) do if row.phase == "waiting" then row.phase = "scan" end end
       S.save()
     end
