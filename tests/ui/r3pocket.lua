@@ -257,6 +257,32 @@ return function(test, equal)
     equal({s.shop.order('nothing','all')},{nil,'no match'});equal({s.shop.order('raw',48)},{nil,'bad count'})
   end)
 
+  -- An order is never larger than one stack: ALL sends the stock up to the stack size.
+  test('R3 pocket ALL sends at most one stack: 1240 in stock sends 64, 10 in stock sends 10', function()
+    local s = setup()
+    s.shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:gold_ingot']=10}})
+    s.tap('tab:shop');s.type('ingot')
+    s.tap('order:all:minecraft:iron_ingot');equal(s.sends[#s.sends].body.n,64)
+    assert(capture(s.render(),26,20).picture().text[19]:find('64 IRON INGOT sent',1,true))
+    s.tap('pick:minecraft:gold_ingot');s.tap('order:all:minecraft:gold_ingot');equal(s.sends[#s.sends].body.n,10)
+    equal({s.shop.order('minecraft:iron_ingot','all')},{'minecraft:iron_ingot',64})
+    equal({s.shop.order('gold','all')},{'minecraft:gold_ingot',10})
+    for _,sent in ipairs(s.sends) do assert(sent.body.cmd ~= 'order' or sent.body.n <= 64,'over one stack') end
+  end)
+
+  -- A long item name never pushes the count or the status off the 26-column pocket.
+  test('R3 pocket order line cuts a long label and keeps the count and status', function()
+    local s = setup()
+    s.shop.listen.roomsorter_stock(9,{totals={['minecraft:polished_deepslate_stairs']=120,['minecraft:oak_stairs']=40}})
+    s.tap('tab:shop');s.type('stairs')
+    s.tap('order:1:minecraft:polished_deepslate_stairs')
+    equal(capture(s.render(),26,20).picture().text[19],' 1 POLISHED DEEPS... sent ')
+    s.shop.listen.roomsorter(9,{rid=s.sends[#s.sends].body.rid,'Delivered 1 Polished Deepslate Stairs'})
+    -- The scene has an alert, so FLEET carries the dot.
+    s.D.model.flags = {{text='ore chest full'}}
+    s.match('tests/ui/fixtures/pocket-shoplong-P.txt')
+  end)
+
   -- UB-30: the panel reads only the job header; the rows below it are the job's own.
   test('R3 the panel probe reads only the header row of each job screen', function()
     local s = setup()

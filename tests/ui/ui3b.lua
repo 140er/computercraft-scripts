@@ -336,7 +336,8 @@ return function(test,equal)
     s.env.rednet.broadcast=function() end
     local shop=assert(loadfile('so-mod-shop.lua','t',s.env))()
     s.env.SO.mods.shop=shop;shop.tick(0)
-    shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:raw_gold']=4}})
+    shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:raw_gold']=4,
+      ['minecraft:iron_bars']=0,['minecraft:polished_deepslate_stairs']=120}})
     s.panel.tick(0);s.frame(2);assert(s.display.assign(2,'panel'))
     local function rows() return capture(s.frame(2),26,20).picture() end
     local function row(p,pattern) for y,text in ipairs(p.text) do if text:find(pattern) then return y,text end end end
@@ -355,6 +356,11 @@ return function(test,equal)
     assert(p.text[y+1]:find('Not in storage: iron',1,true),p.text[y+1])
     s.tap(2,'order:64');shop.listen.roomsorter(9,{rid=sends[#sends].body.rid,'Delivered 64 Iron Ingot'})
     assert(row(rows(),'64 IRON INGOT delivered'))
+    -- An exact id keeps its count, even zero, as shop.best does.
+    s.tap(2,nil,'minecraft:iron_bars');y,text=row(rows(),'IRON BARS');assert(y and text:find('0%s*$'),text)
+    -- A long name is cut so the count and status stay inside the 24-cell block.
+    s.tap(2,nil,'deepslate_stairs');s.tap(2,'order:1')
+    y,text=row(rows(),'^ 1 POLISHED');equal(text,' 1 POLISHED DEEPS... sent ')
   end)
   test('UI3b partial installs without the kit show the display id until assigned',function()
     local s=setup();s.env.fs={exists=function() return false end}

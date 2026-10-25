@@ -156,11 +156,15 @@ P.order = function(shop, search, amount, label)
   return {n=n or amount,label=label,view=view}
 end
 
--- An order record as a line and its colour, then the shop's reply (or why it was not sent).
-P.orderLine = function(sent)
+-- An order record as a line of at most width cells and its colour, then the shop's reply (or why it
+-- was not sent). The count and status always show; a long label is cut and ends in "...".
+P.orderLine = function(sent, width)
   if not sent.view then return "not sent","e",sent.why end
   local status = tostring(sent.view.order or ""):match("^Order: (%a+)") or "sent"
-  return sent.n.." "..sent.label.." "..status,status == "failed" and "e" or "d",sent.view.orderDetail
+  local head,tail,label = sent.n.." "," "..status,sent.label
+  local room = width-#head-#tail
+  if #label > room then label = room > 3 and label:sub(1,room-3):gsub("%s+$","").."..." or "" end
+  return head..label..tail,status == "failed" and "e" or "d",sent.view.orderDetail
 end
 
 -- The quick order (keyboards only): the typed search, its best match with the stock, 1, 16 and 64,
@@ -184,7 +188,7 @@ P.shopBlock = function(c, session, x, y, cw)
     if loaded then c.chip(cx,y+3,tostring(n),"order:"..n,"plain",third) else P.dead(c,cx,y+3,tostring(n),third) end
   end
   if loaded and panel.sent then
-    local text,fg,detail = P.orderLine(panel.sent)
+    local text,fg,detail = P.orderLine(panel.sent,cw)
     c.put(x,y+4,text:sub(1,cw),fg)
     if detail then c.put(x,y+5,detail:sub(1,cw),"8") end
   end
@@ -685,7 +689,7 @@ P.shopPage = function(c, state, keyboard, w, h)
     end
   end
   if state.sent then
-    local text,fg,detail = P.orderLine(state.sent)
+    local text,fg,detail = P.orderLine(state.sent,w-2)
     c.put(2,h-1,text:sub(1,w-2),fg)
     if detail then c.put(2,h,detail:sub(1,w-2),"8") end
   end

@@ -215,11 +215,11 @@ def jobs(m, w=26, h=20, f=None, title="Pocket JOBS"):
 
 # ---------------------------------------------------------------- shop
 
-def matches(search, limit):
+def matches(search, limit, stock=None):
     """so-mod-shop's matches: items whose id contains the search, most stock first, then by id."""
     q = search.lower().replace(" ", "_")
     items = [dict(name=n, count=c, label=n.split(":", 1)[-1].replace("_", " ").upper())
-             for n, c in SYS["stock"] if q in n.lower()]
+             for n, c in (SYS["stock"] if stock is None else stock) if q in n.lower()]
     items.sort(key=lambda i: (-i["count"], i["name"]))
     return items[:limit]
 
@@ -228,7 +228,16 @@ def count_fg(n):
     return "8" if n == 0 else "1" if n < 10 else "0"
 
 
-def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None):
+def order_line(n, label, status, width):
+    """P.orderLine: the count and status always show; a long label is cut and ends in "..."."""
+    head, tail = "%s " % n, " " + status
+    room = width - len(head) - len(tail)
+    if len(label) > room:
+        label = label[:room - 3].rstrip() + "..." if room > 3 else ""
+    return head + label + tail
+
+
+def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock=None):
     """sent is the last order's line and colour; reply is the shop's reply under it."""
     cv = Canvas(w, h, "Pocket SHOP quick order")
     tabs(cv, "shop", len(m["flags"]) > 0)
@@ -240,7 +249,7 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None):
     if search:
         chip(cv, w - 3, 3, "×", "clear", "off")
     rule(cv, 2, 4, w - 1)
-    items, y = matches(search, h), 5
+    items, y = matches(search, h, stock), 5
     shown = next((i for i in items if i["name"] == selected), items[0] if items else None)
     if not items:
         cv.put(2, y, "no match" if search else "no stock", "8")
@@ -272,7 +281,7 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None):
 def shop_sent():
     n, name = SYS["order"]
     label = next(i["label"] for i in matches(name, 99) if i["name"] == name)
-    return shop(ST.model(), sent=("%d %s sent" % (n, label), "d"))
+    return shop(ST.model(), sent=(order_line(n, label, "sent", 24), "d"))
 
 
 # ---------------------------------------------------------------- pair

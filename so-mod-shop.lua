@@ -358,14 +358,16 @@ S.best = function(search)
   return nil
 end
 
--- One order for the best match: 1, 16, 64, "stack" (its stack size) or "all" (its stock). Returns the
+-- One order for the best match: 1, 16, 64, "stack" (its stack size) or "all" (its stock, at most one
+-- stack: no order is ever larger than a stack). Returns the
 -- item and count sent, or nil and a reason. Changes no display's screen state; a given view gets the
 -- order status and reply the way a shop display's view does.
 S.order = function(search, count, view)
   local name, stock = S.best(search)
   if count == "stack" or count == "all" then
     if not name then return nil, "no match" end
-    count = count == "stack" and S.stackOf(name, S.kind(name)) or stock
+    local stack = S.stackOf(name, S.kind(name))
+    count = count == "stack" and stack or math.min(stock, stack)
   elseif count ~= 1 and count ~= 16 and count ~= 64 then return nil, "bad count" end
   if not name then return nil, "no match" end
   if stock <= 0 then return nil, "out of stock" end
@@ -956,7 +958,7 @@ S.press = function(view, client, id)
   local amount, target = id:match("^order:(%w+):(.+)$")
   if not amount or view.selected ~= target then return end
   local item = S.gather(client).selected
-  local count = item and (amount == "stack" and item.stack or amount == "all" and item.count
+  local count = item and (amount == "stack" and item.stack or amount == "all" and math.min(item.count, item.stack)
     or (amount == "1" or amount == "16" or amount == "64") and tonumber(amount))
   if count and count >= 1 then S.request("order", target, count, view) end
 end

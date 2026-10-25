@@ -107,7 +107,9 @@ def shop_block(cv, x, y, cw, search, loaded=True, sent=None, reply=None):
         cv.put(x + 2, y + 1, typed, "0")
         cv.put(x + 2 + len(typed), y + 1, "_", "9")
         cv.hit("search", x, y + 1, cw, 1)
-        best = [i for i in PK.matches(search, 1) if i["count"] > 0] if search else []
+        # S.best: an exact id keeps its count, even zero; another search takes the first match in stock.
+        exact = [i for i in PK.matches(search, 99) if i["name"] == search]
+        best = exact or ([i for i in PK.matches(search, 1) if i["count"] > 0] if search else [])
         if best:
             leader(cv, x, y + 2, cw, best[0]["label"], str(best[0]["count"]), "1" if best[0]["count"] < 10 else "0")
         elif search:
@@ -330,6 +332,9 @@ def code():
     return dict(code=PK.SYS["code"], left=PK.SYS["left"])
 
 
+# A long item name on the 26-column pocket: the count and status keep their room.
+LONG = [("minecraft:polished_deepslate_stairs", 120), ("minecraft:oak_stairs", 40)]
+
 FIXTURES = [
     ("panel-M", lambda: main(ST.model(), 57, 24, "Panel, room monitor 57x24", needs=SC["needs"])),
     ("panel-W", lambda: main(ST.model(), 100, 38, "Panel, wall 100x38", needs=SC["needs"])),
@@ -338,6 +343,9 @@ FIXTURES = [
     ("panel-XS", lambda: main(ST.model(), 15, 10, "Panel, smallest monitor 15x10", needs=SC["needs"])),
     ("panel-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20, quick order",
                              keyboard=True, search=PK.SYS["search"])),
+    ("pocket-shoplong-P", lambda: PK.shop(ST.model(), search="stairs", stock=LONG,
+                                          sent=(PK.order_line(1, "POLISHED DEEPSLATE STAIRS", "delivered", 24), "d"),
+                                          reply="Delivered 1 Polished Deepslate Stairs")),
     ("panelalerts-M", lambda: alerts(alert_texts(), 57, 24, "Panel ALERTS without the health module")),
     ("panelpair-P", lambda: pair(ST.model(), 26, 20, "Panel PAIR 26x20, no code")),
     ("panelcode-P", lambda: pair(ST.model(), 26, 20, "Panel PAIR 26x20 with a code", **code())),
