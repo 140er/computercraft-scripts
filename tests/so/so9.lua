@@ -111,12 +111,12 @@ return function(test, equal, read)
       local ref, path = url:match("^https://raw%.githubusercontent%.com/140er/computercraft%-scripts/([^/]+)/(.*)$")
       if ref == "refs" then path = path:match("^heads/server%-only/(.*)$") end
       assert(path, url)
-      if m.failAt == m.calls then return nil, "not found" end
+      if m.failAt == m.calls or (m.failFrom and m.calls >= m.failFrom) then return nil, "not found" end
       local body = m.badPath == path and (m.badBody or "") or m.remote[path] or read(path)
       return { getResponseCode = function() return m.status or 200 end,
         readAll = function() return body end, close = function() end }
     end }
-    m.run = function(command) return assert(load(m.source or source, "@install.lua", "t", e))(command) end
+    m.run = function(...) return assert(load(m.source or source, "@install.lua", "t", e))(...) end
     m.boot = function()
       local run = e.shell.run
       e.shell.run = function(path, ...)
@@ -213,7 +213,7 @@ return function(test, equal, read)
     for _, mode in ipairs({ "download", "update swap", "rollback swap", "rollback missing" }) do
       local m = installed("worker")
       if mode == "rollback swap" then m.run("update"); m.runs, m.log = {}, {} end
-      if mode == "download" then m.failAt = 5
+      if mode == "download" then m.failFrom = 5
       elseif mode ~= "rollback missing" then
         local move = m.env.fs.move
         m.env.fs.move = function(a, b)
@@ -271,18 +271,168 @@ return function(test, equal, read)
       end
     end
   end)
-  test("SO9 server manifest covers every root so file and crypto file", function()
-    assert(roles, "installer needs the role table")
-    local set = {}
-    for _, path in ipairs(files("server")) do set[path] = true end
-    local pipe = assert(io.popen("git ls-files"))
-    for path in pipe:lines() do
-      if path:match("^so%-[^/]+%.lua$") or path:match("^lib/ccryptolib/") then
-        assert(set[path], "missing server file " .. path)
+  test("SO9 a rerun keeps enroll = true and changes only the server position", function()
+    local m = installed("server")
+    local config = { enroll = true, custom = { enabled = false, count = 7 },
+      pos = { dim = "minecraft:the_nether", x = 99, y = 64, z = 10 } }
+    m.files["so-server.cfg"] = m.env.textutils.serialize(config)
+    m.run()
+    config.pos = { dim = "minecraft:overworld", x = 1, y = 2, z = 3 }
+    equal(m.env.textutils.unserialize(m.files["so-server.cfg"]), config)
+    equal(m.files["so-keys"], "secret")
+    equal(m.files["so-data/mine/job"], "job")
+    equal(m.runs, { { "/so-server.lua" } })
+  end)
+  test("SO9 a rerun refuses unreadable server settings without replacing them", function()
+    for _, bytes in ipairs({ "broken", "true", "17" }) do
+      local m = installed("server")
+      m.files["so-server.cfg"] = bytes
+      local before = snapshot(m)
+      equal(pcall(m.run), false)
+      unchanged(m, before)
+      equal(#m.urls, 0)
+      equal(#m.runs, 0)
+    end
+  end)
+  test("SO9 a moved branch still installs the pinned SHA on fresh and existing machines", function()
+    local sha = string.rep("d", 40)
+    for _, updating in ipairs({ false, true }) do
+      for _, branch in ipairs({ string.rep("a", 40), string.rep("c", 40) }) do
+        local m = updating and installed("worker") or machine("worker")
+        m.sha = branch
+        if updating then m.run("update", sha) else m.run(sha) end
+        equal(m.files[".so-revision"], sha)
+        equal(m.files["worker.lua"], read("worker.lua"))
+        equal(#m.urls, #files("worker"))
+        for _, url in ipairs(m.urls) do
+          assert(url:find("/" .. sha .. "/", 1, true), url)
+        end
+        equal(m.runs, { { "/worker.lua" } })
       end
     end
-    pipe:close()
   end)
+  test("SO9 invalid pinned SHAs leave files untouched before HTTP or recovery", function()
+    for _, sha in ipairs({ "", "server-only", string.rep("d", 39), string.rep("d", 41), string.rep("g", 40) }) do
+      for _, updating in ipairs({ false, true }) do
+        local m = installed("worker")
+        local before = snapshot(m)
+        for _, name in ipairs({ "delete", "makeDir", "move", "open" }) do
+          m.env.fs[name] = function() error("Unexpected filesystem call " .. name) end
+        end
+        local ok, err
+        if updating then ok, err = pcall(m.run, "update", sha) else ok, err = pcall(m.run, sha) end
+        equal(ok, false)
+        assert(not tostring(err):find("Unexpected filesystem call", 1, true))
+        unchanged(m, before)
+        equal(#m.urls, 0)
+        equal(#m.runs, 0)
+      end
+    end
+  end)
+  test("SO9 one late failure refetches only that one file", function()
+    local m = installed("worker")
+    local paths = files("worker")
+    m.failAt = #paths
+    m.onRaw = function() m.sha = string.rep("c", 40) end
+    m.run("update")
+    local counts = {}
+    for i = 2, #m.urls do
+      local path = assert(m.urls[i]:match("/" .. string.rep("a", 40) .. "/(.*)$"))
+      counts[path] = (counts[path] or 0) + 1
+    end
+    for i, path in ipairs(paths) do equal(counts[path], i == #paths and 2 or 1, path) end
+    equal(m.calls, #paths + 1)
+    equal(m.files[".so-revision"], string.rep("a", 40))
+    equal(m.files["worker.lua"], read("worker.lua"))
+    equal(m.runs, { { "/worker.lua" } })
+  end)
+  test("SO9 invalid Lua fails immediately without retrying or changing the release", function()
+    local m = installed("worker")
+    local before = snapshot(m)
+    m.badPath, m.badBody = "so-proto.lua", "not lua !"
+    m.run("update")
+    unchanged(m, before)
+    equal(m.calls, 3)
+    equal(#m.runs, 0)
+  end)
+  test("SO9 retries pinned bootstrap transport failures and closes failed responses", function()
+    for _, mode in ipairs({ "missing", "exception", "status", "read" }) do
+      local m = machine("worker")
+      local get, attempts, closed = m.env.http.get, 0, 0
+      m.env.http.get = function(url, ...)
+        if url:match("/install%.lua$") then
+          attempts = attempts + 1
+          if attempts < 3 then
+            if mode == "missing" then return nil, "connection failed" end
+            if mode == "exception" then error("connection failed") end
+            local h = { getResponseCode = function() return mode == "status" and 503 or 200 end,
+              readAll = function() if mode == "read" then error("connection lost") end; return "unavailable" end,
+              close = function() closed = closed + 1 end }
+            if mode == "status" then return nil, "unavailable", h end
+            return h
+          end
+        end
+        return get(url, ...)
+      end
+      m.run()
+      equal(attempts, 3)
+      equal(closed, (mode == "status" or mode == "read") and 2 or 0)
+      equal(m.files[".so-revision"], m.sha)
+      equal(m.runs, { { "/worker.lua" } })
+    end
+  end)
+  test("SO9 install check writes nothing and reports current or update available", function()
+    for _, mode in ipairs({ "current", "available", "fresh", "corrupt", "offline" }) do
+      local m = mode == "fresh" and machine("server", 1) or installed("worker")
+      m.files[".so-revision"] = mode == "current" and (" \t" .. m.sha .. "\n")
+        or mode == "corrupt" and "bad" or string.rep("b", 40)
+      if mode == "fresh" then m.files[".so-revision"] = nil end
+      m.files[".so-new/staged"], m.files[".so-old/saved"] = "staged", "saved"
+      m.dirs[".so-new"], m.dirs[".so-old"] = true, true
+      m.apiFail = mode == "offline"
+      local before, dirs = snapshot(m), {}
+      for path, value in pairs(m.dirs) do dirs[path] = value end
+      for _, name in ipairs({ "delete", "makeDir", "move" }) do
+        m.env.fs[name] = function() error("Unexpected write " .. name) end
+      end
+      local open = m.env.fs.open
+      m.env.fs.open = function(path, access)
+        equal(access, "r")
+        return open(path, access)
+      end
+      m.env.read = function() error("Unexpected prompt") end
+      local ok, err = pcall(m.run, "check")
+      equal(ok, mode ~= "offline")
+      if mode == "offline" then
+        assert(tostring(err):find("Cannot resolve server-only commit", 1, true))
+      else
+        assert(m.log[#m.log]:find(mode == "current" and "Current " or "Update available:", 1, true))
+      end
+      equal(m.files, before)
+      equal(m.dirs, dirs)
+      equal(m.calls, 0)
+      equal(#m.runs, 0)
+    end
+  end)
+  do
+    local ok, pipe = pcall(io.popen, "git ls-files")
+    if not ok and pipe == "part tests cannot start host processes" then
+      print("SKIP SO9 repository inventory in isolated part; the full suite checks it")
+    else
+      test("SO9 server manifest covers every root so file and crypto file", function()
+        assert(roles, "installer needs the role table")
+        assert(ok and pipe, tostring(pipe))
+        local set = {}
+        for _, path in ipairs(files("server")) do set[path] = true end
+        for path in pipe:lines() do
+          if path:match("^so%-[^/]+%.lua$") or path:match("^lib/ccryptolib/") then
+            assert(set[path], "missing server file " .. path)
+          end
+        end
+        pipe:close()
+      end)
+    end
+  end
   test("SO9 each role contains its static dependencies and thin clients fit 800 KB", function()
     for _, role in ipairs({ "server", "worker", "display" }) do
       local set, total = {}, 0
@@ -315,11 +465,12 @@ return function(test, equal, read)
   test("SO9 fifth download failure leaves every old file unchanged", function()
     local m = installed("worker")
     local before = snapshot(m)
-    m.failAt = 5
+    m.failFrom = 5
     m.run("update")
     unchanged(m, before)
     assert(table.concat(m.log):find("not found", 1, true))
     assert(table.concat(m.log):find(files("worker")[5], 1, true))
+    equal(m.calls, 7)
   end)
   test("SO9 rejects empty, non-200 and invalid Lua responses", function()
     for _, mode in ipairs({ "empty", "status", "syntax" }) do
@@ -588,7 +739,7 @@ return function(test, equal, read)
   test("SO9 a failed pinned download never retries from a branch", function()
     local m = installed("worker")
     local before = snapshot(m)
-    m.failAt = 3
+    m.failFrom = 3
     m.run("update")
     unchanged(m, before)
     for i = 2, #m.urls do assert(m.urls[i]:find("/" .. m.sha .. "/", 1, true)) end
