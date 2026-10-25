@@ -76,7 +76,11 @@ S.run = function()
       if opened then S.errors, SO.errors = log, log else S.error("so-errors: " .. tostring(log)) end
     end
   end
-  SO.health = { started = SO.now(), tickMs = 0 }
+  SO.health = { started = SO.now(), tickMs = 0, modules = {} }
+  for _, name in ipairs({"ar","build","cells","daily","display","drops","health","lease",
+    "lumber","map","mine","panel","shop","state"}) do
+    SO.health.modules["so-mod-"..name..".lua"] = {status="absent"}
+  end
   pair.open(proto, store, SO.now)
   -- Yield once without losing events. sleep(0) drops every event that is
   -- not its own timer, including the tick timer and rednet messages.
@@ -95,14 +99,21 @@ S.run = function()
   for i = 1, #names do
     local name = names[i]
     if name:match("^so%-mod%-.+%.lua$") then
+      local status = {status="failed"}
+      local count = 0
+      for _ in pairs(SO.health.modules) do count=count+1 end
+      if SO.health.modules[name] or count < 64 then SO.health.modules[name] = status end
       local ok, mod = pcall(function()
         return assert(loadfile(name, nil, _ENV))()
       end)
       if ok and type(mod) == "table" and type(mod.name) == "string" and type(mod.handlers) == "table" then
         mods[#mods + 1] = mod
         SO.mods[mod.name] = mod
+        status.status, status.name = "loaded", mod.name
+        mod.healthStatus = status
       else
-        S.error("so-server: skip " .. name)
+        status.error = (ok and "invalid module" or tostring(mod)):sub(1,160)
+        S.error("so-server: skip " .. name .. ": " .. status.error)
       end
     end
   end
@@ -296,13 +307,21 @@ S.run = function()
 
   local function readConfig()
     local path = fs.exists("so-server.cfg") and "so-server.cfg" or "so-server.cfg.bak"
-    return type(store.read) == "function" and store.read(path) or nil
+    local ok, value = pcall(function() return type(store.read) == "function" and store.read(path) or nil end)
+    return ok and type(value) == "table" and value or nil
   end
   local config = readConfig()
-  print("The next server-only release removes legacy pair. " ..
-    "Old turtles must run install update before pairing again. " ..
-    "Update pockets and wall displays too. Saved pairings keep working. Updated clients use pair2 only.")
+  SO.health.config = config
+  if fs.exists("so-server.cfg") and not config then
+    SO.health.configError = "so-server.cfg unreadable; defaults active"
+    view.hostError = SO.health.configError
+    S.error("so-server: " .. SO.health.configError)
+  end
   local retireLegacyPair = type(config) == "table" and config.retireLegacyPair == true
+  print("legacy pair: " .. (retireLegacyPair and "retired" or "kept"))
+  if not retireLegacyPair then print("The next server-only release removes legacy pair. " ..
+    "Old turtles must run install update before pairing again. " ..
+    "Update pockets and wall displays too. Saved pairings keep working. Updated clients use pair2 only.") end
   if retireLegacyPair then builtin.pair = nil end
   local enrollConfigCached = true
   local function enrollEnabled()
@@ -320,6 +339,17 @@ S.run = function()
     return type(value) == "string" and #value == 40 and not value:find("[^0-9a-f]") and value or nil
   end
   local runningRevision = installedRevision()
+  SO.health.revision = runningRevision
+  local pos = type(config) == "table" and config.pos
+  local function coordinate(n) return type(n) == "number" and n == n and math.abs(n) < math.huge end
+  if type(pos) == "table" and coordinate(pos.x) and coordinate(pos.y) and coordinate(pos.z)
+    and type(gps) == "table" and type(gps.locate) == "function" then
+    local ok, x, y, z = pcall(gps.locate, 2)
+    if ok and coordinate(x) and coordinate(y) and coordinate(z) then
+      SO.health.gpsGap = math.sqrt((x-pos.x)^2+(y-pos.y)^2+(z-pos.z)^2)
+      if SO.health.gpsGap > 2 then S.error(string.format("so-server: saved position GPS gap %.1f blocks",SO.health.gpsGap)) end
+    end
+  end
   local function updateIdle(id)
     local lease = SO.mods.lease
     local row = lease and lease.peek(id)
@@ -640,7 +670,12 @@ S.run = function()
       local fn = mods[i].tick
       if type(fn) == "function" then
         local ok, err = pcall(fn, now)
-        if not ok then S.error("so-server: tick " .. mods[i].name .. " failed: " .. tostring(err)) end
+        local status = mods[i].healthStatus
+        if ok then status.lastGood, status.tickError = now, nil
+        else
+          status.tickError = tostring(err):sub(1,160)
+          S.error("so-server: tick " .. mods[i].name .. " failed: " .. tostring(err))
+        end
       end
     end
     SO.health.tickMs = math.floor((os.clock()-began)*1000+0.5)

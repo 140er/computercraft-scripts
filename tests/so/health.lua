@@ -7,6 +7,18 @@ local ERROR = "tick\nfailed: so-mod-mine.lua:120 attempt to index a nil value wh
   "server waits for the checkpoint. Final detail: no blocks were changed."
 
 local FIXTURES = {
+  "tests/ui/fixtures/health/facts-modules-26x20.txt",
+  "tests/ui/fixtures/health/facts-modules-29x12.txt",
+  "tests/ui/fixtures/health/facts-26x20.txt",
+  "tests/ui/fixtures/health/facts-next-26x20.txt",
+  "tests/ui/fixtures/health/lost-26x20.txt",
+  "tests/ui/fixtures/health/lost-detail-26x20.txt",
+  "tests/ui/fixtures/health/gps-gap-26x20.txt",
+  "tests/ui/fixtures/health/facts-29x12.txt",
+  "tests/ui/fixtures/health/facts-next-29x12.txt",
+  "tests/ui/fixtures/health/lost-29x12.txt",
+  "tests/ui/fixtures/health/lost-detail-29x12.txt",
+  "tests/ui/fixtures/health/gps-gap-29x12.txt",
   "tests/ui/fixtures/health/needs-error-26x20.txt", "tests/ui/fixtures/health/needs-error-29x12.txt",
   "tests/ui/fixtures/health/needs-enroll-26x20.txt", "tests/ui/fixtures/health/needs-enroll-29x12.txt",
   "tests/ui/fixtures/health/errors-list-26x20.txt", "tests/ui/fixtures/health/errors-list-29x12.txt",
@@ -53,6 +65,7 @@ local function health(state)
     errors={entries=function() return t.entries end,status=function() return {count=#t.entries,bytes=340} end}}
   env.SO.mods.display = {screen=function(role,render,input) t.screens[role]={render=render,input=input} end}
   env.SO.mods.state = state
+  t.env = env
   t.mod = assert(loadfile("so-mod-health.lua","t",env))()
   t.tick = function(now) t.now=now or t.now;t.clock=t.clock+5;t.mod.tick(t.now) end
   t.render = function(role,w,h,session) return t.screens[role].render(w,h,session) end
@@ -99,7 +112,273 @@ local function match(name,frame,w,h)
   assert(#diff==0,path.."\n"..table.concat(diff,"\n"))
 end
 
+local function frameText(frame)
+  local out = {}
+  for _, row in ipairs(frame.rows) do out[#out+1]=row.text end
+  return table.concat(out,"\n")
+end
+
+local function pages(t,role,w,h)
+  local s, out = {}, {}
+  for _=1,32 do
+    local frame = t.render(role,w,h,s)
+    capture(frame,w,h)
+    out[#out+1] = frameText(frame)
+    if not s.visibility[role].next then return table.concat(out,"\n") end
+    t.input(role,s,"next")
+  end
+  error("health paging did not finish")
+end
+
+local function startup(cfg,setup)
+  local net = Harness.new()
+  local m = net.machine({id=1,capacity=16000000,modem=true})
+  m.install({"so-server.lua","so-store.lua","so-errors.lua"})
+  m.files["so-proto.lua"] = "return {since=function() end,prune=function() end}"
+  m.files["so-pair.lua"] = "return {open=function() end,forgetPending=function() return {} end,pending=function() end}"
+  if cfg ~= nil then m.files["so-server.cfg"] = type(cfg)=="table" and Harness.encode(cfg) or cfg end
+  if setup then setup(m) end
+  m.boot("so-server.lua")
+  net.flush()
+  assert(m.alive(),tostring(m.error))
+  return net,m
+end
+
+local function diagnosticFacts(t)
+  t.env.SO.health = {modules={
+    ["so-mod-mine.lua"]={status="loaded",lastGood=3595000},
+    ["so-mod-shop.lua"]={status="failed",error="loader failed"},
+    ["so-mod-ar.lua"]={status="absent"}},revision=string.rep("a",40),
+    config={retireLegacyPair=true},gpsGap=10}
+  t.env.SO.mods.state = {diagnostics=function() return {bytes=6100000} end,
+    view={get=function() return {data={free=6100000}} end}}
+  t.tick()
+end
+
 return function(test,equal)
+  test("health startup distinguishes loaded failed invalid and absent modules and tracks ticks",function()
+    local net,m = startup({},function(server)
+      server.files["so-mod-mine.lua"] = "return {name='mine',handlers={},tick=function() if FAIL then error('tick broken') end end}"
+      server.files["so-mod-shop.lua"] = "error('load broken')"
+      server.files["so-mod-extra.lua"] = "return false"
+      server.files[".so-revision"] = string.rep("b",40).."\n"
+    end)
+    local runtime = m.env.SO.health
+    equal(runtime.revision,string.rep("b",40))
+    equal(runtime.modules["so-mod-mine.lua"].status,"loaded")
+    equal(runtime.modules["so-mod-ar.lua"].status,"absent")
+    equal(runtime.modules["so-mod-shop.lua"].status,"failed")
+    assert(runtime.modules["so-mod-shop.lua"].error:find("load broken",1,true))
+    equal(runtime.modules["so-mod-extra.lua"].error,"invalid module")
+    net.advance(1)
+    local status = runtime.modules["so-mod-mine.lua"]
+    local good = status.lastGood
+    assert(good)
+    m.env.FAIL=true
+    net.advance(1)
+    equal(status.lastGood,good)
+    assert(status.tickError:find("tick broken",1,true))
+    m.env.FAIL=false
+    net.advance(1)
+    assert(status.lastGood>good)
+    equal(status.tickError,nil)
+  end)
+
+  test("health startup bounds module facts and errors",function()
+    local _,m = startup({},function(server)
+      for i=1,90 do server.files["so-mod-extra"..i..".lua"]="error(string.rep('x',1000))" end
+    end)
+    local count=0
+    for _,status in pairs(m.env.SO.health.modules) do
+      count=count+1
+      assert(not status.error or #status.error<=160)
+    end
+    equal(count,64)
+  end)
+
+  test("health startup logs the legacy decision once and only kept pairing prints the notice",function()
+    for _,cfg in ipairs({{}, {retireLegacyPair=false}, {retireLegacyPair=true}}) do
+      local net,m=startup(cfg)
+      net.advance(3)
+      local log=table.concat(m.log,"\n")
+      local decision=cfg.retireLegacyPair and "retired" or "kept"
+      local _,count=log:gsub("legacy pair: "..decision,"")
+      equal(count,1)
+      equal(log:find("The next server-only release removes legacy pair",1,true)~=nil,not cfg.retireLegacyPair)
+    end
+  end)
+
+  test("health startup warns on unreadable config in the terminal log errors and NEEDS",function()
+    for _,cfg in ipairs({"not a table","false"}) do
+      local _,m=startup(cfg)
+      local warning="so-server.cfg unreadable; defaults active"
+      equal(m.env.SO.health.configError,warning)
+      equal(m.env.SO.terminal.hostError,warning)
+      assert(table.concat(m.log,"\n"):find(warning,1,true))
+      assert(#m.env.SO.errors.entries()>0)
+      local t=health()
+      t.env.SO.health=m.env.SO.health
+      t.tick()
+      assert(pages(t,"attention",26,20):find("Config unreadable",1,true))
+    end
+    local _,m=startup(nil)
+    equal(m.env.SO.health.configError,nil)
+    local _,denied=startup({},function(server)
+      local open=server.env.fs.open
+      server.env.fs.open=function(path,mode) if path=="so-server.cfg" then return nil end return open(path,mode) end
+    end)
+    assert(denied.env.SO.health.configError)
+  end)
+
+  test("health uses one byte formatter for event free and error storage",function()
+    for _,case in ipairs({{0,"0 B"},{1023,"1023 B"},{1024,"1.0 KB"},{81920,"80.0 KB"},
+      {1048576,"1.0 MB"},{6100000,"5.8 MB"}}) do
+      local t=health()
+      t.env.SO.mods.state={diagnostics=function() return {bytes=case[1]} end,
+        view={get=function() return {data={free=case[1]}} end}}
+      t.env.SO.errors.status=function() return {count=0,bytes=case[1]} end
+      t.tick()
+      for _,size in ipairs({{26,20},{29,12}}) do
+        local text=pages(t,"health",size[1],size[2])
+        local _,count=text:gsub(case[2]:gsub("%.","%%."),"")
+        equal(count,3)
+      end
+    end
+  end)
+
+  test("health a fresh lease contact clears a stale registry loss without hiding other warnings",function()
+    local t=health()
+    local facts={now=500000,disk={},machines={["5"]={role="worker",seen=0}},leases={["5"]={seen=499000}}}
+    equal(#t.mod.attention(facts),0)
+    facts.leases["5"].uncertain=true
+    facts.snoozed={["5"]=true}
+    equal(t.mod.attention(facts)[1].key,"pose/5")
+  end)
+
+  test("health startup compares saved position to GPS once without changing the position",function()
+    for _,gap in ipairs({0,2,2.1,10}) do
+      local cfg={pos={x=120,y=64,z=-30,dim="minecraft:overworld"}}
+      local calls=0
+      local net,m=startup(cfg,function(server)
+        server.env.gps={locate=function(timeout) equal(timeout,2);calls=calls+1;return 120+gap,64,-30 end}
+      end)
+      net.advance(2)
+      equal(calls,1)
+      assert(math.abs(m.env.SO.health.gpsGap-gap)<0.00001)
+      equal(m.env.textutils.unserialize(m.files["so-server.cfg"]),cfg)
+      local t=health()
+      local rows=t.mod.attention({now=0,disk={},gpsGap=m.env.SO.health.gpsGap})
+      equal(#rows,gap>2 and 1 or 0)
+      if gap>2 then equal(rows[1].key,"gps") end
+    end
+    for _,gps in ipairs({{}, {locate=function() return nil end}, {locate=function() error("offline") end},
+      {locate=function() return 0/0,64,0 end}}) do
+      local _,m=startup({pos={x=0,y=64,z=0}},function(server) server.env.gps=gps end)
+      equal(m.env.SO.health.gpsGap,nil)
+    end
+    local _,m=startup({},function(server) server.env.gps={locate=function() error("no saved position") end} end)
+    equal(m.env.SO.health.gpsGap,nil)
+  end)
+
+  for _,size in ipairs({{26,20},{29,12}}) do
+    local w,h=size[1],size[2]
+    for _,row in ipairs({{"modules","1 loaded"},{"skip","1 fail 1 absent"},{"rev","aaaaaaaa"},{"cfg","retireLegacyPair"},
+      {"pos","missing"},{"GPS gap","10.0 blocks"},{"event bytes","5.8 MB"},{"disk free","5.8 MB"},{"errors","340 B"},
+      {"uptime","0s"},{"tick","wall -"},{"tick cost","-"},{"clock reserve","unknown"},
+      {"events","unavailable"},{"snapshot","none"},{"disk","0%"},{"modems","1"},
+      {"paired","0 online"},{"leases","0 open"},{"ar","absent"},{"mine","ok 5s ago"},{"shop","failed"},{"error","loader failed"}}) do
+      test("health row "..row[1].." fits "..w.."x"..h,function()
+        local t=health()
+        diagnosticFacts(t)
+        local text=pages(t,"health",w,h)
+        local found
+        for line in text:gmatch("[^\n]+") do
+          if line:sub(2,#row[1]+1)==row[1] and line:sub(#row[1]+2,#row[1]+2)==" " then
+            found = found or line:find(row[2],#row[1]+2,true)
+          end
+        end
+        assert(found,row[1].." value "..row[2].." missing in "..text)
+      end)
+    end
+
+    test("health flags show only enabled flags and safe values at "..w.."x"..h,function()
+      local t=health()
+      diagnosticFacts(t)
+      t.env.SO.health.config={pos={x=120,y=64,z=-30},enroll=true,remoteDimensions=true,
+        setupMovement=false,secret="do not display",state={coalesceHeartbeats=true}}
+      t.tick()
+      local text=pages(t,"health",w,h)
+      assert(text:find("enroll",1,true) and text:find("remoteDimensions",1,true))
+      assert(text:find("x120 y64 z-30",1,true))
+      assert(not text:find("setupMovement",1,true) and not text:find("do not display",1,true))
+      t.env.SO.health.config={}
+      t.tick()
+      assert(pages(t,"health",w,h):find("defaults",1,true))
+    end)
+
+    test("health lost silence and last pose fit "..w.."x"..h,function()
+      local t,s=health(),{}
+      local machines={["12"]={role="worker",seen=t.now-420000,pose={x=120,y=64,z=-30}}}
+      t.env.SO.mods.state={get=function(key) if key=="machines" then return machines end end}
+      t.tick()
+      local rows=t.mod.attention({now=t.now,disk={},machines=machines})
+      equal(rows[1].text,"T12 lost 7m x120 y64 z-30")
+      match("lost",t.render("attention",w,h,s),w,h)
+      machines["12"].pose=nil
+      t.tick()
+      assert(pages(t,"attention",w,h):find("T12 lost 7m",1,true))
+      equal(t.mod.attention({now=t.now,disk={},machines=machines})[1].text,"T12 lost 7m")
+    end)
+
+    test("health GPS gap row matches its fixture at "..w.."x"..h,function()
+      local t=health()
+      diagnosticFacts(t)
+      match("gps-gap",t.render("attention",w,h,{}),w,h)
+    end)
+
+    test("health facts pages match their fixtures at "..w.."x"..h,function()
+      local t,s=health(),{}
+      diagnosticFacts(t)
+      match("facts",t.render("health",w,h,s),w,h)
+      t.input("health",s,"next")
+      match("facts-next",t.render("health",w,h,s),w,h)
+      while s.visibility.health.next do t.input("health",s,"next");t.render("health",w,h,s) end
+      match("facts-modules",t.render("health",w,h,s),w,h)
+    end)
+
+    test("health lost SNOOZE calls U4-B for one hour and contact clears it at "..w.."x"..h,function()
+      local t,s=health(),{}
+      local net=Harness.new()
+      local m=net.machine({id=1})
+      m.install({"so-store.lua","so-mod-display.lua","so-ui.lua"})
+      m.env.SO={mods={},store=m.env.dofile("so-store.lua"),now=function() return t.now end}
+      local display=m.env.dofile("so-mod-display.lua")
+      local calls=0
+      t.env.SO.mods.display.snoozer=function(span) equal(span,3600000);calls=calls+1;return display.snoozer(span) end
+      local machines={["12"]={role="worker",seen=t.now-420000,pose={x=120,y=64,z=-30}}}
+      t.env.SO.mods.state={get=function(key) if key=="machines" then return machines end end}
+      t.tick()
+      t.render("attention",w,h,s)
+      t.input("attention",s,"item:lost/12")
+      match("lost-detail",t.render("attention",w,h,s),w,h)
+      t.input("attention",s,"lost-snooze")
+      equal(t.mod.count(),0)
+      assert(frameText(t.render("attention",w,h,{})):find("all clear",1,true))
+      t.tick(t.now+3599999)
+      equal(t.mod.count(),0)
+      t.tick(t.now+1)
+      equal(t.mod.count(),1)
+      t.render("attention",w,h,s);t.input("attention",s,"item:lost/12");t.render("attention",w,h,s)
+      t.input("attention",s,"lost-snooze")
+      machines["12"].seen=t.now+1000
+      t.tick(t.now+1000)
+      equal(t.mod.count(),0)
+      t.tick(t.now+180001)
+      equal(t.mod.count(),1)
+      equal(calls,1)
+    end)
+  end
+
   test("health shows add disk space during the snooze, then restores the pending ask",function()
     local F=dofile("tests/so/dug-fixture.lua")
     local cells,m,net=F.setup(nil,500)

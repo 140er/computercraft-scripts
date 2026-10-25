@@ -1,0 +1,61 @@
+26x20 Health facts
+ HEALTH  NEEDS 1  ------- 
+ EVENTS  ALERTS  ERRORS   
+                          
+ T12 lost 7m              
+ x120 y64 z-30            
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  BACK   SNOOZE      OPEN 
+888888880000000e00ccccccc0
+88888888888888888888888800
+00000000000000000000000000
+0eeeeeeeeeee00000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+ffffffff777777777fffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777f77777777ffff777777

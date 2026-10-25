@@ -1,0 +1,37 @@
+29x12 Health facts
+ HEALTH  NEEDS 1  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ clock reserve ····· unknown 
+ events ········ unavailable 
+ event bytes ········ 5.8 MB 
+ snapshot ············· none 
+ disk ··················· 0% 
+ disk free ·········· 5.8 MB 
+ errors ·········· 0 · 340 B 
+ modems ·················· 1 
+ paired ·· 0 online · 0 lost 
+                 2/3  ◄   ►  
+000000008888888180cccccccccc0
+8888888888888888888888880ccc0
+088888888888880ccccc088888880
+08888880cccccccc0888888888880
+0888888888880cccccccc00000000
+0888888880ccccccccccccc088880
+088880ccccccccccccccccccc0000
+08888888880cccccccccc00000000
+08888880cccccccccc00000000000
+08888880cccccccccccccccccc000
+08888880cc0000000000000000000
+00000000000000000888000000000
+77777777fffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777f777f
