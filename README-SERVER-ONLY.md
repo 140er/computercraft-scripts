@@ -994,3 +994,29 @@ its server id. A pinned installer that lacks option support refuses the install.
 The current display client still uses code
 pairing; staging a token does not enroll it.
 
+
+## Builder holds and idle workers
+
+Invalid BUILD commands and configuration refusals show feedback for five game
+seconds and keep any saved hold.
+NEEDS uses one stable `build:<cause>` row per current builder cause. Fix the
+reported cause before retrying START. Fuel and material rows stay during
+supply retries until a report confirms enough fuel or material. A partial
+refill may leave the fuel row active.
+
+Legacy generic holds keep their original diagnostic through recovery and
+restart. Review BUILD, then use START after readiness passes. A failed
+completion save remains a safety hold until a save succeeds. Unknown builder
+poses stay off the map data while blueprint bounds remain. Drawing builder
+markers remains a follow-up.
+
+An idle worker stays paired after its completed lease report is acknowledged.
+Recovery then requires a full lease duration without authenticated server
+contact. Work leases backtrack after silence; park leases stay put and beacon.
+Remote workers keep their stationary recovery rule. A reused acknowledged
+lease ID returns `expired` and runs no steps.
+
+Set `displayAck=true` in `so-server.cfg` to measure display freshness from
+successful frame drawing. It defaults off. Updated displays become stale after
+ten game seconds without a frame ack. Older displays show `unverified`.
+Without the flag, freshness still uses the last send.
