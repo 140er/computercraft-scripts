@@ -45,6 +45,16 @@ local function loadScene()
     elseif k == "saplings" then s.saplings = {x=n[1], y=n[2], z=n[3]}
     elseif k == "farm" then s.area, s.ground = {x1=n[1], z1=n[2], x2=n[3], z2=n[4]}, n[5]
     elseif k == "spot" then s.spots[#s.spots+1] = {x=n[1], z=n[2], ready=a[4] == "ready"}
+    elseif k == "blueprint" then
+      -- blueprint DIM X1 Y1 Z1 X2 Y2 Z2 DONE TOTAL STATE [SEVERITY TEXT...]
+      local b = {dim="minecraft:" .. a[2], state=a[11]}
+      for i, key in ipairs({"x1","y1","z1","x2","y2","z2","done","total"}) do b[key] = tonumber(a[i + 2]) end
+      if a[12] then b.alert = {severity=tonumber(a[12]), text=table.concat(a, " ", 13)} end
+      s.build = b
+    elseif k == "builder" then
+      -- builder ID X Y Z F FUEL AGO
+      s.build.id, s.build.pose = a[2], {x=tonumber(a[3]), y=tonumber(a[4]), z=tonumber(a[5]), f=tonumber(a[6])}
+      s.build.fuel, s.build.ago = tonumber(a[7]), tonumber(a[8])
     elseif k == "view" then
       -- view NAME WxH LEVEL fit|SXxSZ CX CZ [turtle ID | drop ID | server | shaft | cell X Z]
       local w, h = a[3]:match("(%d+)x(%d+)")
@@ -239,6 +249,35 @@ local function mapState(s)
     if name == "M" then return value end
   end
   error("map state missing")
+end
+
+-- The map-scene builder behind a read-only build module. Change b.dim, b.state, b.alert or b.pose
+-- (nil when unknown) and reload the map. Machine 8 keeps an older pose with no dimension, which the
+-- map must never use for the builder.
+local function builder(s, dim, id)
+  local src, env = s.scene.build, s.machine.env
+  if id then src.id = id end
+  local b = {dim=dim or src.dim, state=src.state, done=src.done, total=src.total, alert=src.alert,
+    pose={x=src.pose.x, y=src.pose.y, z=src.pose.z, f=src.pose.f}}
+  s.machines[src.id] = {id=tonumber(src.id), role="worker", fuel=src.fuel, seen=env.SO.now() - src.ago,
+    pose={x=118, y=64, z=-334, facing=0}}
+  local function pose() return b.pose and {x=b.pose.x, y=b.pose.y, z=b.pose.z, f=b.pose.f, dim=b.dim} end
+  env.SO.mods.build = {
+    assigned=function(id) return id == tonumber(src.id) end,
+    facts=function() return {dim=b.dim, state=b.state, done=b.done, total=b.total, alert=b.alert,
+      turtleId=tonumber(src.id), pose=pose()} end,
+    mapView=function()
+      local turtles = {}
+      if b.pose then turtles[src.id] = {id=tonumber(src.id), dim=b.dim, pose=pose(), state=b.state, alert=b.alert} end
+      return {dim=b.dim, bounds={dim=b.dim, x1=src.x1, y1=src.y1, z1=src.z1, x2=src.x2, y2=src.y2, z2=src.z2}, turtles=turtles}
+    end}
+  s.reloadMap()
+  return b
+end
+local function textOf(frame)
+  local out = {}
+  for _, r in ipairs(frame.rows) do out[#out+1] = r.text end
+  return table.concat(out, "\n")
 end
 
 local function findSetup()
@@ -1713,6 +1752,149 @@ return function(test,equal)
     for _,b in ipairs(f.buttons) do assert(b.id~="map-release") end
     s.screen.input({id="map-release",session=session,from=10,x=2,y=2})
     equal(s.cells.owner(1000,64,1000),"setup:99")
+  end)
+
+
+  test("B2-U map draws the builder only at its confirmed pose in the shown dimension",function()
+    local s=setup()
+    builder(s)
+    local session={map={level="all",fit=true}}
+    local frame=s.settle(57,24,session)
+    local out=picture(frame,57,24)
+    local v=session.map
+    local old=cell(out,v,118,-334)
+    assert(not old or old[1]~=U.arrow(0),"builder drawn at its older machine pose")
+    for _,t in ipairs(mapState(s).scene.turtles) do assert(t.id~="8","nether builder in the overworld") end
+    assert(not textOf(frame):find("build",1,true),"nether blueprint in the overworld")
+    s.machine.files["so-server.cfg"]=H.encode({pos=s.scene.server,remoteDimensions=true})
+    s.reloadMap()
+    session={map={level="all",fit=true,dim="minecraft:the_nether"}}
+    frame=s.settle(57,24,session)
+    out,v=picture(frame,57,24),session.map
+    local c=cell(out,v,146,-326)
+    equal(c[1],U.arrow(1)) equal(c[2],"1")
+    assert(textOf(frame):find("8 held",1,true),textOf(frame))
+  end)
+
+  test("B2-U map draws the blueprint outline, held label and callout like its twin",function()
+    local s=setup()
+    local b=builder(s,"minecraft:overworld")
+    local started,pipe=pcall(io.popen,"pwd")
+    local root=started and pipe and pipe:read("*l")
+    if started and pipe then pipe:close() end
+    for _,pick in ipairs({false,"8"}) do
+      local session={map={level="all",fit=true,pick=pick and {k="turtle",id=pick} or nil}}
+      local frame=s.settle(57,24,session)
+      local out,v=picture(frame,57,24),session.map
+      local corner=cell(out,v,140,-330)
+      equal(corner[1],"+") equal(corner[2],"1")
+      local marker=cell(out,v,146,-326)
+      equal(pick and marker[3] or marker[2],"1")
+      local text=textOf(frame)
+      -- The callout may cover the label; without it the label always shows while held.
+      if not pick then assert(text:find("build held",1,true),text) end
+      if pick then
+        assert(text:find("Build needs material",1,true) and text:find("4/40",1,true),text)
+      end
+      if root and root:sub(1,1)=="/" and os.execute("python3 -V > /dev/null 2>&1") then
+        local path=os.tmpname()
+        local py=("import sys; sys.path.insert(0, '%s'); import mapdraw as MD, mapscreen as MS; "
+          .."MD.BUILD['dim'] = 'overworld'; MS.screen(57, 24, 'builder', pick=%s).fixture('%s')")
+          :format(root.."/docs/ui/schematic",pick and "('turtle', '8')" or "None",path)
+        assert(os.execute("python3 -I -c \""..py.."\""))
+        local diffs=R.diff(R.load(path),out.picture())
+        os.remove(path)
+        equal(#diffs,0,"builder twin\n"..table.concat(diffs,"\n"))
+      else dofile("tests/skips.lua").record("B2-U builder twin","needs a POSIX shell and python3") end
+    end
+    b.alert={severity=1,text="Build path blocked"}
+    s.reloadMap()
+    local session={map={level="all",fit=true}}
+    local out=picture(s.settle(57,24,session),57,24)
+    equal(cell(out,session.map,152,-322)[2],"e")
+    equal(cell(out,session.map,146,-326)[2],"e")
+  end)
+
+  test("B2-U map keeps the blueprint outline when the builder pose is unknown",function()
+    local s=setup()
+    local b=builder(s,"minecraft:overworld")
+    b.pose=nil
+    s.reloadMap()
+    local session={map={level="all",fit=true}}
+    local frame=s.settle(57,24,session)
+    local out,v=picture(frame,57,24),session.map
+    for _,t in ipairs(mapState(s).scene.turtles) do assert(t.id~="8","builder drawn with an unknown pose") end
+    local old=cell(out,v,118,-334)
+    assert(not old or old[1]~=U.arrow(0),"builder drawn at its older machine pose")
+    equal(cell(out,v,140,-330)[1],"+") equal(cell(out,v,152,-322)[1],"+")
+    equal(cell(out,v,146,-330)[1],"-") equal(cell(out,v,140,-326)[1],"|")
+    assert(textOf(frame):find("build held",1,true))
+    -- FIT holds the blueprint even with every other job gone.
+    s.mine,s.lumber,s.scene.drops={},{},{}
+    for id in pairs(s.machines) do if id~="8" then s.machines[id]=nil end end
+    s.machine.files["so-server.cfg"]=H.encode({})
+    s.reloadMap()
+    session={map={level="all",fit=true}}
+    out,v=picture(s.settle(57,24,session),57,24),session.map
+    equal(cell(out,v,140,-330)[1],"+") equal(cell(out,v,152,-322)[1],"+")
+  end)
+
+  test("B2-U map shows a running build's progress, hides it off its levels and keeps the frame budget",function()
+    local s=setup()
+    local b=builder(s,"minecraft:overworld")
+    b.state,b.alert="running",nil
+    s.reloadMap()
+    local session={map={level="all",fit=true}}
+    local frame=s.settle(57,24,session)
+    local out,v=picture(frame,57,24),session.map
+    equal(cell(out,v,140,-330)[2],"9") equal(cell(out,v,146,-326)[2],"d")
+    local text=textOf(frame)
+    assert(text:find("build 4/40",1,true) and not text:find("8 running",1,true),text)
+    session={map={level=63,fit=false,sx=1,sz=1,cx=146,cz=-326}}
+    out,v=picture(s.settle(57,24,session),57,24),session.map
+    equal(cell(out,v,140,-330)[1]," ")
+    session={map={level=66,fit=false,sx=1,sz=1,cx=146,cz=-326}}
+    out,v=picture(s.settle(57,24,session),57,24),session.map
+    equal(cell(out,v,140,-330)[1],"+")
+    local proto=s.machine.env.SO.proto
+    session={map={level="all",fit=true}}
+    assert(#proto.ser(s.settle(164,81,session))<=15000,"builder frame over budget")
+  end)
+
+
+  test("B2-U map replaces a listed turtle's row with the builder's, like its twin",function()
+    local started,pipe=pcall(io.popen,"pwd")
+    local root=started and pipe and pipe:read("*l")
+    if started and pipe then pipe:close() end
+    local twin=root and root:sub(1,1)=="/" and os.execute("python3 -V > /dev/null 2>&1")
+    -- Turtle 6 is a mining row in the scene; the builder takes it over, with and without a pose.
+    for _,known in ipairs({true,false}) do
+      local s=setup()
+      local b=builder(s,"minecraft:overworld","6")
+      if not known then b.pose=nil s.reloadMap() end
+      local session={map={level="all",fit=true,pick=known and {k="turtle",id="6"} or nil}}
+      local frame=s.settle(100,38,session)
+      local out,v=picture(frame,100,38),session.map
+      local rows=0
+      for _,t in ipairs(mapState(s).scene.turtles) do if t.id=="6" then rows=rows+1 assert(t.build,"older row for 6") end end
+      equal(rows,known and 1 or 0)
+      local old=cell(out,v,184,-369)
+      assert(not old or old[1]~=U.arrow(1),"turtle 6 drawn at its mining row")
+      local text=textOf(frame)
+      if known then assert(text:find("Build needs material",1,true) and text:find("4/40",1,true),text) end
+      if twin then
+        local path=os.tmpname()
+        local py=("import sys; sys.path.insert(0, '%s'); import mapdraw as MD, mapscreen as MS; "
+          .."MD.BUILD['dim'] = 'overworld'; MD.BUILD['id'] = '6'; %s"
+          .."MS.screen(100, 38, 'builder', pick=%s).fixture('%s')")
+          :format(root.."/docs/ui/schematic",known and "" or "MD.BUILD['turtle'] = None; ",
+            known and "('turtle', '6')" or "None",path)
+        assert(os.execute("python3 -I -c \""..py.."\""))
+        local diffs=R.diff(R.load(path),out.picture())
+        os.remove(path)
+        equal(#diffs,0,"builder 6 twin\n"..table.concat(diffs,"\n"))
+      else dofile("tests/skips.lua").record("B2-U builder 6 twin","needs a POSIX shell and python3") end
+    end
   end)
 
 end

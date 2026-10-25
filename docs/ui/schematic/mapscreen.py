@@ -88,7 +88,7 @@ def controls(cv, L, w, h, level, fit, dim=None):
 
 
 def roster(cv, L, w):
-    R, ts = L["roster"], S["turtles"]
+    R, ts = L["roster"], MD.turtles()
     section(cv, 2, R["y"], w - 2, "TURTLES", len(ts))
     room = R["cols"] * R["lines"]
     shown = len(ts) if len(ts) <= room else room - 1
@@ -108,7 +108,7 @@ def screen(w, h, title, level="all", scale=None, centre=None, pick=None, dim=Non
     """scale (sx, sz) and centre (cx, cz) give a panned or zoomed view; without them the view fits.
     dim (remoteDimensions) adds the dimension chip."""
     cv = Canvas(w, h, title)
-    L = layout(w, h, len(S["turtles"]))
+    L = layout(w, h, len(MD.turtles()))
     if scale:
         v = MD.view(L["mw"], L["mh"], level, scale[0], scale[1], centre[0], centre[1])
     else:

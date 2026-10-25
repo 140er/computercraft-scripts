@@ -14,7 +14,7 @@ local M = { planes = {}, keys = {}, columns = {}, layouts = {}, aux = {}, serial
   free = {1,2,3,4,6,8,12,16,24,32,48,64}, snap = {1,2,4,8,16,32,64},
   pan = {["map-n"]={0,-1},["map-e"]={1,0},["map-s"]={0,1},["map-w"]={-1,0}},
   prefer = {"r","l","ur","dr","ul","dl","u","d"}, east = {"ur","dr","r","ul","dl","l"}, along = {"r","l","ur","dr"},
-  drop = {"r","l","d","dr","dl","u","ur","ul"}, farm = {"u","ur","r"},
+  drop = {"r","l","d","dr","dl","u","ur","ul"}, farm = {"u","ur","r"}, blueprint = {"u","ur","r","dr","ul","dl","l","d"},
   compass = "\24N", hex = {}, bitsOf = {}, scenes = {}, trails = {}, trailVersion = 0, trailCursor = 0, trailLimit = 32,
   finds = {items={}, head=0, cursor=0, version=0},
   -- The dimension chip (remoteDimensions only): its label and the next dimension.
@@ -59,6 +59,16 @@ M.onGeo = function(g, x, z)
 end
 M.farmOn = function(s, level) return s.area ~= nil and (level == "all" or level >= s.ground and level <= s.ground + 8) end
 M.near = function(p, level) return level == "all" or math.abs((p.y or level) - level) <= 1 end
+-- The blueprint outline shows at ALL and at the levels it spans.
+M.buildOn = function(s, level)
+  local b = s.build and s.build.bounds
+  if type(b) ~= "table" then return false end
+  for _, key in ipairs({"x1","y1","z1","x2","y2","z2"}) do if not tonumber(b[key]) then return false end end
+  return level == "all" or level >= math.min(b.y1, b.y2) and level <= math.max(b.y1, b.y2)
+end
+-- A held builder's colour: red for a safety hold (severity 1), amber for supply and legacy holds.
+M.held = function(alert) return type(alert) == "table" and alert.severity == 1 and "e" or "1" end
+M.progress = function(job) return tonumber(job.total) and job.total > 0 and (job.done or 0) .. "/" .. job.total or "-" end
 
 -- The scene of one dimension: the server's own, or pick (remoteDimensions). Returns it and keeps
 -- it in M.scenes; callers set M.scene.
@@ -72,7 +82,14 @@ M.gather = function(now, pick)
   local build = M.call("build", "mapView")
   local dim = pick or M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim or build and build.dim)
   local s = {now=now, dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}, broken=0}
-  if build and M.dim(build.dim) == dim then s.build = SO.store.copy(build) end
+  if build and M.dim(build.dim) == dim then
+    s.build = SO.store.copy(build)
+    -- Progress and the hold come from the same read-only facts.
+    local facts = M.call("build", "facts")
+    if type(facts) == "table" and M.dim(facts.dim) == dim then
+      s.build.state, s.build.done, s.build.total, s.build.alert = facts.state, facts.done, facts.total, SO.store.copy(facts.alert)
+    end
+  end
   -- The next branch a running job will start, amber until a turtle takes it.
   local pv = type(mine.preview) == "table" and mine.preview
   if pv and type(pv[1]) == "table" and type(pv[2]) == "table" and M.dim(mine.dim) == dim
@@ -103,6 +120,16 @@ M.gather = function(now, pick)
     jobs[tostring(row.id or id)] = {pose=row.pose, dim=row.dim or lumber.dim,
       state=row.state == "lumber" and (M.phases[row.phase] or "working") or row.state}
   end
+  -- The builder's turtle draws only at its confirmed pose in this dimension: with the pose unknown or
+  -- in another dimension it is left out, never drawn from an older machine, mining or lumber row.
+  for id in pairs(jobs) do
+    if M.call("build", "assigned", tonumber(id) or id) then jobs[id], assigned[id] = nil, nil end
+  end
+  for id, row in pairs(s.build and s.build.turtles or {}) do
+    if type(row.pose) == "table" and M.dim(row.pose.dim) == dim then
+      jobs[tostring(id)] = {pose=row.pose, state=row.state, build=true, alert=row.alert}
+    end
+  end
   M.workers = {}
   for id, row in pairs(assigned) do
     if not (row.paused or row.removeRequested or row.state == "parked" or row.state == "parking") then M.workers[id] = true end
@@ -115,7 +142,10 @@ M.gather = function(now, pick)
       local word = tostring(row.state or "idle")
       if status.lost then word = "lost"
       elseif M.call("lease", "inRange", tonumber(id) or id, p) == false then word = "range" end
-      s.turtles[#s.turtles+1] = {id=tostring(id), pose=p, facing=M.facings[p.facing or p.f], word=word, tone=U.tone(word),
+      local tone = U.tone(word)
+      if row.build and word == "held" then tone = M.held(row.alert) end
+      s.turtles[#s.turtles+1] = {id=tostring(id), pose=p, facing=M.facings[p.facing or p.f], word=word, tone=tone,
+        build=row.build and s.build or nil,
         fuel=machine.fuel, ore=row.ores, ago=math.max(0, now - (machine.seen or now)),
         lease=status.lost and "expired" or status.open and "open" or "-", last=status.last,
         range=word == "range" and dim == "minecraft:overworld" and s.server and tonumber(p.y) and tonumber(s.server.y) and
@@ -160,6 +190,13 @@ M.gather = function(now, pick)
   end
   for _, p in ipairs(s.drops) do markers[#markers+1] = table.concat({p.id, p.kind, p.x, p.y, p.z, tostring(p.broken)}, ",") end
   if s.server then markers[#markers+1] = s.server.x .. "," .. s.server.y .. "," .. s.server.z end
+  local job = s.build
+  if job then
+    local b, alert = job.bounds or {}, job.alert or {}
+    markers[#markers+1] = table.concat({"build", tostring(b.x1), tostring(b.y1), tostring(b.z1), tostring(b.x2),
+      tostring(b.y2), tostring(b.z2), tostring(job.state), tostring(job.done), tostring(job.total),
+      tostring(alert.severity), tostring(alert.text)}, ",")
+  end
   s.terrain, s.markers = table.concat(terrain, ";"), table.concat(markers, ";")
   M.version, M.newMarks = M.call("cells", "dugVersion")
   M.version = M.version or 0
@@ -312,6 +349,7 @@ M.bounds = function(s, level)
     end
   end
   if M.farmOn(s, level) then add(s.area.x1, s.area.z1) add(s.area.x2, s.area.z2) end
+  if M.buildOn(s, level) then add(s.build.bounds.x1, s.build.bounds.z1) add(s.build.bounds.x2, s.build.bounds.z2) end
   for _, p in ipairs(s.drops) do if M.near(p, level) then add(p.x, p.z) end end
   if s.server and M.near(s.server, level) then add(s.server.x, s.server.z) end
   for _, t in ipairs(s.turtles) do if M.near(t.pose, level) then add(t.pose.x, t.pose.z) end end
@@ -734,6 +772,29 @@ M.draw = function(C, v, s, ox, oy, pick, dropLabel, trails, limit, finds, findLi
     end
     if M.cellOf(v, a.x1, a.z1) then farmLabel = {"farm " .. ready .. "/" .. #s.spots, x1 - 1, y1} end
   end
+  -- The blueprint outline, in the builder's hold colour while held; its label always shows then.
+  local buildLabel
+  if M.buildOn(s, v.level) then
+    local job, b = s.build, s.build.bounds
+    local held = job.state == "held"
+    local fg = held and M.held(job.alert) or "9"
+    local bx1, bz1 = math.min(b.x1, b.x2), math.min(b.z1, b.z2)
+    local x1, y1 = math.floor((bx1 - v.left) / v.sx), math.floor((bz1 - v.top) / v.sz)
+    local x2, y2 = math.floor((math.max(b.x1, b.x2) - v.left) / v.sx), math.floor((math.max(b.z1, b.z2) - v.top) / v.sz)
+    local function edge(x, y)
+      if x < 0 or x >= mw then return end
+      local ex, ey = x == x1 or x == x2, y == y1 or y == y2
+      C.put(ox + x, oy + y, ex and ey and "+" or ey and "-" or "|", fg)
+      occ[y * mw + x] = "build"
+    end
+    for y = math.max(y1, 0), math.min(y2, mh - 1) do
+      if y == y1 or y == y2 then for x = math.max(x1, 0), math.min(x2, mw - 1) do edge(x, y) end
+      else edge(x1, y) if x2 ~= x1 then edge(x2, y) end end
+    end
+    if M.cellOf(v, bx1, bz1) and (held or v.sx < 3) then
+      buildLabel = {held and "build held" or "build " .. M.progress(job), x1 - 1, y1, held and fg or "8"}
+    end
+  end
   local marks = M.markers(v, s, dropLabel)
   local order = {}
   for _, m in ipairs(marks) do if m.kind == "drop" and m.ref.broken then order[#order+1] = m end end
@@ -762,7 +823,7 @@ M.draw = function(C, v, s, ox, oy, pick, dropLabel, trails, limit, finds, findLi
           local inside = qx >= 0 and qx < mw
           if j >= 0 and j < n then
             if taken[q] or placed[q] then bad = true break end
-            if occ[q] then cost = cost + ((occ[q] == "line" or occ[q] == "tree") and 30 or 10) end
+            if occ[q] then cost = cost + ((occ[q] == "line" or occ[q] == "tree" or occ[q] == "build") and 30 or 10) end
           elseif inside and (placed[q] or taken[q] and not (qx == x and cy == y)) then bad = true break end
         end
         if not bad and (not best or cost < best[1]) then best = {cost, cx, cy} end
@@ -783,6 +844,7 @@ M.draw = function(C, v, s, ox, oy, pick, dropLabel, trails, limit, finds, findLi
     end
   end
   if farmLabel and v.sx < 3 then place(farmLabel[1], farmLabel[2], farmLabel[3], "8", M.farm) end
+  if buildLabel then place(buildLabel[1], buildLabel[2], buildLabel[3], buildLabel[4], M.blueprint) end
   M.numbers(C, v, s, ox, oy, occ, taken, placed)
   return taken
 end
@@ -872,9 +934,11 @@ M.callout = function(v, s, pick)
           {"text", {{0, "#" .. t.id, "0"}, {#t.id + 2, t.word, U.st.fg(t.tone)}, {-#when, when, "8"}}},
           {"text", {{0, p.x .. "," .. p.y .. "," .. p.z, "8"}}},
           {"leader", "fuel", fuel, type(t.fuel) == "number" and t.fuel < 500 and "1" or "0"},
-          {"leader", "ore", tostring(t.ore or "-"), "0"},
+          t.build and {"leader", "build", M.progress(t.build), "0"} or {"leader", "ore", tostring(t.ore or "-"), "0"},
           {"leader", "lease", lease, lease == "expired" and "e" or lease == "open" and "0" or "8"},
           {"chip", "DETAILS", "turtle:" .. t.id}}
+        local alert = t.build and t.build.alert
+        if type(alert) == "table" and alert.text then table.insert(rows, #rows, {"text", {{0, tostring(alert.text), M.held(alert)}}}) end
         if t.range then table.insert(rows, #rows, {"text", {{0, "range " .. t.range, "0"}}}) end
         if t.last then
           local result = t.last.status == "expired" and "expired" or t.last.ok and "ok" or "failed"
