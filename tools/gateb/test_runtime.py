@@ -1,5 +1,6 @@
 """Fast stdlib-only checks: python3 -m unittest discover -s tools/gateb."""
 import concurrent.futures
+from contextlib import ExitStack
 import fcntl
 import json
 import os
@@ -17,7 +18,7 @@ import zlib
 from unittest.mock import patch
 
 import nbt
-from world import Runtime, atomic, installer_manifest, safe_relative, validate_manifest
+from world import Runtime, atomic, installer_manifest, locked, safe_relative, validate_manifest
 
 
 def string(value):
@@ -105,10 +106,14 @@ class RuntimeTests(unittest.TestCase):
         with socket.socket() as occupied:
             occupied.bind(('127.0.0.1',0));port=occupied.getsockname()[1]
             self.runtime.config.update(port_start=port,port_end=port+30)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-                ports=list(pool.map(lambda i:self.runtime.allocate_port('run-'+str(i)),range(16)))
-            self.assertEqual(len(set(ports)),16);self.assertNotIn(port,ports)
-            self.assertEqual(self.runtime.allocate_port('run-0'),ports[0])
+            with ExitStack() as locks:
+                for i in range(16):
+                    name='run-'+str(i)
+                    locks.enter_context(locked(self.runtime.lock_path(name)))
+                with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                    ports=list(pool.map(lambda i:self.runtime.allocate_port('run-'+str(i)),range(16)))
+                self.assertEqual(len(set(ports)),16);self.assertNotIn(port,ports)
+                self.assertEqual(self.runtime.allocate_port('run-0'),ports[0])
 
     def test_port_exhaustion(self):
         self.runtime.config.update(port_start=30000,port_end=30000)
@@ -274,6 +279,7 @@ class KeeperTests(unittest.TestCase):
                 fifo=home/'console';os.mkfifo(fifo)
                 script='import os,time; print(os.get_blocking(0),flush=True); print(input(),flush=True); time.sleep(60)'
                 info=keeper.call(home,{'op':'start','key':'dummy','argv':[sys.executable,'-c',script],'cwd':temp,'log':str(home/'child.log'),'fifo':str(fifo)})
+                self.assertEqual(info['pid_start_time'], keeper.process_start_time(info['pid']))
                 with fifo.open('w') as handle: handle.write('console alive\n')
                 deadline=time.monotonic()+5
                 while time.monotonic()<deadline:

@@ -175,6 +175,8 @@ def stop_owned(ctx, world):
                     return result
                 time.sleep(.2)
         raise Blocked(f"Owned runtime process {world} survived cleanup")
+    finally:
+        ctx.runtime.release_stopped_port(world)
 
 
 def execute_repeated(ctx, check, runtime_dir, reset=True):
