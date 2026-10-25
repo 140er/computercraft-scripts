@@ -338,7 +338,9 @@ W.hello = function()
   local where = W.gpsFix()
   local body = {
     role = "turtle",
-    capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, workerSettings = true, autoToolSwap = W.autoToolSwap or nil },
+    capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, workerSettings = true, pinnedUpdate = true, autoToolSwap = W.autoToolSwap or nil },
+    revision = W.revision,
+    remoteUpdates = W.config and W.config.remoteUpdates == true,
     settings = W.settings(),
     settingsControl = W.config and W.config.settingsControl == true,
     tools = W.tools(),
@@ -399,8 +401,10 @@ end
 
 W.transmit = function(id, msg)
   local wire = W.proto.encode(msg)
-  if not wire then return end
-  if id then rednet.send(id, wire, "so") else rednet.broadcast(wire, "so") end
+  if not wire then return false end
+  if id then return rednet.send(id, wire, "so") ~= false end
+  rednet.broadcast(wire, "so")
+  return true
 end
 
 W.paint = function()
@@ -566,7 +570,7 @@ W.reanchor = function(body)
 end
 
 W.accept = function(sender, payload)
-  if sender ~= W.server then return end
+  if W.update or sender ~= W.server then return end
   if W.pair.repairHint(sender, payload, W.server) then
     W.repair = true
     W.paint()
@@ -592,6 +596,17 @@ W.accept = function(sender, payload)
     local body = {command="worker.settings", n=msg.body.n}
     if ok then body.settings=W.settings() else body.code, body.text="settings", err end
     W.transmit(W.server, W.proto.build(key, ok and "ack" or "err", body, msg.rid))
+  elseif msg.t == "worker.update" then
+    local target, config = msg.body.revision, W.readConfig()
+    local ok, why = W.idle()
+    if not config or config.remoteUpdates ~= true then ok, why = false, "updates disabled"
+    elseif type(target) ~= "string" or #target ~= 40 or target:find("[^0-9a-f]")
+      or not W.revision or target == W.revision then ok, why = false, "invalid revision" end
+    if ok then ok, why = W.idle() end
+    local body = {command="worker.update", revision=target}
+    if ok then body.state="accepted" else body.code, body.text="update", why end
+    local sent = W.transmit(W.server, W.proto.build(key, ok and "ack" or "err", body, msg.rid))
+    if ok and sent then W.update = target end
   elseif msg.t == "worker.anchor" then W.reanchor(msg.body)
   elseif msg.t == "lease.batch" then
     local body = msg.body
@@ -647,7 +662,7 @@ W.breathe = function(seconds)
     local ev, a, b, c = os.pullEvent()
     if ev == "rednet_message" and c == "so" then
       W.accept(a, b)
-      if W.queued then
+      if W.queued or W.update then
         os.cancelTimer(id)
         return
       end
@@ -1095,7 +1110,7 @@ W.onWake = function()
 end
 
 W.loop = function()
-  while true do
+  while not W.update do
     W.paint()
     if W.queued then
       local msg = W.queued
@@ -1103,7 +1118,7 @@ W.loop = function()
       W.startBatch(msg)
     else
       W.breathe(W.arm())
-      if not W.queued then W.onWake() end
+      if not W.queued and not W.update then W.onWake() end
     end
   end
 end
@@ -1180,6 +1195,10 @@ W.boot = function()
   rednet.open(peripheral.getName(modem))
   local store = dofile("so-store.lua")
   W.store = store
+  local h = fs.open(".so-revision", "r")
+  local revision = h and h.readAll():match("^%s*(.-)%s*$")
+  if h then h.close() end
+  W.revision = type(revision) == "string" and #revision == 40 and not revision:find("[^0-9a-f]") and revision or nil
   W.box = store.store("so-journal", W.valid, 16000)
   W.savedUncertain = W.box.value and W.box.value.uncertain == true
   W.readConfig()
@@ -1199,7 +1218,10 @@ W.boot = function()
       W.stepName = "idle"
     end
     local found = rednet.lookup("so", "server")
-    W.server = type(found) == "number" and found or nil
+    local config = W.readConfig()
+    local selected = not saved and config and config.server
+    if type(selected) ~= "number" or selected < 0 or selected % 1 ~= 0 or selected >= 2^53 then selected = nil end
+    W.server = selected or (type(found) == "number" and found or nil)
     if saved then
       if not W.server or not W.pair.key(W.server) then W.server = saved end
       W.stepName = "waiting for server"
@@ -1213,7 +1235,7 @@ W.boot = function()
       W.paint()
       code = code or W.readCode()
       if W.server and code then
-        local ok, err = W.pair.join(code)
+        local ok, err = W.pair.join(code, W.server)
         if ok then
           fs.delete("so-code")
           break
@@ -1229,6 +1251,9 @@ W.boot = function()
   W.hello()
   W.paint()
   W.loop()
+  local ok, why = pcall(shell.run, "/install.lua", "worker-update", W.update, W.revision)
+  if not ok or why == false then print("worker: update failed " .. tostring(why)) end
+  os.reboot()
 end
 
 W.boot()

@@ -1,5 +1,5 @@
 local ROLES = {
-  common = { enrollRoles = true,
+  common = { enrollRoles = true, pinnedUpdate = true,
     "install.lua", "update.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
     "lib/ccryptolib/random.lua", "lib/ccryptolib/config.lua",
     "lib/ccryptolib/chacha20.lua", "lib/ccryptolib/blake3.lua",
@@ -195,8 +195,11 @@ local function position()
     x, y, z = nil, nil, nil
   end
 end
+local pinnedAttempt, authorizePinned, pinnedApi, apiRemaining, apiHeaders
 local function fetch(url)
-  local response, err, failed = http.get(url, nil, true)
+  local response, err, failed
+  if pinnedAttempt then response, err, failed = http.get({url=url, binary=true, redirect=false})
+  else response, err, failed = http.get(url, nil, true) end
   local h = response or failed
   if not h then error(tostring(err) .. " (not found may mean a private repository)", 0) end
   local ok, code, bytes = pcall(function() return h.getResponseCode(), h.readAll() end)
@@ -218,6 +221,96 @@ local function startUpdated(previous)
   local role = readFile("/.so-role"):match("^%s*(.-)%s*$")
   print("Updated " .. role .. " from " .. previous .. " to " .. installedRevision())
   shell.run("/" .. ROLES[role].program)
+end
+local function clientConfig(path, source)
+  if fs.exists("/so-store.lua") or source then
+    local store = assert(load(source or readFile("/so-store.lua"), "@so-store.lua", "t", _ENV))()
+    local value, state = store.readConfig(path)
+    assert(value or state.absent, state.error or "Bad client config")
+    return value or {}, state, store
+  end
+  assert(not fs.exists(path) and not fs.exists(path .. ".tmp") and not fs.exists(path .. ".bak"),
+    "Config recovery needs installed so-store.lua")
+  return {}, {absent=true}
+end
+local function retryDeadline(value, at)
+  local delay = tonumber(value)
+  if delay then return at + math.max(0, delay) end
+  if type(value) ~= "string" then return 0 end
+  local day, month, year, hour, minute, second = value:match("^%a+,%s+(%d+)%s+(%a+)%s+(%d+)%s+(%d+):(%d+):(%d+)%s+GMT$")
+  local offsets = {Jan=0,Feb=31,Mar=59,Apr=90,May=120,Jun=151,Jul=181,Aug=212,Sep=243,Oct=273,Nov=304,Dec=334}
+  if not offsets[month] then return 0 end
+  day, year, hour, minute, second = tonumber(day), tonumber(year), tonumber(hour), tonumber(minute), tonumber(second)
+  if year < 1970 or day < 1 or day > 31 or hour > 23 or minute > 59 or second > 60 then return 0 end
+  local function leapYears(y) return math.floor(y/4)-math.floor(y/100)+math.floor(y/400) end
+  local days = 365*(year-1970)+leapYears(year-1)-leapYears(1969)+offsets[month]+day-1
+  if month ~= "Jan" and month ~= "Feb" and year%4 == 0 and (year%100 ~= 0 or year%400 == 0) then days=days+1 end
+  return days*86400+hour*3600+minute*60+second
+end
+local function provePinned(target, localUpdate, running)
+  assert(validRevision(target) and target == target:lower(), "Expected a lowercase full commit SHA")
+  local cfg, state, store = clientConfig("/so-worker.cfg")
+  assert(not state.hold, "Config recovery; refusing update")
+  local now = math.floor(os.epoch("utc") / 1000)
+  assert(type(cfg.updateApiRetryAt) ~= "number" or cfg.updateApiRetryAt <= now,
+    "Update API cooldown until " .. tostring(cfg.updateApiRetryAt))
+  local current = fs.exists("/.so-revision") and readFile("/.so-revision"):match("^%s*(.-)%s*$")
+  assert(localUpdate or validRevision(current) and current == current:lower() and current ~= target
+    and (running == nil or running == current),
+    "Unknown or equal running revision")
+  local function cooldown(headers)
+    local at = math.floor(os.epoch("utc") / 1000)
+    local untilAt = math.max(at+60, retryDeadline(headers["retry-after"], at),
+      tonumber(headers["x-ratelimit-reset"]) or 0)
+    cfg.updateApiRetryAt = untilAt
+    if not store or not store.saveConfig("/so-worker.cfg", cfg) then
+      error("Update API refused; retry after " .. untilAt .. "; cannot save cooldown", 0)
+    end
+    return untilAt
+  end
+  local calls, needed, cache = 0, localUpdate and 3 or 4, {}
+  if apiRemaining and apiRemaining < needed then error("Update API refused; retry after " .. cooldown(apiHeaders or {}), 0) end
+  if sleep then sleep((os.getComputerID() % 17) / 20) end
+  local function api(path)
+    if cache[path] then return cache[path] end
+    calls = calls+1
+    assert(calls <= needed, "Update API request limit")
+    local response, why, failed = http.get({url="https://api.github.com/repos/140er/computercraft-scripts/" .. path,
+      binary=true, redirect=false})
+    local h = response or failed
+    assert(h, "Update API network error: " .. tostring(why))
+    local ok, status, bytes, headers = pcall(function()
+      return h.getResponseCode(), h.readAll(), h.getResponseHeaders and h.getResponseHeaders() or {}
+    end)
+    h.close()
+    assert(ok, "Update API response error")
+    local normalized = {}
+    for k,v in pairs(headers) do normalized[k:lower()] = v end
+    local remaining = tonumber(normalized["x-ratelimit-remaining"])
+    apiRemaining, apiHeaders = remaining, normalized
+    if status == 403 or status == 429 or remaining and remaining < needed-calls then
+      error("Update API refused; retry after " .. cooldown(normalized), 0)
+    end
+    assert(status == 200, "Update API HTTP " .. tostring(status))
+    local value = textutils.unserializeJSON(bytes)
+    assert(type(value) == "table", "Bad update API response")
+    cache[path] = value
+    return value
+  end
+  local ref = api("git/ref/heads/server-only")
+  assert(ref.ref == "refs/heads/server-only" and type(ref.object) == "table" and ref.object.type == "commit"
+    and validRevision(ref.object.sha) and ref.object.sha == ref.object.sha:lower(), "Bad server-only ref")
+  local tip = ref.object.sha
+  local function compare(base, head, strict)
+    local v = api("compare/" .. base .. "..." .. head)
+    assert(type(v.base_commit) == "table" and v.base_commit.sha == base
+      and type(v.merge_base_commit) == "table" and v.merge_base_commit.sha == base
+      and v.behind_by == 0 and (strict and v.status == "ahead" and type(v.ahead_by) == "number" and v.ahead_by > 0
+        or not strict and (v.status == "ahead" or v.status == "identical")), "Pinned revision ancestry refused")
+  end
+  compare(target, tip, false)
+  if not localUpdate then compare(current, target, true) end
+  pinnedAttempt, pinnedApi = true, api
 end
 local function gitRevision()
   local body = fetch("https://github.com/140er/computercraft-scripts.git/info/refs?service=git-upload-pack")
@@ -349,7 +442,8 @@ local function compile(path, bytes)
   if path:match("%.lua$") then return assert(load(bytes,"@" .. path,"t",_ENV)) end
 end
 local function metadata(sha)
-  local tree = textutils.unserializeJSON(fetch("https://api.github.com/repos/140er/computercraft-scripts/git/trees/" .. sha .. "?recursive=1"))
+  local tree = pinnedApi and pinnedApi("git/trees/" .. sha .. "?recursive=1")
+    or textutils.unserializeJSON(fetch("https://api.github.com/repos/140er/computercraft-scripts/git/trees/" .. sha .. "?recursive=1"))
   assert(type(tree) == "table" and not tree.truncated and type(tree.tree) == "table", "Missing commit size metadata")
   local list, seen = {}, {}
   for _,v in ipairs(tree.tree) do
@@ -409,7 +503,7 @@ local function cached(index, list, resume)
   end
   return bytes
 end
-local function admission(list, cachedBytes, generated, entries, index)
+local function admission(list, cachedBytes, generated, entries, index, localSource)
   local S,L,N = 0,0,0
   local paths = {}
   for _,path in ipairs({NEW,OLD,PREV,CACHE,BOOT}) do
@@ -432,6 +526,7 @@ local function admission(list, cachedBytes, generated, entries, index)
   for _,entry in ipairs(entries) do if entry.existed then count(OLD .. "/" .. entry.path) end end
   local C,G = 0,0
   for _,v in ipairs(list) do if cachedBytes[v.path] then C = C+#cachedBytes[v.path] end end
+  if localSource then C,L=S,0 end
   for path,value in pairs(generated) do G = G+#value; count(NEW .. "/" .. path) end
   local complete = {version=1,commit=index.commit,role=index.role,manifestDigest=index.manifestDigest,files={}}
   for _,v in ipairs(list) do complete.files[#complete.files+1] = {path=v.path,bytes=v.bytes,sha256=string.rep("f",64),blob=v.blob} end
@@ -446,10 +541,10 @@ local function obtain(v, sha, index, bytes)
   if bytes[v.path] then return bytes[v.path] end
   print(v.path)
   local ok,value
-  for attempt = 1,3 do
+  for attempt = 1,pinnedAttempt and 1 or 3 do
     ok,value = pcall(fetch,BASE .. sha .. "/" .. v.path)
     if ok then break end
-    if attempt < 3 then print("Retrying " .. v.path .. " (" .. (attempt+1) .. "/3)") end
+    if not pinnedAttempt and attempt < 3 then print("Retrying " .. v.path .. " (" .. (attempt+1) .. "/3)") end
   end
   if not ok then error(value,0) end
   verified(v,value)
@@ -474,12 +569,15 @@ local function installerRoles(bytes)
   assert(type(roles) == "table" and type(roles.common) == "table", "Bad pinned ROLES")
   return roles
 end
-local function prepareInstaller(bytes, clientOptions)
-  local apply,roles = compile("install.lua",bytes)("prepare")
+local function prepareInstaller(bytes, clientOptions, noStart)
+  local apply,roles = compile("install.lua",bytes)("prepare", noStart and function(target)
+    assert(pinnedAttempt and target == noStart, "Pinned proof mismatch")
+  end or nil)
   assert(type(apply) == "function" and type(roles) == "table",
     "pinned installer too old for staged update/offline kit; update from a newer commit")
   assert(not clientOptions or (type(roles.common) == "table" and roles.common.enrollRoles == true),
     "Pinned installer does not support role tokens and server selection")
+  assert(not noStart or roles.common.pinnedUpdate == true, "Pinned installer lacks no-start updates")
   return apply
 end
 local function readKit(mount)
@@ -561,7 +659,7 @@ local function rollback()
     assert(validPath(entry.path) or metadata[entry.path], "Bad previous release path")
     if entry.existed then sizes[#sizes+1] = {path=entry.path,bytes=#readFile(PREV .. "/" .. entry.path)} end
   end
-  admission(sizes,{},generated,saved,{commit="rollback",role="rollback",manifestDigest=""})
+  admission(sizes,{},generated,saved,{commit="rollback",role="rollback",manifestDigest=""},true)
   local ok, err = pcall(function()
     for _, entry in ipairs(saved) do
       local path = entry.path
@@ -616,7 +714,12 @@ local function install(role, config, handoff)
       writeFile(NEW .. "/" .. v.path,value)
       yieldWork()
     end
-    for path,value in pairs(generated) do writeFile(NEW .. "/" .. path,value) end
+    for path,value in pairs(generated) do
+      if path == "so-worker.cfg" or path == "so-display.cfg" then
+        local store = assert(load(handoff.bytes["so-store.lua"], "@so-store.lua", "t", _ENV))()
+        assert(store.saveConfig(NEW .. "/" .. path, textutils.unserialize(value)))
+      else writeFile(NEW .. "/" .. path,value) end
+    end
     if handoff.updating then writeFile(NEW .. "/keep","yes") end
   end)
   if not ok then
@@ -679,6 +782,12 @@ local function enrollToken(text)
 end
 local function main(...)
   local args = table.pack(...)
+  local noStart, running = args[1] == "worker-update", nil
+  if noStart then
+    assert((args.n == 2 or args.n == 3) and type(args[2]) == "string"
+      and (args[3] == nil or validRevision(args[3])), "Bad worker update")
+    running, args[1], args[3], args.n = args[3], "update", nil, 2
+  end
   if args[1] == "kit" then return exportKit(args[2],args[3],args[4]) end
   local selectedServer
   if type(args[2]) ~= "table" then
@@ -737,7 +846,11 @@ local function main(...)
   end
   if handoff then
     assert(validRevision(handoff.revision) and type(handoff.previous) == "table", "Bad installer handoff")
-  elseif not kit then recover() end
+    if handoff.noStart then
+      if authorizePinned then authorizePinned(handoff.revision) pinnedAttempt=true
+      else provePinned(handoff.revision, false) end
+    end
+  elseif not kit and not requestedRevision then recover() end
   local enroll = handoff and enrollToken(handoff.enroll)
   if not handoff and enrollToken(command) then enroll, command = enrollToken(command), nil end
   if command == "recover" then return end
@@ -796,16 +909,33 @@ local function main(...)
       return
     end
   end
+  if requestedRevision then
+    provePinned(requestedRevision, not noStart, running)
+    recover()
+  end
   local config = handoff and handoff.config
   if role == "server" and not updating and not handoff then config = position() end
-  if selectedServer ~= nil then
-    local path = role == "worker" and "/so-worker.cfg" or "/so-display.cfg"
-    local merged = {}
-    if fs.exists(path) then merged = textutils.unserialize(readFile(path)) end
-    assert(type(merged) == "table", "Bad client config; refusing to replace saved settings")
-    merged.server = selectedServer
-    config = textutils.serialize(merged)
+  local mergePath = role == "worker" and "/so-worker.cfg" or "/so-display.cfg"
+  mergePath = not handoff and (selectedServer ~= nil or enroll and (fs.exists(mergePath)
+    or fs.exists(mergePath .. ".tmp") or fs.exists(mergePath .. ".bak"))) and mergePath or nil
+  if mergePath and not fs.exists("/so-store.lua") then
+    local valid, present = false, false
+    for _,path in ipairs({mergePath, mergePath .. ".tmp", mergePath .. ".bak"}) do
+      present = present or fs.exists(path)
+      local ok, value = pcall(function() return textutils.unserialize(readFile(path)) end)
+      valid = valid or ok and type(value) == "table"
+    end
+    assert(valid or not present, "Bad client config; refusing to replace saved settings")
   end
+  local function mergeClient(source)
+    local merged = clientConfig(mergePath, source)
+    if selectedServer ~= nil then merged.server = selectedServer
+    elseif merged.server ~= nil then merged.server = tonumber(enroll:match("^%d+")) end
+    config = textutils.serialize(merged)
+    mergePath = nil
+  end
+  if mergePath and (fs.exists("/so-store.lua") or not fs.exists(mergePath)
+    and not fs.exists(mergePath .. ".tmp") and not fs.exists(mergePath .. ".bak")) then mergeClient() end
   if not handoff then
     local ok, err = pcall(function()
       local saved
@@ -822,24 +952,33 @@ local function main(...)
       local previousFilesList = previousFiles(role)
       local clientOptions = selectedServer ~= nil or (enroll ~= nil and role == "display")
       local nextInstaller = kitApply
-      if kit then nextInstaller = prepareInstaller(kitInstaller,clientOptions) end
+      if kit then
+        if mergePath then mergeClient(assert(bytes["so-store.lua"], "Missing kit config reader")) end
+        nextInstaller = prepareInstaller(kitInstaller,clientOptions)
+      end
       if not kit then
-        local installerEntry
-        for _,v in ipairs(manifest) do if v.path == "install.lua" then installerEntry = v end end
-        admission({assert(installerEntry)},bytes,{}, {},index)
+        local installerEntry, storeEntry
+        for _,v in ipairs(manifest) do
+          if v.path == "install.lua" then installerEntry = v end
+          if v.path == "so-store.lua" then storeEntry = v end
+        end
+        local bootstrap = {assert(installerEntry)}
+        if mergePath then bootstrap[#bootstrap+1] = assert(storeEntry, "Missing config reader") end
+        admission(bootstrap,bytes,{}, {},index)
         if not resume then
           fs.delete(CACHE)
           writeFile(CACHE .. "/index",textutils.serialize(index))
         end
         local installer = obtain(installerEntry,sha,index,bytes)
+        if mergePath then mergeClient(obtain(storeEntry,sha,index,bytes)) end
         local roles = installerRoles(installer)
         local list,generated,entries = installPlan(role,config,manifest,previousFilesList,sha,roles)
         admission(list,bytes,generated,entries,index)
-        nextInstaller = prepareInstaller(installer,clientOptions)
+        nextInstaller = prepareInstaller(installer,clientOptions,noStart and sha)
       end
       assert(type(nextInstaller) == "function", "Commit installer does not support pinned updates")
       nextInstaller(command, { revision = sha, previous = previousFilesList, role = role, config = config, updating = updating,
-        enroll = enroll, server = selectedServer, manifest=manifest,index=index,bytes=bytes,offline=kit ~= nil })
+        enroll = enroll, server = selectedServer, noStart=noStart, manifest=manifest,index=index,bytes=bytes,offline=kit ~= nil })
     end)
     if not ok then
       if not fs.exists(OLD .. "/manifest") and not fs.exists(NEW .. "/committed") then fs.delete(NEW) end
@@ -864,7 +1003,7 @@ local function main(...)
   end
   handoff.updating = updating
   if not install(role, config, handoff) then return end
-  if updating then startUpdated(previous); return end
+  if updating then if not handoff.noStart then startUpdated(previous) end return true end
   print("Installed " .. role .. ". Use install update to update.")
   if enroll then
     local ok, saved = pcall(function() return textutils.unserialize(readFile("/so-enroll")) end)
@@ -874,5 +1013,9 @@ local function main(...)
   elseif role ~= "server" then print("On the server press P, then type the 6-digit code here") end
   shell.run("/" .. ROLES[role].program)
 end
-if ... == "prepare" then return main, ROLES end
+if ... == "prepare" then
+  local proof = select(2, ...)
+  if type(proof) == "function" then authorizePinned=proof end
+  return main, ROLES
+end
 return main(...)

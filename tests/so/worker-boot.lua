@@ -605,4 +605,246 @@ return function(test, equal)
     equal(cfg(w).autoToolSwap,false,"stale lease id kept completed recovery busy")
   end)
 
+  local current, target = string.rep("a",40), string.rep("b",40)
+  local function updateSetup(config)
+    local n,s,w,lease = settingsSetup(config or {remoteUpdates=true,dim="minecraft:overworld"})
+    n.kill(w)
+    w.files[".so-revision"] = current
+    w = n.boot(w)
+    s.files[".so-revision"] = target
+    s.files["so-server.cfg"] = H.encode({panelUpdates=true})
+    n.kill(s); s=n.boot(s)
+    n.advance(32)
+    return n,s,w,s.env.SO.mods.lease
+  end
+  local function updater(n,w, outcome)
+    local trace = {}
+    local send = w.env.rednet.send
+    w.env.rednet.send=function(id,msg,protocol)
+      if msg.t=="ack" and msg.body.command=="worker.update" then trace[#trace+1]="ack" end
+      return send(id,msg,protocol)
+    end
+    w.env.shell={run=function(path,command,revision,running)
+      equal({path,command,revision,running},{"/install.lua","worker-update",target,current})
+      trace[#trace+1]="installer"
+      if outcome=="throw" then error("handled failure") end
+      if outcome then w.files[".so-revision"]=target end
+      return outcome == true
+    end}
+    w.env.os.reboot=function() trace[#trace+1]="reboot" coroutine.yield("reboot") end
+    return trace
+  end
+  test("pinned update ack precedes loop exit installer handoff and reboot on success or failure",function()
+    for _,outcome in ipairs({true,false,"throw"}) do
+      local n,s,w=updateSetup()
+      local trace=updater(n,w,outcome)
+      local rid=assert(s.env.SO.updateWorker(2))
+      n.flush()
+      equal(trace,{"ack","installer","reboot"})
+      equal(s.env.SO.workerUpdate(2).state,"awaiting reboot")
+      local fuel=w.fuel
+      serverSend(n,s,"lease.batch",{lease="after-ack",ttl=1000,expires=n.time+1000,steps={{op="forward"}}})
+      equal(w.fuel,fuel)
+      assert(rid)
+    end
+  end)
+  test("worker hello caches revision at boot and target hello confirms only after reboot",function()
+    local n,s,w=updateSetup()
+    w.files[".so-revision"]=target
+    n.advance(31)
+    equal(s.env.SO.workerUpdate(2).running,current)
+    updater(n,w,true)
+    assert(s.env.SO.updateWorker(2)); n.flush()
+    equal(s.env.SO.workerUpdate(2).state,"awaiting reboot")
+    n.kill(w); w=n.boot(w); n.advance(6)
+    equal(s.env.SO.workerUpdate(2).running,target)
+    equal(s.env.SO.workerUpdate(2).state,"complete")
+  end)
+  test("pinned update flags default off and old capability unknown equal or malformed revisions refuse",function()
+    for _,cfgValue in ipairs({{}, {remoteUpdates=false}}) do
+      local n,s,w=updateSetup(cfgValue)
+      local before=w.files["so-worker.cfg"]
+      equal(s.env.SO.updateWorker(2),nil)
+      serverSend(n,s,"worker.update",{revision=target})
+      equal(w.files["so-worker.cfg"],before)
+      assert(w.alive(),tostring(w.error))
+    end
+    local n,s,w=updateSetup()
+    s.files["so-server.cfg"]=H.encode({})
+    equal(s.env.SO.updateWorker(2),nil)
+    for _,revision in ipairs({current,"bad",false}) do
+      local hello={role="turtle",remoteUpdates=true,capabilities={pinnedUpdate=true},revision=revision or nil}
+      if revision==false then hello.capabilities={} end
+      w.env.rednet.send(1,w.env.dofile("so-proto.lua").build(key,"hello",hello,"flags-"..tostring(revision)),"so")
+      n.flush()
+      s.files["so-server.cfg"]=H.encode({panelUpdates=true})
+      if revision==current then
+        serverSend(n,s,"worker.update",{revision=current})
+      else equal(s.env.SO.updateWorker(2),nil) end
+      assert(w.alive(),tostring(w.error))
+    end
+  end)
+  test("pinned update uses shared idle guard for assignment open batch uncertain journal and cfg recovery",function()
+    for _,kind in ipairs({"assignment","open lease","uncertain","config recovery","corrupt config"}) do
+      local n,s,w,lease=updateSetup()
+      local trace=updater(n,w,true)
+      if kind=="assignment" then
+        s.env.SO.mods.mine={assigned=function() return true end}
+        serverSend(n,s,"worker.status",{job="mine",reason="assigned"})
+      elseif kind=="open lease" then
+        assert(lease.send(2,{{op="inspectDown",park=true}},{ms=20000})); n.flush(); n.advance(.2)
+      elseif kind=="uncertain" then
+        n.kill(w)
+        w.files["so-journal"]=H.encode({schema=1,generation=1,value={id="held",seq=1,
+          uncertain=true,moves={},dug={},pose={x=0,y=0,z=0,f=0}}})
+        w=n.boot(w); n.advance(5); trace=updater(n,w,true)
+      elseif kind=="config recovery" then
+        w.files["so-worker.cfg.tmp"]=w.files["so-worker.cfg"]; w.files["so-worker.cfg"]=nil
+      else w.files["so-worker.cfg"]="corrupt"; w.files["so-worker.cfg.bak"]=nil end
+      local before=w.files["so-keys"]
+      serverSend(n,s,"worker.update",{revision=target})
+      equal(trace,{})
+      equal(w.files["so-keys"],before)
+      if kind=="assignment" or kind=="uncertain" then equal(s.env.SO.updateWorker(2),nil,kind) end
+      assert(w.alive(),tostring(w.error))
+    end
+  end)
+  test("pinned update replies match sender rid command revision and deadline and consume duplicates without err loops",function()
+    local n,s,w=updateSetup()
+    local send=w.env.rednet.send
+    w.env.rednet.send=function(id,msg,protocol)
+      if msg.body.command=="worker.update" then return true end
+      return send(id,msg,protocol)
+    end
+    w.env.shell={run=function() return false end}
+    w.env.os.reboot=function() coroutine.yield("reboot") end
+    local rid=assert(s.env.SO.updateWorker(2)); n.flush()
+    local proto=w.env.dofile("so-proto.lua")
+    local function reply(t,body,replyRid,from)
+      local msg=proto.build(key,t,body,replyRid)
+      if from then msg.from=from; msg.mac=proto.sign(key,msg) end
+      send(1,msg,"so"); n.flush()
+    end
+    local accepted={command="worker.update",revision=target,state="accepted"}
+    reply("ack",accepted,rid.."other")
+    reply("ack",{command="worker.settings",revision=target,state="accepted"},rid.."settings")
+    reply("ack",accepted,rid,3)
+    equal(s.env.SO.workerUpdate(2).state,"requested")
+    reply("ack",{command="worker.update",revision=current,state="accepted"},rid.."wrong-target")
+    equal(s.env.SO.workerUpdate(2).state,"requested")
+    reply("ack",accepted,rid)
+    equal(s.env.SO.workerUpdate(2).state,"awaiting reboot")
+    local count=#s.sent
+    reply("ack",accepted,rid)
+    reply("err",{command="worker.update",code="update",text="late"},rid.."late")
+    equal(s.env.SO.workerUpdate(2).state,"awaiting reboot")
+    equal(#s.sent,count)
+    n.advance(121)
+    equal(s.env.SO.workerUpdate(2).state,"unconfirmed")
+    reply("ack",accepted,rid.."expired")
+    equal(s.env.SO.workerUpdate(2).state,"unconfirmed")
+  end)
+  test("pinned update matched err refuses without accepting an unrelated error",function()
+    local n,s,w=updateSetup()
+    local send=w.env.rednet.send
+    w.env.rednet.send=function(id,msg,protocol)
+      if msg.body.command=="worker.update" then
+        msg=w.env.dofile("so-proto.lua").build(key,"err",{command="worker.update",code="update",text="worker busy",revision=target},msg.rid)
+      end
+      return send(id,msg,protocol)
+    end
+    w.env.shell={run=function() return false end}; w.env.os.reboot=function() coroutine.yield("reboot") end
+    assert(s.env.SO.updateWorker(2)); n.flush()
+    equal(s.env.SO.workerUpdate(2).state,"refused")
+    equal(s.env.SO.workerUpdate(2).text,"worker busy")
+  end)
+  test("worker selected cfg server is used for an unpaired join despite another discovery result",function()
+    local n,s,w=setup(false,7,{server=7,dim="minecraft:overworld"})
+    w.env.rednet.lookup=function() return 1 end
+    s.boot("so-server.lua"); n.advance(3)
+    assert(w.screen[5]:find("Code:  server 7",1,true),w.screen[5])
+    s.env.os.queueEvent("key",25); n.flush()
+    local invite=s.env.SO.pair.pending()
+    w.env.os.queueEvent("paste",invite); w.env.os.queueEvent("key",257)
+    n.flush(); n.advance(6)
+    equal(w.env.dofile("so-store.lua").read("so-keys").value.keys["7"],s.env.SO.pair.key(2))
+    assert(w.alive(),tostring(w.error))
+  end)
+  test("revision machine events precede coalescing and pressure returns and survive restart",function()
+    for _,coalesce in ipairs({false,true}) do
+      local n,s,w=setup(true)
+      s.install({"so-mod-state.lua","so-log.lua"})
+      s.files["so-server.cfg"]=H.encode({state={coalesceHeartbeats=coalesce}})
+      s.boot("so-server.lua"); n.advance(4)
+      local state=s.env.SO.mods.state
+      local proto=w.env.dofile("so-proto.lua")
+      local function hello(revision)
+        w.env.rednet.send(1,proto.build(key,"hello",{role="turtle",fuel=1000,journal={id="2-0"},revision=revision}),"so")
+        n.flush()
+      end
+      hello(current)
+      equal(state.get("machines/2/revision"),current)
+      local free=s.env.fs.getFreeSpace
+      s.env.fs.getFreeSpace=function() return 1600000 end
+      hello(target)
+      equal(state.get("machines/2/revision"),target)
+      local events=state.history.page({kind="machine",reverse=true,count=1}).entries
+      equal(events[1].data.revision,target)
+      hello(nil)
+      equal(state.get("machines/2/revision"),false)
+      s.env.fs.getFreeSpace=free
+      n.kill(s); s=n.boot(s); n.advance(1)
+      equal(s.env.SO.mods.state.get("machines/2/revision"),false)
+    end
+  end)
+
+  test("pinned update refuses a queued executing batch and accepts no work after acknowledgement",function()
+    local n,s,w,lease=updateSetup()
+    local trace=updater(n,w,true)
+    assert(lease.send(2,{{op="inspectDown",park=true}},{ms=10000}))
+    local msg=s.env.SO.proto.build(key,"worker.update",{revision=target})
+    s.env.rednet.send(2,msg,"so")
+    n.flush();n.advance(.2)
+    equal(trace,{})
+    local errorReply
+    for _,sent in ipairs(w.sent) do
+      if sent.payload.rid==msg.rid then errorReply=sent.payload end
+    end
+    equal(errorReply.t,"err");equal(errorReply.body.text,"worker busy")
+    assert(w.alive(),tostring(w.error))
+  end)
+  test("revision emit refusal leaves the last confirmed registry revision intact",function()
+    local n,s,w=setup(true)
+    s.install({"so-mod-state.lua","so-log.lua"})
+    s.boot("so-server.lua");n.advance(4)
+    local state=s.env.SO.mods.state
+    local proto=w.env.dofile("so-proto.lua")
+    w.env.rednet.send(1,proto.build(key,"hello",{role="turtle",revision=current},"revision-confirmed"),"so")
+    n.flush()
+    local open=s.env.fs.open
+    s.env.fs.open=function(path,mode)
+      if mode=="w" and path:match("^so%-data/log/") then error("disk write refused") end
+      return open(path,mode)
+    end
+    for i=1,256 do assert(state.emit("test.pending",{n=i})) end
+    w.env.rednet.send(1,proto.build(key,"hello",{role="turtle",revision=target},"revision-refused"),"so")
+    n.flush()
+    equal(state.get("machines/2/revision"),current)
+    equal(state.disk().pending,256)
+  end)
+
+  test("pinned update cannot leave the loop when sending its acknowledgement fails",function()
+    local n,s,w=updateSetup()
+    local trace=updater(n,w,true)
+    local send=w.env.rednet.send
+    w.env.rednet.send=function(id,msg,protocol)
+      if msg.t=="ack" and msg.body.command=="worker.update" then return false end
+      return send(id,msg,protocol)
+    end
+    assert(s.env.SO.updateWorker(2));n.flush()
+    equal(trace,{})
+    equal(s.env.SO.workerUpdate(2).state,"requested")
+    assert(w.alive(),tostring(w.error))
+  end)
+
 end

@@ -33,6 +33,13 @@ return function(test, equal, read)
     m.kind = role
     m.files, m.dirs, m.calls, m.runs = disk, dirs, 0, {}
     m.urls, m.remote, m.sha = {}, {}, string.rep("a", 40)
+    local json, jsonCount = {}, 0
+    m.jsonEncode = function(value)
+      jsonCount = jsonCount+1
+      local bytes = "json-" .. jsonCount
+      json[bytes] = value
+      return bytes
+    end
     local function norm(p) return p:gsub("^/+", ""):gsub("/+$", "") end
     local function exists(p)
       p = norm(p)
@@ -120,6 +127,7 @@ return function(test, equal, read)
         return { readAll = function() return disk[p] end, close = function() end }
       end,
     }
+    e.sleep = function(delay) m.jitter=delay end
     e.turtle = role == "worker" and {} or nil
     e.pocket = role == "display" and {} or nil
     e.keys = { up = 1, down = 2, enter = 3 }
@@ -135,17 +143,34 @@ return function(test, equal, read)
     e.read = function() return "" end
     e.shell = { run = function(...) m.runs[#m.runs + 1] = { ... }; return true end }
     e.textutils.unserializeJSON = function(body)
+      if json[body] then return json[body] end
       if body == "tree-json" then return m.tree end
       if body ~= "branch-json" then error("bad JSON") end
       return { commit = { sha = m.sha } }
     end
     e.http = { get = function(url, headers, binary)
+      if type(url) == "table" then
+        equal(url.redirect, false)
+        url, headers, binary = url.url, nil, url.binary
+      end
       m.urls[#m.urls + 1] = url
       if url == "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only" then
         if m.apiError then error("HTTP disabled") end
         if m.apiFail then return nil, "API unavailable" end
         return { getResponseCode = function() return m.apiStatus or 200 end,
           readAll = function() return m.apiBody or "branch-json" end, close = function() end }
+      end
+      if url:find("/git/ref/",1,true) or url:find("/compare/",1,true) then
+        local body
+        if url:find("/git/ref/",1,true) then
+          body = {ref="refs/heads/server-only", object={type="commit",sha=m.tip or m.sha}}
+        else
+          local base, head = url:match("/compare/([0-9a-f]+)%.%.%.([0-9a-f]+)$")
+          body = {base_commit={sha=base}, merge_base_commit={sha=base}, behind_by=0,
+            status=base == head and "identical" or "ahead",ahead_by=base == head and 0 or 1}
+        end
+        if m.proof then return m.proof(url,body) end
+        return {getResponseCode=function() return 200 end, readAll=function() return m.jsonEncode(body) end,close=function() end}
       end
       if url:find("/git/trees/",1,true) then
         if m.treeFail then return nil,"metadata unavailable" end
@@ -163,6 +188,7 @@ return function(test, equal, read)
           end
         end
         m.tree = m.treeOverride or {tree=list}
+        if m.proof then return m.proof(url,m.tree) end
         return {getResponseCode=function() return 200 end,readAll=function() return "tree-json" end,close=function() end}
       end
       if url == "https://github.com/140er/computercraft-scripts.git/info/refs?service=git-upload-pack" then
@@ -400,7 +426,7 @@ return function(test, equal, read)
         if updating then m.run("update", sha) else m.run(sha) end
         equal(m.files[".so-revision"], sha)
         equal(m.files["worker.lua"], read("worker.lua"))
-        equal(#m.urls, #files("worker") + 1)
+        equal(#m.urls, #files("worker") + 3)
         for _, url in ipairs(m.urls) do
           if url:find("raw.githubusercontent.com",1,true) then assert(url:find("/" .. sha .. "/",1,true),url) end
         end
@@ -1643,7 +1669,7 @@ return function(test, equal, read)
   end)
   test("SO9 an old-style pinned installer is refused before any role download", function()
     local m = installed("worker")
-    m.remote["install.lua"] = source:gsub('return main, ROLES end','return main end')
+    m.remote["install.lua"] = source:gsub('return main, ROLES','return main')
     assert(m.remote["install.lua"] ~= source)
     local before = snapshot(m)
     m.run("update",m.sha)
@@ -1654,7 +1680,7 @@ return function(test, equal, read)
   end)
   test("SO9 an old-style offline installer is refused before filesystem writes or HTTP", function()
     local m = kitMachine("worker")
-    local old = source:gsub('return main, ROLES end','return main end')
+    local old = source:gsub('return main, ROLES','return main')
     local manifest = m.env.textutils.unserialize(m.files["disk/so-kit/manifest"])
     for _,v in ipairs(manifest.files) do
       if v.path == "install.lua" then v.bytes,v.blob,v.sha256 = #old,blob(old),hash(old) end
@@ -1787,6 +1813,185 @@ return function(test, equal, read)
     equal(m.files["worker.lua"],nil)
     equal(#m.runs,0)
     assert(table.concat(m.log):find("Install path crosses a mount",1,true))
+  end)
+
+  local function pinned()
+    local m = installed("worker")
+    m.files[".so-revision"] = string.rep("a",40)
+    m.sha, m.tip = string.rep("b",40), string.rep("c",40)
+    m.apiCalls, m.pauses = {}, {}
+    m.env.sleep=function(delay) m.pauses[#m.pauses+1]=delay end
+    m.proof=function(url,body)
+      m.apiCalls[#m.apiCalls+1]=url
+      if m.alter then body=m.alter(#m.apiCalls,body,url) or body end
+      local step=#m.apiCalls
+      if m.networkAt==step then return nil,"offline" end
+      return {getResponseCode=function() return m.statusAt==step and m.apiCode or 200 end,
+        getResponseHeaders=function() return m.headers or {} end,
+        readAll=function() return m.jsonEncode(body) end,close=function() end}
+    end
+    return m
+  end
+  test("SO9 pinned update proves both ancestries before immutable tree and raw downloads within four API calls",function()
+    local m=pinned()
+    m.run("worker-update",m.sha)
+    equal(#m.apiCalls,4)
+    local api="https://api.github.com/repos/140er/computercraft-scripts/"
+    equal(m.apiCalls,{api.."git/ref/heads/server-only",api.."compare/"..m.sha.."..."..m.tip,
+      api.."compare/"..string.rep("a",40).."..."..m.sha,api.."git/trees/"..m.sha.."?recursive=1"})
+    equal(m.files[".so-revision"],m.sha)
+    equal(m.runs,{})
+    equal(#m.pauses,1)
+    for _,url in ipairs(m.urls) do
+      if url:find("raw.githubusercontent.com",1,true) then assert(url:find("/"..m.sha.."/",1,true)) end
+    end
+  end)
+  test("SO9 pinned ancestry rejects forks older equal diverged unknown and malformed revisions unchanged",function()
+    for _,case in ipairs({"fork","older","diverged","equal","unknown","bad ref","wrong base","wrong merge","behind"}) do
+      local m=pinned()
+      if case=="unknown" then m.files[".so-revision"]=nil
+      elseif case=="equal" then m.files[".so-revision"]=m.sha end
+      m.alter=function(step,body)
+        if case=="bad ref" and step==1 then body.ref="refs/heads/main"
+        elseif case=="fork" and step==2 then body.status="diverged"; body.merge_base_commit.sha=string.rep("f",40)
+        elseif step==3 then
+          if case=="older" then body.status="behind";body.behind_by=1
+          elseif case=="diverged" then body.status="diverged"
+          elseif case=="wrong base" then body.base_commit.sha=string.rep("f",40)
+          elseif case=="wrong merge" then body.merge_base_commit.sha=string.rep("f",40)
+          elseif case=="behind" then body.behind_by=1 end
+        end
+      end
+      local before=snapshot(m)
+      equal(pcall(m.run,"worker-update",m.sha),false,case)
+      unchanged(m,before)
+      assert(#m.apiCalls<=3)
+      equal(m.calls,0)
+    end
+  end)
+  test("SO9 only local typed pinned update can skip strict descent and bootstrap flags cannot grant it",function()
+    local m=pinned()
+    m.files[".so-revision"]=m.sha
+    m.run("update",m.sha)
+    equal(#m.apiCalls,3)
+    equal(m.files[".so-revision"],m.sha)
+    equal(m.runs,{{"/worker.lua"}})
+    m=pinned();m.files[".so-revision"]=m.sha
+    local apply=assert(load(source,"@install.lua","t",m.env))("prepare")
+    local before=snapshot(m)
+    equal(pcall(apply,"update",{revision=m.sha,previous={},role="worker",noStart=true,localUpdate=true}),false)
+    unchanged(m,before); equal(#m.apiCalls,0)
+    local fork=pinned()
+    fork.alter=function(step,body) if step==2 then body.status="diverged" end end
+    before=snapshot(fork)
+    equal(pcall(fork.run,"update",fork.sha),false)
+    unchanged(fork,before)
+  end)
+  test("SO9 pinned API refuses a three-call total budget and persists the later retry deadline across reboot",function()
+    for _,headers in ipairs({{["X-RateLimit-Remaining"]="2",["Retry-After"]="120",["X-RateLimit-Reset"]="2000000000"},
+      {["X-RateLimit-Remaining"]="2"},
+      {["X-RateLimit-Remaining"]="2",["Retry-After"]="120",["X-RateLimit-Reset"]="1"}}) do
+      local m=pinned();m.headers=headers
+      local before=snapshot(m)
+      equal(pcall(m.run,"worker-update",m.sha),false)
+      equal(#m.apiCalls,1);equal(m.calls,0)
+      local cfg=m.env.textutils.unserialize(m.files["so-worker.cfg"])
+      local now=math.floor(m.env.os.epoch("utc")/1000)
+      equal(cfg.updateApiRetryAt,math.max(now+60,now+(tonumber(headers["Retry-After"]) or 0),tonumber(headers["X-RateLimit-Reset"]) or 0))
+      before["so-worker.cfg"]=m.files["so-worker.cfg"]
+      unchanged(m,before)
+      equal(pcall(m.run,"worker-update",m.sha),false)
+      equal(#m.apiCalls,1)
+    end
+  end)
+  test("SO9 API 403 429 network and malformed replies at every ancestry or tree step stop unchanged",function()
+    for _,kind in ipairs({"403","429","network","malformed"}) do
+      for step=1,4 do
+        local m=pinned()
+        if kind=="network" then m.networkAt=step
+        elseif kind=="malformed" then m.alter=function(n) if n==step then return {} end end
+        else m.statusAt,m.apiCode=step,tonumber(kind) end
+        local before=snapshot(m)
+        local ok=pcall(m.run,"worker-update",m.sha)
+        if step<4 then equal(ok,false) end
+        equal(#m.apiCalls,step)
+        equal(m.calls,0)
+        if m.files["so-worker.cfg"] then before["so-worker.cfg"]=m.files["so-worker.cfg"] end
+        unchanged(m,before)
+      end
+    end
+  end)
+  test("SO9 pinned raw redirects errors compile failures and old no-start installers never run code",function()
+    for _,kind in ipairs({"redirect","http","compile","old installer"}) do
+      local m=pinned()
+      if kind=="redirect" then m.status=302
+      elseif kind=="http" then m.status=500
+      elseif kind=="compile" then m.remote["install.lua"]="invalid lua!"
+      else m.remote["install.lua"]=source:gsub("pinnedUpdate = true","pinnedUpdate = false",1) end
+      local before=snapshot(m)
+      m.run("worker-update",m.sha)
+      unchanged(m,before)
+      equal(m.runs,{})
+    end
+  end)
+  test("SO9 pinned cfg recovery or unreadable config refuses before HTTP",function()
+    for _,kind in ipairs({"recovery","corrupt"}) do
+      local m=pinned()
+      if kind=="recovery" then m.files["so-worker.cfg.bak"]=m.env.textutils.serialize({remoteUpdates=true,dim="minecraft:the_nether"})
+      else m.files["so-worker.cfg"]="corrupt" end
+      equal(pcall(m.run,"worker-update",m.sha),false)
+      equal(#m.urls,0);equal(m.runs,{})
+      equal(m.files[".so-revision"],string.rep("a",40))
+    end
+  end)
+  test("SO9 token overrides a conflicting saved server without losing client config and keyed installs still refuse",function()
+    local m=machine("worker")
+    m.files["so-store.lua"]=read("so-store.lua")
+    m.files["so-worker.cfg"]=m.env.textutils.serialize({server=4,custom={keep=true},remoteUpdates=false})
+    m.run("7-K7QP-3MXA-9WTD-HR2E")
+    equal(m.env.textutils.unserialize(m.files["so-worker.cfg"]),{server=7,custom={keep=true},remoteUpdates=false})
+    equal(m.env.textutils.unserialize(m.files["so-enroll"]).token,"7-K7QP-3MXA-9WTD-HR2E")
+  end)
+
+  test("SO9 a token with a pinned SHA still refuses saved keys before proof or config reads",function()
+    for _,suffix in ipairs({"",".bak",".tmp"}) do
+      local m=installed("worker")
+      m.files["so-keys"]=nil;m.files["so-keys"..suffix]="saved trust"
+      m.files["so-worker.cfg"]="corrupt"
+      local before=snapshot(m)
+      m.run("7-K7QP-3MXA-9WTD-HR2E",m.sha)
+      unchanged(m,before);equal(#m.urls,0);equal(m.runs,{})
+    end
+  end)
+
+  test("SO9 known API budget below four refuses before the next reference request",function()
+    local m=pinned()
+    m.alter=function(step)
+      m.headers={["X-RateLimit-Remaining"]=step==4 and "3" or "20"}
+    end
+    local apply=assert(load(source,"@install.lua","t",m.env))("prepare")
+    apply("worker-update",m.sha)
+    equal(#m.apiCalls,4);equal(m.files[".so-revision"],m.sha)
+    equal(pcall(apply,"worker-update",m.tip),false)
+    equal(#m.apiCalls,4);equal(m.files[".so-revision"],m.sha)
+  end)
+
+  test("SO9 Retry-After HTTP dates and reset headers retain the later UTC deadline",function()
+    for _,reset in ipairs({"1700000001","2000000000"}) do
+      local m=pinned()
+      m.headers={["X-RateLimit-Remaining"]="2",["Retry-After"]="Tue, 14 Nov 2023 22:15:20 GMT",["X-RateLimit-Reset"]=reset}
+      equal(pcall(m.run,"worker-update",m.sha),false)
+      equal(m.env.textutils.unserialize(m.files["so-worker.cfg"]).updateApiRetryAt,math.max(1700000120,tonumber(reset)))
+      equal(#m.apiCalls,1)
+    end
+  end)
+
+  test("SO9 exactly four initial API requests cover ref both comparisons and tree without an off-by-one refusal",function()
+    local m=pinned()
+    m.alter=function(step) m.headers={["X-RateLimit-Remaining"]=tostring(4-step)} end
+    m.run("worker-update",m.sha)
+    equal(#m.apiCalls,4)
+    equal(m.files[".so-revision"],m.sha)
   end)
 
 end
