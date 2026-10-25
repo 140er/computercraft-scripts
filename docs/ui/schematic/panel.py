@@ -149,7 +149,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
          fuel=None, stock=None, sent=None, again=None):
     """Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule;
     the lowest row of blocks gives up its spare row, then its facts, when rows run out. fuel is the fuel
-    auto row (PK.fuel_value) under the turtles; "N lost" opens ALERTS."""
+    auto row (PK.fuel_value) under the turtles; "N lost" (`lost`) opens the panel's own ALERTS."""
     cv = Canvas(w, h, title)
     header(cv, w, h, m["time"], needs)
     f = PK.facts(m) if f is None else f
@@ -161,7 +161,7 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
         leader(cv, 2, 3, lw, "turtles", text)
         if lost:
             cv.put(2 + lw - len("%d lost" % lost), 3, "%d lost" % lost, "e")
-            cv.hit("alerts", 2 + lw - len("%d lost" % lost), 3, len("%d lost" % lost), 1)
+            cv.hit("lost", 2 + lw - len("%d lost" % lost), 3, len("%d lost" % lost), 1)
         top = 4
     if fuel and h >= 12:
         leader(cv, 2, top, lw, "fuel auto", fuel[0], fuel[1])

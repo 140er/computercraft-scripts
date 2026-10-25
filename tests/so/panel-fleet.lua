@@ -54,9 +54,15 @@ return function(test, equal)
     s.d.handlers.hello({ from = 21, body = { w = 57, h = 24 } })
     assert(s.d.assign(21, "panel"))
     local main = s.view(21)
-    local hit = assert(button(main, "alerts", 3), "N lost is a control")
+    local hit = assert(button(main, "lost", 3), "N lost is a control")
     equal(cells(main, 57, 24, 3, hit.x, hit.w), "2 lost")
-    s.tap(21, "alerts")
+    -- With health loaded the ALERTS chip opens health's history; N lost still opens the panel's own list.
+    local opened = {}
+    s.env.SO.mods.health = { count = function() return 0 end }
+    s.D.open = function(_, _, name) opened[#opened + 1] = name end
+    s.tap(21, "lost")
+    equal(opened, {})
+    s.env.SO.mods.health = nil
     local rows = text(s.view(21), 57, 24)
     local a, b, c = rows:find("#3 lost", 1, true), rows:find("#6 lost", 1, true), rows:find(s.sys.alert.text, 1, true)
     assert(a and b and c and a < b and b < c, rows)
@@ -129,5 +135,19 @@ return function(test, equal)
     p.tap(POCKET, "order:16:create:copper_ingot")
     p.d.handlers.input({ from = POCKET, body = { id = "order:99:create:copper_ingot", x = 2, y = 15 } })
     equal(orders(p), { "create:copper_ingot=16", "create:copper_ingot=16" })
+  end)
+
+  test("panel P-U2-13 a repeated order whose id left the stock sends nothing, not a partial match", function()
+    local p = Scene.new({ panel = true, shop = true, facts = true })
+    p.shop.listen.roomsorter_stock(9, { totals = { ["minecraft:coal"] = 64, ["minecraft:coal_block"] = 10 } })
+    assert(p.d.assign(POCKET, "panel"))
+    p.type(POCKET, "coal")
+    p.tap(POCKET, "order:16")
+    equal(orders(p), { "minecraft:coal=16" })
+    p.shop.listen.roomsorter_stock(9, { totals = { ["minecraft:coal_block"] = 10 } })
+    p.tap(POCKET, "order:16:minecraft:coal")
+    equal(orders(p), { "minecraft:coal=16" })
+    local rows = text(p.view(POCKET), 26, 20)
+    assert(rows:find("not sent", 1, true) and rows:find("not in stock", 1, true), rows)
   end)
 end

@@ -282,11 +282,11 @@ P.main = function(c, session, w, h)
       c.put(2,3,U.g.bullet,"d");c.put(4,3,P.wrap(P.pairedNote,w-4)[1] or "","0")
     else
       c.leader(2,3,lw,"turtles",P.fleet)
-      -- "N lost" opens ALERTS, where each lost turtle has its own row.
+      -- "N lost" opens the panel's own ALERTS, where each lost turtle has its own row, even with health loaded.
       if P.lost > 0 then
         local text = P.lost.." lost"
         c.put(2+lw-#text,3,text,"e")
-        c.hit("alerts",2+lw-#text,3,#text,1)
+        c.hit("lost",2+lw-#text,3,#text,1)
       end
     end
     top = 4
@@ -527,13 +527,14 @@ P.input = function(event)
     panel.confirm, panel.drawn = nil, nil
     return
   end
-  if id == "panel-back" or id == "pair" or id == "alerts" then panel.confirm, panel.drawn = nil, nil end
+  if id == "panel-back" or id == "pair" or id == "alerts" or id == "lost" then panel.confirm, panel.drawn = nil, nil end
   if type(event.text) == "string" and session.keyboard then panel.search = event.text:sub(1,256);return end
   if event.open and SO.mods.health and (id == "health" or id == "attention" or id == "alerts") then
     event.open(id);return
   end
   if id == "panel-back" then panel.page="main"
   elseif id == "pair" or id == "alerts" then panel.page=id
+  elseif id == "lost" and panel.page == "main" then panel.page,panel.alertPage = "alerts",0
   elseif id == "pair-code" and panel.page == "pair" then P.requestCode(panel, event, session)
   elseif id == "alert-next" then panel.alertPage=(panel.alertPage or 0)+1
   elseif id == "alert-prev" then panel.alertPage=(panel.alertPage or 0)-1
@@ -550,9 +551,15 @@ P.input = function(event)
       amount = tonumber(amount or (id or ""):match("^order:(%d+)$"))
       local shop = SO.mods.shop
       if amount and P.screens.shop and session.keyboard and shop and type(shop.order) == "function" then
-        local search = name or P.split(panel.search)
-        local item = P.tag(P.item(shop,search),P.shared(shop))
-        panel.sent = P.order(shop,item and item.name or search,amount,item and item.label or "")
+        local search,item = name or P.split(panel.search),nil
+        if name then
+          -- A repeated order names its id; it orders that exact id or nothing (S.best would take a partial match).
+          for _,match in ipairs(type(shop.matches) == "function" and shop.matches(name,4096) or {}) do
+            if match.name == name then item = P.tag(match,P.shared(shop)) end
+          end
+        else item = P.tag(P.item(shop,search),P.shared(shop)) end
+        if name and not item then panel.sent = {why="not in stock"}
+        else panel.sent = P.order(shop,item and item.name or search,amount,item and item.label or "") end
       end
     end
     P.refresh()
