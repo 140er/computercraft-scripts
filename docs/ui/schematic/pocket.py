@@ -269,10 +269,11 @@ def tag(item, labels):
     return dict(item, label=item["name"].split(":", 1)[0].upper() + ":" + item["label"])
 
 
-def lows(search, stock=None):
-    """so-mod-shop's lows: low (under 16) and empty items whose id contains the search, emptiest first."""
+def lows(search, stock=None, minimums=None):
+    """Low and empty matches use shared minimums, then stack defaults, emptiest first."""
+    minimums = minimums or {}
     items = [dict(i, state="empty" if i["count"] == 0 else "low") for i in matches(search, 999, stock)
-             if i["count"] < min(16, i["stack"])]
+             if i["count"] < minimums.get(i["name"], min(16, i["stack"]))]
     items.sort(key=lambda i: (i["count"], i["name"]))
     return items
 
@@ -366,7 +367,8 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
     elif show == "all":
         items = matches(search, 256, stock)
     else:
-        items = [i for i in lows(search, stock) if i["state"] == show]
+        items = [i for i in lows(search, stock, saved.get("minimums", {}) if saved is not None else None)
+                 if i["state"] == show]
     labels = shared(stock)
     items = [tag(i, labels) for i in items]
     if found and not items:

@@ -438,8 +438,9 @@ return function(test, equal)
       local s=savedShop({["so-data/shop-watches"]=savedGeneration("watches",entries)},true)
       equal({s.shop.saved("watches")},{nil,"save unavailable"})
     end
-    local s=savedShop({["so-data/shop-minimums"]="broken",
-      ["so-data/shop-minimums.bak"]=savedGeneration("minimums",{[item]=31},4)},true)
+    local s=savedShop({["so-data/shop-minimums"]=savedGeneration("watches",{}),
+      ["so-data/shop-minimums.bak"]=H.encode({schema=1,generation=2,
+        value={v=1,kind="minimums",revision=4,entries={[item]=31}}})},true)
     equal(s.shop.minimum(item),31)
     assert(s.shop.setMinimum(item,32,4))
     equal(s.saved("minimums").revision,5)
@@ -590,6 +591,105 @@ return function(test, equal)
       assert(frame.rows[1].text:find("PANEL",1,true))
       for _,b in ipairs(frame.buttons) do assert(not b.id:match("^saved:")) end
     end
+  end)
+
+  test("D6 rejected rename generations cannot win after reboot", function()
+    for _,kind in ipairs({"minimums","watches"}) do
+      local s=savedShop(nil,true)
+      local item,path="minecraft:iron_ingot","so-data/shop-"..kind
+      local function edit(value,revision)
+        if kind=="minimums" then return s.shop.setMinimum(item,value,revision) end
+        return s.shop.setWatch(item,value,revision)
+      end
+      assert(edit(kind=="minimums" and 32 or true,0))
+      local before=s.shop.saved(kind)
+      local move=s.machine.env.fs.move
+      local failed=false
+      s.machine.env.fs.move=function(from,to)
+        if not failed and from==path..".tmp" and to==path then failed=true error("injected final rename failure") end
+        return move(from,to)
+      end
+      equal({edit(kind=="minimums" and 64 or false,1)},{false,"save unavailable"})
+      assert(failed)
+      equal(s.shop.saved(kind),before)
+      s=savedShop(s.machine.files,true)
+      equal(s.shop.saved(kind),before)
+      if kind=="minimums" then assert(s.shop.setMinimum(item,48,1))
+      else assert(s.shop.setWatch(item,false,1)) end
+      equal(s.shop.saved(kind).revision,2)
+    end
+  end)
+
+  test("D6 failed first edit restores the empty committed revision", function()
+    local s=savedShop(nil,true)
+    local path="so-data/shop-minimums"
+    local move=s.machine.env.fs.move
+    s.machine.env.fs.move=function(from,to)
+      local pending=s.machine.env.SO.store.read(path..".tmp")
+      if from==path..".tmp" and to==path and pending and pending.value.revision==1 then
+        error("reject the edited generation")
+      end
+      return move(from,to)
+    end
+    equal({s.shop.setMinimum("minecraft:iron_ingot",32,0)},{false,"save unavailable"})
+    s=savedShop(s.machine.files,true)
+    equal(s.shop.saved("minimums"),{v=1,kind="minimums",revision=0,entries={}})
+  end)
+
+  test("D6 failed rollback marks the file unavailable and refuses further edits", function()
+    local s=savedShop(nil,true)
+    local item,path="minecraft:iron_ingot","so-data/shop-minimums"
+    assert(s.shop.setMinimum(item,32,0))
+    local move=s.machine.env.fs.move
+    s.machine.env.fs.move=function(from,to)
+      if from==path..".tmp" and to==path then error("all final renames fail") end
+      return move(from,to)
+    end
+    equal({s.shop.setMinimum(item,64,1)},{false,"save unavailable"})
+    equal(s.shop.minimum(item),32)
+    equal({s.shop.saved("minimums")},{nil,"save unavailable"})
+    local before=H.encode(s.machine.files)
+    equal({s.shop.setMinimum(item,48,1)},{false,"save unavailable"})
+    equal(H.encode(s.machine.files),before)
+    s=savedShop(s.machine.files,true)
+    equal({s.shop.minimum(item),s.shop.saved("minimums").revision},{32,1})
+  end)
+
+  test("D6 preflight rejects oversized and wrong-kind newer generations", function()
+    for _,kind in ipairs({"minimums","watches"}) do
+      local path="so-data/shop-"..kind
+      local good=savedGeneration(kind,{})
+      for _,suffix in ipairs({"",".tmp",".bak"}) do
+        local oversized=good..string.rep(" ",65537-#good)
+        local s=savedShop({[path..suffix]=oversized},true)
+        equal({s.shop.saved(kind)},{nil,"save unavailable"})
+        local ok,why
+        if kind=="minimums" then ok,why=s.shop.setMinimum("mod:item",32,0)
+        else ok,why=s.shop.setWatch("mod:item",true,0) end
+        equal({ok,why},{false,"save unavailable"})
+        equal(s.machine.files[path..suffix],oversized)
+      end
+      for _,bad in ipairs({
+        H.encode({schema=1,generation=2,value={v=1,kind=kind,revision=1,entries={}}})..string.rep(" ",65536),
+        H.encode({schema=1,generation=2,value={v=1,kind=kind=="minimums" and "watches" or "minimums",revision=1,entries={}}}),
+        "unreadable",
+      }) do
+        local s=savedShop({[path]=bad,[path..".bak"]=good},true)
+        equal({s.shop.saved(kind)},{nil,"save unavailable"})
+        equal(s.machine.files[path],bad)
+      end
+    end
+  end)
+
+  test("D6 LOW pocket twin uses the saved item minimum", function()
+    local s=savedShop(nil,true)
+    local item="minecraft:iron_ingot"
+    assert(s.shop.setMinimum(item,32,0))
+    s.stock({[item]=24})
+    local session={id=7,keyboard=true,pocket={page="shop",search="iron",filter="low"}}
+    local fixture=R.load("tests/ui/fixtures/pocket-shopsaved-low-P.txt")
+    local diff=R.diff(fixture,Scene.capture(s.frame(session),fixture.w,fixture.h))
+    assert(#diff==0,table.concat(diff,"\n"))
   end)
 
 end

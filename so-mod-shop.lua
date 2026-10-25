@@ -231,20 +231,67 @@ S.savedValid = function(v, kind)
   if kind == "watches" then for i = 1, n do if v.entries[i] == nil then return false end end end
   return true
 end
+S.savedPreflight = function(kind)
+  local path, newest, rejected, picked = "so-data/shop-"..kind, 0, 0, nil
+  for _, file in ipairs({path,path..".tmp",path..".bak"}) do
+    if fs.exists(file) then
+      local ok, t, bytes = pcall(SO.store.read,file)
+      local generation = ok and type(t) == "table" and t.generation
+      if not S.integer(generation,1,2^53-1) then return false end
+      if t.schema == 1 and S.savedValid(t.value,kind) and type(bytes) == "string" and #bytes <= 65536 then
+        if generation > newest then newest,picked = generation,t.value end
+      else rejected = math.max(rejected,generation) end
+    end
+  end
+  return rejected == 0 or rejected < newest, picked
+end
+S.savedCommitted = function(kind, current)
+  local ok, value = S.savedPreflight(kind)
+  if not ok then return false end
+  if not value then return current.revision == 0 and next(current.entries) == nil end
+  if value.revision ~= current.revision then return false end
+  for item, count in pairs(current.entries) do if value.entries[item] ~= count then return false end end
+  for item, count in pairs(value.entries) do if current.entries[item] ~= count then return false end end
+  return true
+end
+S.savedBlock = function(kind, box)
+  box.blocked = true
+  if SO.error then SO.error("shop-"..kind..": save unavailable; recovery failed",true) end
+end
+S.savedRestore = function(kind, box)
+  if S.savedCommitted(kind,box.current) then return end
+  local ok, restored = pcall(function()
+    -- Ignore the rejected revision while selecting the rollback source.
+    local rollback = SO.store.store("so-data/shop-"..kind,function(v)
+      return S.savedValid(v,kind) and v.revision == box.current.revision
+    end,65536)
+    if not rollback.save(box.current) or not S.savedCommitted(kind,box.current) then return end
+    local reopened = SO.store.store("so-data/shop-"..kind,function(v) return S.savedValid(v,kind) end,65536)
+    reopened.current,reopened.present = box.current,true
+    return reopened
+  end)
+  if ok and restored then S.savedBoxes[kind] = restored
+  else S.savedBlock(kind,box) end
+end
 S.savedBox = function(kind)
   if not S.savedEnabled() then return nil, "off" end
   if kind ~= "minimums" and kind ~= "watches" then return nil, "invalid" end
   if S.savedBoxes[kind] == nil then
+    if not S.savedPreflight(kind) then S.savedBoxes[kind] = false return nil,"save unavailable" end
     local ok, box = pcall(SO.store.store, "so-data/shop-" .. kind,
       function(v) return S.savedValid(v, kind) end, 65536)
     S.savedBoxes[kind] = ok and box or false
-    if ok then box.current = box.value or {v=1, kind=kind, revision=0, entries={}} end
+    if ok then
+      box.current = box.value or {v=1, kind=kind, revision=0, entries={}}
+      box.present = box.value ~= nil
+    end
   end
   return S.savedBoxes[kind] or nil, "save unavailable"
 end
 S.saved = function(kind)
   local box, err = S.savedBox(kind)
   if not box then return nil, err end
+  if box.blocked then return nil,"save unavailable" end
   return SO.store.copy(box.current)
 end
 S.minimum = function(item)
@@ -281,6 +328,8 @@ end
 S.savedEdit = function(kind, item, value, revision)
   local box, err = S.savedBox(kind)
   if not box then return false, err end
+  if box.blocked then return false,"save unavailable" end
+  if not S.savedPreflight(kind) then S.savedBlock(kind,box) return false,"save unavailable" end
   if not S.integer(revision, 0, 2147483647) or revision ~= box.current.revision then return false, "changed" end
   if revision == 2147483647 then return false, "save unavailable" end
   if not S.itemId(item) then return false, "invalid" end
@@ -293,7 +342,14 @@ S.savedEdit = function(kind, item, value, revision)
   end
   data.revision = revision + 1
   if not S.savedValid(data, kind) then return false, "invalid" end
-  if not box.save(data) then return false, "save unavailable" end
+  if not box.present then
+    if not box.save(box.current) then return false,"save unavailable" end
+    box.present = true
+  end
+  if not box.save(data) then
+    S.savedRestore(kind,box)
+    return false, "save unavailable"
+  end
   box.current = data
   if kind == "watches" then S.watchAlerts(S.heardAt ~= nil and SO.now() - S.heardAt < 30000) end
   return true
