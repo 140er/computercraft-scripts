@@ -153,6 +153,38 @@ local function sessionView(session, role)
   return session.visibility[role]
 end
 
+local function errorCut(text, width)
+  local cut = math.max(0,math.min(#text,width))
+  local byte = text:byte(cut+1)
+  while cut > 0 and byte and byte >= 128 and byte <= 191 do
+    cut = cut-1
+    byte = text:byte(cut+1)
+  end
+  return cut
+end
+
+local function errorWrap(text, width)
+  local rows, line = {}, ""
+  width = math.max(1,width)
+  for word in text:gmatch("%S+") do
+    while #word > width do
+      if line ~= "" then rows[#rows+1],line = line,"" end
+      local cut = errorCut(word,width)
+      if cut == 0 then
+        cut = 1
+        local byte = word:byte(cut+1)
+        while byte and byte >= 128 and byte <= 191 do cut=cut+1;byte=word:byte(cut+1) end
+      end
+      rows[#rows+1],word = word:sub(1,cut),word:sub(cut+1)
+    end
+    if line == "" then line = word
+    elseif #line+1+#word <= width then line = line.." "..word
+    else rows[#rows+1],line = line,word end
+  end
+  if line ~= "" then rows[#rows+1] = line end
+  return rows
+end
+
 -- Route A (docs/ui/schematic/other.py health): HEALTH and NEEDS, then EVENTS ALERTS ERRORS as tabs,
 -- the page's rows, and the paging chips on the last row.
 H.render = function(role,w,h,session)
@@ -175,7 +207,7 @@ H.render = function(role,w,h,session)
     c.put(2,top,duration(H.now-v.error.at).." ago","8")
     top = top+1+gap
     capacity = math.max(1,h-gap-top)
-    local lines = U.wrap(v.error.text:gsub("[%c]"," "),lw)
+    local lines = errorWrap(v.error.text:gsub("[%c]"," "),lw)
     local pages = math.max(1,math.ceil(#lines/capacity))
     v.errorPage = math.max(1,math.min(v.errorPage or 1,pages))
     v.errorNext = v.errorPage < pages
@@ -201,7 +233,8 @@ H.render = function(role,w,h,session)
   elseif role == "errors" then
     local entries = SO.errors and SO.errors.entries() or {}
     for i=#entries,1,-1 do
-      rows[#rows+1] = {time=duration(H.now-entries[i].at),text=entries[i].text,fg="e",entry=entries[i],id="error:"..i}
+      rows[#rows+1] = {time=duration(H.now-entries[i].at),text=entries[i].text:match("^[^\r\n]*"),
+        fg="e",entry=entries[i],id="error:"..i}
     end
   else
     local state = SO.mods.state
@@ -249,7 +282,10 @@ H.render = function(role,w,h,session)
       c.put(4,y,row.time,"8")
       local x = 5+#row.time
       if row.kind then c.put(x,y,row.kind:sub(1,math.max(0,w-x)),"8") x = x+#row.kind+1 end
-      c.put(x,y,U.fit((row.text:gsub("[%c]"," ")),w-x),"0")
+      local text = row.text:gsub("[%c]"," ")
+      local fitted = U.fit(text,w-x)
+      if role == "errors" then fitted = text:sub(1,errorCut(text,#fitted)) end
+      c.put(x,y,fitted,"0")
       if role == "errors" then
         c.hit(row.id,1,y,w,1)
         v.targets[row.id] = row.entry

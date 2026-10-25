@@ -434,7 +434,8 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1):
     elif role == "attention":
         rows = items
     elif role == "errors":
-        rows = [dict(time=duration(now - e["at"]), text=e["text"], fg="e") for e in reversed(hs["entries"])]
+        rows = [dict(time=duration(now - e["at"]), text=re.split(r"[\r\n]", e["text"], maxsplit=1)[0], fg="e")
+                for e in reversed(hs["entries"])]
     else:
         rows = []
         for e in reversed(hs["events"]):
@@ -484,7 +485,7 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1):
 
 
 HEALTH_ERROR = (
-    "tick failed: so-mod-mine.lua:120 attempt to index a nil value while saving the mining job "
+    "tick\nfailed: so-mod-mine.lua:120 attempt to index a nil value while saving the mining job "
     "for turtle 7; checkpoint refused because the disk is full. Free space in so-data, "
     "then retry the job. The worker keeps its last saved pose and reservations while the "
     "server waits for the checkpoint. Final detail: no blocks were changed."

@@ -1,6 +1,6 @@
 local R = dofile("tests/ui/render.lua")
 
-local ERROR = "tick failed: so-mod-mine.lua:120 attempt to index a nil value while saving the mining job "..
+local ERROR = "tick\nfailed: so-mod-mine.lua:120 attempt to index a nil value while saving the mining job "..
   "for turtle 7; checkpoint refused because the disk is full. Free space in so-data, "..
   "then retry the job. The worker keeps its last saved pose and reservations while the "..
   "server waits for the checkpoint. Final detail: no blocks were changed."
@@ -69,6 +69,77 @@ local function match(name,frame,w,h)
 end
 
 return function(test,equal)
+  test("health keeps UTF-8 codepoints whole at list and detail cut points",function()
+    local function valid(text)
+      local i = 1
+      while i <= #text do
+        local byte = text:byte(i)
+        local size = byte < 128 and 1 or byte >= 194 and byte <= 223 and 2
+          or byte >= 224 and byte <= 239 and 3 or byte >= 240 and byte <= 244 and 4
+        assert(size,"invalid UTF-8 lead byte at "..i)
+        for j=1,size-1 do
+          local nextByte = text:byte(i+j)
+          assert(nextByte and nextByte >= 128 and nextByte <= 191,"split UTF-8 codepoint at "..i)
+        end
+        i = i+size
+      end
+    end
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h = size[1],size[2]
+      for _,width in ipairs({w-2,w-7}) do
+        for _,char in ipairs({"\195\169","\226\130\172","\240\159\152\128"}) do
+          for offset=1,#char-1 do
+            local t,s = health(),{}
+            local text = string.rep("x",width-offset)..char..string.rep("z",w+4).." final detail"
+            t.entries = {{at=t.now,text=text}}
+            local frame = t.render("errors",w,h,s)
+            capture(frame,w,h)
+            for _,row in ipairs(frame.rows) do valid(row.text) end
+            t.input("errors",s,"error:1")
+            local got = {}
+            for page=1,64 do
+              frame = t.render("errors",w,h,s)
+              capture(frame,w,h)
+              local top
+              for y,row in ipairs(frame.rows) do
+                valid(row.text)
+                if row.text:find("ago",1,true) then top=y+1+(h>=16 and 1 or 0) end
+              end
+              assert(top)
+              for y=top,h-1-(h>=16 and 1 or 0) do got[#got+1]=frame.rows[y].text end
+              if not s.visibility.errors.errorNext then break end
+              t.input("errors",s,"next")
+              assert(page<64,"UTF-8 detail paging did not finish")
+            end
+            equal(table.concat(got):gsub("%s",""),text:gsub("%s",""))
+          end
+        end
+      end
+    end
+  end)
+
+  test("health error list stops at the first line break and details keep every line",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local w,h = size[1],size[2]
+      for _,newline in ipairs({"\n","\r\n","\r"}) do
+        for _,first in ipairs({"FIRST",""}) do
+          local t,s = health(),{}
+          t.entries = {{at=t.now,text=first..newline.."SECOND line"}}
+          local frame = t.render("errors",w,h,s)
+          local preview = {}
+          for _,row in ipairs(frame.rows) do preview[#preview+1]=row.text end
+          assert(not table.concat(preview):find("SECOND",1,true),"list includes a later line")
+          t.input("errors",s,"error:1")
+          frame = t.render("errors",w,h,s)
+          capture(frame,w,h)
+          local detail = {}
+          for _,row in ipairs(frame.rows) do detail[#detail+1]=row.text end
+          assert(table.concat(detail):find("SECOND line",1,true),"detail lost a later line")
+        end
+      end
+    end
+  end)
+
   test("health gathers pending enroll rows without an owner token",function()
     local t,s = health(),{}
     t.enroll={owner=6,rows={{id=17,kind="worker",n="nonce"}}}
