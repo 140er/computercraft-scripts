@@ -1,5 +1,5 @@
 29x12 Alerts at 29x12
- HEALTH  NEEDS 3  ---------- 
+ HEALTH  NEEDS 4  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
  • 10s mine ore chest full   
  • 1m lumber out of saplings 

@@ -179,13 +179,13 @@ return function(test,equal)
       for _=1,3 do so.mods.drops.note("broken",nil) end
       s.net.advance(6)
       s.assign("panel")
-      s.press("NEEDS 1");assert(has(s.frame(),"Chest broken"))
+      s.press("NEEDS 2");assert(has(s.frame(),"Chest broken"))
       s.press("Chest broken broken");equal(s.frame().role,"panel")
       s.press("FIX")
       s.net.advance(6)
       -- The drop list page has no way back of its own, so it carries the x chip.
       s.press("\215");equal(s.frame().role,"panel")
-      s.press("NEEDS 0");assert(has(s.frame(),"all clear"))
+      s.press("NEEDS 1");assert(has(s.frame(),"Server errors 1"))
       -- A health page opened from the panel has no back control of its own, so it carries the x chip.
       s.press("\215")
       s.press("HEALTH");assert(has(s.frame(),"uptime"))
