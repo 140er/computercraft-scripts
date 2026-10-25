@@ -1126,22 +1126,65 @@ def drops_facing(cv, m, y, w):
     chip(cv, 2, y + 3, "cancel", "facing-cancel", "plain")
 
 
+def drops_queue(cv, m):
+    w, q = cv.w, m.get("queue")
+    bar(cv, "CHEST SETUP" if w >= 30 else "SETUP", [], None, "", "8")
+    chip(cv, w - 3, 1, "+", "from-next", "plain")
+    ya = control_rows(cv, [("TEST ALL", "test-all", "primary"),
+                          ("CHECK" if w < 18 else "CHECK SELECTED", "test-selected", "primary"),
+                          ("STOP QUEUE", "queue-stop", "stop"), ("TOOLS", "queue-tools", "plain")],
+                      ("BACK", "list", "plain"))
+    dim = m.get("dim")
+    if dim is None:
+        dim = next((p["dim"] for p in m["points"] if p["id"] == m["selected"]), None)
+    points = [p for p in m["points"] if p["dim"] == dim]
+    status = "%d/%d %s" % (q["completed"], q["total"], "testing" if q["state"] == "running" else q["state"]) if q else "-"
+    cv.put(2, 2, status, "0")
+    cv.put(2, 3, (q.get("current", {}).get("id", "-") if q else "-")[:w - 2], "8")
+    capacity = max(1, ya - 5)
+    first = m["start"] % max(1, (len(points) + capacity - 1) // capacity) * capacity
+    for i in range(first, min(len(points), first + capacity)):
+        p, y = points[i], 4 + i - first
+        label = ("[x] " if m.get("queueSelected", {}).get(p["id"]) else "[ ] ") + p["id"]
+        cv.put(2, y, label[:w - 2], "e" if p["broken"] else "8" if p.get("suspended") else "0")
+        cv.hit("queue-select:" + p["id"], 2, y, w - 2, 1)
+    message = (q.get("reason") if q else None) or m["message"]
+    if message:
+        flag(cv, 2, ya - 1, w - 2, message)
+
+
 def drops_setup(cv, m):
     """Chest setup with an idle turtle: the selected point, the turtles to scan with (RELEASE on the
     one doing setup), the chests the scans found, and TEST, FIX and BACK."""
     w, h = cv.w, cv.h
+    if m.get("queueEnabled") and m["compass"]:
+        bar(cv, "SETUP", [], None, "", "8")
+        q = m.get("queue")
+        if q:
+            cv.put(2, 2, "%d/%d %s" % (q["completed"], q["total"], q["state"]), "0")
+            cv.put(2, 3, q.get("current", {}).get("id", "-")[:w - 2], "8")
+        section(cv, 2, 5, w - 2, "FACING #%d" % m["compass"]["id"])
+        control_rows(cv, [("N", "facing:0", "primary"), ("E", "facing:1", "primary"),
+                          ("S", "facing:2", "primary"), ("W", "facing:3", "primary"),
+                          ("CANCEL", "facing-cancel", "plain")], ("BACK", "list", "plain"))
+        return
+    if m.get("queueEnabled") and not m.get("queueTools") and not m["compass"]:
+        drops_queue(cv, m)
+        return
     room = w >= 52 and h >= 22
     ya = last_row(h, room)
     stop = ya - 2
     bar(cv, "CHEST SETUP" if w >= 30 else "SETUP", [], None, "", "8")
     sel = next((p for p in m["points"] if p["id"] == m["selected"]), None)
-    if m.get("savedSetup"):
+    if m.get("savedSetup") or m.get("queueEnabled"):
         controls = [("TEST", "test", "primary" if sel else "muted"),
                     ("FIX", "fix", "primary" if sel and sel["broken"] else "muted")]
-        if sel:
+        if m.get("queueEnabled"):
+            controls.append(("QUEUE", "queue-tools", "plain"))
+        if sel and m.get("savedSetup"):
             controls.append(("RESUME" if sel.get("suspended") else "SUSPEND",
                              ("resume:" if sel.get("suspended") else "suspend:") + sel["id"], "plain"))
-        if m["found"]:
+        if m.get("savedSetup") and m["found"]:
             controls.append(("CONFIRM" if m["confirm"] == "clear-found" else "CLEAR FOUND", "clear-found", "stop"))
         ya = control_rows(cv, controls, ("BACK", "list", "plain"))
         stop = ya - 2
@@ -1218,7 +1261,7 @@ def drops_setup(cv, m):
             cv.put(2, ya - 1, msg, "d")
         else:
             flag(cv, 2, ya - 1, w - 2, msg)
-    if not m.get("savedSetup"):
+    if not m.get("savedSetup") and not m.get("queueEnabled"):
         actions(cv, ya, [("TEST", "test", "primary" if sel else "muted"),
                          ("FIX", "fix", "primary" if sel and sel["broken"] else "muted"),
                          ("BACK", "list", "plain")], 2 if room else 1)
@@ -1316,4 +1359,29 @@ FIXTURES += [
     ("dropssaved-M", dropssaved(57, 24, "Saved chest setup at 57x24")),
     ("dropssaved-P", dropssaved(26, 20, "Saved chest setup at 26x20", True)),
     ("dropssaved-XS", dropssaved(15, 10, "Saved chest setup at 15x10", True)),
+]
+
+
+def dropsqueue(w, h, state="running", page=0):
+    def make():
+        m = drops_model(testing=True)
+        m["queueEnabled"], m["start"] = True, page
+        m["queueSelected"] = {m["points"][0]["id"]: True}
+        m["queue"] = dict(completed=2, total=3, state=state, current=dict(id="ore-west"))
+        if state == "facing":
+            m["queue"]["state"], m["compass"] = "stopped", dict(id=12)
+        return drops(m, w, h, "Chest verification queue at %dx%d, %s" % (w, h, state))
+    return make
+
+
+# B9-U owns the queue fixtures.
+FIXTURES += [
+    ("dropsqueue-M", dropsqueue(57, 24)),
+    ("dropsqueue-P", dropsqueue(26, 20)),
+    ("dropsqueue-XS", dropsqueue(15, 10)),
+    ("dropsqueue-stopping-XS", dropsqueue(15, 10, "stopping", 1)),
+    ("dropsqueue-stopped-P", dropsqueue(26, 20, "stopped")),
+    ("dropsqueue-done-M", dropsqueue(57, 24, "done")),
+    ("dropsqueue-facing-P", dropsqueue(26, 20, "facing")),
+    ("dropsqueue-facing-XS", dropsqueue(15, 10, "facing")),
 ]
