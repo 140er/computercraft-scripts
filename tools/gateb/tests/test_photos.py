@@ -41,6 +41,11 @@ class Client:
 
     def sleep(self, seconds): pass
 
+    def record(self, name, value):
+        (self.output / name).write_text(json.dumps(value))
+        self.evidence.append(name)
+        return value
+
     def command(self, text):
         self.commands.append(text)
         if text.endswith(" Pos"): return {"output": "GateBTester has the following entity data: [-1.5d, 64.0d, -4.5d]"}
@@ -117,6 +122,56 @@ class SettledFrameTests(unittest.TestCase):
             with self.assertRaisesRegex(Blocked, "did not settle"):
                 photos.settled(Client(["world"], self.dir), "C3-wall-mining.png", pocket=False, seconds=0.05)
         self.assertIsNone(areas[-1])
+
+    def test_timeout_retains_last_three_samples_and_full_image_diff(self):
+        ctx = Client(["world 1", "world 2", "world 3", "world 4"], self.dir)
+        with patch.object(photos, "pocket_open", return_value=False), \
+             patch.object(photos.time, "monotonic", side_effect=[0, 0, 1, 2, 3, 4]), \
+             patch.object(photos, "diff_mask", side_effect=lambda a, b, out: Path(out).write_text("diff")):
+            with self.assertRaisesRegex(Blocked, "did not settle"):
+                photos.settled(ctx, "wall.png", False, seconds=4)
+        for i in range(1, 4):
+            self.assertEqual((self.dir / f"wall-settle-{i}.png").read_text(), f"world {i+1}")
+        self.assertEqual((self.dir / "wall-settle-diff.png").read_text(), "diff")
+        details = json.loads((self.dir / "wall-settle.json").read_text())
+        self.assertEqual(details["area"], None)
+        self.assertEqual([s["reason"] for s in details["samples"]], ["motion"] * 3)
+        self.assertIn("wall-settle-diff.png", ctx.evidence)
+
+    def test_wall_region_ignores_external_motion_but_detects_wall_motion(self):
+        area = (416, 272, 432, 216)
+        ctx = Client(["world"], self.dir)
+        with patch.object(photos, "changed", side_effect=lambda a, b, area=None: 0 if area else .2) as changed:
+            photos.settled(ctx, "wall.png", False, area=area)
+        self.assertEqual(changed.call_args.args[2], area)
+        with patch.object(photos, "changed", return_value=.03), \
+             patch.object(photos.time, "monotonic", side_effect=[0, 0, 1, 2]), \
+             patch.object(photos, "diff_mask", side_effect=lambda a, b, out: Path(out).write_text("diff")):
+            with self.assertRaisesRegex(Blocked, "did not settle"):
+                photos.settled(ctx, "wall.png", False, seconds=2, area=area)
+        details = json.loads((self.dir / "wall-settle.json").read_text())
+        self.assertEqual(details["area"], list(area))
+        self.assertEqual(details["limit"], .02)
+
+    def test_probe_rejections_are_retained_when_loading_never_clears(self):
+        ctx = Client(["loading"], self.dir)
+        with patch.object(photos.time, "monotonic", side_effect=[0, 0, 1, 2]), \
+             patch.object(photos, "diff_mask", side_effect=lambda a, b, out: Path(out).write_text("diff")):
+            with self.assertRaisesRegex(Blocked, "did not settle"):
+                photos.settled(ctx, "loading.png", False, seconds=2)
+        details = json.loads((self.dir / "loading-settle.json").read_text())
+        self.assertEqual([s["reason"] for s in details["samples"]], ["loading", "loading"])
+
+    def test_diff_failure_keeps_samples_and_original_blocked_finding(self):
+        ctx = Client(["world 1", "world 2"], self.dir)
+        with patch.object(photos, "pocket_open", return_value=False), \
+             patch.object(photos.time, "monotonic", side_effect=[0, 0, 1, 2]), \
+             patch.object(photos, "diff_mask", side_effect=Blocked("Diff unavailable")):
+            with self.assertRaisesRegex(Blocked, "Native screenshot did not settle for wall.png"):
+                photos.settled(ctx, "wall.png", False, seconds=2)
+        details = json.loads((self.dir / "wall-settle.json").read_text())
+        self.assertEqual(details["diff_error"], "Diff unavailable")
+        self.assertEqual(len(details["samples"]), 2)
 
     def test_a_closed_pocket_is_reopened_for_a_pocket_photo(self):
         ctx = Client(["world", "pocket", "pocket", "pocket"], self.dir)
@@ -201,6 +256,30 @@ class ImageProbeTests(unittest.TestCase):
         text = self.image("text.png", "-fill", "#0b111c", "-draw", "rectangle 426,84 905,635",
                           "-fill", "white", "-draw", "rectangle 450,90 860,110")
         self.assertGreater(photos.changed(still, text, photos.POCKET_AREA), 0)
+
+    def test_wall_region_contains_all_wall_edges_and_ignores_surroundings(self):
+        still = self.image("wall-still.png")
+        outside = self.image("wall-outside.png", "-fill", "white", "-draw", "rectangle 0,0 400,200")
+        self.assertGreater(photos.changed(still, outside), .02)
+        self.assertEqual(photos.changed(still, outside, photos.WALL_AREA), 0)
+        width, height, x, y = photos.WALL_AREA
+        for i, (px, py) in enumerate(((x, y), (x+width-1, y), (x, y+height-1), (x+width-1, y+height-1))):
+            edge = self.image(f"wall-edge-{i}.png", "-fill", "white", "-draw", f"point {px},{py}")
+            self.assertGreater(photos.changed(still, edge, photos.WALL_AREA), 0)
+
+    def test_diff_mask_shows_changes_outside_the_settle_region(self):
+        still = self.image("before.png")
+        changed = self.image("after.png", "-fill", "white", "-draw", "rectangle 0,0 20,20")
+        mask = self.dir / "diff.png"
+        photos.diff_mask(still, changed, mask)
+        size = subprocess.check_output(["identify", "-format", "%wx%h", str(mask)], text=True)
+        self.assertEqual(size, "1280x720")
+        def pixel(x, y):
+            return float(subprocess.check_output(["convert", str(mask), "-crop", f"1x1+{x}+{y}",
+                                                  "-format", "%[fx:mean]", "info:"], text=True))
+        self.assertEqual(pixel(0, 0), 1)
+        self.assertEqual(pixel(500, 300), 0)
+
 
 
 class CameraTests(unittest.TestCase):
