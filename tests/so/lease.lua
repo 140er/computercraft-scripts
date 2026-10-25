@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "e53b6b181c4ae4020c54e4bf9a3986af7b7f7cf0b629b478ef8329d4cafd8d55"
+local evidenceSourceHash = "61a1f22d22ea60e2af1ee64816f46bc83e2a239f10124e8f6576fd38123738c6"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
@@ -466,6 +466,20 @@ return function(test, equal, read)
     s.send("step.report",{lease=lid,results={{ok=true}}})
     s.net.advance(1)
     assert(idleCount()>0)
+  end)
+  test("lease tick isolates assigned and idle status send failures", function()
+    for _,assigned in ipairs({false,true}) do
+      local s=settingsServer()
+      s.server.env.SO.mods.build={assigned=function() return assigned end}
+      local attempted=false
+      s.server.env.rednet.send=function(_,payload)
+        local msg=s.server.env.SO.proto.decode(payload)
+        if msg and msg.t=="worker.status" then attempted=true; error("status transport failed") end
+      end
+      local ok,err=pcall(s.lease.tick)
+      assert(attempted,"lease tick did not attempt the status")
+      assert(ok,tostring(err))
+    end
   end)
   test("lease new pairing refreshes settings baseline and counter without pushing cached values", function()
     local s=settingsServer()

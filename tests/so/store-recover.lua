@@ -293,6 +293,43 @@ return function(test)
     m.env.fs.move=move
     run(m, [[local v,s=store.readConfig("cfg"); assert(v.configRecovery and s.hold and not v.dim)]])
   end)
+  test("failed config saves discard valid temporary edits before the next read", function()
+    for _,target in ipairs({"close","backup delete","backup move","promote"}) do
+      local m=machine()
+      local old={dim="minecraft:the_nether",autoToolSwap=true,settingsSeq=1,keep="old"}
+      m.files.cfg=H.encode(old)
+      m.files["cfg.bak"]=H.encode({settingsSeq=0})
+      local open,delete,move=m.env.fs.open,m.env.fs.delete,m.env.fs.move
+      local failed=false
+      local function fail()
+        assert(not failed)
+        failed=true
+        error("injected save failure")
+      end
+      m.env.fs.open=function(path,mode)
+        local h=open(path,mode)
+        if target=="close" and path=="cfg.tmp" and mode=="w" then
+          local close=h.close
+          h.close=function() close(); if not failed then fail() end end
+        end
+        return h
+      end
+      m.env.fs.delete=function(path)
+        if target=="backup delete" and path=="cfg.bak" and not failed then fail() end
+        return delete(path)
+      end
+      m.env.fs.move=function(from,to)
+        if not failed and (target=="backup move" and from=="cfg" or target=="promote" and from=="cfg.tmp") then fail() end
+        return move(from,to)
+      end
+      run(m, [[store=dofile("so-store.lua")
+        assert(not store.saveConfig("cfg",{dim="minecraft:the_end",autoToolSwap=false,settingsSeq=2,keep="new"}))]])
+      assert(failed,target.." did not reach its failure")
+      assert(not m.files["cfg.tmp"],target.." retained the failed edit")
+      run(m, [[local v=store.readConfig("cfg")
+        assert(v.dim=="minecraft:the_nether" and v.autoToolSwap and v.settingsSeq==1 and v.keep=="old")]])
+    end
+  end)
   test("plain config interruptions at every write close delete and move recover before any dimension read", function()
     local snapshots={}
     local probe=machine()

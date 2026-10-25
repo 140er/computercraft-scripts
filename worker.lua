@@ -72,6 +72,7 @@ W.save = function()
   W.journal.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
   if W.journal.dim == "minecraft:overworld" then W.journal.dim=nil end
   local ok, err = W.box.save(W.journal)
+  if ok then W.savedUncertain = W.journal.uncertain == true end
   if not ok then print("worker: journal " .. tostring(err)) end
   return ok
 end
@@ -229,10 +230,11 @@ W.holdConfig = function()
   W.configHold, W.unassigned = true, nil
   local journal = W.journal or W.box.value or {id=tostring(os.getComputerID()).."-0",seq=0,
     pose={x=0,y=0,z=0,f=0},moves={},dug={}}
+  if journal.uncertain and W.savedUncertain then return true end
   journal.uncertain, journal.recovery = true, {outcome="config recovery"}
   if W.journal then return W.save() end
   local ok = W.box.save(journal)
-  if ok then W.box.value = journal end
+  if ok then W.box.value, W.savedUncertain = journal, true end
   return ok
 end
 
@@ -460,7 +462,7 @@ W.idle = function(confirmingUnassignment)
   if not W.seen or W.now() - W.seen >= 60000 or W.repair then return false, "server offline" end
   if W.queued or W.executingBatch or j.pending or j.uncertain or W.configHold
     or W.mode == "fast" or W.mode == "back" or W.mode == "slow" and not j.park and #j.moves > 0
-    or W.job and W.job ~= "" or not confirmingUnassignment and not W.unassigned
+    or W.job and W.job ~= "" or not confirmingUnassignment and (not W.unassigned or W.now()-W.unassigned >= 45000)
     or W.lease and W.expires and W.now() < W.expires then return false, "worker busy" end
   return true
 end
@@ -582,7 +584,7 @@ W.accept = function(sender, payload)
       W.job, W.reason = msg.body.job:sub(1, 16), msg.body.reason:sub(1, 48)
       if W.job ~= "" then W.unassigned = nil
       elseif msg.body.idleRid == W.idleRid and msg.body.idleRid ~= nil and W.idle(true) then
-        W.unassigned = true
+        W.unassigned = W.now()
       end
     end
   elseif msg.t == "worker.settings" then
@@ -1179,6 +1181,7 @@ W.boot = function()
   local store = dofile("so-store.lua")
   W.store = store
   W.box = store.store("so-journal", W.valid, 16000)
+  W.savedUncertain = W.box.value and W.box.value.uncertain == true
   W.readConfig()
   W.pair.open(W.proto, store, W.now)
   W.load()

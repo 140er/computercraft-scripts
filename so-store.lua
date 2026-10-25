@@ -98,6 +98,7 @@ function M.saveConfig(path, value)
     if fs.exists(path) then fs.move(path, path .. ".bak") end
     fs.move(path .. ".tmp", path)
   end)
+  if not ok then pcall(fs.delete, path .. ".tmp") end
   return ok, err
 end
 

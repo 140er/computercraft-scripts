@@ -480,6 +480,68 @@ return function(test, equal)
     assert(refused)
   end)
 
+  test("assignment without a batch revokes local settings within one lease tick", function()
+    for _,name in ipairs({"build","mine"}) do
+      local n,s,w,lease=settingsSetup()
+      local before=w.files["so-worker.cfg"]
+      s.env.SO.mods[name]={assigned=function(id) return id==2 end}
+      lease.tick(); n.flush()
+      click(n,w,10,7); click(n,w,3,8)
+      equal(w.files["so-worker.cfg"],before,name.." assignment allowed settings before its first batch")
+      equal(w.pos,{x=0,y=0,z=0})
+    end
+  end)
+  test("an open lease revokes local settings before its batch reaches the worker", function()
+    local n,s,w,lease=settingsSetup()
+    local before=w.files["so-worker.cfg"]
+    local send=s.env.rednet.send
+    s.env.rednet.send=function(id,payload,protocol)
+      local msg=s.env.SO.proto.decode(payload)
+      if id==2 and msg and msg.t=="lease.batch" then return true end
+      return send(id,payload,protocol)
+    end
+    assert(lease.send(2,{{op="inspectDown"}},{owner="mine",ms=60000}))
+    lease.tick(); n.flush()
+    click(n,w,10,7); click(n,w,3,8)
+    equal(w.files["so-worker.cfg"],before)
+  end)
+  test("unassignment expires after 45 seconds without idle refresh despite authenticated contact", function()
+    local n,s,w=settingsSetup()
+    local send=s.env.rednet.send
+    s.env.rednet.send=function(id,payload,protocol)
+      local msg=s.env.SO.proto.decode(payload)
+      if id==2 and msg and msg.t=="worker.status" and msg.body.job=="" then return true end
+      return send(id,payload,protocol)
+    end
+    n.advance(40)
+    serverSend(n,s,"ack",{})
+    click(n,w,3,8)
+    equal(cfg(w).autoToolSwap,false,"fresh unassignment expired too early")
+    local before=w.files["so-worker.cfg"]
+    n.advance(6)
+    serverSend(n,s,"ack",{})
+    click(n,w,10,7); click(n,w,3,8)
+    equal(w.files["so-worker.cfg"],before,"stale unassignment survived authenticated contact")
+    s.env.rednet.send=send
+    n.advance(31)
+    click(n,w,3,8)
+    equal(cfg(w).autoToolSwap,true,"fresh idle refresh did not release settings")
+  end)
+  test("config recovery reuses durable journal uncertainty without repeated hello writes", function()
+    local n,s,w=settingsSetup()
+    n.kill(w)
+    w.files["so-worker.cfg.bak"],w.files["so-worker.cfg"]=w.files["so-worker.cfg"],nil
+    w.files["so-journal"]=H.encode({schema=1,generation=1,value={id="held",seq=0,
+      pose={x=0,y=0,z=0,f=0},moves={},dug={},uncertain=true}})
+    w.files["so-journal.tmp"],w.files["so-journal.bak"]=nil,nil
+    w=n.boot(w); n.advance(5)
+    local before=w.files["so-journal"]
+    equal(w.env.textutils.unserialize(before).generation,1)
+    n.advance(65)
+    equal(w.files["so-journal"],before,"held config rewrote the uncertain journal")
+    assert(w.alive(),tostring(w.error)); assert(s.alive(),tostring(s.error))
+  end)
+
   test("settings validation and failed writes retain confirmed values without equipping a tool", function()
     local n,s,w,lease=settingsSetup()
     local before=w.files["so-worker.cfg"]

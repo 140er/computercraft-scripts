@@ -230,10 +230,11 @@ end
 S.assigned = function(id)
   for _, name in ipairs({"mine", "lumber", "build"}) do
     local mod = S.module(name)
-    if mod and mod.assigned and mod.assigned(id) then return true end
+    if mod and mod.assigned and mod.assigned(id) then return true, name end
   end
   local drops = S.module("drops")
-  return drops and drops.busy and drops.busy(id) or false
+  if drops and drops.busy and drops.busy(id) then return true, "drops" end
+  return false
 end
 
 S.settingsValue = function(value)
@@ -632,8 +633,11 @@ S.tick = function(now)
         if wire then pcall(rednet.send, lease.turtleId, wire, "so") end
       end
     end
-    if row.worker and row.workerSettings and row.settingsControl and row.helloRid and not row.open and not S.assigned(id) then
-      S.describe(id, "", "")
+    if row.worker and row.workerSettings and row.settingsControl and row.helloRid then
+      local assigned, module = S.assigned(id)
+      if assigned or row.open then
+        pcall(S.describe, id, module or row.open.owner or "lease", "assigned")
+      else pcall(S.describe, id, "", "") end
     end
     count = count + 1
     if count % 64 == 0 then SO.breathe() end
