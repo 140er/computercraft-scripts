@@ -1,0 +1,61 @@
+26x20 Builder return off at 26x20
+ BUILD   job   setup  --  
+                          
+ shape     walls          
+                          
+ from     10,64,-5        
+                          
+ to       20,66,5         
+                          
+ material  cobblestone    
+                          
+ turtle   #8              
+                          
+ home     12,64,-5 E      
+                          
+                          
+                          
+                          
+                          
+                          
+    START       STOP      
+0000000088888000000000cc00
+00000000000000000000000000
+08888800000000000000000000
+00000000000000000000000000
+08888000000000000000000000
+00000000000000000000000000
+08800000000000000000000000
+00000000000000000000000000
+08888888800000000000000000
+00000000000000000000000000
+08888880000000000000000000
+00000000000000000000000000
+08888000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999999999908888888888800
+ffffffffffffff7777777fffff
+ffffffffffffffffffffffffff
+ffffffffff7777777fffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffff7777777777777fff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff
