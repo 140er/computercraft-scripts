@@ -396,4 +396,7 @@ FIXTURES += [("pocket-shoppage-P", pocket_page(search="item", stock="forty", pag
              ("pocket-shoplow-P", pocket_page(search="iron", show="low", title="Pocket SHOP, low iron items")),
              ("pocket-shopqty-P", pocket_page(search="iron 37", title="Pocket SHOP, a typed quantity of 37")),
              ("pocket-shopnoroom-P", pocket_page(search="iron", found=False,
-                                                 title="Pocket SHOP without a storage room"))]
+                                                 title="Pocket SHOP without a storage room")),
+             ("pocket-shopdupe-P", pocket_page(search="copper", selected="create:copper_ingot",
+                                               stock=[("minecraft:copper_ingot", 200), ("create:copper_ingot", 30)],
+                                               title="Pocket SHOP, two ids share COPPER INGOT"))]
