@@ -578,4 +578,18 @@ return function(test, equal)
     for _,b in ipairs(s.frame(session).buttons) do assert(not b.id:match("^saved:")) end
   end)
 
+  test("D6 keyboard panel renders when the shop module is absent", function()
+    local s=savedShop()
+    s.machine.env.SO.mods.shop=nil
+    s.screens.shop=nil
+    s.panel.tick()
+    local session={id=7,keyboard=true,panel={page="main",search=""}}
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local frame=s.frame(session,"panel",size[1],size[2])
+      equal(#frame.rows,size[2])
+      assert(frame.rows[1].text:find("PANEL",1,true))
+      for _,b in ipairs(frame.buttons) do assert(not b.id:match("^saved:")) end
+    end
+  end)
+
 end

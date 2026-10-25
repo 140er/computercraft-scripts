@@ -386,7 +386,7 @@ P.main = function(c, session, w, h)
   local function mode(row, role) return jobs[role] and modes[row.mode] or "compact" end
   local function rows(row)
     local most = 0
-    for _,role in ipairs(row) do most = math.max(most,role == "shop" and (SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) ~= "off" and 7 or 6) or P.jobRows(mode(row,role),reasons[role])) end
+    for _,role in ipairs(row) do most = math.max(most,role == "shop" and (SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) ~= "off" and 7 or 6) or P.jobRows(mode(row,role),reasons[role])) end
     return most
   end
   local function total()
