@@ -47,8 +47,14 @@ batch; the remaining quota must still cover all 40 batch calls.
 
 Pairing keys are generated only for these private fixtures and never enter
 evidence. Hashes verify that the keys survive updates. Harmless park leases
-must complete before the probes and after all ten updates. The final server
-rows must be paired and have no open, lost or uncertain lease state. Updates
+must complete before the probes and after all ten updates. After the initial
+leases, the driver reboots the fixture workers and requires a later boot's hello
+at the baseline revision plus paired, idle server rows. A completed lease keeps
+its worker deadline. Waiting for it to expire enters silence recovery and can
+make an update request fail the busy guard. This fixture reset happens before
+probe fingerprints and is separate from each update's required native reboot.
+Refusal evidence also retains early errors and the final server lease state.
+The final server rows must be paired and have no open, lost or uncertain lease state. Updates
 require idle workers, so C16 does not inject an active lease at acceptance.
 
 The optional bridge hook records only update replies, revision hellos, API
