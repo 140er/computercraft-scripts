@@ -8,7 +8,10 @@ return function(test,equal)
       assert(f.server.env.SO.mods.display.assign(3,"build")) f.advance(1)
       equal(f.frame().role,"build")
       f.press("setup","tab:setup") f.press("floor","shape-next") equal(f.job().shape,"walls")
-      f.press("job","tab:job") f.press("START") assert(f.job().alert:find("configure",1,true))
+      f.press("job","tab:job") f.press("START") local rows={}
+      for _,row in ipairs(f.frame().rows) do rows[#rows+1]=row.text end
+      assert(table.concat(rows," "):find("configure",1,true))
+      equal(f.job().blocked,nil)
       f.press("STOP") equal(f.frame().role,"build")
     end)
   end

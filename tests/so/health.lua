@@ -1105,4 +1105,85 @@ return function(test,equal)
       equal(s.visibility.events.picker,nil)
     end
   end)
+
+  local buildCauses={
+    fuel={2,"Build needs fuel"}, material={2,"Build needs material"}, range={1,"Build out of range"},
+    path={1,"Build path blocked"}, lost={1,"Build worker lost"}, pose_uncertain={1,"Build pose uncertain"},
+    save={1,"Build save failed"}, reservation={1,"Build reservation blocked"},
+    cell_occupied={1,"Build cell occupied"}, cell_unknown={1,"Build cell unknown"},
+    placement={1,"Build placement failed"}, worker_safety={1,"Build worker update required"},
+    assignment_conflict={1,"Build worker assigned elsewhere"}, dimension_mismatch={1,"Build dimension mismatch"},
+    storage_missing={2,"Build chest missing"}, storage_access={2,"Build chest inaccessible"},
+    inventory_full={2,"Build inventory full"}, device_forgotten={2,"Build worker forgotten"},
+  }
+  for cause,want in pairs(buildCauses) do
+    test("B2-B NEEDS uses the fixed cause key severity and text for "..cause,function()
+      local f=dofile("tests/so/build-fixture.lua")()
+      f.configure("floor",1,1,1)
+      f.saved.blocked,f.saved.alert=cause,"first diagnostic"
+      f.restart(true)
+      local t=health()
+      local function rows() return t.mod.attention({now=t.now,disk={},build=f.mod().facts()}) end
+      local before=rows()
+      equal(#before,1) equal(before[1].key,"build:"..cause)
+      equal(before[1].severity,want[1]) equal(before[1].text,want[2]) equal(before[1].target,"build")
+      f.saved.alert="changed diagnostic with pose uncertain fuel words"
+      f.restart(true)
+      equal(rows(),before)
+      local facts=f.mod().facts() facts.alert.text="mutated"
+      equal(rows(),before)
+    end)
+  end
+  test("B2-B NEEDS gathers current builder facts and clears resolved holds within five seconds",function()
+    local f=dofile("tests/so/build-fixture.lua")()
+    f.configure("floor",1,1,1) f.tick() f.report()
+    f.saved.blocked,f.saved.alert="path","obstructed"
+    f.restart(true)
+    local t=health()
+    t.env.SO.mods.build={facts=function() return f.mod().facts() end}
+    t.tick(t.now+5000) equal(t.mod.count(),1)
+    local session={} t.render("attention",26,20,session)
+    local opened
+    t.input("attention",session,"item:build:path",function(...) opened={...} end)
+    equal(opened,{"build"})
+    f.input("typo") t.tick(t.now+5000) equal(t.mod.count(),1)
+    f.input("material dirt") t.tick(t.now+5000) equal(t.mod.count(),0,"resolved builder hold")
+    f.saved.blocked,f.saved.alert="hold","pose uncertain"
+    f.restart(true) t.tick(t.now+5000) equal(t.mod.count(),0,"legacy generic hold")
+    f.saved.cursor,f.saved.complete=2,true f.restart(true)
+    t.tick(t.now+5000) equal(t.mod.count(),0,"completed hold")
+  end)
+
+
+  test("B2-B builder fleet needs target BUILD and do not duplicate a matching cause",function()
+    local t=health()
+    for _,cause in ipairs({"lost","pose_uncertain"}) do
+      local lease=cause=="lost" and {lost=true} or {uncertain=true}
+      local facts={now=t.now,disk={},machines={["2"]={role="worker",seen=t.now}},leases={["2"]=lease},
+        build={turtleId=2,alert={key="build:"..cause,text="Build worker held",severity=1,target="build"}}}
+      local rows=t.mod.attention(facts)
+      equal(#rows,1) equal(rows[1].key,"build:"..cause) equal(rows[1].target,"build")
+      facts.build.alert=nil
+      rows=t.mod.attention(facts)
+      equal(#rows,1) equal(rows[1].target,"build")
+    end
+  end)
+
+
+  test("B2-B builder cause keys feed B11-F sound facts without diagnostic-text churn",function()
+    local f=dofile("tests/so/build-fixture.lua")()
+    f.configure("floor",1,1,1) f.tick() f.report()
+    f.saved.blocked,f.saved.alert="path","first obstruction" f.restart(true)
+    local t=health()
+    t.env.SO.mods.build={facts=function() return f.mod().facts() end}
+    t.tick(t.now+5000) equal(t.mod.soundFacts().keys,{"build:path"})
+    f.saved.alert="a different diagnostic" f.restart(true)
+    t.tick(t.now+5000) equal(t.mod.soundFacts().keys,{"build:path"})
+    local snapshot=t.mod.soundFacts() snapshot.keys[1]="mutated"
+    equal(t.mod.soundFacts().keys,{"build:path"})
+    f.input("material dirt") t.tick(t.now+5000) equal(t.mod.soundFacts().keys,{})
+    f.saved.blocked,f.saved.alert="fuel","supply needed" f.restart(true)
+    t.tick(t.now+5000) equal(t.mod.soundFacts().keys,{}) equal(t.mod.count(),1)
+  end)
+
 end

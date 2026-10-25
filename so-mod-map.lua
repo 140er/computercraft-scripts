@@ -68,8 +68,10 @@ M.gather = function(now, pick)
   local config = M.config
   local mine = M.call("mine", "mapView") or {}
   local lumber = M.call("lumber", "mapView") or {}
-  local dim = pick or M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
+  local build = M.call("build", "mapView")
+  local dim = pick or M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim or build and build.dim)
   local s = {now=now, dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}, broken=0}
+  if build and M.dim(build.dim) == dim then s.build = SO.store.copy(build) end
   -- The next branch a running job will start, amber until a turtle takes it.
   local pv = type(mine.preview) == "table" and mine.preview
   if pv and type(pv[1]) == "table" and type(pv[2]) == "table" and M.dim(mine.dim) == dim

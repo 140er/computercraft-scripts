@@ -1384,4 +1384,44 @@ return function(test,equal)
     s.screen.input({id="map-dim", session=session, x=1, y=1}) equal(session.map.dim, "minecraft:the_end")
     s.screen.input({id="map-dim", session=session, x=1, y=1}) equal(session.map.dim, "minecraft:overworld")
   end)
+
+  test("B2-B map gathers copied dimension-filtered builder bounds and confirmed poses",function()
+    local s=setup()
+    local f=dofile("tests/so/build-fixture.lua")()
+    f.configure("floor",2,1,1) f.tick() f.report()
+    s.machine.env.SO.mods.build={mapView=function() return f.mod().mapView() end}
+    local M=mapState(s)
+    local before=f.job()
+    local view=M.gather(0).build
+    equal(view.bounds,{dim="minecraft:overworld",x1=0,y1=0,z1=0,x2=1,y2=0,z2=0})
+    equal(view.turtles["2"].pose,{dim="minecraft:overworld",x=-2,y=4,z=0,f=1})
+    equal(M.gather(0,"minecraft:the_nether").build,nil)
+    f.uncertain=true
+    view=M.gather(1).build
+    equal(view.turtles,{}) assert(view.bounds)
+    equal(f.job(),before)
+    view.bounds.x1=900
+    equal(f.mod().mapView().bounds.x1,0)
+  end)
+  test("B2-B map never aliases builder adapter tables or invents an unknown pose",function()
+    local s=setup()
+    local source={dim="minecraft:overworld",bounds={x1=0,y1=0,z1=0,x2=1,y2=0,z2=1},turtles={}}
+    s.machine.env.SO.mods.build={mapView=function() return source end}
+    local M=mapState(s)
+    local view=M.gather(0).build
+    view.bounds.x1=12
+    equal(source.bounds.x1,0) equal(view.turtles,{})
+    equal(M.gather(1).build.bounds.x1,0)
+  end)
+
+
+  test("B2-B a standalone builder supplies its dimension when the server and other jobs have none",function()
+    local s=setup()
+    s.mine,s.lumber={},{}
+    s.machine.files["so-server.cfg"]=H.encode({})
+    s.machine.env.SO.mods.build={mapView=function() return {dim="minecraft:the_nether",turtles={}} end}
+    local scene=mapState(s).gather(6000)
+    equal(scene.dim,"minecraft:the_nether") equal(scene.build.dim,"minecraft:the_nether")
+  end)
+
 end

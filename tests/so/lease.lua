@@ -513,4 +513,45 @@ return function(test, equal, read)
     equal(s.lease.settings(2,{autoToolSwap=false}),nil)
   end)
 
+
+  test("B2-B selected worker dimension and SWAP remain confirmed while pending until the matched ack",function()
+    local s=settingsServer()
+    local before=s.lease.status(2).settings
+    local rid=assert(s.lease.settings(2,{dim="minecraft:the_nether",autoToolSwap=true}))
+    equal(s.lease.status(2).settings,before)
+    equal(s.lease.status(2).settingsPending,{rid=rid,n=5})
+    equal(s.lease.settings(3,{autoToolSwap=true}),nil)
+    equal(s.lease.status(2).settings,before)
+    local confirmed={seq=2,dim="minecraft:the_nether",autoToolSwap=true,remoteN=5}
+    replySettings(s,"ack",{command="worker.settings",n=5,settings=confirmed},rid)
+    equal(s.lease.status(2).settings,confirmed) equal(s.lease.status(2).settingsPending,nil)
+    rid=assert(s.lease.settings(2,{dim="minecraft:the_end",autoToolSwap=false}))
+    equal(s.lease.status(2).settings,confirmed)
+    local newer={seq=3,dim="minecraft:the_end",autoToolSwap=false,remoteN=6}
+    s.send("hello",{role="turtle",capabilities={workerSettings=true},settingsControl=true,settings=newer})
+    equal(s.lease.status(2).settings,newer) equal(s.lease.status(2).settingsPending,nil)
+  end)
+  test("B2-B server settings respect the worker flag capability and idle assignment eligibility",function()
+    for _,case in ipairs({"worker flag","capability","build assignment","open lease","uncertain"}) do
+      local s=settingsServer()
+      if case=="worker flag" then
+        s.send("hello",{role="turtle",capabilities={workerSettings=true},settingsControl=false,
+          settings={seq=1,dim="minecraft:overworld",autoToolSwap=false}})
+      elseif case=="capability" then
+        s.send("hello",{role="turtle",capabilities={},settingsControl=true})
+      elseif case=="build assignment" then
+        s.server.env.SO.mods.build={assigned=function(id) return id==2 end}
+      elseif case=="open lease" then assert(s.lease.send(2,{{op="inspectDown"}}))
+      else s.send("hello",{role="turtle",journal={id="changed",pose={x=0,y=0,z=0,f=0},uncertain=true},
+        capabilities={workerSettings=true},settingsControl=true,
+        settings={seq=1,dim="minecraft:overworld",autoToolSwap=false}}) end
+      local before=s.lease.status(2).settings
+      local rid,err=s.lease.settings(2,{dim="minecraft:the_nether",autoToolSwap=true})
+      equal(rid,nil,case)
+      equal(err,case=="worker flag" and "settings disabled" or case=="capability" and "update required" or "worker busy",case)
+      equal(s.lease.status(2).settings,before)
+      equal(s.lease.status(2).settingsPending,nil)
+    end
+  end)
+
 end

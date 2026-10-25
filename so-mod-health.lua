@@ -66,6 +66,9 @@ local function attention(facts)
       add(role,2,role:upper().." "..tostring(job.alert or job.blocked),role)
     end
   end
+  local build = facts.build and facts.build.alert
+  if build then add(build.key,build.severity,build.text,build.target,build.actions) end
+  if facts.build and facts.build.turtleId then owners[tostring(facts.build.turtleId)] = "build" end
   if facts.configError then add("config",1,"Config unreadable; defaults active","health") end
   if facts.gpsGap and facts.gpsGap > 2 then
     add("gps",2,string.format("Server GPS gap %.1f blocks",facts.gpsGap),"health")
@@ -84,10 +87,11 @@ local function attention(facts)
       end
     end
     local seen = math.max(row.seen or 0,lease.seen or 0)
+    local buildKey = role == "build" and build and build.key
     if lease.uncertain then
-      add("pose/"..id,1,"T"..id.." pose uncertain",role,{"setup"})
+      if buildKey ~= "build:pose_uncertain" then add("pose/"..id,1,"T"..id.." pose uncertain",role,{"setup"}) end
     elseif lease.lost or ((row.role == "worker" or row.role == "turtle") and facts.now-seen>180000) then
-      if not (facts.snoozed or {})[tostring(id)] then
+      if buildKey ~= "build:lost" and not (facts.snoozed or {})[tostring(id)] then
         local pose = poseText(row.pose)
         add("lost/"..id,1,"T"..id.." lost "..duration(facts.now-seen)..(pose and " "..pose or ""),role)
         rows[#rows].lost = {id=tostring(id),seen=seen,pose=pose}
@@ -147,7 +151,7 @@ H.gather = function(now)
   local entries = SO.errors and SO.errors.entries() or {}
   local runtime = SO.health or {}
   local facts = {now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,snoozed=snoozed,
-    gpsGap=runtime.gpsGap,configError=runtime.configError,
+    build=call("build","facts"),gpsGap=runtime.gpsGap,configError=runtime.configError,
     clockRefused=SO.clock and SO.clock.refused,
     errorCount=errors.count,errorAt=entries[#entries] and entries[#entries].at,
     points=call("drops","list") or {},fuelAlerts=call("shop","fuelAlerts") or {},retirement=call("cells","retirement"),

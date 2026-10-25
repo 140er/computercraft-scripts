@@ -18,14 +18,14 @@ local function fixture(config)
     pair={key=function() return "paired" end},store={copy=copy,read=function() return config end,store=function()
       return {value=copy(f.saved),save=function(j)
         if not f.saveOK then return false,"disk full" end
-        f.saved=copy(j) return true
+        f.saved=copy(j) f.saves=(f.saves or 0)+1 return true
       end}
     end},mods={}}},{__index=_G})
   local mods=env.SO.mods
   mods.state={canStart=function() return true end,emit=function(kind,data) f.alert=type(data)=="table" and data.text or false f.event=kind end,
     get=function() return {pose=copy(pose)} end}
   mods.display={screen=function(_,r,i) render,input=r,i end}
-  mods.lease={status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost} end,
+  mods.lease={peek=function() return {uncertain=f.uncertain,lost=f.lost} end,status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost} end,
     locate=function(id,dim,done)
       f.located={id=id,dim=dim}
       if f.deferLocate then f.locateDone=done else done(f.locateError and nil or copy(pose),f.locateError) end
@@ -60,10 +60,13 @@ local function fixture(config)
     end,pick=function() error("builder must use read-only selection") end,note=function() end}
   f.chest=chest
   f.world[key(chest)]={name="minecraft:chest",stock=128}
-  local function boot()
+  local function boot(quiet)
     mod=assert(loadfile("so-mod-build.lua","t",env))()
     mod.handlers.hello({from=2,body={capabilities={parkBatch=true}}})
+    local onReport=mods.lease.onReport
+    if quiet then mods.lease.onReport=nil end
     mod.tick()
+    mods.lease.onReport=onReport
   end
   boot()
   f.mods,f.env=mods,env
@@ -71,6 +74,11 @@ local function fixture(config)
   f.render=function(w,h,session) return render(w,h,session) end
   f.press=function(id,session) input({id=id,session=session}) end
   f.job=function() return copy(f.saved) end
+  f.feedback=function(text)
+    local rows={}
+    for _,row in ipairs(render(150,30).rows) do rows[#rows+1]=row.text end
+    assert(table.concat(rows,"\n"):find(text,1,true),"missing build feedback: "..text)
+  end
   f.queued=function() return queued end
   f.setPose=function(value) pose=copy(value) end
   f.mod=function() return mod end
@@ -126,7 +134,7 @@ local function fixture(config)
     end
     return q
   end
-  f.restart=function() queued=nil boot() end
+  f.restart=function(quiet) queued=nil boot(quiet) end
   f.configure=function(shape,x,y,z)
     f.input("area 0 0 0 " .. (x-1) .. " " .. (y-1) .. " " .. (z-1))
     f.input("shape " .. shape) f.input("material stone") f.input("add 2")

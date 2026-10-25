@@ -61,7 +61,7 @@ return function(test,equal)
     local f=fixture() f.configure("floor",1,1,1) start(f)
     f.held["0,0,0"]="mine:7"
     for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
-    equal(f.count(),0) equal(f.held["0,0,0"],"mine:7") equal(f.job().blocked,"cells")
+    equal(f.count(),0) equal(f.held["0,0,0"],"mine:7") equal(f.job().blocked,"reservation")
     f.held["0,0,0"]=nil f.world["0,0,0"]="minecraft:diamond_block" f.input("start")
     for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
     equal(f.count(),0) equal(f.world["0,0,0"],"minecraft:diamond_block") equal(f.job().alert,"build cell occupied")
@@ -84,7 +84,7 @@ return function(test,equal)
       f.input("area "..top.x.." 0 "..top.z.." "..top.x.." 0 "..top.z)
       start(f)
       for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
-      equal(f.job().blocked,"lane") equal(f.count(),0)
+      equal(f.job().blocked,"reservation") equal(f.count(),0)
     end
   end)
   test("builder disk failure and uncertain poses dispatch no new work",function()
@@ -253,9 +253,9 @@ return function(test,equal)
   test("builder keeps an active worker and requires an explicit pose to re-add a forgotten worker",function()
     local f=fixture() f.configure("floor",1,1,1)
     f.input("add 3") equal(f.job().turtle.id,2)
-    equal(f.job().alert,"builder already has a turtle")
+    f.feedback("builder already has a turtle")
     assert(f.mod().forget(2)) f.input("add 2")
-    equal(f.job().alert,"add needs x y z n|e|s|w")
+    f.feedback("add needs x y z n|e|s|w")
     f.input("add 2 -2 4 0 e") equal(f.job().turtle.forgotten,nil)
   end)
 
@@ -281,12 +281,12 @@ return function(test,equal)
     f.mods.lease.status=status
     ready(f)
     f.uncertain=true f.input("start") equal(f.job().running,false)
-    assert(f.job().alert:find("pose missing or uncertain",1,true))
+    f.feedback("paired turtle pose missing or uncertain")
     f.uncertain=false f.mod().handlers.hello({from=2,body={}})
-    f.input("start") equal(f.job().alert,"update worker for builder safety")
+    f.input("start") f.feedback("update worker for builder safety")
     f.mod().handlers.hello({from=2,body={capabilities={parkBatch=true}}})
     f.fuel=0 f.restart() ready(f) f.input("start")
-    equal(f.job().running,false) equal(f.job().alert,"out of fuel")
+    equal(f.job().running,false) f.feedback("out of fuel")
   end)
   test("builder material budget is unknown before a report and counts all matching stacks",function()
     local f=fixture() f.configure("floor",5,1,5)
@@ -329,7 +329,7 @@ return function(test,equal)
     f.deferLocate=true f.input("add 2")
     equal(f.located,{id=2,dim="minecraft:overworld"})
     equal(f.job().turtle,old)
-    f.locateDone(nil,"GPS failed") equal(f.job().turtle,old) equal(f.job().alert,"GPS failed")
+    f.locateDone(nil,"GPS failed") equal(f.job().turtle,old) f.feedback("GPS failed")
     f.input("add 2")
     f.locateDone({dim="minecraft:overworld",x=7,y=8,z=9,facing=2})
     equal(f.job().turtle.pose,{dim="minecraft:overworld",x=7,y=8,z=9,facing=2})
@@ -369,7 +369,7 @@ return function(test,equal)
     f.world["-2,3,0"]={name="minecraft:chest",item="minecraft:coal",stock=0}
     f.configure("floor",1,1,1) ready(f) f.input("start")
     for _=1,30 do step(f) if f.job().blocked then break end end
-    equal(f.job().blocked,"fuelStock") equal(f.count(),0)
+    equal(f.job().blocked,"fuel") equal(f.count(),0)
     local calls=#f.calls f.tick() equal(#f.calls,calls)
     f.world["-2,3,0"].stock=1 f.now=f.now+10000 f.run() equal(f.count(),1)
   end)
@@ -458,6 +458,177 @@ return function(test,equal)
       f.input("start") f.run()
       equal(f.world["0,0,0"],"minecraft:stone") equal(f.world["1,0,0"],"minecraft:dirt")
       equal(f.placed["0,0,0"],1) equal(f.placed["1,0,0"],1)
+    end)
+  end
+
+  test("B2-B facts are idle without a blueprint and omit unassigned turtle rows",function()
+    local f=fixture()
+    equal(f.mod().facts(),{state="idle",running=false,dim="minecraft:overworld",done=0,total=0})
+    equal(f.mod().turtleView(),{})
+    equal(f.mod().mapView(),{dim="minecraft:overworld",turtles={}})
+  end)
+  test("B2-B facts export inclusive bounds confirmed world pose and placement counts without mutation",function()
+    local f=fixture() f.configure("floor",2,1,1)
+    f.inventory[1]={name="minecraft:stone",count=3}
+    f.tick() f.report() f.input("start")
+    for _=1,100 do f.tick() if f.queued() then f.report() end if f.count()==1 then break end end
+    local before,saves,calls=f.job(),f.saves,#f.calls
+    f.env.SO.breathe=function() error("getter expanded geometry") end
+    f.mods.lease.status=function() error("getter created a lease row") end
+    local facts=f.mod().facts()
+    equal({facts.state,facts.running,facts.done,facts.total},{"running",true,1,2})
+    equal(facts.bounds,{dim="minecraft:overworld",x1=0,y1=0,z1=0,x2=1,y2=0,z2=0})
+    equal(facts.pose,{dim="minecraft:overworld",x=0,y=1,z=0,f=1})
+    facts.bounds.x1=999 facts.pose.x=999
+    local turtles,map=f.mod().turtleView(),f.mod().mapView()
+    equal(turtles["2"].done,1) equal(turtles["2"].pose.x,0)
+    turtles["2"].pose.x=888 map.bounds.x1=888 map.turtles["2"].pose.x=888
+    equal(f.mod().facts().pose.x,0) equal(f.mod().mapView().bounds.x1,0)
+    equal(f.job(),before) equal(f.saves,saves) equal(#f.calls,calls)
+    f.env.SO.breathe=function() end
+  end)
+  test("B2-B unknown lost and uncertain poses omit map markers but retain bounds",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    equal(f.mod().facts().state,"recovering") equal(f.mod().facts().pose,nil)
+    equal(f.mod().mapView().turtles,{}) assert(f.mod().mapView().bounds)
+    f.tick() f.report() assert(f.mod().mapView().turtles["2"])
+    for _,field in ipairs({"lost","uncertain"}) do
+      f[field]=true
+      equal(f.mod().facts().pose,nil) equal(f.mod().mapView().turtles,{})
+      assert(f.mod().mapView().bounds)
+      f[field]=false
+    end
+    f.saved.turtle.pose=nil f.restart(true)
+    equal(f.mod().facts().pose,nil) equal(f.mod().mapView().turtles,{})
+  end)
+  test("B2-B invalid commands preserve holds and command feedback never becomes a hold",function()
+    local f=fixture() f.configure("floor",1,1,1) f.tick() f.report()
+    f.saved.blocked,f.saved.alert="path","clear the obstruction"
+    f.restart(true)
+    local before,saves=f.job(),f.saves
+    for _,command in ipairs({"typo","area bad 0 0 1 1 1","add nope"}) do
+      f.input(command)
+      equal(f.job(),before) equal(f.saves,saves)
+      equal(f.mod().facts().alert.key,"build:path")
+    end
+    f.feedback("invalid turtle")
+    local empty=fixture() empty.input("start")
+    empty.feedback("configure area, material, turtle")
+    equal(empty.mod().facts().alert,nil) equal(empty.mod().facts().state,"idle")
+  end)
+  test("B2-B configure refusals during work leave the active job and hold unchanged",function()
+    local f=fixture() f.configure("floor",1,1,1) f.tick() f.report() f.input("start")
+    local before=f.job()
+    f.input("shape walls") f.feedback("stop before configuring")
+    equal(f.job(),before) equal(f.mod().facts().alert,nil)
+    equal(f.mod().facts().state,"running")
+  end)
+  test("B2-B completion has no hold and resets to stopped after a new blueprint",function()
+    local f=fixture() f.configure("floor",1,1,1) f.tick() f.report() f.input("start") f.run()
+    local facts=f.mod().facts()
+    equal({facts.state,facts.done,facts.total,facts.running},{"complete",1,1,false})
+    equal(facts.alert,nil) equal(f.job().blocked,nil)
+    f.input("area 0 0 0 1 0 0") equal(f.mod().facts().state,"stopped")
+    equal(f.mod().facts().done,0)
+  end)
+  test("B2-B legacy generic holds survive recovery without severity inference or automatic resume",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    f.saved.blocked,f.saved.alert,f.saved.running="hold","out of fuel; pose uncertain",true
+    f.restart() f.report()
+    equal(f.mod().facts().state,"held") equal(f.mod().facts().alert,nil)
+    local calls=#f.calls
+    for _=1,5 do f.tick() end
+    equal(#f.calls,calls) equal(f.job().blocked,"hold")
+    f.input("start") equal(f.job().blocked,nil) equal(f.mod().facts().state,"running")
+  end)
+  test("B2-B legacy named causes normalize without parsing diagnostic text",function()
+    for old,new in pairs({["pose uncertain"]="pose_uncertain",["device forgotten"]="device_forgotten",
+      cells="reservation",lane="reservation",fuelStock="fuel"}) do
+      local f=fixture() f.configure("floor",1,1,1)
+      f.saved.blocked,f.saved.alert=old,"unrelated diagnostic"
+      f.restart(true)
+      equal(f.mod().facts().state,"held") equal(f.mod().facts().alert.key,"build:"..new)
+    end
+  end)
+  test("B2-B forgotten builders expose replacement setup while omitting the assigned turtle",function()
+    local f=fixture() f.configure("floor",1,1,1) f.tick() f.report()
+    assert(f.mod().forget(2))
+    equal(f.mod().facts().alert.key,"build:device_forgotten")
+    equal(f.mod().facts().alert.actions,{"setup"})
+    equal(f.mod().turtleView(),{}) equal(f.mod().mapView().turtles,{})
+    assert(f.mod().facts().bounds)
+  end)
+
+
+  test("B2-B save failure exposes its safety cause without a durable write",function()
+    local f=fixture() f.configure("floor",1,1,1) f.tick() f.report()
+    local before=f.job()
+    f.saveOK=false f.input("material dirt")
+    equal(f.mod().facts().alert.key,"build:save") equal(f.mod().facts().state,"held")
+    equal(f.job(),before) equal(f.queued(),nil)
+  end)
+  test("B2-B transient feedback expires and reveals the existing hold after five seconds",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    f.saved.blocked,f.saved.alert="path","clear the obstruction" f.restart(true)
+    f.input("typo") f.feedback("invalid command")
+    f.now=f.now+5000 f.feedback("clear the obstruction")
+    equal(f.mod().facts().alert.key,"build:path")
+  end)
+  test("B2-B operational reservation and occupied-cell failures expose distinct safety causes",function()
+    local f=fixture() f.configure("floor",1,1,1) f.tick() f.report() f.input("start")
+    f.held["0,0,0"]="mine:7"
+    for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
+    equal(f.mod().facts().alert.key,"build:reservation")
+    f.held["0,0,0"]=nil f.world["0,0,0"]="minecraft:diamond_block" f.input("start")
+    for _=1,100 do f.tick() if f.queued() then f.report() end if f.job().blocked then break end end
+    equal(f.mod().facts().alert.key,"build:cell_occupied") equal(f.world["0,0,0"],"minecraft:diamond_block")
+  end)
+
+
+  test("B2-B completed legacy cursors clear stale holds in BUILD and every adapter",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    f.saved.cursor,f.saved.blocked,f.saved.alert=2,"hold","build complete"
+    f.restart(true)
+    equal(f.mod().facts().state,"complete") equal(f.mod().facts().alert,nil)
+    equal(f.mod().turtleView()["2"].error,nil)
+    equal(f.job().blocked,nil) equal(f.job().alert,nil)
+  end)
+
+
+  test("B2-B failed completion save stays held until the completion is durable",function()
+    local f=fixture() f.configure("floor",1,1,1)
+    f.inventory[1]={name="minecraft:stone",count=1}
+    f.tick() f.report() f.input("start")
+    for _=1,100 do
+      f.tick()
+      local q=f.queued()
+      if q and q.steps[#q.steps].op=="placeDown" then f.saveOK=false f.report() break end
+      if q then f.report() end
+    end
+    equal(f.count(),1) equal(f.mod().facts().state,"held")
+    equal(f.mod().facts().alert.key,"build:save") equal(f.job().cursor,1)
+    f.saveOK=true f.tick()
+    equal(f.mod().facts().state,"complete") equal(f.mod().facts().alert,nil)
+    equal(f.job().cursor,2) equal(f.job().blocked,nil)
+  end)
+
+
+  for _,cause in ipairs({"storage_missing","storage_access","dimension_mismatch"}) do
+    test("B2-B fuel planning records its explicit "..cause.." cause",function()
+      local f=fixture({builderFuelTrips=true}) f.configure("floor",1,1,1)
+      f.tick() f.report()
+      f.fuelChest={id="fuel",kind="fuel",dim=0,x=-3,y=0,z=0,side="front"}
+      f.input("start") assert(f.job().running)
+      if cause=="storage_missing" then f.fuelChest=nil
+      elseif cause=="dimension_mismatch" then f.fuelChest.dim=-1
+      else
+        for _,p in ipairs({{-3,0,-1},{-2,0,0},{-3,0,1},{-4,0,0}}) do
+          f.held[table.concat(p,",")]="mine:7"
+        end
+      end
+      f.tick()
+      equal(f.mod().facts().alert.key,"build:"..cause)
+      equal(f.queued(),nil) equal(f.count(),0)
     end)
   end
 
