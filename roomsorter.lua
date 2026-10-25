@@ -955,6 +955,7 @@ cfg.interval = cfg.interval or 5      -- seconds between looks in the input ches
 cfg.minFuel = cfg.minFuel or 1000     -- turtle refuels below this
 cfg.extraSmelt = cfg.extraSmelt or {} -- e.g. { "minecraft:oak_log", "minecraft:sand" } (normal furnaces only)
 cfg.noSmelt = cfg.noSmelt or {}
+cfg.managedOutput = cfg.managedOutput == true
 if cfg.charcoal == nil then cfg.charcoal = true end -- logs -> charcoal (normal furnaces only)
 cfg.keepLogs = cfg.keepLogs or 32     -- logs of each kind that stay logs (for planks, chests)
 cfg.fuels = cfg.fuels or { "minecraft:charcoal", "minecraft:coal", "minecraft:coal_block", "minecraft:dried_kelp_block" }
@@ -984,6 +985,131 @@ local function setState(s) status.state = s os.queueEvent("room_redraw") end
 
 -- Constant tables live in K to keep the main chunk under Cobalt's local limit.
 local K = {}
+
+K.output = { path = "room.output" }
+
+do
+local o = K.output
+function o.integer(n)
+  return type(n) == "number" and n % 1 == 0 and n >= 0 and n < 9007199254740991
+end
+
+function o.point(p)
+  return type(p) == "table" and (p.dim == "minecraft:overworld" or p.dim == "minecraft:the_nether"
+    or p.dim == "minecraft:the_end") and type(p.x) == "number" and p.x % 1 == 0
+    and math.abs(p.x) <= 30000000 and type(p.y) == "number" and p.y % 1 == 0 and math.abs(p.y) <= 30000000
+    and type(p.z) == "number" and p.z % 1 == 0 and math.abs(p.z) <= 30000000
+end
+
+function o.same(a, b)
+  return o.point(a) and o.point(b) and a.dim == b.dim and a.x == b.x and a.y == b.y and a.z == b.z
+end
+
+function o.token(t)
+  return type(t) == "string" and #t > 0 and #t <= 128
+end
+
+function o.valid(s)
+  if type(s) ~= "table" or s.v ~= 1 or not o.integer(s.generation) or s.generation < 1
+    or not o.integer(s.highWater) or not o.integer(s.barrier)
+    or s.barrier > s.generation or not ({busy=true,claimed=true,settled=true,quarantined=true})[s.state] then return false end
+  if s.server ~= nil and not o.integer(s.server) then return false end
+  if s.output ~= nil and (not o.point(s.output) or type(s.cell) ~= "string"
+    or not s.cell:match("^%-?%d+,%-?%d+,%-?%d+$")) then return false end
+  if s.claim ~= nil then
+    local c = s.claim
+    if type(c) ~= "table" or not o.token(c.token) or not o.integer(c.rid)
+      or c.rid > s.highWater or not s.server or not s.output then return false end
+    if c.requestRid ~= nil and (not o.integer(c.requestRid) or c.requestRid <= c.rid
+      or c.requestRid > s.highWater) then return false end
+  end
+  if s.work ~= nil then
+    local w = s.work
+    if type(w) ~= "table" or not s.claim or w.rid ~= s.claim.requestRid or w.token ~= s.claim.token
+      or (w.cmd ~= "get" and w.cmd ~= "order") or type(w.text) ~= "string" or #w.text > 256
+      or not o.integer(w.n) or w.n < 1 then return false end
+  end
+  return true
+end
+
+function o.copy(s)
+  return textutils.unserialize(textutils.serialize(s, { compact = true }))
+end
+
+function o.read(path)
+  if not fs.exists(path) then return nil end
+  local h = assert(fs.open(path, "r"), "open failed")
+  local bytes = h.readAll()
+  h.close()
+  assert(#bytes <= 65536, "state too large")
+  local s = textutils.unserialize(bytes)
+  assert(o.valid(s), "invalid state")
+  return s, bytes
+end
+
+function o.save(s)
+  if o.fault or o.saving or s.generation ~= o.state.generation then return false end
+  o.saving = true
+  s = o.copy(s)
+  s.generation = o.state.generation + 1
+  local h
+  local ok = pcall(function()
+    assert(o.valid(s), "invalid state")
+    local bytes = textutils.serialize(s, { compact = true })
+    assert(#bytes <= 65536, "state too large")
+    if o.source and o.source ~= o.path then
+      if fs.exists(o.path) then fs.delete(o.path) end
+      fs.move(o.source, o.path)
+      o.source = o.path
+    end
+    h = assert(fs.open(o.path .. ".tmp", "w"), "output save failed")
+    h.write(bytes)
+    h.close()
+    h = nil
+    local checked, written = o.read(o.path .. ".tmp")
+    assert(checked and written == bytes, "verification failed")
+    if fs.exists(o.path .. ".bak") then fs.delete(o.path .. ".bak") end
+    if fs.exists(o.path) then fs.move(o.path, o.path .. ".bak") end
+    fs.move(o.path .. ".tmp", o.path)
+  end)
+  if h then pcall(h.close) end
+  o.saving = false
+  if not ok then o.fault = true return false end
+  o.state, o.source = s, o.path
+  return true
+end
+
+function o.init()
+  o.state = { v=1, generation=0, highWater=0, barrier=0, state="busy" }
+  o.enabled = cfg.managedOutput == true
+  for _, path in ipairs({o.path, o.path .. ".tmp", o.path .. ".bak"}) do
+    if fs.exists(path) then
+      o.enabled = true
+      local ok, s = pcall(o.read, path)
+      if not ok then o.fault = true
+      elseif s.generation > o.state.generation then o.state, o.source = s, path end
+    end
+  end
+  if not o.enabled or o.fault then return end
+  local s = o.copy(o.state)
+  if s.generation > 0 then s.state = "quarantined" end
+  o.save(s)
+end
+
+function o.closed()
+  return o.enabled and (o.fault or o.saving or o.reconcile or o.state.state == "quarantined")
+end
+
+function o.quarantine()
+  if not o.enabled then return end
+  local s = o.copy(o.state)
+  s.state = "quarantined"
+  o.save(s)
+end
+
+end
+
+K.output.init()
 
 ---------------------------------------------------------------------------
 -- Items
@@ -1576,6 +1702,7 @@ local function scanRoom(height)
 end
 
 if args[1] == "scan" then
+  if K.output.enabled then print("Managed output refuses a new room scan.") return end
   local placed = 0
   for _, e in pairs(idx) do if e.kind ~= "input" and e.kind ~= "output" then placed = placed + 1 end end
   local force, height = false, nil
@@ -2227,6 +2354,7 @@ end
 
 -- Fuel in its own slots (also what you put straight into the turtle): no moving needed
 function refuelCarried()
+  if K.output.enabled and K.output.state.state ~= "settled" then return false end
   -- Lava buckets are always burnt when they fit (1000 each), never stored; the empty
   -- buckets go to storage
   for _, c in ipairs(carried(function(n) return n == "minecraft:lava_bucket" end)) do
@@ -2247,7 +2375,7 @@ function refuelCarried()
 end
 
 function refuelSelf()
-  refuelCarried()
+  if refuelCarried() == false then return end
   if fuelLeft() >= cfg.minFuel then return end
   -- Lava buckets in storage first (put there by older versions), then coal and the like
   if (totals()["minecraft:lava_bucket"] or 0) > 0 and fuelRoom() >= 1000 and freeSlots() > 1 then
@@ -2597,6 +2725,7 @@ end
 -- the blocks near the old spot (nearest and lowest first), take open spots into the map
 -- so it can go into a hole, and use the first chest that isn't one of its own.
 local function findOutput()
+  if K.output.enabled then return false, "Managed output refuses automatic relocation." end
   local oldK
   for k, e in pairs(idx) do if e.kind == "output" then oldK = k end end
   if not oldK then return false, "No pickup chest known yet." end
@@ -2655,6 +2784,11 @@ local function findOutput()
 end
 
 local function deliver(req)
+  if K.output.closed() then error("Output quarantined", 0) end
+  if K.output.enabled then assert(storeAll(true) and carriedCount() == 0, "Existing cargo remains") end
+  if K.output.enabled and K.output.state.cell then
+    if idx[K.output.state.cell] ~= outputEntry() then error("Output changed", 0) end
+  end
   local out = outputEntry()
   if not out then log("No output chest", true) return end
   -- Still there? If not, look for it nearby first
@@ -2670,13 +2804,15 @@ local function deliver(req)
   local left = req.n
   setState("Getting " .. pretty(req.name))
   while left > 0 do
+    if K.output.closed() then error("Output quarantined", 0) end
     local got = fetch(req.name, left)
     if got == 0 then break end
     local side = goToInv(out)
     for _, c in ipairs(carried(function(n) return n == req.name end)) do
       turtle.select(c.slot)
       local before = turtle.getItemCount(c.slot)
-      K.DROP[side]()
+      if K.output.closed() then error("Output quarantined", 0) end
+      if K.output.enabled then K.DROP[side](math.min(left, before)) else K.DROP[side]() end
       local m = before - turtle.getItemCount(c.slot)
       left = left - m
       stats.delivered = stats.delivered + m
@@ -2686,6 +2822,7 @@ local function deliver(req)
     turtle.select(1)
     if carriedCount(function(n) return n == req.name end) > 0 then
       log("Output chest is full", true)
+      if K.output.enabled then error("Output cargo remains", 0) end
       break
     end
   end
@@ -2694,7 +2831,11 @@ end
 
 local function serveRequests()
   while #requests > 0 do
+    if K.output.closed() then return end
     local r = table.remove(requests, 1)
+    if K.output.enabled and K.output.state.claim and (r.outputRid ~= K.output.state.claim.requestRid
+      or r.outputToken ~= K.output.state.claim.token) then error("Unlinked output request", 0) end
+    K.output.active = r
     deliver(r)
   end
 end
@@ -2887,11 +3028,13 @@ end
 
 -- Craft 'want' of 'out' into storage, making missing parts first. Returns how many it made.
 local function craftItem(out, want, depth, visiting)
+  if K.output.closed() then error("Output quarantined", 0) end
   visiting = visiting or {}
   if visiting[out] or depth > 4 then return 0 end
   visiting[out] = true
   local made = 0
   for _ = 1, 20 do
+    if K.output.closed() then error("Output quarantined", 0) end
     if made >= want then break end
     local stock = totals()
     local rs = {}
@@ -2991,6 +3134,7 @@ local function craftItem(out, want, depth, visiting)
       end
       local before = countCarried(out)
       turtle.select(4)
+      if K.output.closed() then error("Output quarantined", 0) end
       local ok, err = turtle.craft(steps)
       turtle.select(1)
       local got = countCarried(out) - before
@@ -3005,7 +3149,11 @@ end
 
 local function serveCrafts()
   while #crafts > 0 do
+    if K.output.closed() then return end
     local c = table.remove(crafts, 1)
+    if K.output.enabled and K.output.state.claim and (c.outputRid ~= K.output.state.claim.requestRid
+      or c.outputToken ~= K.output.state.claim.token) then error("Unlinked output craft", 0) end
+    K.output.active = c
     if not crafty() then
       log("Can't craft: no crafting table on the turtle (put one in the drop-off chest)", true)
     else
@@ -3018,7 +3166,7 @@ local function serveCrafts()
         stats.crafted[c.name] = (stats.crafted[c.name] or 0) + 1 -- how often, not how many
         log("Crafted " .. made .. " " .. pretty(c.name))
       end
-      if total > 0 then deliver({ name = c.name, n = total }) end
+      if total > 0 then deliver({ name = c.name, n = total, outputRid = c.outputRid, outputToken = c.outputToken }) end
       if made < c.n then log("Crafted only " .. made .. " " .. pretty(c.name) .. ": not enough " .. (lastMissing or "ingredients"), true) end
     end
   end
@@ -3063,6 +3211,7 @@ local function deepCounter(stock)
 end
 
 urgent = function()
+  if K.output.closed() then return end
   if #requests > 0 then serveRequests() end
   if #crafts > 0 then serveCrafts() end
 end
@@ -3127,8 +3276,21 @@ local function learn()
 end
 
 -- Shared by the turtle prompt and the client. Returns lines of text.
-local function command(cmd, text, n)
+local function command(cmd, text, n, admitted)
   cmd = (cmd or ""):lower()
+  if K.output.enabled then
+    if cmd == "output" then
+      if text ~= "reconcile" then return { "output reconcile" } end
+      K.output.quarantine()
+      K.output.reconcile = true
+      os.queueEvent("room_request")
+      return { "Output reconciliation requested." }
+    end
+    if cmd == "pickup" then return { "Managed output refuses automatic relocation." } end
+    if cmd == "craft" or ((cmd == "get" or cmd == "order") and not admitted) then
+      return { "output claim required" }
+    end
+  end
   if cmd == "list" or cmd == "find" then
     local t = totals()
     local l = {}
@@ -3141,7 +3303,11 @@ local function command(cmd, text, n)
     return out
   elseif cmd == "get" then
     if not text or text == "" then return { "get <item> [n]" } end
-    local name, found = matchItem(text)
+    local name, found
+    if K.output.enabled then
+      name, found = text, {}
+      if (totals()[name] or 0) <= 0 then return { "None in storage." } end
+    else name, found = matchItem(text) end
     if not name then
       if #found == 0 then return { "None in storage." } end
       local out = { "Which one?" }
@@ -3150,7 +3316,8 @@ local function command(cmd, text, n)
     end
     if not outputEntry() then return { "No output chest." } end
     n = math.min(n or stackOf(name), totals()[name] or 0)
-    requests[#requests + 1] = { name = name, n = n }
+    requests[#requests + 1] = { name = name, n = n,
+      outputRid = admitted and K.output.state.work.rid, outputToken = admitted and K.output.state.work.token }
     os.queueEvent("room_request")
     return { "Getting " .. n .. " " .. pretty(name) .. "..." }
   elseif cmd == "blocked" then
@@ -3207,7 +3374,8 @@ local function command(cmd, text, n)
     stats.orders = stats.orders or {}
     stats.orders[name] = (stats.orders[name] or 0) + 1
     if have >= n then
-      requests[#requests + 1] = { name = name, n = n }
+      requests[#requests + 1] = { name = name, n = n,
+        outputRid = admitted and K.output.state.work.rid, outputToken = admitted and K.output.state.work.token }
       os.queueEvent("room_request")
       return { "Getting " .. n .. " " .. pretty(name) .. "..." }
     end
@@ -3215,7 +3383,8 @@ local function command(cmd, text, n)
     if crafty() and #recipesFor(name) > 0 then possible = (deepCounter(totals()))(name) end
     if possible > 0 then
       local make = math.min(n - have, possible)
-      crafts[#crafts + 1] = { name = name, n = make, deliver = have + make }
+      crafts[#crafts + 1] = { name = name, n = make, deliver = have + make,
+        outputRid = admitted and K.output.state.work.rid, outputToken = admitted and K.output.state.work.token }
       os.queueEvent("room_request")
       local out = { (have > 0 and ("Getting " .. have .. " " .. pretty(name) .. " and crafting " .. make .. " more...")
         or ("Crafting " .. make .. " " .. pretty(name) .. "...")), "It all goes to the pickup chest." }
@@ -3223,7 +3392,8 @@ local function command(cmd, text, n)
       return out
     end
     if have > 0 then
-      requests[#requests + 1] = { name = name, n = have }
+      requests[#requests + 1] = { name = name, n = have,
+        outputRid = admitted and K.output.state.work.rid, outputToken = admitted and K.output.state.work.token }
       os.queueEvent("room_request")
       return { "Only " .. have .. " in storage (no recipe): getting those." }
     end
@@ -3303,6 +3473,113 @@ local function command(cmd, text, n)
     "build, status, blocked, unblock [x,y,z], resync, pickup, pause, resume, learn" }
 end
 
+function K.output.receipt(b, state, reason)
+  local o = K.output
+  local c = o.state.claim
+  return { reason, v=1, rid=b.rid, outputToken=b.outputToken,
+    requestRid=(c and c.requestRid) or b.requestRid, state=state, barrier=o.state.barrier, error=reason }
+end
+
+function K.output.network(sender, b)
+  local o = K.output
+  local cmd = type(b.cmd) == "string" and b.cmd:lower() or ""
+  local control = cmd == "output.claim" or cmd == "output.status" or cmd == "output.release"
+  if not o.enabled then
+    if control or b.outputToken ~= nil then return o.receipt(b, "refused", "room support missing") end
+    return command(b.cmd, b.text, b.n)
+  end
+  if cmd == "output" then return o.receipt(b, "refused", "local reconciliation required") end
+  if not control and cmd ~= "get" and cmd ~= "order" then return command(cmd, b.text, b.n) end
+  if o.fault then return o.receipt(b, "quarantined", "output save failed") end
+  if o.saving then return o.receipt(b, "busy", "saving output") end
+  local s = o.state
+  if s.server ~= nil and sender ~= s.server then return o.receipt(b, "refused", "server mismatch") end
+  if not o.integer(b.rid) or b.rid < 1 or not o.token(b.outputToken) then
+    return o.receipt(b, "refused", "invalid output request")
+  end
+  if control and not o.point(b.output) then return o.receipt(b, "refused", "invalid output") end
+  if s.output and ((control and not o.same(s.output, b.output))
+    or (b.output ~= nil and not o.same(s.output, b.output))) then
+    return o.receipt(b, "refused", "output mismatch")
+  end
+  if cmd == "output.claim" then
+    if cfg.managedOutput ~= true then return o.receipt(b, "quarantined", "managed output disabled") end
+    if s.claim then return o.receipt(b, "busy", "output claimed") end
+    if o.closed() or s.state ~= "settled" then return o.receipt(b, o.closed() and "quarantined" or "busy") end
+    if b.rid <= s.highWater then return o.receipt(b, "refused", "retired rid") end
+    local cell
+    for k, e in pairs(idx) do if e.kind == "output" then cell = k end end
+    if not cell or (s.cell and cell ~= s.cell) then return o.receipt(b, "quarantined", "output changed or missing") end
+    local updated = o.copy(s)
+    updated.server, updated.cell = sender, cell
+    updated.output = {dim=b.output.dim,x=b.output.x,y=b.output.y,z=b.output.z}
+    updated.highWater, updated.state = b.rid, "claimed"
+    updated.claim = {token=b.outputToken,rid=b.rid}
+    if not o.save(updated) then return o.receipt(b, "quarantined", "output save failed") end
+    return o.receipt(b, "claimed")
+  end
+  local c = s.claim
+  if cmd == "output.status" and not c and b.requestRid == nil then return o.receipt(b, s.state) end
+  if not c or c.token ~= b.outputToken then return o.receipt(b, "refused", "output claim required") end
+  if b.requestRid ~= nil and b.requestRid ~= c.requestRid then
+    return o.receipt(b, "refused", "request mismatch")
+  end
+  if cmd == "output.status" then return o.receipt(b, s.state) end
+  if cmd == "output.release" then
+    if o.closed() or s.state ~= "settled" or b.barrier ~= s.barrier then
+      return o.receipt(b, o.closed() and "quarantined" or "busy", "settled barrier required")
+    end
+    if b.rid <= s.highWater then return o.receipt(b, "refused", "retired rid") end
+    local updated = o.copy(s)
+    updated.highWater, updated.claim = b.rid, nil
+    if not o.save(updated) then return o.receipt(b, "quarantined", "output save failed") end
+    return o.receipt(b, "released")
+  end
+  if cfg.managedOutput ~= true or o.closed() then return o.receipt(b, "quarantined") end
+  if c.requestRid or s.work then return o.receipt(b, "busy", "one request per claim") end
+  if b.rid <= s.highWater then return o.receipt(b, "refused", "retired rid") end
+  if type(b.text) ~= "string" or #b.text > 256 or not o.integer(b.n) or b.n < 1 or b.n > 64 then
+    return o.receipt(b, "refused", "invalid order")
+  end
+  if cmd == "get" and not b.text:match("^[a-z0-9_.-]+:[a-z0-9_./-]+$") then
+    return o.receipt(b, "refused", "exact item id required")
+  end
+  local updated = o.copy(s)
+  updated.highWater, updated.state, updated.claim.requestRid = b.rid, "busy", b.rid
+  updated.work = {rid=b.rid,token=c.token,cmd=cmd,text=b.text,n=b.n}
+  if not o.save(updated) then return o.receipt(b, "quarantined", "output save failed") end
+  local ok, lines = pcall(command, cmd, b.text, b.n, true)
+  if not ok then o.quarantine() return o.receipt(b, "quarantined", "order admission failed") end
+  local reply = o.receipt(b, "busy")
+  for i, line in ipairs(lines) do reply[i] = line end
+  os.queueEvent("room_request")
+  return reply
+end
+
+function K.output.boundary()
+  local o = K.output
+  if not o.enabled or o.fault or o.saving then return end
+  o.active = nil
+  local s = o.state
+  if s.state == "quarantined" and not o.reconcile then return end
+  if o.reconcile then
+    for i = #requests, 1, -1 do requests[i] = nil end
+    for i = #crafts, 1, -1 do crafts[i] = nil end
+  elseif #requests > 0 or #crafts > 0 or s.state == "settled" then return end
+  local ok = pcall(function()
+    assert(storeAll(true), "Cargo not stored")
+    assert(carriedCount() == 0, "Output cargo remains")
+    goHome()
+  end)
+  if not ok then o.quarantine() o.reconcile = false return end
+  if o.state.generation ~= s.generation then return end
+  local updated = o.copy(s)
+  updated.state, updated.work = "settled", nil
+  updated.barrier = s.generation + 1
+  o.save(updated)
+  o.reconcile = false
+end
+
 ---------------------------------------------------------------------------
 -- Screen
 ---------------------------------------------------------------------------
@@ -3377,6 +3654,7 @@ end
 -- Main
 ---------------------------------------------------------------------------
 local function round()
+  if K.output.closed() then return end
   if resyncRequest then
     resyncRequest = false
     resync()
@@ -3457,6 +3735,7 @@ local function worker()
       emptied = false
       local ok2, err2 = pcall(round)
       if not ok2 then
+        K.output.quarantine()
         if tostring(err2):find("^No way to") then
           -- a spot it wanted got blocked; the map knows now, carry on without it
           log("Can't reach " .. tostring(err2):match("^No way to (%S+)") .. ", skipping it")
@@ -3466,6 +3745,7 @@ local function worker()
         pcall(goHome)
       end
     end
+    K.output.boundary()
     setState(paused and "Paused" or (status.full and "Storage full" or "Waiting for items"))
     -- Sleep, but wake up for a request
     local timer = os.startTimer(cfg.interval)
@@ -3551,7 +3831,7 @@ local function remote()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "rednet_message" and c == PROTOCOL and type(b) == "table" then
-      local reply = command(b.cmd, b.text, b.n)
+      local reply = K.output.network(a, b)
       if type(reply) == "table" then reply.rid = b.rid end -- so the asking screen knows it's its answer
       rednet.send(a, reply, PROTOCOL)
     elseif ev == "timer" and a == tick then
