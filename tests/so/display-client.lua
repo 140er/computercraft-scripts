@@ -612,4 +612,41 @@ return function(test,equal)
     assert(sentTo(log,"hello")[1] and not sentTo(log,"hello")[3])
     equal(t.c.files["so-keys"],old)
   end)
+
+  test("repair: read-only taps with retryInput off send no more than the timer alone",function()
+    local function run(tap)
+      local t=setup(29,12,true,false,{repairServer=true}); pair(t); t.n.advance(3)
+      stale(t); t.n.advance(20)
+      local log=stamp(t)
+      for _=1,20 do
+        if tap then event(t,"monitor_touch","right",2,1) end
+        t.n.advance(0.1)
+      end
+      return count(log,"hello"),count(log,"view.sub")
+    end
+    local hello,sub=run(true)
+    local timerHello,timerSub=run(false)
+    assert(hello<=timerHello and sub<=timerSub,"taps sent "..hello.." hellos, timer alone "..timerHello)
+  end)
+
+  test("repair: CANCEL is neither drawn nor accepted while the code exchange runs",function()
+    local t=setup(29,12,true,false,{repairServer=true}); pair(t); t.n.advance(3)
+    local old=t.c.files["so-keys"]
+    stale(t); local s=replace(t,3)
+    event(t,"char","r"); event(t,"key",257); event(t,"key",257); event(t,"key",257)
+    assert(shows(t.own,"[X] CANCEL"),t.own.text())
+    local good=codeOn(t,s)
+    local send=s.env.rednet.send
+    s.env.rednet.send=function() return true end
+    typeText(t,good)
+    assert(shows(t.own,"Pairing...") and not shows(t.own,"CANCEL"),t.own.text())
+    assert(shows(t.face,"Pairing...") and not shows(t.face,"CANCEL"),t.face.text())
+    event(t,"char","x"); t.n.advance(1)
+    assert(shows(t.own,"Pairing...") and not shows(t.own,"CANCEL"),t.own.text())
+    t.n.advance(20)
+    s.env.rednet.send=send
+    assert(shows(t.own,"Pair failed") and shows(t.own,"[X] CANCEL"),t.own.text())
+    assert(shows(t.own,"Server 3"),"the swallowed x cancelled: "..t.own.text())
+    equal(t.c.files["so-keys"],old)
+  end)
 end

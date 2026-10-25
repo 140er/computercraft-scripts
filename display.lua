@@ -311,7 +311,7 @@ C.drawPair = function()
       C.pairError or (C.server and "Ready for code" or "Looking for server..."),
       "Code: " .. C.digits,
     }
-    if f and not f.view then lines[#lines + 1] = "[X] CANCEL" end
+    if f and not f.view and not f.busy then lines[#lines + 1] = "[X] CANCEL" end
     local y = 1
     for _, line in ipairs(lines) do
       repeat
@@ -329,7 +329,10 @@ end
 C.retry = function()
   -- REPAIR idle for 2 minutes resumes the old server; during a change nothing goes to it.
   local f = C.fix
-  if f and C.now() - f.at > 120000 then return C.closeFix() end
+  if f and C.now() - f.at > 120000 then
+    C.closeFix()
+    f = nil
+  end
   if f and f.old then return C.arm(5) end
   -- Every keyed retry, in any phase, waits out the shared 2 s limit.
   if C.server and C.pair.key(C.server) and C.retryWait() > 0 then
@@ -377,10 +380,13 @@ C.recallStep = function(step)
 end
 
 C.join = function()
+  local f = C.fix
+  -- join blocks and swallows keys until it ends, so REPAIR shows no CANCEL meanwhile.
+  if f then f.busy = true end
   C.pairError = "Pairing..."
   C.drawPair()
-  local f = C.fix
   local ok, reason = C.pair.join(C.digits, f and f.cand or C.server, f and { replace = f.old })
+  if f then f.busy = nil end
   C.attempt = 0
   if ok and f then
     -- Only the new server's key is saved; the old picture is not drawn again.
@@ -406,8 +412,8 @@ end
 C.closeFix = function()
   C.server, C.fix, C.digits, C.pairError = C.fix.old or C.server, nil, "", nil
   if C.out ~= term then term.clear() end
+  -- The timer that is already armed resumes the old server; input never retries from here.
   if C.repair then C.drawPair() else C.clipDraw() end
-  C.retry()
 end
 
 -- Returns true when REPAIR took the event.
@@ -425,6 +431,8 @@ C.fixInput = function(ev, a, c)
   if not f then
     if not (keyed and (ev == "char" and a == "r" or ev == "mouse_click" and c == 1) and C.repairOn()) then return false end
     C.fix = { step = 1, at = C.now() }
+  elseif f.busy then
+    return true
   elseif f.view then
     f.view = nil
   elseif ev == "char" and a == "x" then
