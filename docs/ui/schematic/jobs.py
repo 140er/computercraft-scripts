@@ -39,7 +39,7 @@ def last_row(h, wide):
 
 # ================================================================ mining
 
-def mining_model(empty=False):
+def mining_model(empty=False, job_updates=None, worker_updates=None, worker_ids=None, alert=None):
     """What so-mod-mine's gather builds: job facts, one row per turtle, the dug extent per branch.
     empty: the job before its first branch (jobs-scene's emptymine line), no turtle on a branch."""
     g = S["g"]
@@ -50,6 +50,8 @@ def mining_model(empty=False):
     for t in ST["turtles"]:
         if t["job"] != "mine":
             continue
+        if worker_ids is not None and t["id"] not in worker_ids:
+            continue
         p = S["poses"][str(t["id"])]
         lane = t["at"] == "lane"
         rows.append(dict(id=t["id"], pose=dict(x=p["x"], y=p["y"], z=p["z"], facing=p["f"]), state=t["state"],
@@ -57,12 +59,14 @@ def mining_model(empty=False):
                          branch=lanes.get(t["id"]) if lane else int(t["at"])))
         if fresh:
             rows[-1].update(state=fresh[1], lane=False, branch=None)
+        rows[-1].update((worker_updates or {}).get(t["id"], {}))
     job = dict(home=dict(x=g["home"][0], y=g["home"][1], z=g["home"][2], facing=hf), homeSet=True,
                bottom=g["bottom"], length=g["length"], mode=g["mode"], ores=[],
                running=ST["mining"]["running"], done=ST["mining"]["done"], total=ST["mining"]["total"])
     if fresh:
         job.update(running=fresh[0] == "running", done=0, total=0)
-    m = mining_gather(job, rows, ST["today"]["ore"], None)
+    job.update(job_updates or {})
+    m = mining_gather(job, rows, ST["today"]["ore"], alert)
     mining_setup(m, rows)
     return m
 
@@ -109,7 +113,7 @@ def mining_gather(job, rows, ore, alert):
     tx, tz = h["x"] + d[0], h["z"] + d[1]
     gap = 2 if job["mode"] == "fast" else 4
     total, length, bottom = job["total"], job["length"], job["bottom"]
-    m = dict(state="running" if job["running"] else "stopped", alert=alert, length=length, gap=gap,
+    m = dict(state="complete" if job.get("complete") else "running" if job["running"] else "stopped", alert=alert, length=length, gap=gap,
              bottom=bottom, done=job["done"], total=total, extents=[length] * total, turtles=[], busy=0,
              workers=0, lane=None, fuel=None, ore=ore, home=h, homeSet=job["homeSet"], mode=job["mode"],
              ores=job["ores"], dim="minecraft:overworld", branches=8, continuous=False)
@@ -146,6 +150,8 @@ def mining_gather(job, rows, ore, alert):
             m["lane"] = t
         if row["fuel"] is not None and (m["fuel"] is None or row["fuel"] < m["fuel"]["value"]):
             m["fuel"] = dict(value=row["fuel"], id=row["id"])
+        if not m["alert"] and row.get("error"):
+            m["alert"] = row["error"]
     return m
 
 
@@ -526,6 +532,8 @@ def setup_column(cv, m, editing):
 
 
 def mining(m, w, h, setup=False, editing=False, title=""):
+    if m["state"] == "complete":
+        m = dict(m, state="COMPLETE")
     cv = Canvas(w, h, title)
     room = w >= 52 and h >= 22
     if setup and w >= 24:
@@ -541,12 +549,13 @@ def mining(m, w, h, setup=False, editing=False, title=""):
 
 # ================================================================ lumber
 
-def lumber_model():
+def lumber_model(running=None, cycle=None, next_round=True, alert=None):
     """What so-mod-lumber's gather builds: the farm, its chests, the turtles and the facts."""
     a = S["area"]
+    running = ST["lumber"]["running"] if running is None else running
     t = next(x for x in ST["turtles"] if x["job"] == "lumber")
     p = S["poses"][str(t["id"])]
-    word = "lost" if ST["leases"].get(t["id"]) == "lost" else PHASES.get(t["state"], "working")
+    word = "lost" if ST["leases"].get(t["id"]) == "lost" else PHASES.get(t["state"], "working") if running else "idle"
     chests = []
     for d in S["drops"]:
         if d["kind"] == "saplings":
@@ -555,13 +564,13 @@ def lumber_model():
             chests.append(dict(x=d["x"], z=d["z"], label="wood", broken=d["broken"]))
     grow = ST["lumber"]["grow"] // 1000
     ready = sum(1 for s in S["spots"] if s["ready"])
-    return dict(state="running" if ST["lumber"]["running"] else "stopped", alert=None,
+    return dict(state="complete" if cycle and cycle["phase"] == "complete" else "running" if running else "stopped", alert=alert,
                 area=dict(x1=a["x1"], z1=a["z1"], x2=a["x2"], z2=a["z2"]), ground=a["ground"],
                 spots=S["spots"], chests=chests,
                 turtles=[dict(id=t["id"], facing=p["f"], x=p["x"], y=p["y"], z=p["z"], state=word, tone=tone(word))] +
                 [dict(id=int(i), facing=int(f), x=int(x), y=int(y), z=int(z), state=st.replace("_", " "), tone=tone(st.replace("_", " ")))
                  for i, st, _, x, y, z, f in EXTRA.get("woodturtle", [])],
-                ready=ready, total=len(S["spots"]), grow="%d:%02d" % (grow // 60, grow % 60),
+                ready=ready, total=len(S["spots"]), grow="%d:%02d" % (grow // 60, grow % 60) if next_round else None,
                 logs=ST["today"]["logs"], saplings=int(EXTRA["saplings"][0][0]),
                 fuel=min([t["fuel"]] + [int(x[2]) for x in EXTRA.get("woodturtle", [])]),
                 chest=next(dict(x=d["x"], y=d["y"], z=d["z"], side="front") for d in S["drops"] if d["kind"] == "saplings"))
@@ -1283,6 +1292,42 @@ def _lumber(w, h, title, setup=False):
     return lambda: lumber(lumber_setup_facts(lumber_model()) if setup else lumber_model(), w, h, setup, title)
 
 
+def _mine_job(w, h, case):
+    def make():
+        job, workers, ids, alert = {}, {}, None, None
+        if case.startswith("keep-") and case != "keep-refused":
+            workers[2] = dict(state="hold", error="KEEP needs " + ("two free slots" if case == "keep-slots" else "sealing stock"))
+        elif case == "keep-refused":
+            alert = "wait for mining batches to settle"
+        elif case == "recall-disabled":
+            alert = "recall disabled"
+        elif case == "recall-fence":
+            ids, alert = [2], "recall needs parkBatch and setupFence #2"
+        elif case in ("recall-returning", "recall-staged"):
+            workers[2] = dict(state="returning" if case == "recall-returning" else "staged")
+            job["running"] = case == "recall-returning"
+        elif case == "complete":
+            job.update(running=False, complete=True)
+        else:
+            raise ValueError(case)
+        m = mining_model(job_updates=job, worker_updates=workers, worker_ids=ids, alert=alert)
+        return mining(m, w, h, title="Mining %s at %dx%d" % (case, w, h))
+    return make
+
+
+def _lumber_job(w, h, case, setup=False):
+    def make():
+        cycle = dict(phase="complete") if case == "complete" else None
+        alert = {"species-refused": "unsupported log ID", "once-fence": "ONCE needs certain fenced workers",
+                 "cycle-refused": "finish work and stop before configuring"}.get(case)
+        m = lumber_model(running=case == "repeat", cycle=cycle,
+                         next_round=case in ("repeat", "species-refused"), alert=alert)
+        if setup:
+            lumber_setup_facts(m)
+        return lumber(m, w, h, setup, "Lumber %s at %dx%d" % (case, w, h))
+    return make
+
+
 def _drops(w, h, title, editing=False, testing=False):
     return lambda: drops(drops_model(editing=editing, testing=testing), w, h, title)
 
@@ -1335,6 +1380,36 @@ FIXTURES = [
     ("dropsadd-XS", _drops(15, 10, "Add a drop point, smallest monitor", True)),
     ("dropssetup-M", _drops(57, 24, "Chest setup, room monitor 57x24", testing=True)),
     ("dropssetup-P", _drops(26, 20, "Chest setup at 26x20", testing=True)),
+    ("minekeep-slots-P", _mine_job(26, 20, "keep-slots")),
+    ("minekeep-slots-29x12", _mine_job(29, 12, "keep-slots")),
+    ("minekeep-stock-P", _mine_job(26, 20, "keep-stock")),
+    ("minekeep-stock-29x12", _mine_job(29, 12, "keep-stock")),
+    ("minekeep-refused-P", _mine_job(26, 20, "keep-refused")),
+    ("minekeep-refused-29x12", _mine_job(29, 12, "keep-refused")),
+    ("minerecall-disabled-P", _mine_job(26, 20, "recall-disabled")),
+    ("minerecall-disabled-29x12", _mine_job(29, 12, "recall-disabled")),
+    ("minerecall-fence-P", _mine_job(26, 20, "recall-fence")),
+    ("minerecall-fence-29x12", _mine_job(29, 12, "recall-fence")),
+    ("minerecall-returning-P", _mine_job(26, 20, "recall-returning")),
+    ("minerecall-returning-29x12", _mine_job(29, 12, "recall-returning")),
+    ("minerecall-staged-P", _mine_job(26, 20, "recall-staged")),
+    ("minerecall-staged-29x12", _mine_job(29, 12, "recall-staged")),
+    ("miningcomplete-P", _mine_job(26, 20, "complete")),
+    ("miningcomplete-29x12", _mine_job(29, 12, "complete")),
+    ("lumberonce-P", _lumber_job(26, 20, "once")),
+    ("lumberonce-29x12", _lumber_job(29, 12, "once")),
+    ("lumberrepeat-P", _lumber_job(26, 20, "repeat")),
+    ("lumberrepeat-29x12", _lumber_job(29, 12, "repeat")),
+    ("lumbercomplete-P", _lumber_job(26, 20, "complete")),
+    ("lumbercomplete-29x12", _lumber_job(29, 12, "complete")),
+    ("lumberspecies-refused-P", _lumber_job(26, 20, "species-refused")),
+    ("lumberspecies-refused-29x12", _lumber_job(29, 12, "species-refused")),
+    ("lumberonce-setup-P", _lumber_job(26, 20, "once", True)),
+    ("lumberonce-setup-29x12", _lumber_job(29, 12, "once", True)),
+    ("lumberonce-fence-P", _lumber_job(26, 20, "once-fence")),
+    ("lumberonce-fence-29x12", _lumber_job(29, 12, "once-fence")),
+    ("lumbercycle-refused-P", _lumber_job(26, 20, "cycle-refused")),
+    ("lumbercycle-refused-29x12", _lumber_job(29, 12, "cycle-refused")),
 ]
 # tests/ui/ui2d.lua checks these against so-mod-drops.lua (tests/ui/s3.lua counts only the "_" builders).
 FIXTURES += [

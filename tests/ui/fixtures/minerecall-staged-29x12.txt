@@ -1,0 +1,37 @@
+29x12 Mining recall-staged at 29x12
+ MINING   main   setup  ---  
+                             
+ state ············· stopped 
+ busy ·················· 2/4 
+ done ················· 7/10 
+ ► 2  b8 40/64               
+ ► 3  wait lane              
+ ▼ 4  unload                 
+ ► 6  lost                   
+                             
+                             
+     START         STOP      
+000000000000000088888880ccc00
+00000000000000000000000000000
+0888880ccccccccccccc088888880
+088880cccccccccccccccccc00000
+088880ccccccccccccccccc000000
+0d000000000000000000000000000
+01000011111111100000000000000
+0d000000000000000000000000000
+0e0000eeee0000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+09999999999999088888888888880
+fffffffff777777ffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777777f7777777777777f

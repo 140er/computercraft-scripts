@@ -1,0 +1,37 @@
+29x12 Lumber repeat at 29x12
+ LUMBER   main   setup  ---  
+                             
+ state ············· running 
+ ready ················ 9/12 
+ grow ················· 6:20 
+ ► 5  felling                
+ ◄ 7  wait chest             
+                             
+                             
+                             
+                             
+     START         STOP      
+000000000000000088888880ccc00
+00000000000000000000000000000
+0888880ccccccccccccc000000000
+0888880cccccccccccccccc0dddd0
+088880ccccccccccccccccc000000
+0d000000000000000000000000000
+01000011111111110000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+088888888888880eeeeeeeeeeeee0
+fffffffff777777ffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777777f7777777777777f

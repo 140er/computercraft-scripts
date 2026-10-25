@@ -1,0 +1,61 @@
+26x20 Mining recall-fence at 26x20
+ MINING   main   setup    
+                          
+10  +-----------          
+ 9  +-----------          
+ 8  +-----►-·2··          
+    |                     
+    º shaft               
+                          
+ TURTLES ---------------  
+ ► 2  b8 40/64            
+                          
+ state ·········· running 
+ busy ··············· 1/1 
+ lane ················· - 
+ done ·············· 7/10 
+ fuel ··············· 812 
+                          
+ ! recall needs parkBatch 
+   and setupFence #2      
+    START       STOP      
+00000000000000008888888000
+00000000000000000000000000
+88003333333333330000000000
+08003333333333330000000000
+0800333333db8d880000000000
+00003000000000000000000000
+00009088888000000000000000
+00000000000000000000000000
+088888880ccccccccccccccc00
+0d000000000000000000000000
+00000000000000000000000000
+0888880cccccccccc000000000
+088880ccccccccccccccc00000
+088880ccccccccccccccccc080
+088880cccccccccccccc000000
+088880ccccccccccccccc00000
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+fffffffff777777fffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff

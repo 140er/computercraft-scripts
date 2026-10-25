@@ -1,0 +1,61 @@
+26x20 Mining keep-stock at 26x20
+ MINING   main   setup    
+                          
+   4▼                     
+    º shaft               
+                          
+ TURTLES ---------------  
+ ► 2  hold                
+ ► 3  wait lane           
+ ▼ 4  unload              
+ ► 6  lost                
+                          
+ state ·········· running 
+ busy ··············· 1/4 
+ lane ················ #4 
+ done ·············· 7/10 
+ fuel ··············· 412 
+                          
+ ! KEEP needs sealing     
+   stock                  
+    START       STOP      
+00000000000000008888888000
+00000000000000000000000000
+000dd000000000000000000000
+00009088888000000000000000
+00000000000000000000000000
+088888880ccccccccccccccc00
+01000011110000000000000000
+01000011111111100000000000
+0d000000000000000000000000
+0e0000eeee0000000000000000
+00000000000000000000000000
+0888880cccccccccc000000000
+088880ccccccccccccccc00000
+088880cccccccccccccccc0bb0
+088880cccccccccccccc000000
+088880ccccccccccccccc01110
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+fffffffff777777fffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff
