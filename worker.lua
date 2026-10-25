@@ -961,10 +961,14 @@ W.readCode = function()
   -- The prompt also takes an enroll token, shown masked.
   local function shown()
     local text = W.codeText
-    return text:find("%D") and string.rep("*", #text) or text
+    local input = text:find("%D") and string.rep("*", #text) or text
+    local server = W.server and (" server " .. W.server) or ""
+    local width = term.getSize()
+    local row = "Code: " .. input:sub(1, math.max(0, width - 6 - #server)) .. server
+    return row .. string.rep(" ", math.max(0, width - #row))
   end
   term.setCursorPos(1, 5)
-  term.write("Code: " .. shown())
+  term.write(shown())
   if W.pairError then
     term.setCursorPos(1, 6)
     term.write(W.pairError)
@@ -989,7 +993,7 @@ W.readCode = function()
       return nil
     end
     term.setCursorPos(1, 5)
-    term.write("Code: " .. shown() .. " ")
+    term.write(shown())
   end
 end
 

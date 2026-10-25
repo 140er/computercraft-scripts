@@ -9,9 +9,9 @@ local function libs(m)
     f:close()
   end
 end
-local function setup(paired)
+local function setup(paired, serverId)
   local net = H.new()
-  local s = net.machine({ id = 1, modem = true })
+  local s = net.machine({ id = serverId or 1, modem = true })
   s.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" })
   libs(s)
   s.files["so-keys"] = H.encode({schema=1,generation=1,value={keys={["2"]=key}}})
@@ -27,6 +27,31 @@ local function setup(paired)
   return net, s, w
 end
 return function(test, equal)
+  test("worker boot lookup 12 shows server 12 on the code row at 39x13", function()
+    local n, s, w = setup(false, 12)
+    w.env.term.getSize = function() return 39, 13 end
+    w.env.term.write = function(text)
+      local x, y = w.cx or 1, w.cy or 1
+      assert(x >= 1 and x + #text - 1 <= 39, "boot row exceeds turtle width")
+      assert(y >= 1 and y <= 13, "boot row exceeds turtle height")
+      local row = w.screen[y] or string.rep(" ", 39)
+      w.screen[y] = row:sub(1, x - 1) .. text .. row:sub(x + #text)
+      w.cx = x + #text
+    end
+    s.boot("so-server.lua")
+    n.advance(3)
+    assert(w.lookups > 0, "boot did not discover the server")
+    equal(w.screen[5]:gsub("%s+$", ""), "Code:  server 12")
+    w.env.os.queueEvent("paste", "123456")
+    n.flush()
+    equal(w.screen[5]:gsub("%s+$", ""), "Code: 123456 server 12")
+    w.env.os.queueEvent("paste", "-ABCDEFGHIJKLMNOPQRSTUVWXY")
+    n.flush()
+    equal(#w.screen[5], 39)
+    assert(w.screen[5]:find(" server 12", 1, true), "long input hides server id")
+    assert(not w.screen[5]:find("ABC", 1, true), "token was not masked")
+    assert(w.alive(), tostring(w.error))
+  end)
   test("worker repair screen re-keys with a token while install refuses", function()
     for _, serverId in ipairs({ 1, 7 }) do
       local n, s, w = setup(true)
