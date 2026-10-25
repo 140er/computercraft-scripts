@@ -218,7 +218,7 @@ return function(test, equal)
     equal(t.s.env.SO.enroll.view(OWNER), nil)
   end)
 
-  test("enroll runtime toggle refuses malformed config and failed saves without changing the flag or window", function()
+  test("enroll runtime toggle reports failed saves without changing the running flag or window", function()
     for _, failure in ipairs({ "open", "write", "verify", "move" }) do
       local t = boot(true)
       local token = t.open()
@@ -242,13 +242,64 @@ return function(test, equal)
       t.s = t.net.boot(t.s)
       t.net.flush()
       assert(t.s.alive(), tostring(t.s.error))
-      equal(t.s.env.SO.enroll.enabled(), true)
+      equal(t.s.env.SO.enroll.enabled(), failure ~= "move")
       equal(t.s.env.SO.enroll.view(OWNER), nil)
     end
     local t = boot(true)
     t.s.files["so-server.cfg"] = "broken"
     equal(t.so.enroll.setEnabled(false), nil)
     equal(t.s.files["so-server.cfg"], "broken")
+  end)
+
+  local function interruptedOff(temp)
+    local t = boot(true)
+    local before = { enroll = true, pos = { dim = "minecraft:the_nether", x = 7, y = 64, z = 9 },
+      workerSettings = true, state = { coalesceHeartbeats = true }, other = { keep = 11 } }
+    t.s.files["so-server.cfg"] = H.encode(before)
+    local move = t.s.env.fs.move
+    t.s.env.fs.move = function(from, to)
+      move(from, to)
+      if from == "so-server.cfg" and to == "so-server.cfg.bak" then
+        t.net.kill(t.s)
+        error("chunk unloaded between config moves")
+      end
+    end
+    equal(pcall(t.so.enroll.setEnabled, false), false)
+    equal(t.s.files["so-server.cfg"], nil)
+    equal(t.s.env.textutils.unserialize(t.s.files["so-server.cfg.bak"]), before)
+    local expected = t.s.env.textutils.unserialize(t.s.files["so-server.cfg.tmp"])
+    equal(expected.enroll, false)
+    if temp ~= "valid" then expected = before end
+    if temp == "malformed" then t.s.files["so-server.cfg.tmp"] = "interrupted write" end
+    if temp == "missing" then t.s.files["so-server.cfg.tmp"] = nil end
+    if temp == "unreadable" then
+      t.net.onBoot = function(m)
+        local open = m.env.fs.open
+        m.env.fs.open = function(path, mode)
+          if path == "so-server.cfg.tmp" and mode == "r" then return nil end
+          return open(path, mode)
+        end
+      end
+    end
+    t.s.files["so-mod-state.lua"] =
+      'CONFIG_AT_MODULE_LOAD = assert(SO.store.read("so-server.cfg"), "config missing during module load")\n' ..
+      t.s.files["so-mod-state.lua"]
+    t.s = t.net.boot(t.s)
+    t.net.flush()
+    assert(t.s.alive(), tostring(t.s.error))
+    assert(t.s.env.SO.mods.state, "state failed to load")
+    equal(t.s.env.SO.store.read("so-server.cfg"), expected)
+    equal(t.s.env.CONFIG_AT_MODULE_LOAD, expected)
+    equal(t.s.env.SO.enroll.enabled(), expected.enroll)
+    equal(t.s.env.SO.enroll.view(OWNER), nil)
+  end
+
+  test("enroll interrupted OFF promotes the checked temporary config before modules load", function()
+    interruptedOff("valid")
+  end)
+
+  test("enroll interrupted OFF restores the backup before modules load when the temporary config is unreadable", function()
+    for _, temp in ipairs({ "unreadable", "malformed", "missing" }) do interruptedOff(temp) end
   end)
 
   test("enroll approved keys remain collectible through runtime OFF while undecided rows are cancelled", function()

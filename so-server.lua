@@ -48,6 +48,15 @@ S.run = function()
   local store = S.need("so-store.lua")
   local pair = S.need("so-pair.lua")
   if not proto or not store or not pair then return end
+  if not fs.exists("so-server.cfg") then
+    for _, path in ipairs({ "so-server.cfg.tmp", "so-server.cfg.bak" }) do
+      local saved = fs.exists(path) and store.read(path)
+      if type(saved) == "table" then
+        fs.move(path, "so-server.cfg")
+        break
+      end
+    end
+  end
   local now, clockStatus = store.clock()
   clockStatus = clockStatus or { refused = false }
   SO = { mods = {}, proto = proto, pair = pair, store = store, clock = clockStatus }
