@@ -16,7 +16,7 @@ import uuid
 
 from checks import ACCELERATED, GROUPS, IDS, load
 from checks.context import Context, sanitize
-from checks.admission import admit, reserve_local_slot
+from checks.admission import admit, reserve_local_slot, record_load_wait
 from checks.model import Blocked, Result, Verdict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -92,11 +92,15 @@ def write_report(report, output):
     lines = [f"# Gate B, server-only {report['commit'][:12]}", "", f"Exact build `{report['commit']}`.", "",
              f"Result {report['status']}. {report['counts']['pass']} Pass, {report['counts']['fail']} Fail, {report['counts']['blocked']} Blocked.",
              f"Wall time {report['wall_seconds']:.2f} seconds.", "", "| Check | Result | Timing, observation and evidence |", "| --- | --- | --- |"]
+    if "startup_load_wait_seconds" in report:
+        lines.insert(6, f"Pool startup load wait {report['startup_load_wait_seconds']:.2f} seconds.")
     for r in report["checks"]:
         findings = "; ".join(r["findings"]) or load(r["check"]).TITLE
         findings = findings.replace("|", "\\|").replace("\n", " ")
         if "observed_game_seconds" in r["metrics"]:
             findings += f"; sampled {r['metrics']['observed_wall_seconds']:.2f} real seconds / {r['metrics']['observed_game_seconds']:.2f} game seconds"
+        if "load_wait_seconds" in r["metrics"]:
+            findings += f"; load wait {r['metrics']['load_wait_seconds']:.2f} seconds"
         target = f"{r['check']}/{r['check']}-result.json"
         lines.append(f"| {r['check']} | {r['status'].title()} | {r['wall_seconds']:.2f}s at {r['tick_rate']:g} TPS. {findings}. [Evidence]({target}) |")
     if report["unselected"]:
@@ -120,7 +124,9 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
     try:
         ctx.runtime_dir = runtime_dir
         if prepare:
-            admit()
+            admit(timeout=getattr(ctx, "load_wait_timeout", 300),
+                  on_wait=lambda seconds: record_load_wait(ctx, seconds))
+            ctx.load_admitted = True
             if reset:
                 ctx.cli("reset", ctx.run, timeout=180)
                 ctx.cli("serve", ctx.run, timeout=180)
@@ -131,6 +137,7 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
             ctx.manifest = ctx.request("manifest")
             if not ctx.wait(lambda: ctx.lua("server", 'return SO and SO.mods and SO.mods.display and SO.mods.display.screen("mining") ~= nil'), 60):
                 raise Blocked("Installed server did not finish booting")
+        ctx.load_admitted = True
         ctx.command(f"tick rate {ctx.tick_rate:g}")
         if ctx.tick_rate != 20 and ctx.lua("server", 'return SO and type(SO.now) == "function"') is not True:
             raise Blocked("Installed server has no SO.now tick-scaled clock; refusing speed-up")
@@ -149,6 +156,7 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
         status = "fail" if verdict.status == "fail" else "blocked"
         verdict = Verdict(status, [f"Candidates collected, pending review: {len(candidates)} photos in {ctx.collect}"] + verdict.findings,
                           {**verdict.metrics, "candidates": list(candidates)})
+    verdict.metrics["load_wait_seconds"] = round(getattr(ctx, "load_wait_seconds", 0), 3)
     result = Result(check, ctx.commit, verdict.status, started_at, round(time.monotonic()-start, 3),
                     ctx.tick_rate, verdict.findings, verdict.metrics, ctx.evidence, ctx.run)
     ctx.record(f"{check}-result.json", result.to_dict())
@@ -186,11 +194,13 @@ def execute_repeated(ctx, check, runtime_dir, reset=True):
     for index in range(1, 4):
         attempt = Context(ctx.runtime, ctx.run, {}, ctx.output / f"attempt-{index}",
                           ctx.commit, ctx.tick_rate, ctx.interval)
+        attempt.load_wait_timeout = ctx.load_wait_timeout
         attempts.append(execute(attempt, check, runtime_dir, reset=reset or index > 1))
     statuses = [result.status for result in attempts]
     durations = [result.wall_seconds for result in attempts]
     status = "fail" if "fail" in statuses else "blocked" if "blocked" in statuses else "pass"
-    metrics = {"attempts": [result.to_dict() for result in attempts], "repeat_count": 3,
+    metrics = {"load_wait_seconds": round(sum(r.metrics.get("load_wait_seconds", 0) for r in attempts), 3),
+               "attempts": [result.to_dict() for result in attempts], "repeat_count": 3,
                "flaky": len(set(statuses)) > 1,
                "wall_seconds_min": min(durations), "wall_seconds_max": max(durations),
                "wall_seconds_spread": max(durations) - min(durations)}
@@ -211,6 +221,8 @@ def main(argv=None):
     parser.add_argument("--sha", default="origin/server-only", help="Build for explicit --checks")
     parser.add_argument("--worlds", type=int, default=2)
     parser.add_argument("--tick-rate", type=float, default=20)
+    parser.add_argument("--load-wait-timeout", type=int, default=300, metavar="SECONDS",
+                        help="Wait up to SECONDS for load1 below 8 at each admission, default 300")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--runtime-dir", type=Path, default=Path(__file__).resolve().parent)
     parser.add_argument("--plan", action="store_true", help="Print selection and effective rates without starting a runtime")
@@ -218,6 +230,7 @@ def main(argv=None):
                         help="Write every C3 and C13 photo with its camera to DIR as unreviewed candidates; gives no visual credit")
     args = parser.parse_args(argv)
     if not args.full and not args.changed and not args.checks: parser.error("Specify --full, --changed, or --checks")
+    if args.load_wait_timeout < 0: parser.error("--load-wait-timeout must be nonnegative")
     if args.worlds < 1 or args.worlds > 4: parser.error("--worlds must be between 1 and 4")
     if not 1 <= args.tick_rate <= 200: parser.error("--tick-rate must be between 1 and 200")
     try:
@@ -252,6 +265,7 @@ def main(argv=None):
         runtime = Runtime()
         cli = Context(runtime, "", {}, output, commit)
         cli.runtime_dir = args.runtime_dir.resolve()
+        cli.load_wait_timeout = args.load_wait_timeout
         token = datetime.now().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:8]
         groups = [[c for c in checks if c in selected] for checks in GROUPS.values()]
         groups = [checks for checks in groups if checks]
@@ -261,10 +275,10 @@ def main(argv=None):
         results, created, finished = [], [], set()
         reservation = ExitStack()
         try:
-            admit()
+            admit(timeout=cli.load_wait_timeout, on_wait=lambda seconds: record_load_wait(cli, seconds))
             reservation.enter_context(reserve_local_slot())
             created.extend(worlds)
-            resources = cli.cli("pool", "up", len(worlds), "--prefix", prefix, timeout=180 * len(worlds))
+            resources = cli.cli("pool", "up", len(worlds), "--prefix", prefix, timeout=(180 + args.load_wait_timeout) * len(worlds))
             cli.record("pool-start.json", resources)
             def worker(world):
                 output_results = []
@@ -277,10 +291,12 @@ def main(argv=None):
                         with group_lock:
                             if check in finished: continue
                         ctx = Context(runtime, world, {}, output/check, commit, rates[check])
+                        ctx.load_wait_timeout = args.load_wait_timeout
                         ctx.collect = args.collect_photos.resolve() if args.collect_photos and check in ("C3", "C13") else None
                         if check == "C3" and "C1" in selected:
                             def linked_install():
                                 linked = Context(runtime, world, ctx.manifest, output/"C1", commit, 20)
+                                linked.load_wait_timeout = args.load_wait_timeout
                                 result = execute(linked, "C1", args.runtime_dir.resolve(), prepare=False)
                                 with group_lock:
                                     results.append(result)
@@ -310,6 +326,8 @@ def main(argv=None):
             reservation.close()
             report = merge_results(results, selected, commit, time.monotonic()-start)
             report["cleanup"] = cleanup
+            report["startup_load_wait_seconds"] = round(cli.load_wait_seconds, 3)
+            report["pool_load_waits"] = cli.pool_load_waits
             write_report(report, output)
         print(f"Report {output / 'report.md'}", flush=True)
         return 0 if report["status"] == "pass" else 1

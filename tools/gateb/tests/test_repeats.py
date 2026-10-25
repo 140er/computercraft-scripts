@@ -14,12 +14,15 @@ class RepeatTests(unittest.TestCase):
     def test_repeats_keep_failures_and_reset_between_attempts(self):
         with tempfile.TemporaryDirectory() as directory:
             ctx = Context(None, 'fixture', {}, directory, 'a' * 40)
-            attempts = [Result('C8', ctx.commit, status, '', seconds, 20, [], {}, [], ctx.run)
+            ctx.load_wait_timeout = 12
+            attempts = [Result('C8', ctx.commit, status, '', seconds, 20, [], {'load_wait_seconds': seconds}, [], ctx.run)
                         for status, seconds in [('pass', 1), ('fail', 3), ('pass', 2)]]
             with patch.object(run, 'execute', side_effect=attempts) as execute:
                 result = run.execute_repeated(ctx, 'C8', Path(directory), reset=False)
             self.assertEqual(result.status, 'fail')
             self.assertEqual(result.metrics['wall_seconds_spread'], 2)
+            self.assertEqual(result.metrics['load_wait_seconds'], 6)
+            self.assertEqual([c.args[0].load_wait_timeout for c in execute.call_args_list], [12, 12, 12])
             self.assertTrue(result.metrics['flaky'])
             self.assertEqual([c.kwargs['reset'] for c in execute.call_args_list], [False, True, True])
             self.assertEqual(len({c.args[0].output for c in execute.call_args_list}), 3)

@@ -11,11 +11,16 @@ import sys
 import time
 
 
-def admit(required_kib, available_kib, load, additional_server):
+class LoadAdmissionRefused(RuntimeError):
+    pass
+
+
+def admit(required_kib, available_kib, load, additional_server, load_admitted=False):
     if available_kib < required_kib:
         raise RuntimeError(f"Admission refused: available memory {available_kib/1048576:.2f} GiB; at least 3 GiB required")
-    if additional_server and (load>=8 or available_kib<=8*1024*1024):
-        raise RuntimeError(f"Pool admission refused: load1={load:.2f} must be below 8; MemAvailable={available_kib/1048576:.2f} GiB must exceed 8 GiB")
+    if additional_server and (load>=8 and not load_admitted or available_kib<=8*1024*1024):
+        error = LoadAdmissionRefused if available_kib>8*1024*1024 else RuntimeError
+        raise error(f"Pool admission refused: load1={load:.2f} must be below 8; MemAvailable={available_kib/1048576:.2f} GiB must exceed 8 GiB")
 
 
 def process_start_time(pid):
@@ -37,7 +42,8 @@ def call(home, request):
             data += part
         response = json.loads(data)
         if not response['ok']:
-            raise RuntimeError(response['error'])
+            error = LoadAdmissionRefused if response.get('error_type') == 'LoadAdmissionRefused' else RuntimeError
+            raise error(response['error'])
         return response['result']
 
 
@@ -110,7 +116,7 @@ def main(home, suite_lock):
                         else:
                             if q.get('memory_kib', 0):
                                 available = int(next(v.split()[1] for v in Path('/proc/meminfo').read_text().splitlines() if v.startswith('MemAvailable:')))
-                                admit(q['memory_kib'],available,os.getloadavg()[0],q.get('server') and any(':' not in child for child in children))
+                                admit(q['memory_kib'],available,os.getloadavg()[0],q.get('server') and any(':' not in child for child in children),q.get('load_admitted',False))
                             log = open(q['log'], 'ab', buffering=0)
                             stdin = os.open(q['fifo'], os.O_RDWR) if q.get('fifo') else open(os.devnull, 'rb')
                             try:
@@ -130,7 +136,7 @@ def main(home, suite_lock):
                         raise RuntimeError('Unknown keeper operation')
                     response = {'ok':True,'result':result}
                 except Exception as exc:
-                    response = {'ok':False,'error':str(exc)}
+                    response = {'ok':False,'error':str(exc),'error_type':type(exc).__name__}
                 try:
                     conn.sendall(json.dumps(response).encode() + b'\n')
                 except (BrokenPipeError,ConnectionResetError):

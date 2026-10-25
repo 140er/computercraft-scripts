@@ -98,6 +98,8 @@ class Runtime:
         config = self.home / 'config.json'
         self.config = json.loads(config.read_text()) if config.exists() else {}
         self.suite_lock = WORK / 'test-suite.lock'
+        self.load_admitted = False
+        self.pool_load_waits = []
 
     def run(self, name):
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', str(name)):
@@ -437,7 +439,7 @@ class Runtime:
         args=list((run/'libraries/net/neoforged/neoforge').glob('*/unix_args.txt'))
         if len(args)!=1: raise RuntimeError('Expected one NeoForge unix_args.txt')
         argv+=['@'+str(args[0]),'nogui']
-        info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024,'server':True})
+        info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024,'server':True,'load_admitted':self.load_admitted})
         state.update(pid=info['pid'],ready=False)
         state.pop('pid_start_time', None)
         if 'pid_start_time' in info:
@@ -747,7 +749,7 @@ class Runtime:
         from client import client_action
         return client_action(self,name,action)
 
-    def pool(self, action, count=0, prefix=None):
+    def pool(self, action, count=0, prefix=None, load_wait_timeout=300):
         owner=prefix or 'pool'
         self.run(owner+'-1')
         def owned(name):
@@ -756,11 +758,26 @@ class Runtime:
             if not 1<=count<=4: raise ValueError('Pool size must be 1..4')
             for i in range(1,count+1):
                 name=owner+'-'+str(i)
-                if name not in self.status():
-                    available=int(next(v.split()[1] for v in Path('/proc/meminfo').read_text().splitlines() if v.startswith('MemAvailable:')))
-                    keeper.admit(3*1024*1024,available,os.getloadavg()[0],True)
-                if not self.run(name).exists(): self.clone(name)
-                self.serve(name)
+                start=time.monotonic()
+                wait_seconds=0
+                try:
+                    while True:
+                        try:
+                            if name not in self.status():
+                                available=int(next(v.split()[1] for v in Path('/proc/meminfo').read_text().splitlines() if v.startswith('MemAvailable:')))
+                                keeper.admit(3*1024*1024,available,os.getloadavg()[0],True)
+                            if not self.run(name).exists(): self.clone(name)
+                            self.serve(name)
+                            break
+                        except keeper.LoadAdmissionRefused:
+                            remaining=load_wait_timeout-(time.monotonic()-start)
+                            if remaining<=0: raise
+                            # serve has released its run lock and finished cleanup before polling.
+                            wait_start=time.monotonic()
+                            time.sleep(min(5,remaining))
+                            wait_seconds+=time.monotonic()-wait_start
+                finally:
+                    self.pool_load_waits.append({'run':name,'load_wait_seconds':round(wait_seconds,3)})
         elif action=='down':
             for run in (self.home/'runs').glob('*'):
                 if owned(run.name): self.stop(run.name)
@@ -774,7 +791,7 @@ class Runtime:
 
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--home')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--home');parser.add_argument('--load-admitted',action='store_true')
     sub=parser.add_subparsers(dest='command',required=True)
     p=sub.add_parser('build-template');p.add_argument('--snapshot')
     for command in ('clone','serve','reset','stop'):
@@ -782,19 +799,21 @@ def main():
     p=sub.add_parser('install');p.add_argument('run');p.add_argument('sha');p.add_argument('--mode',choices=['copy','installer','http'],default='copy')
     p=sub.add_parser('api');p.add_argument('run');p.add_argument('request');p.add_argument('--timeout',type=float,default=15)
     p=sub.add_parser('client');p.add_argument('run');p.add_argument('action',choices=['start','shot','stop'])
-    p=sub.add_parser('pool');p.add_argument('action',choices=['up','down','status']);p.add_argument('count',type=int,nargs='?',default=0);p.add_argument('--prefix')
+    p=sub.add_parser('pool');p.add_argument('action',choices=['up','down','status']);p.add_argument('count',type=int,nargs='?',default=0);p.add_argument('--prefix');p.add_argument('--load-wait-timeout',type=int,default=300)
     args=parser.parse_args();start=time.monotonic()
+    runtime=None
     try:
         runtime=Runtime(args.home)
+        runtime.load_admitted=args.load_admitted
         if args.command=='build-template': result=runtime.build_template(args.snapshot)
         elif args.command=='api': result=runtime.request(args.run,json.loads(args.request),args.timeout)
         elif args.command=='install': result=runtime.install(args.run,args.sha,args.mode)
-        elif args.command=='pool': result=runtime.pool(args.action,args.count,args.prefix)
+        elif args.command=='pool': result=runtime.pool(args.action,args.count,args.prefix,args.load_wait_timeout)
         elif args.command=='client': result=runtime.client(args.run,args.action)
         else: result=getattr(runtime,args.command)(args.run)
-        print(json.dumps({'ok':True,'result':result,'elapsed_s':round(time.monotonic()-start,3)}))
+        print(json.dumps({'ok':True,'result':result,'elapsed_s':round(time.monotonic()-start,3),'load_waits':runtime.pool_load_waits}))
     except (OSError,ValueError,RuntimeError,KeyError,StopIteration,subprocess.SubprocessError) as exc:
-        print(json.dumps({'ok':False,'error':str(exc)}));return 1
+        print(json.dumps({'ok':False,'error':str(exc),'load_waits':runtime.pool_load_waits if runtime else []}));return 1
     return 0
 
 
