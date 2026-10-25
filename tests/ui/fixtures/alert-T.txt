@@ -16,7 +16,7 @@
 |                                                 |
 |                                                 |
 |   ||||||||||||||||||||||||||·················   |
-|                                                 |
+|                                       SNOOZE    |
 +-------------------------------------------------+
 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 e0000000000000000000000000000000000000000000000000e
@@ -54,5 +54,5 @@ fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff77777777ffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
