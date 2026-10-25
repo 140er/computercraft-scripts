@@ -217,12 +217,13 @@ return function(test,equal)
   end
   test('B4-US display text opt-in and redraws belong to one session',function()
     local s=oreMap(26,20)
+    s.display.screen('map',function(w,h,session)
+      if not session.map then session.map=s.view().map end
+      return s.map.render(w,h,session)
+    end,s.map.input)
     s.display.handlers.hello({from=10,body={w=26,h=20}})
     for _,id in ipairs({9,10}) do assert(s.display.assign(id,'map')) end
-    -- A find near the workers is inside FIT on both displays.
-    s.events[1]={seq=1,kind='mine.ore',gameAt=s.now,
-      data={id=2,name='minecraft:diamond_ore',count=1,pos={dim='minecraft:overworld',x=5,y=60,z=-3}}}
-    s.frame(9) s.frame(10) s.map.tick(s.now)
+    s.frame(9) s.frame(10) s.find(0)
     local function shown(id)
       for _,r in ipairs(s.frame(id).rows) do if r.text:find('*',1,true) then return true end end
       return false
