@@ -831,7 +831,7 @@ return function(test,equal)
       equal(f.job().complete,false) equal(f.job().completion.phase,"returning")
       equal(f.held[occupied],"build:2") equal(f.job().turtle.pose,before)
       if kind~="reservation" then equal(f.mods.cells.list("build:2"),held) end
-      equal(f.job().blocked,kind=="protected" and "path" or kind)
+      equal(f.job().blocked,(kind=="protected" or kind=="reservation") and "path" or kind)
     end)
   end
   for _,change in ipairs({"uncertain","journal","position","facing","missing facing","missing result"}) do
@@ -1046,4 +1046,5 @@ return function(test,equal)
     end)
   end
 
+  dofile("tests/so/plan.lua")(test,equal,"build")
 end

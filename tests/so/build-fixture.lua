@@ -6,7 +6,7 @@ end
 local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
 local function fixture(config)
   config=config or {}
-  local f={world={},held={},saved=nil,now=1000,serial=0,placed={},calls={},fuel=10000,saveOK=true,range=function() return true end}
+  local f={world={},clear={},held={},saved=nil,now=1000,serial=0,placed={},calls={},fuel=10000,saveOK=true,range=function() return true end}
   f.journal="builder-journal"
   local pose={dim="minecraft:overworld",x=-2,y=4,z=0,facing=1}
   local inv,selected={},1
@@ -28,13 +28,17 @@ local function fixture(config)
   mods.display={screen=function(_,r,i) render,input=r,i end}
   mods.lease={peek=function() return {uncertain=f.uncertain,lost=f.lost} end,status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost,parkBatch=f.parkBatch~=false,setupFence=f.setupFence~=false,journal=f.journal,
       pose={x=pose.x,y=pose.y,z=pose.z,f=pose.facing}} end,
-    boundaries=function() return config.protectedAreas == true end,
-    assess=function(_,from,steps)
+    restartReady=function() return f.restartReady~=false end,
+    boundaries=function() return config.protectedAreas == true or config.alternateAxisOrders == true end,
+    assess=function(id,from,steps,opts)
       f.assessments=(f.assessments or 0)+1
       return P.assess(from,steps,{admit=function(_,_,to)
         local protected=f.protected and f.protected[key(to)]
+        local holder=f.held[key(to)]
+        if holder and holder~="build:"..id then return false,"held",holder end
         return not (f.assessmentError or protected),protected and "protected" or f.assessmentError
-      end})
+      end,clear=opts and opts.clear and function(to) return f.clear[key(to)]==true end or nil,
+        range=function(to) return f.range(to) end})
     end,
     locate=function(id,dim,done)
       f.located={id=id,dim=dim}
@@ -50,6 +54,7 @@ local function fixture(config)
     end}
   mods.cells={owner=function(x,y,z) return f.held[x..","..y..","..z] end,
     reserveMany=function(who,cells)
+      f.reserves=(f.reserves or 0)+1
       for _,p in ipairs(cells) do if f.held[key(p)] and f.held[key(p)]~=who then return false,"held" end end
       for _,p in ipairs(cells) do f.held[key(p)]=who end
       return true
@@ -60,6 +65,7 @@ local function fixture(config)
       end
       return out
     end,release=function(who,x,y,z)
+      f.releases=(f.releases or 0)+1
       local k=x..","..y..","..z if f.held[k]==who then f.held[k]=nil end return true
     end}
   local chest={id="supply",dim=0,x=-3,y=0,z=0,side="down",kind="storage"}
@@ -154,7 +160,7 @@ local function fixture(config)
     end
     return q
   end
-  f.deliver=function(id,results,facts) callback(id,2,results,{report=facts}) end
+  f.deliver=function(id,results,facts,record) callback(id,2,results,record or {report=facts}) end
   f.expire=function()
     local q=assert(queued,"no queued lease") queued=nil
     f.lost=true
