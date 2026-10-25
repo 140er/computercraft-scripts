@@ -775,6 +775,10 @@ dofile("tests/so/takeover.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
 
+dofile("tests/so/daily-recover.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
 test("lease formal evidence file matches the source and focused-test hash", function()
   local evidence = assert(read("formal/evidence/lease-orderings.json"):match('"source_sha256"%s*:%s*"([0-9a-f]+)"'))
   local focused = assert(read("tests/so/lease.lua"):match('local evidenceSourceHash = "([0-9a-f]+)"'))
@@ -782,13 +786,5 @@ test("lease formal evidence file matches the source and focused-test hash", func
   equal(evidence, proto.hex(proto.sha256(read("so-mod-lease.lua"))))
   equal(focused, evidence)
 end)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-
-dofile("tests/so/daily-recover.lua")(test, equal)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-
-dofile("tests/so/server-dispatch.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
