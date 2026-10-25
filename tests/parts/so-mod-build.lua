@@ -987,4 +987,17 @@ return function(test,equal)
     end)
   end
 
+  test("B4-B START resumes a fuel-held return after an authenticated manual refuel",function()
+    local f=returningBuilder()
+    f.fuel=0 f.restart() f.report() f.tick()
+    equal(f.job().blocked,"fuel") equal(f.job().fuel,0)
+    local status=f.mods.lease.status
+    f.mods.lease.status=function()
+      local value=status() value.fuel=10000 return value
+    end
+    f.fuel=10000 f.input("start")
+    equal(f.job().fuel,10000) equal(f.job().blocked,nil)
+    f.run() equal(f.job().turtle.pose,f.job().home) equal(f.count(),1)
+  end)
+
 end

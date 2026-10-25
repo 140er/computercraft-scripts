@@ -582,6 +582,7 @@ local function input(ev)
     if j.returnHome or returning() then
       if not j.home or j.home.dim~=j.dim or not P.assess(j.home,{}).ok then feedback("set builder home before return-on") return end
       local stat=module("lease").status(j.turtle.id)
+      if j.fuel~=nil and stat.fuel~=nil then j.fuel=normalizeFuel(stat.fuel) end
       local ready,why,cause=returnReady(stat)
       if not ready then alert(why,cause) return end
     end
