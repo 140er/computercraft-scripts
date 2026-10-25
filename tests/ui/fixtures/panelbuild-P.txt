@@ -1,0 +1,61 @@
+26x20 Panel role on a pocket 26x20 with the builder and fuel, page 1
+ PANEL  ----------- 21:14 
+                          
+ turtles ·· 4 ok · 1 lost 
+ fuel auto ·· waiting 45s 
+                          
+ MINING -------- running  
+ |||||||··· 7/10          
+ busy ··············· 2/4 
+ lane ················ ▼4 
+ min fuel ········ 412 #6 
+                          
+    START        STOP     
+                          
+ LUMBER -------- running  
+    START        STOP     
+                          
+ BUILD ------------ held  
+ ! out of fuel            
+  ◄  1/2  ►               
+  ALERTS   PAIR           
+00000000ccccccccccc0888880
+00000000000000000000000000
+088888880cc00000000eeeeee0
+08888888880cc0111111111110
+00000000000000000000000000
+08888880cccccccc0ddddddd00
+03333333888000000000000000
+088880ccccccccccccccc00000
+088880cccccccccccccccc0bb0
+0888888880cccccccc01111110
+00000000000000000000000000
+08888888888800eeeeeeeeeee0
+00000000000000000000000000
+08888880cccccccc0ddddddd00
+08888888888800eeeeeeeeeee0
+00000000000000000000000000
+0888880cccccccccccc0dddd00
+0e000000000000000000000000
+00000888000000000000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777ff77777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777ff77777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777fffff777ffffffffffffff
+f77777777f777777ffffffffff

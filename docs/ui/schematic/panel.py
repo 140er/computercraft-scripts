@@ -172,11 +172,12 @@ def fleet(m):
 
 
 def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True, found=True,
-         fuel=None, stock=None, sent=None, again=None, saved=None, build=None):
+         fuel=None, stock=None, sent=None, again=None, saved=None, build=None, page=0):
     """Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule;
     the lowest row of blocks gives up its spare row, then its facts, when rows run out. fuel is the fuel
     auto row (PK.fuel_value) under the turtles; "N lost" (`lost`) opens the panel's own ALERTS. build is
-    build.facts() with the hold text as alert, drawn as a BUILD block after LUMBER."""
+    build.facts() with the hold text as alert, drawn as a BUILD block after LUMBER. Rows of blocks share
+    pages when even their compact forms do not fit; page picks one and the pager takes row h-1."""
     cv = Canvas(w, h, title)
     header(cv, w, h, m["time"], needs)
     f = PK.facts(m) if f is None else f
@@ -216,6 +217,18 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
     def total():
         return sum(rows(row) + 1 for row in grid) - 1
 
+    pages, used = [[]], -1
+    for row in grid:
+        row["mode"] = 2
+        rh = rows(row)
+        row["mode"] = 0
+        if pages[-1] and used + rh + 1 > h - 1 - top:
+            pages.append([])
+            used = -1
+        pages[-1].append(row)
+        used += rh + 1
+    page %= len(pages)
+    grid = pages[page]
     r = len(grid) - 1
     while r >= 0 and total() > h - 1 - top:
         if grid[r]["mode"] < 2:
@@ -239,6 +252,8 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
             else:
                 PK.job(cv, x, y, cw, role, f.get(role), mode(row, role), reasons.get(role))
         y += rh + 1
+    if len(pages) > 1:
+        pager(cv, h - 1, page, len(pages), "jobs-prev", "jobs-next")
     nav(cv, h, [("ALERTS", "alerts", "plain"), ("PAIR", "pair", "plain")])
     return cv
 
@@ -506,6 +521,13 @@ FIXTURES = [
     ("enroll-M", lambda: enroll(57, 24, "Panel ENROLL 57x24")),
     ("panelbuild-M", lambda: main(ST.model(), 57, 24, "Panel 57x24 with the builder held for fuel", needs=SC["needs"],
                                   build=BUILD)),
+    ("panelbuild-S", lambda: main(ST.model(), 29, 12, "Panel 29x12 with the builder, page 1", build=BUILD)),
+    ("panelbuild2-S", lambda: main(ST.model(), 29, 12, "Panel 29x12 with the builder, page 2", build=BUILD, page=1)),
+    ("panelbuild-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20 with the builder and fuel, page 1",
+                                  keyboard=True, search=PK.SYS["search"], build=BUILD, fuel=PK.fuel_value(WAITING, 45000, 13))),
+    ("panelbuild2-P", lambda: main(ST.model(), 26, 20, "Panel role on a pocket 26x20 with the builder and fuel, page 2",
+                                   keyboard=True, search=PK.SYS["search"], build=BUILD, fuel=PK.fuel_value(WAITING, 45000, 13),
+                                   page=1)),
     ("panelenroll-S", lambda: pair(ST.model(), 29, 12, "Panel PAIR 29x12, enrollment on", enroll=True, switch=True)),
     ("panelenrolloff-S", lambda: pair(ST.model(), 29, 12, "Panel PAIR 29x12, enrollment off", enroll=False,
                                       switch=False)),

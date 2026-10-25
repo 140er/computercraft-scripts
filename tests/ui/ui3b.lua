@@ -93,7 +93,9 @@ local BP={['panelbuild-M']='tests/ui/fixtures/panelbuild-M.txt',['panelenroll-S'
   ['panelenrolloff-S']='tests/ui/fixtures/panelenrolloff-S.txt',['pairedupdate-M']='tests/ui/fixtures/pairedupdate-M.txt',
   ['pairedimpact-P']='tests/ui/fixtures/pairedimpact-P.txt',['pairedimpact-M']='tests/ui/fixtures/pairedimpact-M.txt',
   ['worker-P']='tests/ui/fixtures/worker-P.txt',['worker-S']='tests/ui/fixtures/worker-S.txt',
-  ['workerbusy-S']='tests/ui/fixtures/workerbusy-S.txt'}
+  ['workerbusy-S']='tests/ui/fixtures/workerbusy-S.txt',['panelbuild-S']='tests/ui/fixtures/panelbuild-S.txt',
+  ['panelbuild2-S']='tests/ui/fixtures/panelbuild2-S.txt',['panelbuild-P']='tests/ui/fixtures/panelbuild-P.txt',
+  ['panelbuild2-P']='tests/ui/fixtures/panelbuild2-P.txt'}
 local function bp(o)
   o=o or {}
   local e={now=50000000,switches={},updates={},forgot={},sent={},enabled=o.enabled~=false,keys={},status=o.status or {}}
@@ -630,6 +632,49 @@ return function(test,equal)
     assert(#diff==0,table.concat(diff,'\n'))
     s.env.SO.mods.build={facts=function() error('broken') end}
     assert(not table.concat(S.capture(s.view(21),57,24).picture().text,'\n'):find('BUILD',1,true))
+  end)
+  test('B-P BUILD pages the job blocks on small panels so every block and the order chips stay reachable',function()
+    local S=dofile('tests/ui/scene.lua')
+    local s=S.new({panel=true,shop=true,facts=true})
+    s.env.SO.mods.build={facts=function() return {state='held',done=37,total=120,turtleId=6,
+      alert={key='build:fuel',severity=2,text='out of fuel'}} end}
+    local function reach(id,w,h,names,want)
+      local seen,buttons={},{}
+      for page=1,2 do
+        local f=s.view(id)
+        local fixture=R.load(BP[names[page]])
+        local diff=R.diff(fixture,S.capture(f,w,h))
+        assert(#diff==0,names[page]..'\n'..table.concat(diff,'\n'))
+        local text=table.concat(S.capture(f,w,h).picture().text,'\n')
+        for _,word in ipairs(want) do if text:find(word..' ',1,true) then seen[word]=true end end
+        for _,b in ipairs(f.buttons) do buttons[b.id]=true end
+        s.tap(id,'jobs-next')
+      end
+      for _,word in ipairs(want) do assert(seen[word],word..' unreachable at '..w..'x'..h) end
+      return buttons
+    end
+    s.d.handlers.hello({from=24,body={w=29,h=12}})
+    assert(s.d.assign(24,'panel'))
+    local b=reach(24,29,12,{'panelbuild-S','panelbuild2-S'},{'MINING','LUMBER','BUILD'})
+    assert(b['mining:start'] and b['lumber:start'])
+    local now=s.env.SO.now()
+    s.env.SO.mods.shop.fuelConfig=function() return {auto=true,waiting={at=now-45000}} end
+    s.d.handlers.hello({from=10,body={w=26,h=20,keyboard=true}})
+    assert(s.d.assign(10,'panel'))
+    s.type(10,s.sys.search)
+    b=reach(10,26,20,{'panelbuild-P','panelbuild2-P'},{'MINING','LUMBER','BUILD','SHOP'})
+    for _,amount in ipairs({1,16,64}) do assert(b['order:'..amount],'order:'..amount..' unreachable') end
+    -- Back on page 1 after two NEXT taps.
+    assert(table.concat(S.capture(s.view(10),26,20).picture().text,'\n'):find('MINING',1,true))
+  end)
+  test('B-P the pocket PAIR tab has no ENROLL target while enrollment is off',function()
+    local e=bp({pocket=true,w=26,h=20,enabled=false})
+    e.session.pocket={page='pair'}
+    assert(not e.button('enroll'),'ENROLL is live while enrollment is off')
+    local text=capture(e.draw(),26,20).picture().text
+    assert(text[16]:find('ENROLL',1,true),text[16])
+    e.enabled=true
+    assert(e.button('enroll'),'ENROLL returns once enrollment is on')
   end)
   test('B-P WORKER opens from a turtle row, shows confirmed settings and sends one change per tap',function()
     local status={[4]={workerSettings=true,settingsControl=true,settings={seq=1,dim='minecraft:the_nether',autoToolSwap=false}},

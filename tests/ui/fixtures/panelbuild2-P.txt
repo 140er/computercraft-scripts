@@ -1,0 +1,61 @@
+26x20 Panel role on a pocket 26x20 with the builder and fuel, page 2
+ PANEL  ----------- 21:14 
+                          
+ turtles ·· 4 ok · 1 lost 
+ fuel auto ·· waiting 45s 
+                          
+ SHOP ------------------  
+ > iron_                  
+ IRON INGOT ········ 1240 
+    1      16      64     
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  ◄  2/2  ►               
+  ALERTS   PAIR           
+00000000ccccccccccc0888880
+00000000000000000000000000
+088888880cc00000000eeeeee0
+08888888880cc0111111111110
+00000000000000000000000000
+088880cccccccccccccccccc00
+08000009000000000000000000
+088888888880cccccccc000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000888000000000000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777f7777777f7777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777fffff777ffffffffffffff
+f77777777f777777ffffffffff

@@ -447,6 +447,20 @@ P.main = function(c, session, w, h)
     for _,row in ipairs(grid) do t = t+rows(row)+1 end
     return t
   end
+  -- Rows of blocks share pages when even their compact forms do not fit, so every block stays reachable;
+  -- the pager takes row h-1 and each page gives up spare rows as before.
+  local pages,used = {{}},-1
+  for _,row in ipairs(grid) do
+    row.mode = 3
+    local rh = rows(row)
+    row.mode = 1
+    if #pages[#pages] > 0 and used+rh+1 > h-1-top then pages[#pages+1],used = {},-1 end
+    table.insert(pages[#pages],row)
+    used = used+rh+1
+  end
+  local panel = session.panel
+  panel.jobPage = (panel.jobPage or 0) % #pages
+  grid = pages[panel.jobPage+1]
   local r = #grid
   while r > 0 and total() > h-1-top do
     if grid[r].mode < 3 then grid[r].mode = grid[r].mode+1 else r = r-1 end
@@ -464,6 +478,7 @@ P.main = function(c, session, w, h)
     end
     y = y+rh+1
   end
+  if #pages > 1 then P.pager(c,h-1,panel.jobPage,#pages,"jobs-prev","jobs-next") end
   P.nav(c,h,{{"ALERTS","alerts","plain"},{"PAIR","pair","plain"}})
 end
 
@@ -786,6 +801,7 @@ P.input = function(event)
   elseif id == "pair-code" and panel.page == "pair" then P.requestCode(panel, event, session)
   elseif id == "alert-next" then panel.alertPage=(panel.alertPage or 0)+1
   elseif id == "alert-prev" then panel.alertPage=(panel.alertPage or 0)-1
+  elseif id == "jobs-next" or id == "jobs-prev" then panel.jobPage=(panel.jobPage or 0)+(id == "jobs-next" and 1 or -1)
   elseif panel.page == "main" then
     P.refresh()
     local role,cmd = (id or ""):match("^(%a+):(%a+)$")
@@ -1133,10 +1149,11 @@ P.pairPage = function(c, session, state, w, h, g)
     return
   end
   if not SO.enroll then c.chip(2,g.list,"PAIRED","paired","plain",w-2);return end
-  -- ENROLL has no target while another display holds the window.
+  -- ENROLL has no target while another display holds the window or enrollment is off.
   local enroll,bw = SO.enroll.view(session.id),math.floor((w-3)/2)
+  local on = type(SO.enroll.enabled) ~= "function" or SO.enroll.enabled()
   c.chip(2,g.list,"PAIRED","paired","plain",bw)
-  if P.trusted(session) and (not enroll or enroll.token) then c.chip(3+bw,g.list,"ENROLL","enroll","primary",bw)
+  if on and P.trusted(session) and (not enroll or enroll.token) then c.chip(3+bw,g.list,"ENROLL","enroll","primary",bw)
   else P.dead(c,3+bw,g.list,"ENROLL",bw) end
 end
 
