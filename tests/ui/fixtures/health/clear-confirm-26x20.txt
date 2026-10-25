@@ -1,0 +1,61 @@
+26x20 Clear errors confirm at 26x20
+ HEALTH  NEEDS 1  ------- 
+ EVENTS  ALERTS  ERRORS   
+                          
+  CONFIRM   CANCEL        
+                          
+ • 10s storage write...   
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+888888888888888180ccccccc0
+88888888888888880000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0e088800000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffff77777777ff
+ffffffffffffffffffffffffff
+f777777777f77777777fffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

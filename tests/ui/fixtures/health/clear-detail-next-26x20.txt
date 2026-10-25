@@ -1,0 +1,61 @@
+26x20 Clear errors detail-next at 26x20
+ HEALTH  NEEDS 1  ------- 
+ EVENTS  ALERTS  ERRORS   
+                          
+  CLEAR                   
+                          
+ 10s ago                  
+                          
+ pending checkpoint       
+ pending checkpoint       
+ pending keep             
+ reservations             
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  BACK        2/2  ◄   ►  
+888888888888888180ccccccc0
+88888888888888880000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08888888000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000888000008880
+ffffffffffffffffffffffffff
+ffffffffffffffff77777777ff
+ffffffffffffffffffffffffff
+f7777777ffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777fffffffffff777f777f

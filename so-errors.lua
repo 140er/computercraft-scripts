@@ -13,6 +13,7 @@ M.open = function(store, now)
   local box = store.store(path, valid, budget)
   local entries = box.value and box.value.entries or {}
   local dirty, last, failure = false, -math.huge, nil
+  local revision = 0
   local function flush(at, force)
     at = at or now()
     if not dirty or not force and at-last < 30000 then return failure == nil, failure end
@@ -29,10 +30,19 @@ M.open = function(store, now)
       table.remove(entries,1)
     end
     dirty = true
+    revision = revision+1
     return flush(nil, force)
   end
   return {
     record=record, flush=flush,
+    clear=function(expectedRevision)
+      if expectedRevision == nil or expectedRevision ~= revision then return false, "errors changed; confirm again" end
+      local ok, err = box.save({entries={}})
+      if not ok then return false, err end
+      entries, dirty, failure = {}, false, nil
+      revision = revision+1
+      return true
+    end,
     entries=function() return store.copy(entries) end,
     summary=function()
       local groups, out = {}, {}
@@ -53,7 +63,7 @@ M.open = function(store, now)
       for _, suffix in ipairs({"", ".tmp", ".bak"}) do
         if fs.exists(path..suffix) then bytes = bytes + fs.getSize(path..suffix) end
       end
-      return {bytes=bytes,cap=65536,pending=dirty,error=failure,count=#entries}
+      return {bytes=bytes,cap=65536,pending=dirty,error=failure,count=#entries,revision=revision}
     end,
   }
 end

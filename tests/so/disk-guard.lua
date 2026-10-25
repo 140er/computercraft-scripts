@@ -18,7 +18,7 @@ local function setup(w, h, existing)
   install(server, {"so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
     "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-mod-state.lua", "so-mod-display.lua",
     "so-mod-drops.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-shop.lua", "so-mod-ar.lua",
-    "so-mod-cells.lua", "so-mod-lease.lua"})
+    "so-mod-cells.lua", "so-mod-lease.lua", "so-errors.lua", "so-mod-health.lua", "so-ui.lua"})
   server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld", x=0, y=64, z=0}})
   server.boot("so-server.lua")
   net.flush()
@@ -51,7 +51,7 @@ local function setup(w, h, existing)
     local picture = frame()
     for _, b in ipairs(picture.buttons) do
       if b.label==label and b.x>=1 and b.y>=1 and b.y<=h and b.x+b.w-1<=w and #b.label<=b.w then
-        assert((client.screen[b.y] or ""):sub(b.x,b.x+#label-1)==label, label .. " is overwritten")
+        assert((client.screen[b.y] or ""):sub(b.x,b.x+b.w-1):find(label,1,true), label .. " is overwritten")
         for _, other in ipairs(picture.buttons) do
           if other~=b and other.y==b.y then
             assert(b.x+b.w<=other.x or other.x+other.w<=b.x, label .. " overlaps another button")
@@ -96,7 +96,325 @@ local function fill(m, ratio)
   m.files.ballast = string.rep("x", math.max(0, math.floor(m.capacity * ratio) - used))
 end
 
+local CLEAR_ERROR = "storage write failed for turtle 7; "..string.rep("checkpoint pending ",12).."keep reservations"
+
+local function errorFixture()
+  local _, m, net = stateFixture()
+  local function open() return m.env.dofile("so-errors.lua").open(m.env.SO.store,function() return net.time end) end
+  return open(), m, net, open
+end
+
+local function clearFixture(count)
+  local errors, m, net = errorFixture()
+  m.install({"so-ui.lua","so-mod-health.lua"})
+  net.time = 3590000
+  for _=1,count or 1 do assert(errors.record(CLEAR_ERROR)) end
+  net.time = 3600000
+  local t = {errors=errors,m=m,net=net,screens={}}
+  m.env.SO.errors = errors
+  m.env.SO.mods.display = {screen=function(role,render,input) t.screens[role]={render=render,input=input} end}
+  t.mod = m.env.dofile("so-mod-health.lua")
+  t.mod.tick(net.time)
+  t.render = function(session,w,h) return t.screens.errors.render(w,h,session) end
+  t.input = function(session,id,open) t.screens.errors.input({session=session,id=id,open=open}) end
+  return t
+end
+
+local function clearButtons(frame,w,h)
+  local ids, cells = {}, {}
+  for _, b in ipairs(frame.buttons) do
+    assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=w and b.y+b.h-1<=h,"button bounds "..b.id)
+    for y=b.y,b.y+b.h-1 do
+      for x=b.x,b.x+b.w-1 do
+        local at = y*w+x
+        assert(not cells[at],"overlapping button "..b.id)
+        cells[at] = b.id
+      end
+    end
+    if b.id=="error-clear" or b.id=="clear-cancel" or b.id:match("^clear%-confirm:") or b.id=="error-back" then
+      assert(frame.rows[b.y].text:sub(b.x,b.x+b.w-1):find(b.label,1,true),"button label "..b.id)
+    end
+    ids[b.id] = b
+  end
+  return ids
+end
+
+local function clearMatch(mode,frame,w,h)
+  local R = dofile("tests/ui/render.lua")
+  local capture = R.capture(w,h)
+  clearButtons(frame,w,h)
+  for y,row in ipairs(frame.rows) do
+    local fg,bg = {},{}
+    for _,run in ipairs(row.runs) do
+      fg[#fg+1],bg[#bg+1] = string.rep(run[2],run[1]),string.rep(run[3],run[1])
+    end
+    capture.setCursorPos(1,y)
+    capture.blit(row.text..string.rep(" ",w-#row.text),table.concat(fg),table.concat(bg))
+  end
+  local path = "tests/ui/fixtures/health/clear-"..mode.."-"..w.."x"..h..".txt"
+  local diff = R.diff(R.load(path),capture)
+  assert(#diff==0,path.."\n"..table.concat(diff,"\n"))
+end
+
+local function confirm(t,session,w,h)
+  t.render(session,w,h)
+  t.input(session,"error-clear")
+  local frame = t.render(session,w,h)
+  for _,b in ipairs(frame.buttons) do if b.id:match("^clear%-confirm:") then return b.id end end
+  error("no confirmation")
+end
+
 return function(test)
+  test("error clear rejects missing and stale revisions without writing", function()
+    local errors,m,_,open = errorFixture()
+    assert(errors.status().revision==0)
+    assert(errors.record("retained"))
+    local before = m.env.SO.store.copy(m.files)
+    assert(errors.status().revision==1)
+    for _,revision in ipairs({false,0,2}) do
+      local ok,err = errors.clear(revision or nil)
+      assert(not ok and err:find("errors changed",1,true))
+    end
+    assert(#errors.entries()==1 and errors.status().revision==1)
+    for path,text in pairs(m.files) do assert(before[path]==text,"clear wrote "..path) end
+    assert(open().status().count==1)
+  end)
+  test("error clear synchronously saves retained and pending entries inside the flush interval", function()
+    local errors,m,net,open = errorFixture()
+    assert(errors.record("retained"))
+    net.time = net.time+1
+    assert(errors.record("pending"))
+    assert(errors.status().pending and #open().entries()==1)
+    local save = m.env.fs.move
+    m.env.fs.move = function(from,to)
+      assert(#errors.entries()==2 and errors.status().pending,"ring cleared before save")
+      save(from,to)
+    end
+    assert(errors.clear(errors.status().revision))
+    assert(errors.status().revision==3 and not errors.status().pending and not errors.status().error)
+    assert(#errors.entries()==0 and #errors.summary()==0 and #open().entries()==0)
+    assert(m.files["so-data/errors.bak"],"backup removed")
+    local saved = m.env.SO.store.read("so-data/errors").value
+    assert(type(saved.entries)=="table" and next(saved.entries)==nil and next(saved,"entries")==nil)
+  end)
+  test("error clear failure retains rows and the previous flush retry state", function()
+    local errors,m,net,open = errorFixture()
+    assert(errors.record("retained"))
+    net.time = net.time+1
+    assert(errors.record("pending"))
+    local free = m.env.fs.getFreeSpace
+    m.env.fs.getFreeSpace = function() return 0 end
+    net.time = net.time+30000
+    assert(not errors.flush())
+    local before = errors.status()
+    assert(not errors.clear(before.revision))
+    assert(errors.status().error==before.error and errors.status().pending and errors.status().revision==before.revision)
+    assert(#errors.entries()==2 and #errors.summary()==2 and #open().entries()==1)
+    m.env.fs.getFreeSpace = free
+    assert(not errors.flush(),"failed clear reset flush retry state")
+    assert(errors.clear(before.revision))
+    assert(not errors.status().error and not errors.status().pending and #open().entries()==0)
+  end)
+  test("error clear failure before the temporary generation keeps the old ring on reboot", function()
+    local errors,m,_,open = errorFixture()
+    assert(errors.record("retained"))
+    local fsOpen = m.env.fs.open
+    m.env.fs.open = function(path,mode)
+      if path=="so-data/errors.tmp" and mode=="w" then error("storage unavailable") end
+      return fsOpen(path,mode)
+    end
+    assert(not errors.clear(errors.status().revision))
+    assert(#errors.entries()==1 and not errors.status().pending and not errors.status().error)
+    assert(#open().entries()==1)
+  end)
+  test("error clear failure after a verified temporary generation recovers empty on reboot", function()
+    local errors,m,_,open = errorFixture()
+    assert(errors.record("retained"))
+    local move = m.env.fs.move
+    m.env.fs.move = function(from,to)
+      if from=="so-data/errors.tmp" then error("storage unavailable") end
+      return move(from,to)
+    end
+    assert(not errors.clear(errors.status().revision))
+    assert(#errors.entries()==1 and errors.status().revision==1)
+    assert(m.files["so-data/errors.tmp"] and #open().entries()==0)
+    m.env.fs.move = move
+    assert(errors.clear(errors.status().revision))
+    assert(#open().entries()==0)
+  end)
+  test("error clear starts a fresh ring for later records before and after reboot", function()
+    local errors,_,net,open = errorFixture()
+    assert(errors.record("old"))
+    assert(errors.clear(errors.status().revision))
+    net.time = net.time+1
+    assert(errors.record("later"))
+    assert(#errors.entries()==1 and errors.entries()[1].text=="later" and errors.status().revision==3)
+    net.time = net.time+30000
+    assert(errors.flush())
+    local rebooted = open()
+    assert(rebooted.status().revision==0 and rebooted.entries()[1].text=="later")
+    assert(rebooted.clear(0))
+    assert(rebooted.record("after reboot",true))
+    assert(#open().entries()==1 and open().entries()[1].text=="after reboot")
+  end)
+  for _,size in ipairs({{26,20},{29,12}}) do
+    local w,h = size[1],size[2]
+    local at = " at "..w.."x"..h
+    test("error CLEAR CONFIRM CANCEL labels and touch areas match generated fixtures"..at,function()
+      local t,s = clearFixture(),{}
+      clearMatch("list",t.render(s,w,h),w,h)
+      local id = confirm(t,s,w,h)
+      clearMatch("confirm",t.render(s,w,h),w,h)
+      assert(#t.errors.entries()==1)
+      t.input(s,"clear-cancel")
+      t.input(s,id)
+      assert(#t.errors.entries()==1)
+      clearMatch("list",t.render(s,w,h),w,h)
+      local nextId = confirm(t,s,w,h)
+      assert(nextId~=id)
+      t.input(s,id)
+      assert(#t.errors.entries()==1,"old confirmation cleared a new attempt")
+      t.input(s,nextId)
+      clearMatch("empty",t.render(s,w,h),w,h)
+    end)
+    test("error confirmation expires at ten game seconds"..at,function()
+      local t,s = clearFixture(),{}
+      local id = confirm(t,s,w,h)
+      t.net.time = t.net.time+9999
+      assert(clearButtons(t.render(s,w,h),w,h)[id])
+      t.net.time = t.net.time+1
+      t.input(s,id)
+      assert(#t.errors.entries()==1)
+      assert(clearButtons(t.render(s,w,h),w,h)["error-clear"])
+    end)
+    test("error confirmation is stale after another display clears or a new error arrives"..at,function()
+      local t,a,b = clearFixture(),{},{}
+      local first,second = confirm(t,a,w,h),confirm(t,b,w,h)
+      t.input(a,first)
+      assert(#t.errors.entries()==0 and not b.visibility.errors.confirm)
+      assert(t.errors.record("new",true))
+      t.input(b,second)
+      assert(#t.errors.entries()==1)
+      first = confirm(t,a,w,h)
+      assert(t.errors.record("arrived",true))
+      t.input(a,first)
+      assert(#t.errors.entries()==2 and a.visibility.errors.clearFailure:find("errors changed",1,true))
+    end)
+    test("error confirmation drops on tab exit last delivered frame exit and restart"..at,function()
+      local t,s = clearFixture(),{}
+      local id = confirm(t,s,w,h)
+      t.input(s,"health",function() end)
+      t.input(s,id)
+      assert(#t.errors.entries()==1 and not s.visibility.errors.confirm)
+      id = confirm(t,s,w,h)
+      s.inputIds = {["health"]=true}
+      t.render(s,w,h)
+      t.input(s,id)
+      assert(#t.errors.entries()==1 and not s.visibility.errors.confirm)
+      local fresh = {}
+      t.input(fresh,id)
+      assert(#t.errors.entries()==1 and not fresh.visibility.errors.confirm)
+    end)
+    test("error save failure shows its cause and keeps summary detail and pending rows"..at,function()
+      local t,s = clearFixture(),{}
+      assert(t.errors.record(CLEAR_ERROR))
+      local count = #t.errors.entries()
+      local fsOpen = t.m.env.fs.open
+      t.m.env.fs.open = function(path,mode)
+        if path=="so-data/errors.tmp" and mode=="w" then error("storage unavailable",0) end
+        return fsOpen(path,mode)
+      end
+      local id = confirm(t,s,w,h)
+      t.input(s,id)
+      assert(#t.errors.entries()==count and t.errors.status().pending)
+      clearMatch("failed",t.render(s,w,h),w,h)
+      t.input(s,"error:"..count)
+      local frame = t.render(s,w,h)
+      clearButtons(frame,w,h)
+      assert(s.visibility.errors.error.text==CLEAR_ERROR)
+      local text = ""
+      for _,row in ipairs(frame.rows) do text=text..row.text.."\n" end
+      assert(text:find("clear failed",1,true))
+      t.m.env.fs.open = fsOpen
+      id = confirm(t,s,w,h)
+      assert(s.visibility.errors.clearFailure=="storage unavailable","retry hid the save failure")
+      t.input(s,id)
+      assert(#t.errors.entries()==0)
+    end)
+    test("error paging BACK clear invalidation and empty paging match fixtures"..at,function()
+      local t,s,other = clearFixture(18),{},{}
+      local frame = t.render(s,w,h)
+      assert(clearButtons(frame,w,h).next)
+      t.input(s,"next")
+      clearMatch("page2",t.render(s,w,h),w,h)
+      t.render(other,w,h)
+      t.input(other,"error:18")
+      assert(other.visibility.errors.error)
+      t.input(s,confirm(t,s,w,h))
+      assert(not other.visibility.errors.error and not other.visibility.errors.targets)
+      clearMatch("empty",t.render(s,w,h),w,h)
+      assert(s.visibility.errors.page==1)
+      local b = clearButtons(t.render(s,w,h),w,h)
+      assert(not b.prev and not b.next and not b["error-clear"])
+      t = clearFixture()
+      s = {}
+      t.render(s,w,h)
+      t.input(s,"error:1")
+      clearMatch("detail",t.render(s,w,h),w,h)
+      t.input(s,"next")
+      clearMatch("detail-next",t.render(s,w,h),w,h)
+      t.input(s,"error-back")
+      clearMatch("list",t.render(s,w,h),w,h)
+    end)
+    test("error clear uses authenticated delivered controls under the display role lock"..at,function()
+      local s = setup(w,h)
+      s.assign("health")
+      local errors = s.server.env.SO.errors
+      assert(errors.record("operator diagnostic",true))
+      s.press("ERRORS")
+      s.press("CLEAR")
+      local b = s.button("CONFIRM")
+      assert(#errors.entries()==1)
+      local request = {t="view.input",from=s.client.id,body={id=b.id,x=b.x,y=b.y}}
+      s.server.env.SO.mods.display.handlers.input({from=999,body=request.body})
+      assert(#errors.entries()==1,"unpaired display cleared errors")
+      s.press("CANCEL")
+      s.server.env.SO.mods.display.handlers.input(request)
+      assert(#errors.entries()==1,"undelivered confirmation cleared errors")
+      s.press("CLEAR")
+      local fresh = s.button("CONFIRM")
+      assert(fresh.id~=b.id)
+      s.server.env.SO.mods.display.handlers.input(request)
+      assert(#errors.entries()==1,"delayed confirmation cleared a later attempt")
+      s.press("CONFIRM")
+      assert(#errors.entries()==0)
+      local frame = s.frame()
+      local text = ""
+      for _,r in ipairs(frame.rows) do text=text..r.text.."\n" end
+      assert(text:find("no entries",1,true))
+      local role = s.server.env.SO.store.store("so-display",function() return true end).value
+      assert(role.roles[tostring(s.client.id)]=="health" and role.locked[tostring(s.client.id)],"role lock changed")
+    end)
+    test("error clear refreshes NEEDS and metrics while operational alerts stay"..at,function()
+      local t,s = clearFixture(),{}
+      t.m.env.SO.mods.drops = {list=function() return {{id="broken",broken=true}} end}
+      local history = {{kind="mine.alert",data="held"}}
+      t.m.env.SO.mods.state = {history={page=function() return {entries=history} end},get=function() end}
+      t.net.time = t.net.time+5000
+      t.mod.tick(t.net.time)
+      assert(t.mod.count()==2)
+      local keys = t.mod.soundFacts().keys
+      assert(#keys==1 and keys[1]=="drop/broken")
+      t.input(s,confirm(t,s,w,h))
+      assert(t.mod.count()==1 and t.mod.soundFacts().keys[1]=="drop/broken")
+      assert(t.m.env.SO.mods.state.history.page().entries==history)
+      local frame = t.screens.health.render(w,h,{})
+      clearButtons(frame,w,h)
+      local text = ""
+      for _,r in ipairs(frame.rows) do text=text..r.text.."\n" end
+      assert(not text:find("storage write failed",1,true),"cached error detail")
+    end)
+  end
   test("error summary groups alternating repeats with counts and first and last times", function()
     local _, m, net = stateFixture()
     local function open()

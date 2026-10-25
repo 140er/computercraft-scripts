@@ -669,7 +669,7 @@ def event_facts(e):
 
 
 def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, page=1, held=False, find=None,
-           picker=False, fact=None, lost_detail=False):
+           picker=False, fact=None, lost_detail=False, clear=False, confirm=False, clear_failure=None):
     """so-mod-health's render for role: tabs, the page's rows from the top, paging on the last row."""
     cv = Canvas(w, h, title)
     hs = facts if facts is not None else SCENE["health"]
@@ -679,6 +679,22 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
     last = tab_rows(cv, health_tabs(w, len(items), accent), role, 4)
     gap, lw = (1 if h >= 16 else 0), min(w - 2, 40)
     top = last + 1 + gap
+    if role == "errors":
+        if clear and hs["entries"]:
+            if confirm:
+                chip(cv, 2, top, "CONFIRM", "clear-confirm:1")
+                if w >= 20:
+                    chip(cv, 12, top, "CANCEL", "clear-cancel")
+                else:
+                    top += 1
+                    chip(cv, 2, top, "CANCEL", "clear-cancel")
+            else:
+                chip(cv, 2, top, "CLEAR", "error-clear")
+            top += 1 + gap
+        if clear_failure:
+            cv.put(2, top, "clear failed", "e")
+            cv.put(2, top + 1, cut(clear_failure, lw), "e")
+            top += 2
     if role == "attention" and lost_detail:
         machine = hs["machines"][0]
         cv.put(2, top, "T%d lost %s" % (machine["id"], duration(now-machine["seen"])), "e")
@@ -915,6 +931,31 @@ for _w, _h in ((26, 20), (29, 12)):
 for _name, _options in (("events-15x10", {}), ("events-page2-15x10", dict(page=2)),
                         ("events-picker-15x10", dict(picker=True))):
     HEALTH_FIXTURES.append(("health/" + _name, lambda o=_options: history_case(15, 10, **o)))
+
+
+CLEAR_ERROR = "storage write failed for turtle 7; " + "checkpoint pending " * 12 + "keep reservations"
+
+
+def clear_case(w, h, mode):
+    entries = [dict(at=3590000, text=CLEAR_ERROR)]
+    if mode == "empty":
+        entries = []
+    elif mode == "page2":
+        entries *= 18
+    elif mode == "failed":
+        entries += [dict(at=3600000, text=CLEAR_ERROR)]
+    hs = dict(SCENE["health"], machines=[], leases={}, points=[], holds=[], requests=[],
+              errors=[len(entries), 340], entries=entries)
+    return health("errors", w, h, "Clear errors %s at %dx%d" % (mode, w, h), facts=hs, clear=True,
+                  confirm=mode == "confirm", clear_failure="storage unavailable" if mode == "failed" else None,
+                  error=entries[0] if mode in ("detail", "detail-next") else None,
+                  error_page=2 if mode == "detail-next" else 1, page=2 if mode == "page2" else 1)
+
+
+for _w, _h in ((26, 20), (29, 12)):
+    for _mode in ("list", "confirm", "failed", "empty", "page2", "detail", "detail-next"):
+        HEALTH_FIXTURES.append(("health/clear-%s-%dx%d" % (_mode, _w, _h),
+                                lambda w=_w, h=_h, mode=_mode: clear_case(w, h, mode)))
 
 
 def _health(role, w, h, title, kind=None):
