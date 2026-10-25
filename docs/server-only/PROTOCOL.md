@@ -236,7 +236,7 @@ are required. Other rounds reset that count. Noisy rounds cannot pause.
 token entry or an installer rerun clears the pause. The same normalized token
 retains its secret. Tagged pending or wait under the locked share refreshes the
 660000 game-ms deadline. Timeout retains the attempt and secret for retry.
-A keyed worker deletes the enrollment file at boot.
+A worker with a saved key skips enrollment at boot and keeps any existing enrollment file.
 
 Untagged errors can be forged because the envelope key is public. A quiet
 forged off can pause an attempt, but cannot make the device save a key.
