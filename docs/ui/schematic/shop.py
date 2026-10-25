@@ -422,26 +422,32 @@ def saved_canvas(cv, entries, revision=1, page="supplies", draft=None, totals=No
     w, h = cv.w, cv.h
     section(cv, 2, 3, w - 2, "LISTS", "")
     selected = next((row for row in entries if row["id"] == page), None)
+    step = 2 if draft else 4 if w < 24 else 3
+    tight = h < (12 if draft else step + 8)
     if draft:
         if draft.get("row"):
-            row = draft["value"]["items"][draft["row"] - 1]
-            cv.put(2, 5, row["item"][:w - 2], "0")
-            leader(cv, 2, 7, w - 2, "requested", str(row["count"]))
-            chip(cv, 2, 9, "-", "saved2:count-")
+            row, g = draft["value"]["items"][draft["row"] - 1], 1 if h < 12 else 2
+            cv.put(2, 3 + g, row["item"][:w - 2], "0")
+            leader(cv, 2, 3 + 2 * g, w - 2, "requested", str(row["count"]))
+            chip(cv, 2, 3 + 3 * g, "-", "saved2:count-")
             text = str(row["count"])[:2]
-            cv.put(7 + (2 - len(text)) // 2, 9, text, "0")
-            chip(cv, 10, 9, "+", "saved2:count+")
-            chip(cv, 2, h - 2, "REMOVE", "saved2:remove")
+            cv.put(7 + (2 - len(text)) // 2, 3 + 3 * g, text, "0")
+            chip(cv, 10, 3 + 3 * g, "+", "saved2:count+")
+            chip(cv, 2, h - g, "REMOVE", "saved2:remove")
             chip(cv, 2, h, "DONE", "saved2:done")
             chip(cv, w - 6, h, "BACK", "saved2:back")
             return
-        chip(cv, 2, 5, "NAME", "saved2:name")
-        cv.put(2, 6, draft["value"]["name"][:w - 2], "0")
+        if tight:
+            chip(cv, 2, 4, "NAME", "saved2:name")
+            cv.put(9, 4, draft["value"]["name"][:w - 9], "0")
+        else:
+            chip(cv, 2, 5, "NAME", "saved2:name")
+            cv.put(2, 6, draft["value"]["name"][:w - 2], "0")
         selected = draft["value"]
     elif selected:
-        cv.put(2, 4, selected["name"][:w - 2], "0")
+        cv.put(2, 4, selected["name"][:w - 10 if tight and len(selected["items"]) > 1 else w - 2], "0")
     if selected:
-        top, step = (8, 2) if draft else (6, 4 if w < 24 else 3)
+        top = 5 if tight else 8 if draft else 6
         per = max(1, min(4, (h - 2 - top) // step))
         pages = max(1, math.ceil(len(selected["items"]) / per))
         list_page = max(1, min(list_page, pages))
@@ -464,7 +470,10 @@ def saved_canvas(cv, entries, revision=1, page="supplies", draft=None, totals=No
                     cv.put(w - 7, order_y, "ORDER", "0")
                     cv.put(w - 2, order_y, "]", "8")
                     cv.hit("saved2:order:%d:%s:%s" % (revision, selected["id"], row["item"]), w - 8, order_y, 7, 1, "ORDER")
-        if pages > 1:
+        if pages > 1 and tight and not draft:
+            chip(cv, w - 7, 4, "◄", "saved2:prev")
+            chip(cv, w - 3, 4, "►", "saved2:next")
+        elif pages > 1:
             chip(cv, 2, h - 2, "◄", "saved2:prev")
             cv.put(6, h - 2, "%d/%d" % (list_page, pages), "8")
             chip(cv, 10, h - 2, "►", "saved2:next")

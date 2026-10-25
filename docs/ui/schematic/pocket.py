@@ -338,14 +338,15 @@ def saved_nav(cv, saved, item, x, y, width, lists=False):
 def saved_editor(item="minecraft:iron_ingot", value=16, saved=None, w=26, h=20):
     cv = Canvas(w, h, "Pocket shared minimum")
     tabs(cv, "shop", False)
+    g = 1 if h < 12 else 2
     cv.put(2, 3, item[:w - 2], "0")
-    section(cv, 2, 5, w - 2, "MIN", "")
-    chip(cv, 2, 7, "-", "saved:min-")
+    section(cv, 2, 3 + g, w - 2, "MIN", "")
+    chip(cv, 2, 3 + 2 * g, "-", "saved:min-")
     text = str(value)[:4]
-    cv.put(7 + (4 - len(text)) // 2, 7, text, "0")
-    chip(cv, 12, 7, "+", "saved:min+")
-    watch_control(cv, saved or {}, item, 2, 9)
-    chip(cv, 2, h - 2, "DEFAULT", "saved:default")
+    cv.put(7 + (4 - len(text)) // 2, 3 + 2 * g, text, "0")
+    chip(cv, 12, 3 + 2 * g, "+", "saved:min+")
+    watch_control(cv, saved or {}, item, 2, 3 + 3 * g)
+    chip(cv, 2, h - g, "DEFAULT", "saved:default")
     chip(cv, 2, h, "SAVE", "saved:save")
     chip(cv, w - 6, h, "BACK", "saved:back")
     return cv
