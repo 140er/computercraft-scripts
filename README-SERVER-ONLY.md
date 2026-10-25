@@ -278,6 +278,23 @@ Turning SWAP on equips no tool. Changing dimension with retained history saves
 uncertainty and requires an explicit re-anchor. Config recovery also holds
 movement until an explicit re-anchor in a configured dimension.
 
+### Copy job setup from a turtle
+
+Set `jobPoseSetup=true` in `so-server.cfg` to enable paired-pose setup chips.
+It defaults off. Mining HOME copies the selected assigned turtle's occupied
+cell and facing. Mining and lumber let each display select a turtle. Lumber
+and build capture FROM, then TO; each display keeps its own first corner.
+Lumber ground is one block below FROM. Build corners are one block below each
+captured pose. Build HOME copies its assigned turtle's occupied cell and facing.
+Open leases, lost or uncertain poses and recovery refuse capture. Job validation
+still applies. These controls configure the job without moving the turtle.
+
+Mining shows COMPLETE after all workers, branches and supply/return work finish.
+To add branches, increase the budget and press START. Raising the budget alone
+does not resume work after restart. Build shows COMPLETE with placed/total cells.
+Each job saves one completion notice; ticks and restart do not repeat it.
+Mining and lumber show no worker-fuel warning with zero assigned turtles.
+
 ## Display roles
 
 Each display shows one role. Only the server changes it. Press `R` on the
@@ -794,6 +811,25 @@ position by more than two blocks. The warning does not move the saved origin.
 An unreadable existing `so-server.cfg` warns in the terminal, error log and
 NEEDS that defaults are active. Repair the file before relying on its flags.
 
+HEALTH also pages refused-message totals by reason, retained sender counts,
+capacity evictions and the slowest module's peak tick cost and age. Sender
+counts use ten-minute game-time buckets and retain at most 128 senders.
+Reason totals survive expiry and eviction until restart. Refused traffic writes
+zero ERRORS lines per sender per ten minutes.
+
+Set `alarm=true` in `so-server.cfg` for severity 1 notes on the first speaker
+by sorted name. It defaults off. Startup and enabling establish a silent
+baseline. New issues sound once; standing issues repeat every five game minutes.
+Display snoozes do not mute the server alarm. Missing, busy or failing speakers
+skip the attempt. The server attempts at most one note per tick.
+
+`soundQuiet` defaults to false. For 23:00 through 07:00 Amsterdam time, use
+`{startMinute=1380,endMinute=420}`. Quiet hours include the start and exclude
+the end. Equal endpoints mute all day; invalid values mute sound and report an
+error. Existing reminders wait five game minutes after quiet ends. A new issue
+first seen when quiet ends can sound immediately. Sound settings refresh each
+tick. `pocketTone` defaults off; pocket playback remains a separate follow-up.
+
 A lost turtle's NEEDS row shows silence age and its last known world position.
 Tap it for BACK, SNOOZE and OPEN. SNOOZE hides that turtle's lost row on all
 displays for one game hour. Contact or server restart clears the snooze.
@@ -868,6 +904,24 @@ no movement or cancellation. Saved suspensions still exclude points with the
 flag off; re-enable it to resume them. Archive all `so-drops` generations before
 rollout, because older binaries reject the v2 file.
 
+### Test several chest points
+
+Set `dropsTestQueue=true` and `setupMovement=true` in `so-server.cfg`.
+Both default off. In SETUP, TEST ALL visits unverified usable points in the
+current dimension. CHECK SELECTED visits that display's selected points,
+including verified ones. Narrow screens shorten it to CHECK. One idle turtle
+visits at most 64 points in list order. Each visit rechecks admission and counts
+only after inspection, saved verification, return and occupied-cell handoff.
+
+STOP QUEUE drops pending visits and lets the active return finish. Failures and
+FACING also drop pending visits. Leaving SETUP keeps the queue running. Restart
+clears the queue and selections but keeps fenced recovery reservations.
+
+Mining retries and lumber fuel/sapling services recheck current drop usability.
+Suspended, missing, broken or unreadable points hold with that reason. START
+and restart cannot bypass it. Committed commands and safe returns finish.
+Saved suspensions still apply after `dropsSavedSetup` is disabled.
+
 ### Forget a paired device
 
 Open PANEL, PAIR, PAIRED. Find the id and tap FORGET, then CONFIRM within
@@ -882,6 +936,15 @@ ownership to GPS recovery holds until the turtle is explicitly re-added. Re-pair
 explicitly re-add the turtle at its actual pose before resuming it. The next
 hello shows `No key on server` above `Code:` on the turtle. NEEDS includes
 the most recent forget event.
+
+### Revoke from the server terminal
+
+Set `terminalRevoke=true` in `so-server.cfg`. It defaults off. Press R, type
+`<id> revoke`, then repeat that numeric ID within 15 game seconds. The prompt
+shows `parks N jobs` and adds `holds 1 scan` for busy setup work. A mismatched
+ID, Escape, timeout, changed key or disabled flag cancels. A normal role command
+also cancels the pending confirmation and runs normally. Confirming revokes
+the key and runs durable cleanup while retaining possibly occupied reservations.
 
 ### Enroll many turtles
 

@@ -2127,6 +2127,16 @@ generation is at most 65536 bytes, or 196608 for three. A newer invalid or
 unsupported generation, or an unreadable generation number, blocks writes and
 selection. Archive all generations before rollout; older binaries reject v2.
 
+Before retrying a failed mining chest trip after backoff, mining checks
+`drops.usable(point.id)`. Lumber checks before clearing a fuel retry hold and
+before each new fuel chest travel, inspect or take command. Sapling services
+check before selection and each new service command, including after restore
+with a saved point ID. Suspended, missing, broken or unreadable points hold
+with the current reason. START and reload cannot bypass these checks.
+Commands already in flight finish. Collected fuel can be consumed before the
+safe return. `dropsSavedSetup` still defaults off; callers respect saved
+exclusions that the registry retains after the flag is disabled.
+
 ### ar
 
 `so-mod-ar.lua` uses attached cc_ar `ar_controller` peripherals. It exports
@@ -2557,6 +2567,44 @@ saved position. An unreadable existing config warns that defaults are active.
 Startup logs `legacy pair: retired` or `legacy pair: kept`; the next-release
 notice appears only when kept, before discovery opens.
 
+HEALTH also shows the slowest module's peak tick cost and its game-time age,
+refusal totals by reason, retained sender counts and capacity evictions.
+`SO.health.refused` keeps at most 128 sender rows in `senders`, with
+`windowMs=600000`, `cap=128`, `totals` and `evicted`. Each sender row has
+`bucket`, `last` and counts for `shape`, `time`, `mac`, `replay` and `blocked`.
+Buckets reset at ten-minute game-time boundaries. A tick removes old buckets;
+capacity evicts the least recently observed sender. `totals` survive bucket
+expiry and eviction. All diagnostics reset at server restart and store no
+payloads or keys. Refused traffic writes zero durable ERRORS entries per
+sender per ten minutes, including after eviction.
+
+Lost attention rows include silence age and last world position when known.
+
+### Severity 1 sound
+
+Independent `so-server.cfg` flags `alarm` and `pocketTone` default to false.
+This server implementation plays the alarm; pocket playback remains a separate
+follow-up. `soundQuiet` defaults to false or accepts
+`{startMinute=1380,endMinute=420}`. Minutes are Amsterdam civil time, 0 through
+1439. Quiet hours include the start, exclude the end and can wrap midnight.
+Equal endpoints mute all day. Invalid hours mute sound and report a diagnostic.
+Sound settings refresh each tick without rewriting unrelated config fields.
+
+With `alarm=true`, a new severity 1 attention key plays
+`playNote("pling",0.5,12)` on the speaker with the first sorted peripheral name.
+The first complete gather after startup or enabling is silent. Standing keys
+repeat every 300000 game milliseconds. Clearing a key removes its timer;
+recurrence is a new occurrence. Only one key is attempted per tick. Missing,
+busy or failing speakers skip that attempt without catch-up. Other severities
+stay silent. Quiet hours discard notes and defer existing reminders until five
+game minutes after quiet ends. A key first seen on the quiet-end tick is
+immediately eligible. Display snoozes do not mute the server alarm.
+
+`health.soundFacts()` returns copied `{ready,quiet,keys}`. `keys` is the sorted
+array of current severity 1 attention keys, independent of output flags and
+display snoozes. `ready` becomes true after the first complete gather. Sound
+state stays in memory.
+
 Lost attention rows include silence age and last world position when known.
 Their details offer BACK, SNOOZE and OPEN. SNOOZE calls
 `display.snoozer(3600000)` per turtle across displays. Fresh registry or lease
@@ -2686,6 +2734,57 @@ Visits count every outward and return movement step and compare that cost with
 `lease.status(id).fuel`, the latest authenticated hello or step-report fuel.
 Unknown or insufficient fuel refuses before any lease or reservation change.
 Scans turn in place and require no movement fuel. Unlimited fuel is accepted.
+
+### Job pose setup and completion
+
+`so-server.cfg.jobPoseSetup` defaults to false. When enabled, mining HOME
+copies the selected assigned paired worker's occupied cell and facing.
+Mining and lumber keep a worker selection per display. Lumber and build
+capture FROM, then TO, with a first-corner draft per display. Lumber ground
+uses the first turtle's Y minus one. Build corner Y uses each turtle's Y minus
+one. Build HOME copies its assigned worker's occupied cell and facing.
+Captures refuse open leases, lost or uncertain poses and recovery. Existing
+job command validation still applies. These controls send no movement.
+
+Mining stops and shows COMPLETE after all workers finish, saved unfinished
+branches are exhausted and supply/return work finishes. It saves its completion
+marker before emitting one `mine.alert` with `text="mining complete"`, `done`
+and `workers`. Increasing the branch budget and START resumes work. Increasing
+the budget alone does not dispatch another branch after restart. Stopped
+finished-worker recovery returns only to the saved completed branch end.
+Saving an assignment that introduces work clears COMPLETE; a failed save
+retains it.
+
+Build stops and shows COMPLETE with placed/total cells. It saves one
+`build.alert` completion notice per blueprint with `text="build complete"`,
+`done`, `total` and optional worker `id`. Ticks, START and restart do not repeat
+that notice. Mining and lumber omit worker-fuel warnings with zero assigned
+workers. Chest and pairing checks remain.
+
+### Chest test queue
+
+`so-server.cfg.dropsTestQueue` defaults to false. Sweeps also require
+`setupMovement=true`. SETUP offers TEST ALL for unverified usable points in
+the current dimension. CHECK SELECTED uses that display's stable-ID selection
+and can include verified points. A sweep snapshots at most 64 points in list
+order and keeps one idle worker. Before each visit, admission checks geometry,
+point status, pairing, capabilities, fuel, facing, range, mining lanes and the
+complete return-route reservation. A completed setup can prove the starting
+pose for 60000 game milliseconds while journal, pose and pose timestamp match.
+
+A visit counts after chest inspection, a saved verification, return to the
+proven starting pose and a successful occupied-cell handoff. Verification
+clears strikes. A missing chest, failed save, changed or removed point,
+timeout, uncertain pose, admission refusal or FACING clears pending visits.
+A failed inspection still finishes a proven safe return. STOP QUEUE clears
+pending visits and waits for the active return. It keeps the active lease
+and reservations. Leaving SETUP does not stop the sweep. Forgetting the owner
+or worker discards pending visits. Restart drops the queue and selections
+while preserving fenced setup recovery. Answering FACING does not restore visits.
+
+Authenticated input IDs are `test-all`, `test-selected`, `queue-stop` and
+`queue-select:<pointId>`. Inputs must match delivered controls. Queue state is
+memory-only, with no new wire type or saved file.
 
 ### Remote dimensions
 
