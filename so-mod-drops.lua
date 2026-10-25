@@ -1227,7 +1227,7 @@ S.input = function(ev)
     if S.typed(ev.text, view) then return end
     -- Typed scan, test and release follow on the setup tab; room changes leave the page alone.
     if U and (ev.text:match("^scan%s") or ev.text:match("^test%s") or ev.text:match("^release%s")) then
-      view.testing, view.editing = true, false
+      view.testing, view.editing, view.found = true, false, nil
     elseif U and not ev.text:match("^room%s") then view.editing = true end
     return
   end
