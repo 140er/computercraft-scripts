@@ -16,6 +16,12 @@ local function clock(rate)
 end
 local function trace(rate, park)
   local a = F.setup(nil, {"so-mod-lease.lua"}, rate)
+  local send = a.s.env.rednet.send
+  a.s.env.rednet.send = function(id, wire, protocol)
+    local msg = a.s.env.SO.proto.decode(wire)
+    if msg and msg.t == "ack" and msg.body.command == "step.report" then return true end
+    return send(id, wire, protocol)
+  end
   local began = a.n.time
   local events = {}
   local broadcast = a.t.env.rednet.broadcast

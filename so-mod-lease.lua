@@ -471,7 +471,7 @@ S.inRange = function(id, pos)
   return distance ~= nil and distance <= (S.turtles[id] and S.turtles[id].range or 16) + 8
 end
 
-S.report = function(msg)
+S.report = function(msg, reply)
   local row = S.row(msg.from)
   local body = msg.body
   local lease = row.open
@@ -513,6 +513,7 @@ S.report = function(msg)
   if lease.owner == "tools" then
     row.toolError = not allOk and ("tool swap failed: "..tostring(results[1].err or "failed")) or nil
   elseif lease.owner == "gps" then S.probed(row, results, lease) else S.notify(lease, results) end
+  if reply then reply("ack", {command="step.report", lease=lease.id}) end
 end
 
 S.beacon = function(msg)
