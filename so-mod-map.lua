@@ -110,16 +110,6 @@ M.gather = function(now, pick)
   for id, machine in pairs(machines) do
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then jobs[tostring(id)] = {} end
   end
-  -- The builder's turtle draws only at its confirmed pose in this dimension: with the pose unknown or
-  -- in another dimension it is left out, never drawn at an older machine pose.
-  for id in pairs(jobs) do
-    if M.call("build", "assigned", tonumber(id) or id) then jobs[id] = nil end
-  end
-  for id, row in pairs(s.build and s.build.turtles or {}) do
-    if type(row.pose) == "table" and M.dim(row.pose.dim) == dim then
-      jobs[tostring(id)] = {pose=row.pose, state=row.state, build=true, alert=row.alert}
-    end
-  end
   local assigned = {}
   for id, row in pairs(mine.turtles or {}) do jobs[tostring(id)], assigned[tostring(id)] = row, row end
   -- Every turtle on the farm (lumber.turtles), or the one turtle of an older lumber view.
@@ -129,6 +119,16 @@ M.gather = function(now, pick)
     assigned[tostring(row.id or id)] = row
     jobs[tostring(row.id or id)] = {pose=row.pose, dim=row.dim or lumber.dim,
       state=row.state == "lumber" and (M.phases[row.phase] or "working") or row.state}
+  end
+  -- The builder's turtle draws only at its confirmed pose in this dimension: with the pose unknown or
+  -- in another dimension it is left out, never drawn from an older machine, mining or lumber row.
+  for id in pairs(jobs) do
+    if M.call("build", "assigned", tonumber(id) or id) then jobs[id], assigned[id] = nil, nil end
+  end
+  for id, row in pairs(s.build and s.build.turtles or {}) do
+    if type(row.pose) == "table" and M.dim(row.pose.dim) == dim then
+      jobs[tostring(id)] = {pose=row.pose, state=row.state, build=true, alert=row.alert}
+    end
   end
   M.workers = {}
   for id, row in pairs(assigned) do

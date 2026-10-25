@@ -254,8 +254,9 @@ end
 -- The map-scene builder behind a read-only build module. Change b.dim, b.state, b.alert or b.pose
 -- (nil when unknown) and reload the map. Machine 8 keeps an older pose with no dimension, which the
 -- map must never use for the builder.
-local function builder(s, dim)
+local function builder(s, dim, id)
   local src, env = s.scene.build, s.machine.env
+  if id then src.id = id end
   local b = {dim=dim or src.dim, state=src.state, done=src.done, total=src.total, alert=src.alert,
     pose={x=src.pose.x, y=src.pose.y, z=src.pose.z, f=src.pose.f}}
   s.machines[src.id] = {id=tonumber(src.id), role="worker", fuel=src.fuel, seen=env.SO.now() - src.ago,
@@ -1858,6 +1859,42 @@ return function(test,equal)
     local proto=s.machine.env.SO.proto
     session={map={level="all",fit=true}}
     assert(#proto.ser(s.settle(164,81,session))<=15000,"builder frame over budget")
+  end)
+
+
+  test("B2-U map replaces a listed turtle's row with the builder's, like its twin",function()
+    local started,pipe=pcall(io.popen,"pwd")
+    local root=started and pipe and pipe:read("*l")
+    if started and pipe then pipe:close() end
+    local twin=root and root:sub(1,1)=="/" and os.execute("python3 -V > /dev/null 2>&1")
+    -- Turtle 6 is a mining row in the scene; the builder takes it over, with and without a pose.
+    for _,known in ipairs({true,false}) do
+      local s=setup()
+      local b=builder(s,"minecraft:overworld","6")
+      if not known then b.pose=nil s.reloadMap() end
+      local session={map={level="all",fit=true,pick=known and {k="turtle",id="6"} or nil}}
+      local frame=s.settle(100,38,session)
+      local out,v=picture(frame,100,38),session.map
+      local rows=0
+      for _,t in ipairs(mapState(s).scene.turtles) do if t.id=="6" then rows=rows+1 assert(t.build,"older row for 6") end end
+      equal(rows,known and 1 or 0)
+      local old=cell(out,v,184,-369)
+      assert(not old or old[1]~=U.arrow(1),"turtle 6 drawn at its mining row")
+      local text=textOf(frame)
+      if known then assert(text:find("Build needs material",1,true) and text:find("4/40",1,true),text) end
+      if twin then
+        local path=os.tmpname()
+        local py=("import sys; sys.path.insert(0, '%s'); import mapdraw as MD, mapscreen as MS; "
+          .."MD.BUILD['dim'] = 'overworld'; MD.BUILD['id'] = '6'; %s"
+          .."MS.screen(100, 38, 'builder', pick=%s).fixture('%s')")
+          :format(root.."/docs/ui/schematic",known and "" or "MD.BUILD['turtle'] = None; ",
+            known and "('turtle', '6')" or "None",path)
+        assert(os.execute("python3 -I -c \""..py.."\""))
+        local diffs=R.diff(R.load(path),out.picture())
+        os.remove(path)
+        equal(#diffs,0,"builder 6 twin\n"..table.concat(diffs,"\n"))
+      else dofile("tests/skips.lua").record("B2-U builder 6 twin","needs a POSIX shell and python3") end
+    end
   end)
 
 end

@@ -5,7 +5,7 @@ cell through the fixtures. North is up at every size: x grows to the right and z
 two axes only scale. The axis the branches step along snaps to the branch gap.
 """
 from kit import age, box, chip, leader, tone
-from scene import S, lines
+from scene import S, ST, lines
 
 ARROW = {0: "▲", 1: "►", 2: "▼", 3: "◄"}
 SX = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64]  # cells along a free axis
@@ -23,11 +23,12 @@ def load_build():
             # blueprint DIM X1 Y1 Z1 X2 Y2 Z2 DONE TOTAL STATE [SEVERITY TEXT...]
             x1, y1, z1, x2, y2, z2, done, total = map(int, p[2:10])
             b = dict(dim=p[1], x1=x1, y1=y1, z1=z1, x2=x2, y2=y2, z2=z2, done=done, total=total, state=p[10],
-                     alert=dict(severity=int(p[11]), text=" ".join(p[12:])) if len(p) > 11 else None, turtle=None)
+                     alert=dict(severity=int(p[11]), text=" ".join(p[12:])) if len(p) > 11 else None, id=None,
+                     turtle=None)
         elif p[0] == "builder" and b:
             # builder ID X Y Z F FUEL AGO; no line means the pose is unknown
             x, y, z, f, fuel, ago = map(int, p[2:8])
-            b["turtle"] = dict(id=p[1], x=x, y=y, z=z, f=f, fuel=fuel, ago=ago)
+            b["id"], b["turtle"] = p[1], dict(x=x, y=y, z=z, f=f, fuel=fuel, ago=ago)
     return b
 
 
@@ -51,13 +52,16 @@ def build_on(level):
 
 
 def turtles():
-    """The scene's turtles, plus the builder's at its confirmed pose in the shown dimension."""
-    ts = list(S["turtles"])
+    """The scene's turtles without the builder's, then the builder's at its confirmed pose in the
+    shown dimension. With the pose unknown it is left out, never drawn from an older row."""
     b = BUILD
+    ts = [t for t in S["turtles"] if not (b and t["id"] == b["id"])]
     if b and b["dim"] == "overworld" and b["turtle"]:
-        t = b["turtle"]
-        col = held(b["alert"]) if b["state"] == "held" else tone(b["state"])
-        ts.append(dict(t, state=b["state"], col=col, ore=None, lease="-", build=b))
+        lease = ST["leases"].get(int(b["id"]))
+        state = "lost" if lease == "lost" else b["state"]
+        col = held(b["alert"]) if state == "held" else tone(state)
+        ts.append(dict(b["turtle"], id=b["id"], state=state, col=col, ore=None,
+                       lease="expired" if lease == "lost" else lease or "-", build=b))
         ts.sort(key=lambda t: int(t["id"]))
     return ts
 
