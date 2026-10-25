@@ -4,6 +4,12 @@ This is the twin of the drawing half of so-mod-map.lua; tests/so/map.lua compare
 cell through the fixtures. North is up at every size: x grows to the right and z downwards, and the
 two axes only scale. The axis the branches step along snaps to the branch gap.
 """
+import os
+import sys
+
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from kit import age, box, chip, leader, tone
 from scene import S, ST, lines
 
@@ -33,6 +39,41 @@ def load_build():
 
 
 BUILD = load_build()
+
+
+def load_finds():
+    """Validated ore positions, timed relative to the scene's game clock at zero."""
+    return [dict(seq=int(p[1]), dim=p[2], x=int(p[3]), y=int(p[4]), z=int(p[5]), at=-int(p[6]))
+            for p in lines("map-scene.txt") if p[0] == "ore-find" and 0 <= int(p[6]) < 600000]
+
+
+FINDS = load_finds()
+
+
+def find_cells(v, finds=None, now=0):
+    """The newest unreserved find per cell, in the exact level and dimension."""
+    if not v.get("oreFinds", False):
+        return []
+    held_cells = set()
+    dim = v.get("dim", "overworld").removeprefix("minecraft:")
+    for _, x1, y1, z1, x2, y2, z2 in S["reserve"] if dim == "overworld" else []:
+        if v["level"] != "all" and not min(y1, y2) <= v["level"] <= max(y1, y2):
+            continue
+        for x in range(min(x1, x2), max(x1, x2) + 1):
+            for z in range(min(z1, z2), max(z1, z2) + 1):
+                p = cell(v, x, z)
+                if p:
+                    held_cells.add(p)
+    cells = {}
+    for f in FINDS if finds is None else finds:
+        if f["dim"].removeprefix("minecraft:") != dim or not now - 600000 < f["at"] <= now:
+            continue
+        if v["level"] != "all" and f["y"] != v["level"]:
+            continue
+        p = cell(v, f["x"], f["z"])
+        if p and p not in held_cells and (p not in cells or cells[p]["seq"] < f["seq"]):
+            cells[p] = dict(cx=p[0], cy=p[1], seq=f["seq"])
+    return sorted(cells.values(), key=lambda f: -f["seq"])
 
 
 def held(alert):
@@ -317,7 +358,8 @@ def is_pick(m, pick):
 PREFER = ["r", "l", "ur", "dr", "ul", "dl", "u", "d"]
 
 
-def draw(cv, v, ox, oy, select=None, labels=True, drop_label="kind", select_drop=None, pick=None):
+def draw(cv, v, ox, oy, select=None, labels=True, drop_label="kind", select_drop=None, pick=None,
+         finds=None, now=0, find_limit=None):
     """Draw the map with its top-left cell at canvas (ox, oy). pick is ('turtle', id), ('drop', id),
     ('server',), ('shaft',) or ('cell', x, z); select and select_drop are the older short forms.
     Returns the marker cells and the occupied cells."""
@@ -329,6 +371,8 @@ def draw(cv, v, ox, oy, select=None, labels=True, drop_label="kind", select_drop
     for p, (ch, fg) in cells(v).items():
         cv.put(ox + p[0], oy + p[1], ch, fg)
         occ[p] = "line"
+    for f in find_cells(v, finds, now)[:find_limit]:
+        cv.put(ox + f["cx"], oy + f["cy"], "*", "4")
     farm_label = None
     if farm_on(v["level"]):
         fx1, fz1, fx2, fz2 = area()
@@ -641,3 +685,38 @@ def crop(cv, x, y, w, h, focus):
     left = max(min(focus["x"] - w // 2, x2 + 2 - w), x1 - 1)
     draw(cv, view(w, h, level, 1, 1, left + w // 2, focus["z"]), x, y, pick=pick)
     return True
+
+
+def ore_views():
+    """Map drawing fixtures, without the controls owned by mapscreen.py."""
+    for p in lines("map-scene.txt"):
+        if p[0] != "ore-view":
+            continue
+        w, h = map(int, p[2].split("x"))
+        level = "all" if p[3] == "all" else int(p[3])
+        v = fit(w, h, level) if p[4] == "fit" else view(
+            w, h, level, *map(int, p[4].split("x")), int(p[5]), int(p[6]))
+        rest = 5 if p[4] == "fit" else 7
+        v["oreFinds"] = p[rest] == "on"
+        pick = ("turtle", p[rest + 3]) if len(p) > rest + 2 else None
+        yield p[1], w, h, v, int(p[rest + 1]), pick
+
+
+def ore_fixture(w, h, v, now, pick=None):
+    from cc import Canvas
+    cv = Canvas(w, h, "Recent ore finds")
+    taken, _ = draw(cv, v, 1, 1, now=now, pick=pick)
+    if pick:
+        callout(cv, v, 1, 1, pick, taken)
+    return cv
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Generate the ore-marker drawing fixtures")
+    ap.add_argument("--fixtures", required=True)
+    args = ap.parse_args()
+    os.makedirs(args.fixtures, exist_ok=True)
+    for name, w, h, v, now, pick in ore_views():
+        ore_fixture(w, h, v, now, pick).fixture(os.path.join(args.fixtures, name + ".txt"))
+    print("Ore-marker fixtures generated")
