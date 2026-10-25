@@ -1034,11 +1034,20 @@ use REPAIR to change a keyed server.
 
 The server saves open leases before sending and restores them before dispatch.
 It reconciles the acknowledged prefix with saved job receipts. It never retries
-movement after restart. A failed radio send keeps the lease open; without an
-accepted report, recovery waits until after its deadline plus ten game seconds.
-Restored and expired work then needs a stationary journal fence. Reservations
-stay held. This recovery runs even with feature flags off. Workers without both
-`setupFence` and `parkBatch` need an update before they can resume.
+movement after restart. A failed radio send keeps the lease open. Without an
+accepted report or safe journal proof, recovery waits until after its deadline
+plus ten game seconds. A certain hello with a changed journal and no pending
+operation can close restored fenced work sooner. Stationary recovery follows.
+With boundary safety off, legacy workers can recover through one `inspectDown`.
+Enabled boundary safety still requires `setupFence` and `parkBatch`.
+
+Fleet movement and digging wait for recently seen restored workers to reconcile.
+Restore starts a fresh 60-game-second hello window for each worker. Every hello
+renews it. At the boundary, an absent worker stops holding peers, but its own
+record and all reservations stay held. A late hello restores its barrier.
+The `lease.alert` attention item names waiting and absent workers and clears
+after recovery. Failed saves or standing-cell conflicts keep recovery held.
+Stationary recovery and park controls remain available.
 
 Corrupt main or backup lease files block dispatch. An invalid uncommitted
 `leases.tmp` is discarded. Forget deletes the lease record but retains possibly
@@ -1170,6 +1179,18 @@ after fixing the cause. STOP pauses it. Restart preserves placement progress
 and unfinished return, then recovers the pose before replanning. Configuration
 and REMOVE cannot erase it. COMPLETE waits for confirmed home position and
 facing. With `return off`, completion stays at the final target.
+
+### Builder storage trips
+
+`alternateAxisOrders=false` is the default in `so-server.cfg`. Enabling it lets
+builder storage trips choose another safe axis order. Every entered cell needs
+a known-clear mark in memory. Missing or evicted facts hold the trip.
+Each move or turn waits for journal and pose confirmation before replanning.
+Reported failed or unconfirmed storage boundaries retain reservations and
+save a route hold. It survives restart and disabling the flag. Fix the cause,
+then use START after readiness checks pass. Expired leases or missing reports
+need stationary recovery and may then resume on their own. Waiting only for
+the fleet restart barrier resumes automatically when it clears.
 
 ## Lumber cycles, species and emergency fuel
 

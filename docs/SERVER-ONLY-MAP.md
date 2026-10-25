@@ -186,14 +186,23 @@ and listeners use `listener(sender, message)`.
   movement bounds. See [remote dimensions](server-only/PROTOCOL.md#remote-dimensions).
   `burnValue(name)` returns 15 moves for exact vanilla Overworld log and wood
   IDs, including stripped variants, for oak, spruce, birch, jungle, acacia,
-  dark oak, mangrove and cherry. Other IDs return nil. It has no production
-  callers; it does not enable log burning or change `fuelValue`.
+  dark oak, mangrove and cherry. Other IDs return nil. Lumber uses it for
+  default-off emergency log fuel; it does not change `fuelValue`.
   `chestCheck` returns `{ok,text}` without writes. A configured usable chest
   without visit verification reads `not scanned`; a verified one reads
   `verified by visit`. Both remain usable. `missing` returns unmet text in order.
   `rangeBatch` returns the longest prefix within range of complete `action.actions`,
   rebuilding its steps, cells and final pose. It returns the original action when
   all cells fit, or nil when no complete action fits. Atomic actions stay whole.
+  `rankPaths(from, to, opts, assess)` returns admissible paths in rank order
+  and the first refused assessment as its second result. The read-only assessor
+  receives the start, steps and `{clear=true}` for non-digging paths.
+  `opts.alternateAxisOrders=true` considers `yxz`, `yzx`, `xyz`, `xzy`, `zxy`
+  and `zyx`. Safe `yxz` stays first. Others sort by movement count, turns and
+  that list. Without the option, only `yxz` is assessed. Paths add `order`,
+  `rank`, `moves` and `turns`. Builder storage trips are the enabled caller.
+  See [storage axis orders](server-only/PROTOCOL.md#builder-storage-axis-orders)
+  for bounded legs, acknowledged boundaries, saved holds and restart recovery.
   `park` is a ten-minute `inspectDown` lease template. Renew it with less than
   one minute remaining. Paths assume success; callers reserve cells and split
   work into batches of at most 16. See [plan helpers](server-only/PROTOCOL.md#plan-helpers).
@@ -348,11 +357,21 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `outcome(turtleId)` copies a terminal record; owners save reconciled intent
   and receipts before `ackOutcome(leaseId)`. `recoveryIds(owner)` lists retained
   worker IDs. Status adds `recovering`, terminal `outcome` and `persistenceError`.
-  A failed radio send leaves the saved lease open. Without an accepted report,
-  recovery waits until after its deadline plus ten game seconds. Restarts never
-  resend movement. Expired and restored work requires a stationary journal
-  fence with `setupFence` and `parkBatch` before ordinary dispatch. Reservations
-  remain held. Recovery is idempotent but callbacks are not exactly-once.
+  A failed radio send leaves the saved lease open. Without an accepted report
+  or restored-journal proof, recovery waits until after its deadline plus ten
+  game seconds. A certain hello with a changed journal and no pending operation
+  can close restored fenced work without replaying movement. Stationary recovery
+  follows. Boundary safety requires `setupFence` and `parkBatch`; flags-off
+  legacy recovery may use one `inspectDown`. Reservations remain held.
+  `restartReady()` holds fleet movement and digging for unresolved restored
+  workers within their 60000-game-millisecond hello window. Restore starts it;
+  every hello renews it. Absent workers stop holding peers at the boundary but
+  keep their records and reservations. Late hellos restore their barrier.
+  `lease.alert` names waiting and absent IDs and clears after recovery.
+  Unassigned records without an owner reconciler get automatic fenced GPS,
+  or legacy `inspectDown` with boundary safety off. Fenced release still needs
+  GPS proof. Save failures and standing-cell conflicts keep recovery held.
+  Recovery is idempotent but callbacks are not exactly-once.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Unreported single-step `inspectDown` parks retry every game second with the
   same lease ID, a fresh envelope and the remaining duration. Reports stop retries.
@@ -1372,10 +1391,25 @@ subscriptions and custom view functions, cell confirmation tokens, and shop
 stock, search, order replies and trend samples also clear on restart.
 Durable leases restore before planners dispatch. Owners reconcile the acknowledged
 prefix and save receipts before acknowledging outcomes. Restored and expired
-outcomes keep reservations until stationary fenced recovery permits more work.
+outcomes keep reservations until stationary recovery permits more work. Boundary
+safety requires a fence; flags-off legacy recovery may use one `inspectDown`.
 Lease persistence has no opt-out; existing feature flags keep their defaults.
 
 ## Tests and checks
+
+`tests/ui/size-coverage.json` declares required screens, states and layout
+boundaries. `tests/ui/size-coverage.lua` compares independent Python twins with
+Lua at baseline sizes, odd sizes, boundary neighbours and intersections.
+Prepare temporary expectations with `python3 tests/ui/size-coverage.py --prepare`
+before running this Lua part through the test wrapper. Source hashes reject
+stale inputs. Full runs generate temporary comparisons. CI runs this matrix
+through the full suite. Existing golden fixtures remain unchanged.
+Interaction checks compare required controls, bounds and overlap, then run
+real handlers with their sessions to verify navigation and action counts.
+Shared-scene checks cover local-input height and compact-frame area and byte
+thresholds. A fixture may declare `expected-pending` with a reason and exact
+geometry error for a known layout bug. Cells must still match. A different
+failure or an unexpected pass fails the suite.
 
 `tests/run.lua` runs the mock suite, including `tests/so/*.lua`.
 `tests/so/harness.lua` runs the real worker on fake computers with rednet,

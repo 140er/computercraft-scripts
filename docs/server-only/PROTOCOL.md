@@ -1097,8 +1097,9 @@ Transport delay before receipt is not charged by `ttl`. Mixed versions retain
 Unreported single-step `inspectDown` parks retry every game second until a
 report arrives or the lease expires. Retries retain the lease ID and use a
 fresh envelope with the remaining duration. Both ordinary and recovery parks
-use this rule. Workers accept authenticated server messages during GPS lookups,
-so a lookup cannot discard a renewal or a work batch.
+use this rule. Ordinary park retries remain unfenced unless explicitly fenced
+or covered by recovery or boundary safety. Workers accept authenticated server
+messages during GPS lookups, so a lookup cannot discard a renewal or a work batch.
 
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
@@ -1136,9 +1137,10 @@ value is `{v=1,seq,records}`. At most 256 records are allowed, one per turtle.
 Each record contains its lease ID, turtle ID, owner, at most 16 steps, journal,
 pose, deadline and status. It may also contain caller intent and an accepted
 report. Open records save before transmission. If transmission fails, the
-record stays open and blocks replacement dispatch. Without an accepted report,
-recovery waits until after the saved deadline plus ten game seconds. Movement
-is never retried. A restored single-step `inspectDown` may retry for its report.
+record stays open and blocks replacement dispatch. Without an accepted report
+or the restored-journal proof below, recovery waits until after the saved deadline
+plus ten game seconds. Movement is never retried. A restored single-step
+`inspectDown` may retry for its report.
 Accepted reports and expiry save before callbacks.
 
 Startup restores open leases before planners dispatch. Corrupt main or backup
@@ -1153,9 +1155,11 @@ re-added.
 reconciled intent and receipt before `lease.ackOutcome(leaseId)`. Failed receipt
 or acknowledgement saves keep dispatch blocked. Restored reports reconcile the
 acknowledged prefix. Expired and restored outcomes then require a certain,
-stationary `setupFence`/`parkBatch` observation before ordinary work resumes.
-The observation fences the current journal and parks on expiry. Reservations
-remain held. `lease.recoveryIds(owner)` lists retained worker IDs for recovery.
+stationary observation before ordinary work resumes. With `setupFence` and
+`parkBatch`, it fences the current journal and parks on expiry. With boundary
+safety off, a worker missing those capabilities may use one `inspectDown`.
+Reservations remain held. `lease.recoveryIds(owner)` lists retained worker IDs
+for recovery.
 `lease.status` adds `recovering`, a terminal `outcome` ID and `persistenceError`.
 Its `open` field includes restored open leases.
 
@@ -1166,11 +1170,32 @@ failed setup task. An unconfirmed release keeps the task busy and saved for
 another release attempt. Drop points may save `checkedLease` so setup and supply
 inspections count each failure once.
 
-Lease persistence has no opt-out. Recovery continues with feature flags off
-for workers advertising both `setupFence` and `parkBatch`. Workers without
-those capabilities remain in recovery and need an update. Legacy recovery
-without those fences is a follow-up. Protection, alternate routing, delivery
-and setup flags keep their existing default-off settings. Callback functions,
+Modern active batches carry a journal fence even with optional safety flags off.
+For a restored fenced batch, a certain hello with a different journal and no
+pending operation proves delayed copies cannot execute. The server saves the
+interruption and reconciles through a stationary observation without replaying
+movement. Unfenced records still wait for their deadline and grace period.
+A rejected journal fence is an unconfirmed outcome, not a successful inspection.
+
+`lease.restartReady()` holds fleet movement and digging while recently seen
+restored workers remain unresolved. Each restored worker gets a fresh
+60000-game-millisecond hello window. Every hello renews it. At the boundary,
+a silent worker stops holding peer dispatch. Its unresolved record and all its
+reservations stay held. A late hello restores its barrier. Reconciliation must
+save the outcome, owner receipt, current standing-cell reservation and lease
+acknowledgement. Failed saves or standing-cell conflicts keep the worker held.
+Mining, lumber, build and setup retry the wait. Stationary recovery and park
+controls remain available. `lease.alert` names waiting and absent worker IDs,
+states that absent-worker reservations remain held, and clears after recovery.
+It changes only when those lists change.
+
+For unassigned recovering workers without a registered owner reconciler, tick
+sends fenced GPS when supported. Otherwise, with boundary safety off, it sends
+one stationary `inspectDown`. Enabled boundary safety still requires both
+`setupFence` and `parkBatch`. Pending fenced cell release still requires GPS proof.
+
+Lease persistence has no opt-out. Recovery continues with feature flags off.
+Protection, alternate routing, delivery and setup flags keep their existing default-off settings. Callback functions,
 beacon observations and observed ranges remain in memory. Recovery is idempotent;
 it does not promise exactly-once callback side effects.
 
@@ -2131,7 +2156,8 @@ Search rows are three blocks apart at soil height plus two. Probes find logs at 
 
 An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "saplings #<id> empty at x,y,z", reason = "empty", point }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. The wood chest also receives sticks, apples, leaves and excess saplings. The turtle keeps one sapling per known spot of that species, with at least one for the current tree. Inventory pressure also interrupts harvesting to unload. Round-end unloading includes junk even without logs. A failed junk drop holds and raises an alert.
 
-Move and dig failures increment a saved `failures` count. Successful inspections do not reset it. Successful movement or digging resets it. Three failures hold and emit `lumber.alert`. Holds park and show `Fix cause, then type start`. The operator fixes the cause and sends `start` to clear the hold and retry through pose recovery. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned. Its threshold is the distance to the selected fuel chest access cell via soil height plus two, plus a margin of 32 fuel.
+Move and dig failures increment a saved `failures` count. Successful inspections do not reset it. Successful movement or digging resets it. Three failures hold and emit `lumber.alert`. Holds park and show `Fix cause, then type start`. The operator fixes the cause and sends `start` to clear the hold and retry through pose recovery. Low fuel uses a fuel drop and `P.fuelValue`. Logs are burned only through the
+default-off [emergency log fuel](#lumber-emergency-log-fuel) option. Its threshold is the distance to the selected fuel chest access cell via soil height plus two, plus a margin of 32 fuel.
 
 Wood deliveries inspect the chest in a separate lease, then save a per-worker
 `delivery = { seq, before, slot, step }` before sending the transfer. A successful
@@ -2967,8 +2993,9 @@ before executing fenced work and refuse the batch if that save fails. RELEASE
 uses a fenced GPS step. Its report proves the worker advanced its journal, so a
 delayed setup batch with the previous id cannot move after reservations are
 released, including across a server restart. Older workers can run ordinary leases but cannot run chest setup. After lease
-expiry or server restart, recovery requires both `setupFence` and `parkBatch`;
-workers without them need an update.
+expiry or server restart, enabled boundary safety requires both `setupFence`
+and `parkBatch`. With boundary safety off, legacy recovery may use one stationary
+`inspectDown`. Fenced cell-release recovery still requires GPS proof.
 
 The display dispatcher accepts a button id only when it appeared in that
 sender's last delivered frame for the current role. It records controls after
@@ -3399,3 +3426,26 @@ After a log-burn return, the worker holds for fuel and keeps the empty-chest
 alert. Automatic retries and START may recheck the chest but cannot repeat burns
 for that empty service. Confirmed ordinary refueling clears the hold and follows
 the existing return path.
+
+### Builder storage axis orders
+
+`so-server.cfg.alternateAxisOrders` defaults to false. Enabling it lets builder
+storage trips rank known-clear, non-digging axis paths. Each candidate leg spans
+at most 16 cells per axis. Ownership, protection, radio range, mining lanes and
+fuel must pass before dispatch reserves cells. Missing or evicted clear-cell
+facts hold the trip. No safe candidate means HOLD with reservations retained.
+The fleet restart barrier pauses storage dispatch before reservations.
+Trips waiting only for that barrier resume when it clears.
+
+Each move or turn ends a parked lease fenced to the current journal. The builder
+waits for its matching report, checks journal advance and certain expected world
+position and facing, then reassesses from that acknowledged pose. Failure or
+uncertainty retains reservations and requires stationary reconciliation.
+Reported failed or unconfirmed storage boundaries save
+`service.hold={cause,text}` for that route. Stationary reconciliation restores
+the hold. Further trip leases wait until START passes readiness checks and
+clears it. Restart and disabling the flag preserve it. Expired leases or missing
+reports take the lost recovery path without saving a route hold. They require
+stationary recovery and may then resume on their own. Restart recovery saves
+the durable outcome receipt before acknowledging it, restores the confirmed
+prefix and never replays its movement.
