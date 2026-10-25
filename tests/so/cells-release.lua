@@ -10,9 +10,9 @@ local function boot(files)
   return m.env.dofile("so-mod-cells.lua"), m, net
 end
 
-local function fenced(files)
+local function fenced(files,safety)
   local cells,m,net=boot(files)
-  m.files["so-server.cfg"]=H.encode({worldEdits=true})
+  m.files["so-server.cfg"]=H.encode({worldEdits=true,protectedAreas=safety})
   local sent={}
   m.env.rednet.send=function(_,wire) sent[#sent+1]=wire return true end
   m.env.SO.pair={key=function() return "key" end}
@@ -289,7 +289,11 @@ return function(test, equal)
       equal(c.owner(7,5,6),"setup:9")
       local reboot=boot(m.files)
       equal(reboot.owner(7,5,6),"setup:9")
-      if failure~="restart" and failure~="hold save" then equal(lease.send(9,{{op="forward"}}),nil) end
+      if failure~="restart" then equal(lease.peek(9).releasing,false) end
+      if failure~="restart" and failure~="hold save" then
+        equal(lease.peek(9).releaseHold,true)
+        equal(lease.send(9,{{op="forward"}}),nil)
+      end
     end)
   end
 
@@ -346,5 +350,85 @@ return function(test, equal)
     local reboot=boot(m.files)
     equal(reboot.owner(4,5,6),"gps:9") equal(reboot.owner(7,5,6),"setup:9")
   end)
+
+  for _,safety in ipairs({false,true}) do
+    test("B3-B release timeout allows retirement and fenced GPS recovery with safety="..tostring(safety),function()
+      local files={}
+      for i=1,3 do files["so-data/cells/minecraft%3aoverworld/"..(100+i).."_0_0"]=H.encode({schema=1,generation=1,
+        value={format="hex4096",bits="1"..string.rep("0",1023),used=i}}) end
+      local c,m,net,lease,sent,_,report=fenced(files,safety)
+      local dim="minecraft:overworld"
+      lease.handlers.hello({from=9,body={role="worker",dim=dim,gps={dim=dim,x=4,y=5,z=6},
+        capabilities={parkBatch=true,setupFence=true},journal={id="before",pose={x=0,y=0,z=0,f=0}}}})
+      net.time=net.time+300000
+      m.env.SO.mods.state={disk=function() return {pressure=true} end}
+      assert(c.reserve("setup:9",7,5,6))
+      local offer=assert(c.releaseRequest("setup:9",10))
+      assert(c.releaseRequest("setup:9",10,offer.token))
+      net.time=net.time+25001 lease.tick(net.time)
+      equal(c.releaseStatus("setup:9").status,"held")
+      equal(lease.peek(9).releasing,false) equal(lease.peek(9).releaseHold,true)
+      equal(lease.peek(9).boundaryHold,nil)
+      equal(lease.protectionReady(),true)
+      local protected={}
+      assert(lease.dugProtection(function(d,p,margin) protected[#protected+1]={d=d,p=p,margin=margin} end))
+      equal(protected[1],{d=dim,p={dim=dim,x=4,y=5,z=6},margin=48})
+      assert(c.tick(net.time))
+      local request=assert(c.retirement()) equal(request.status,"pending")
+      assert(c.decideRetirement(request.id,"allow")) equal(c.isDug(1616,0,0),false)
+      local box={dim=dim,x1=1632,y1=0,z1=0,x2=1632,y2=0,z2=0}
+      local clear=assert(c.clearMarks(box,10))
+      equal(assert(c.clearMarks(box,10,clear.token)).marks,1)
+      lease.handlers.hello({from=10,body={role="worker",dim=dim,capabilities={parkBatch=true,setupFence=true},
+        journal={id="other-before",pose={x=0,y=0,z=0,f=0}}}})
+      local plan=m.env.dofile("so-plan.lua")
+      local frame=plan.frame({dim=dim,x=160,y=0,z=0,facing=0},{x=0,y=0,z=0,f=0})
+      local other=assert(lease.send(10,{{op="forward"}},{frame=frame}))
+      lease.handlers["step.report"]({from=10,body={lease=other,journal="other-after",pose={x=0,y=0,z=-1,f=0},results={{ok=true}}}})
+      equal(lease.peek(10).last.ok,true)
+      equal(lease.send(9,{{op="forward"}},{recover=true}),nil)
+      equal(lease.send(9,{{op="inspectDown"}},{recover=true}),nil)
+      local recovery=assert(lease.send(9,{{op="gps"}},{recover=true}))
+      equal(sent[#sent].body.journal,"before") equal(sent[#sent].body.steps,{{op="gps",park=true}})
+      report(recovery)
+      equal(lease.peek(9).releaseHold,false) equal(lease.peek(9).boundaryHold,nil)
+      equal(lease.peek(9).reconciled,true)
+      equal(c.owner(7,5,6),"setup:9") equal(c.owner(4,5,6),"gps:9")
+      equal(c.releaseStatus("setup:9").status,"held")
+      assert(c.protect({}))
+      frame=plan.frame({dim=dim,x=4,y=5,z=6,facing=0},{x=0,y=0,z=0,f=0})
+      assert(lease.send(9,{{op="forward"}},{frame=frame}))
+    end)
+  end
+
+  for _,failure in ipairs({"GPS failure","old journal","wrong dimension","new contact","save","timeout"}) do
+    test("B3-B recovery GPS preserves the per-worker hold after "..failure,function()
+      local c,m,net,lease,_,hello,report=fenced()
+      assert(c.reserve("setup:9",7,5,6))
+      local offer=assert(c.releaseRequest("setup:9",10)) assert(c.releaseRequest("setup:9",10,offer.token))
+      net.time=net.time+25001 lease.tick(net.time)
+      local recovery=assert(lease.send(9,{{op="gps"}},{recover=true}))
+      if failure=="timeout" then net.time=net.time+70001 lease.tick(net.time)
+      else
+        if failure=="new contact" then hello() end
+        if failure=="save" then
+          local open=m.env.fs.open
+          m.env.fs.open=function(path,mode)
+            if path=="so-data/cells/res.tmp" and mode=="w" then return nil end
+            return open(path,mode)
+          end
+        end
+        report(recovery,function(body)
+          if failure=="GPS failure" then body.results[1].ok=false
+          elseif failure=="old journal" then body.journal="before"
+          elseif failure=="wrong dimension" then body.results[1].data.dim="minecraft:the_nether" end
+        end)
+      end
+      equal(lease.peek(9).releaseHold,true) equal(lease.peek(9).releasing,false)
+      equal(lease.peek(9).boundaryHold,nil) equal(c.owner(7,5,6),"setup:9")
+      equal(lease.send(9,{{op="forward"}}),nil)
+      assert(lease.dugProtection(function() end))
+    end)
+  end
 
 end

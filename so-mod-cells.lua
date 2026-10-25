@@ -695,29 +695,42 @@ S.clearMarks = function(box, actor, token)
   for k,v in pairs(box) do if offer.box[k] ~= v then return nil, "selection changed" end end
   local result, changed = {status="cleared",saved=0,total=#paths,marks=0}, {}
   for _, path in ipairs(paths) do
-    local section, err = S.section(path)
-    if not section then result.error=err break end
-    local value, removed = SO.store.copy(section.value), 0
-    local sx,sy,sz = path:match("/(%-?%d+)_(%-?%d+)_(%-?%d+)$")
-    for z=math.max(box.z1,tonumber(sz)*16),math.min(box.z2,tonumber(sz)*16+15) do
-      for y=math.max(box.y1,tonumber(sy)*16),math.min(box.y2,tonumber(sy)*16+15) do
-        for x=math.max(box.x1,tonumber(sx)*16),math.min(box.x2,tonumber(sx)*16+15) do
-          local index=x%16+16*(y%16)+256*(z%16)
-          if S.bit(value.bits,index) then value.bits=S.bit(value.bits,index,false) removed=removed+1 end
+    local exists = fs.exists(path) or fs.exists(path..".bak") or fs.exists(path..".tmp")
+    if exists then
+      local section, err = S.section(path)
+      if not section then result.error=err break end
+      local value, removed = SO.store.copy(section.value), 0
+      local stamp = S.stamps[path]
+      local sx,sy,sz = path:match("/(%-?%d+)_(%-?%d+)_(%-?%d+)$")
+      for z=math.max(box.z1,tonumber(sz)*16),math.min(box.z2,tonumber(sz)*16+15) do
+        for y=math.max(box.y1,tonumber(sy)*16),math.min(box.y2,tonumber(sy)*16+15) do
+          for x=math.max(box.x1,tonumber(sx)*16),math.min(box.x2,tonumber(sx)*16+15) do
+            local index=x%16+16*(y%16)+256*(z%16)
+            if S.bit(value.bits,index) then value.bits=S.bit(value.bits,index,false) removed=removed+1 end
+          end
         end
       end
+      if removed > 0 then
+        local reservations = S.reservations
+        local current = S.protection(true)
+        if not current or current(path) or S.reservations ~= reservations or S.stamps[path] ~= stamp
+          or (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then
+          result.error="selection became protected or changed" break
+        end
+        local ok
+        ok, err = section.box.save(value)
+        if not ok then result.error, result.uncertain = err, path break end
+        S.sizes[path], S.dug = S.sizes[path]-removed, S.dug-removed
+        if section.migrating then S.migrations = S.migrations-1 end
+        S.sections[path], S.cached = nil, S.cached-1
+        S.measure(path)
+        S.changed(path)
+        if S.sizes[path] == 0 then S.index(path,false) end
+        changed[path] = true
+        result.saved, result.marks = result.saved+1, result.marks+removed
+      end
     end
-    local ok
-    ok, err = section.box.save(value)
-    if not ok then result.error, result.uncertain = err, path break end
-    S.sizes[path], S.dug = S.sizes[path]-removed, S.dug-removed
-    if section.migrating then S.migrations = S.migrations-1 end
-    S.sections[path], S.cached = nil, S.cached-1
-    S.measure(path)
-    S.changed(path)
-    if S.sizes[path] == 0 then S.index(path,false) end
-    changed[path] = true
-    result.saved, result.marks = result.saved+1, result.marks+removed
+    S.pause()
   end
   if result.error then result.status="partial" end
   local mine = SO.mods.mine
@@ -784,18 +797,10 @@ S.protection = function(marksOnly)
       boxes[#boxes + 1] = bounds
     end
   end
-  for key,who in pairs(S.reservations) do
-    local id = type(who)=="string" and tonumber(who:match(":(%d+)$"))
-    local active = not marksOnly
-    if marksOnly and id then
-      for _, name in ipairs({"mine","lumber","build","drops"}) do
-        local mod = SO.mods[name]
-        if mod and ((mod.assigned and mod.assigned(id)) or (mod.busy and mod.busy(id))) then active=true end
-      end
-    end
+  for key in pairs(S.reservations) do
     local path = key:match("^(.*):%d+$")
     if not path then return nil end
-    if active then reserved[path] = true end
+    reserved[path] = true
     S.pause()
   end
   if marksOnly then

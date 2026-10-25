@@ -266,7 +266,7 @@ S.settings = function(id, changes)
   if row.settingsKey ~= key then return nil, "wait for hello" end
   if not row.settingsControl then return nil, "settings disabled" end
   if row.settingsPending then return nil, "settings pending" end
-  if row.open or row.uncertain or row.anchor or row.lost or row.releaseLock or S.assigned(id) then return nil, "worker busy" end
+  if row.open or row.uncertain or row.anchor or row.lost or row.releaseLock or row.releaseHold or S.assigned(id) then return nil, "worker busy" end
   if type(changes) ~= "table" then return nil, "invalid settings" end
   for field in pairs(changes) do
     if field ~= "dim" and field ~= "autoToolSwap" then return nil, "invalid settings" end
@@ -485,7 +485,7 @@ end
 S.releaseReady = function(id, bootAt)
   local row = S.turtles[id]
   if not row or not row.worker or not SO.pair.key(id) then return nil, "unknown worker" end
-  if row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock
+  if row.open or row.uncertain or row.anchor or row.boundaryHold or row.releaseLock or row.releaseHold
     or row.probe or row.exitRoute or row.settingsPending or row.last and row.last.status == "expired"
     or S.assigned(id) then return nil, "worker has work or unresolved lease" end
   if not row.parkBatch or not row.setupFence or not row.pose or type(row.journal) ~= "string"
@@ -496,42 +496,78 @@ S.releaseReady = function(id, bootAt)
   return row.contact or 0
 end
 
+S.releaseFailed = function(row, lock)
+  row.releaseLock = nil
+  row.releaseHold = {worldPose=lock.worldPose}
+  row.boundaryHold, row.reconciled = nil, false
+  pcall(lock.done,nil)
+end
+
 S.releaseFence = function(id, contact, done)
   local row = S.turtles[id]
   local ready, err = S.releaseReady(id, 0)
   if ready == nil or ready ~= contact then return nil, err or "worker contacted server" end
-  local lock = {contact=contact,journal=row.journal,pose=SO.store.copy(row.pose),dim=row.dim,done=done}
+  local frame = S.frameFor(row)
+  local pose = frame and S.rules().toWorld(frame,row.pose) or S.copyPose(row.fix)
+  local lock = {contact=contact,journal=row.journal,pose=SO.store.copy(row.pose),dim=row.dim,done=done,worldPose=pose}
   row.releaseLock = lock
-  local lid, reason = S.send(id,{{op="gps",park=true}},
-    {owner="cellsRelease",journal=row.journal,release=lock,recover=true,ms=15000})
-  if not lid then lock.done(nil) return nil, reason end
+  local ok, lid, reason = pcall(S.send,id,{{op="gps",park=true}},
+    {owner="cellsRelease",journal=row.journal,release=lock,recover=true,ms=15000,pose=pose})
+  if not ok or not lid then
+    S.releaseFailed(row,lock)
+    return nil, ok and reason or lid
+  end
   return lid
+end
+
+S.releaseFix = function(row, lease, results, journal, pose, dim, contact, priorContact)
+  local facts, fix = lease.report, results and results[1] and results[1].data
+  local p = facts and facts.pose
+  if not (results and results[1].ok and not facts.uncertain and p and pose
+    and facts.journal and facts.journal ~= "" and facts.journal ~= journal and row.journal == facts.journal
+    and p.x == pose.x and p.y == pose.y and p.z == pose.z and p.f == pose.f
+    and priorContact == contact and S.position(fix) and fix.dim == dim
+    and type(fix.dim) == "string" and S.rules().dimension(fix.dim) == fix.dim
+    and fix.x%1 == 0 and fix.y%1 == 0 and fix.z%1 == 0) then return nil end
+  return {dim=fix.dim,x=fix.x,y=fix.y,z=fix.z}
 end
 
 S.releaseReported = function(row, lease, results, priorContact)
   local lock = row.releaseLock
   if not lock then return end
-  local facts, fix = lease.report, results and results[1] and results[1].data
-  local p = facts and facts.pose
-  local valid = results and results[1].ok and not facts.uncertain and p
-    and facts.journal and facts.journal ~= lock.journal and row.journal == facts.journal
-    and p.x == lock.pose.x and p.y == lock.pose.y and p.z == lock.pose.z and p.f == lock.pose.f
-    and priorContact == lock.contact and not S.assigned(lease.turtleId) and S.position(fix) and fix.dim == lock.dim
-    and type(fix.dim) == "string" and S.rules().dimension(fix.dim) == fix.dim
-    and fix.x%1 == 0 and fix.y%1 == 0 and fix.z%1 == 0
-  if valid and lock.done({dim=fix.dim,x=fix.x,y=fix.y,z=fix.z}) then
-    S.fix(row,fix,p,facts.journal)
-    row.releaseLock = nil
-  else
-    lock.done(nil)
-    row.boundaryHold, row.reconciled = true, false
+  local fix = S.releaseFix(row,lease,results,lock.journal,lock.pose,lock.dim,lock.contact,priorContact)
+  if fix and not S.assigned(lease.turtleId) then
+    lock.worldPose = fix
+    local ok, saved = pcall(lock.done,fix)
+    if ok and saved then
+      row.releaseLock = nil
+      S.fix(row,fix,lease.report.pose,lease.report.journal)
+      return
+    end
   end
+  S.releaseFailed(row,lock)
+end
+
+S.releaseRecovered = function(row, lease, results, priorContact)
+  local fix = S.releaseFix(row,lease,results,lease.journal,lease.expected,lease.releaseDim,lease.releaseContact,priorContact)
+  local cells = S.module("cells")
+  row.boundaryHold, row.reconciled = nil, false
+  if not fix or not cells then return false end
+  row.releaseHold.worldPose = fix
+  local ok, saved = pcall(cells.reserve,"gps:"..lease.turtleId,fix.x,fix.y,fix.z,fix.dim)
+  if not ok or not saved then return false end
+  S.fix(row,fix,lease.report.pose,lease.report.journal)
+  row.releaseHold, row.worldFrame, row.reconciled = nil, nil, true
+  lease.pose = fix
+  return true
 end
 
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
   if row.releaseLock and not (type(opts)=="table" and opts.release == row.releaseLock) then return nil, "release pending reconciliation" end
+  if row.releaseHold and not (type(opts)=="table" and opts.recover == true and type(steps)=="table"
+    and #steps == 1 and type(steps[1])=="table" and steps[1].op == "gps") then return nil, "release recovery GPS required" end
   if row.uncertain or row.anchor then return nil, "pose uncertain" end
   if row.lost and not (type(opts) == "table" and opts.recover == true) then return nil, "lost" end
   if row.open then return nil, "busy" end
@@ -551,6 +587,8 @@ S.send = function(id, steps, opts)
   if not S.number(ms) or ms <= 0 then return nil, "ms" end
   if opts.owner ~= nil and type(opts.owner) ~= "string" then return nil, "owner" end
   if opts.pose ~= nil and not S.position(opts.pose) then return nil, "pose" end
+  if row.releaseHold and (not row.setupFence or not row.parkBatch or not row.pose or not row.journal
+    or row.journal == "" or opts.journal and opts.journal ~= row.journal) then return nil, "recovery needs fenced worker" end
   local frame, from, expected, reconcile
   if S.safety then
     if not row.parkBatch or not row.setupFence or not row.journal or not row.pose then
@@ -608,6 +646,11 @@ S.send = function(id, steps, opts)
     lease.steps[1].park, lease.boundary = true, true
     row.worldFrame = frame
   end
+  if row.releaseHold then
+    lease.releaseRecovery, lease.releaseContact, lease.releaseDim = true, row.contact or 0, row.dim
+    lease.journal, lease.expected, lease.pose = row.journal, SO.store.copy(row.pose), S.copyPose(row.releaseHold.worldPose)
+    lease.steps[1].park = true
+  end
   if remote then
     local at = S.copyPose(opts.pose)
     local reverse={forward="back",back="forward",up="down",down="up",turnLeft="turnRight",turnRight="turnLeft"}
@@ -638,7 +681,7 @@ S.snapshot = function(row)
     last = SO.store.copy(row.last), tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
     settings = SO.store.copy(row.settings), workerSettings = row.workerSettings, settingsControl = row.settingsControl,
     settingsPending = row.settingsPending and {rid=row.settingsPending.rid,n=row.settingsPending.n} or nil,
-    releasing = row.releaseLock ~= nil, contact = row.contact or 0,
+    releasing = row.releaseLock ~= nil, releaseHold = row.releaseHold ~= nil, contact = row.contact or 0,
     settingsError = row.settingsError, reconciled = row.reconciled, boundaryHold = row.boundaryHold,
     fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt,
@@ -733,6 +776,9 @@ S.report = function(msg, reply)
       row.boundaryHold, row.reconciled = nil, true
       if lease.reconcile and lease.frame then lease.pose = S.rules().toWorld(lease.frame,facts.pose) end
     end
+  end
+  if lease.releaseRecovery and not S.releaseRecovered(row,lease,results,priorContact) then
+    results, allOk = nil, false
   end
   lease.status = "reported"
   row.last = {status="reported", ok=allOk, at=row.seen}
@@ -858,6 +904,7 @@ S.tick = function(now)
       row.open = nil
       lease.status = "expired"
       if lease.boundary then row.boundaryHold, row.reconciled = true, false end
+      if lease.releaseRecovery then row.boundaryHold, row.reconciled = nil, false end
       row.last = {status="expired", ok=false, at=now}
       if lease.owner == "cellsRelease" then S.releaseReported(row,lease,nil)
       elseif lease.owner == "protectedExit" then S.exitReported(lease,row,nil)
@@ -925,10 +972,16 @@ end
 
 S.dugProtection = function(protect)
   for _, row in pairs(S.turtles) do
-    if row.uncertain or row.anchor or row.boundaryHold or row.releaseLock then return false end
-    if row.open then
-      if not row.open.pose then return false end
-      protect(row.open.pose.dim or "minecraft:overworld", row.open.pose, 48)
+    local held = row.releaseHold or row.releaseLock
+    if held then
+      local pose = held.worldPose
+      if pose then protect(pose.dim or "minecraft:overworld",pose,48) end
+    else
+      if row.uncertain or row.anchor or row.boundaryHold then return false end
+      if row.open then
+        if not row.open.pose then return false end
+        protect(row.open.pose.dim or "minecraft:overworld", row.open.pose, 48)
+      end
     end
   end
   return true

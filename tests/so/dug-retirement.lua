@@ -305,8 +305,8 @@ return function(test, equal)
     local c,m,net=F.setup(nil,2)
     m.files["so-server.cfg"]=H.encode({worldEdits=true})
     local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1632,y2=0,z2=0}
-    assert(c.reserve("gps:9",1616,0,0))
-    assert(c.reserve("recovery:8",1632,0,0))
+    assert(c.reserve("gps:9",1648,0,0))
+    assert(c.reserve("recovery:8",1664,0,0))
     c.rememberWorker(8,{dim=box.dim,x=0,y=64,z=0},{{dim=box.dim,x=0,y=64,z=0}})
     assert(c.tick(net.time))
     local before=m.env.SO.store.read("so-data/dug-policy").value
@@ -318,13 +318,13 @@ return function(test, equal)
     local result=assert(c.clearMarks(box,10,offer.token))
     equal(result.status,"cleared") equal(result.saved,2) equal(result.marks,2)
     equal(marked(c,1),false) equal(marked(c,2),false)
-    equal(c.owner(1616,0,0),"gps:9") equal(c.owner(1632,0,0),"recovery:8")
+    equal(c.owner(1648,0,0),"gps:9") equal(c.owner(1664,0,0),"recovery:8")
     equal(m.env.SO.store.read("so-data/dug-policy").value,before)
     assert(invalidated[F.path(1)] and invalidated[F.path(2)])
     local _,after=c.dugBits(box.dim,101,0,0) assert(after>stamp)
     local reboot=F.setup(m.files)
-    equal(marked(reboot,1),false) equal(reboot.owner(1616,0,0),"gps:9")
-    equal(reboot.owner(1632,0,0),"recovery:8")
+    equal(marked(reboot,1),false) equal(reboot.owner(1648,0,0),"gps:9")
+    equal(reboot.owner(1664,0,0),"recovery:8")
   end)
 
   test("B3-B mark-only clear reports partial saves and never resumes after restart",function()
@@ -448,6 +448,58 @@ return function(test, equal)
     m.env.SO.mods.state={canWork=function() return false end}
     local lid,reason=lease.send(9,{{op="gps"}})
     equal(lid,nil) equal(reason,"DISK events pending")
+  end)
+
+  test("B3-B mark clearing skips unexplored sections and unchanged bits without saving",function()
+    local c,m=F.setup(nil,1)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    local before=m.env.SO.store.copy(m.files)
+    local writes=0 local open=m.env.fs.open
+    m.env.fs.open=function(path,mode) if mode=="w" then writes=writes+1 end return open(path,mode) end
+    local box={dim="minecraft:overworld",x1=1600,y1=0,z1=1,x2=2623,y2=0,z2=1}
+    local offer=assert(c.clearMarks(box,10)) equal(offer.sections,64)
+    local result=assert(c.clearMarks(box,10,offer.token))
+    equal(result.status,"cleared") equal(result.saved,0) equal(result.marks,0)
+    equal(writes,0) equal(m.files,before)
+    equal(marked(c,1),true)
+  end)
+
+  test("B3-B mark clearing protects reservations held by idle owners",function()
+    for _,owner in ipairs({"gps:9","recovery:8","idle"}) do
+      local c,m=F.setup(nil,1)
+      m.files["so-server.cfg"]=H.encode({worldEdits=true})
+      local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1616,y2=0,z2=0}
+      local offer=assert(c.clearMarks(box,10))
+      assert(c.reserve(owner,1631,15,15))
+      equal(c.clearMarks(box,10,offer.token),nil)
+      equal(marked(c,1),true) equal(c.owner(1631,15,15),owner)
+    end
+  end)
+
+  test("B3-B mark clearing rechecks each path after a yield adds an idle reservation",function()
+    local c,m=F.setup(nil,2)
+    m.files["so-server.cfg"]=H.encode({worldEdits=true})
+    local box={dim="minecraft:overworld",x1=1616,y1=0,z1=0,x2=1632,y2=0,z2=0}
+    local elsewhere={}
+    for i=1,128 do elsewhere[i]={"minecraft:overworld",5000+i,64,0} end
+    assert(c.reserveMany("other",elsewhere))
+    local offer=assert(c.clearMarks(box,10))
+    local open=m.env.fs.open local firstSaved,injected=false,false
+    m.env.fs.open=function(path,mode)
+      local h=open(path,mode)
+      if path==F.path(1)..".tmp" and mode=="w" then
+        local close=h.close
+        h.close=function() close() firstSaved=true end
+      end
+      return h
+    end
+    m.env.SO.breathe=function()
+      if firstSaved and not injected then injected=true assert(c.reserve("idle",1632,0,0)) end
+    end
+    local result=assert(c.clearMarks(box,10,offer.token))
+    assert(injected)
+    equal(result.status,"partial") equal(result.saved,1) assert(result.error)
+    equal(marked(c,1),false) equal(marked(c,2),true) equal(c.owner(1632,0,0),"idle")
   end)
 
 end
