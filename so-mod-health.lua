@@ -1,6 +1,6 @@
 local U = dofile("so-ui.lua")
 local H = { now=0, items={}, metrics={}, jobs={}, kinds={},
-  sound={ready=false,quiet=false,keys={},due={}} }
+  sound={ready=false,quiet=false,keys={},due={}}, errorViews=setmetatable({},{__mode="k"}), clearAttempt=0 }
 
 local function call(name, method, ...)
   local mod = SO.mods[name]
@@ -269,6 +269,13 @@ local function sessionView(session, role)
   return session.visibility[role]
 end
 
+local function clearConfirmation(session, v, now)
+  local confirm = v.confirm
+  if confirm and (now >= confirm.untilAt or confirm.drawn and session.inputIds and not session.inputIds[confirm.id]) then
+    v.confirm = nil
+  end
+end
+
 local function errorCut(text, width)
   local cut = math.max(0,math.min(#text,width))
   local byte = text:byte(cut+1)
@@ -375,12 +382,33 @@ end
 H.render = function(role,w,h,session)
   session = session or {}
   local v = sessionView(session,role)
+  if role == "errors" then
+    H.errorViews[session] = v
+    clearConfirmation(session,v,SO.now and SO.now() or H.now)
+  elseif session.visibility.errors then session.visibility.errors.confirm = nil end
   local c = U.canvas(w,h)
   if h < 5 then c.chip(2,h,"BACK","generic");return c.frame() end
   local first = H.items[1]
   local last = U.tabRows(c,tabs(w,#H.items,first and (first.severity==1 and "e" or "1")),role,4)
   local gap, lw = h >= 16 and 1 or 0, math.min(w-2,40)
   local top = last+1+gap
+  if role == "errors" then
+    local status = SO.errors and SO.errors.status() or {}
+    if (status.count or 0) > 0 and type(SO.errors.clear) == "function" then
+      if v.confirm then
+        c.chip(2,top,"CONFIRM",v.confirm.id)
+        if w >= 20 then c.chip(12,top,"CANCEL","clear-cancel")
+        else top=top+1;c.chip(2,top,"CANCEL","clear-cancel") end
+        v.confirm.drawn = true
+      else c.chip(2,top,"CLEAR","error-clear") end
+      top = top+1+gap
+    end
+    if v.clearFailure then
+      c.put(2,top,"clear failed","e")
+      c.put(2,top+1,cut((v.clearFailure:gsub("[%c]"," ")),lw),"e")
+      top = top+2
+    end
+  end
   if role == "attention" and v.lost then
     local row
     for _, item in ipairs(H.items) do if item.key == v.lost then row=item end end
@@ -568,6 +596,32 @@ H.input = function(role,event)
   if not event.session then return end
   local v = sessionView(event.session,role)
   local id = event.id
+  if role == "errors" then
+    clearConfirmation(event.session,v,SO.now and SO.now() or H.now)
+    if id == "error-clear" and SO.errors and type(SO.errors.clear) == "function" then
+      local status = SO.errors.status()
+      if (status.count or 0) > 0 then
+        H.clearAttempt = H.clearAttempt+1
+        v.confirm = {revision=status.revision,untilAt=(SO.now and SO.now() or H.now)+10000,
+          id="clear-confirm:"..H.clearAttempt}
+      end
+      return
+    elseif id == "clear-cancel" then v.confirm = nil;return
+    elseif type(id) == "string" and id:match("^clear%-confirm:") then
+      if v.confirm and id == v.confirm.id and SO.errors and type(SO.errors.clear) == "function" then
+        local ok, err = SO.errors.clear(v.confirm.revision)
+        v.confirm = nil
+        if ok then
+          for _, view in pairs(H.errorViews) do
+            view.error,view.errorPage,view.errorNext,view.confirm,view.clearFailure,view.targets = nil,nil,nil,nil,nil,nil
+          end
+          H.gather(H.now)
+        else v.clearFailure = tostring(err) end
+      end
+      return
+    end
+    if id=="health" or id=="attention" or id=="events" or id=="alerts" or id=="errors" then v.confirm = nil end
+  end
   if role == "attention" and v.lostRow then
     local row = v.lostRow
     if id == "lost-snooze" and H.snoozes then
@@ -698,6 +752,7 @@ end
 
 H.tick = function(now)
   H.now = now
+  for session, v in pairs(H.errorViews) do clearConfirmation(session,v,now) end
   local clock, refused = os.clock(), SO.clock and SO.clock.refused
   local enabled = SO.health and SO.health.config and SO.health.config.alarm == true or false
   local baseline = not H.sound.ready or enabled~=H.sound.enabled

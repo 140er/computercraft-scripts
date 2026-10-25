@@ -1,0 +1,37 @@
+29x12 Clear errors page2 at 29x12
+ HEALTH  NEEDS 1  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+  CLEAR                      
+ • 10s storage write...      
+ • 10s storage write...      
+ • 10s storage write...      
+ • 10s storage write...      
+ • 10s storage write...      
+ • 10s storage write...      
+ • 10s storage write...      
+ • 10s storage write...      
+                 2/3  ◄   ►  
+888888888888888180cccccccccc0
+8888888888888888000000000ccc0
+00000000000000000000000000000
+0e088800000000000000000000000
+0e088800000000000000000000000
+0e088800000000000000000000000
+0e088800000000000000000000000
+0e088800000000000000000000000
+0e088800000000000000000000000
+0e088800000000000000000000000
+0e088800000000000000000000000
+00000000000000000888000000000
+fffffffffffffffffffffffffffff
+ffffffffffffffff77777777fffff
+f7777777fffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777f777f
