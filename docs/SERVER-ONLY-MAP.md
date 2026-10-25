@@ -168,7 +168,7 @@ and listeners use `listener(sender, message)`.
   `toJournal(frame, pose)`, `ahead(pose, dir)`, `apply(pose, op)`,
   `replay(startPose, steps, results)`, `path(from, to, opts)`, `chunk(steps, n)`,
   `inRange(lease, id, cells)`, `rangeBatch(lease, id, action)`, `fuelValue(name)`, `free(inv)`,
-  `chestPresent(result)`, `transferFailure(kind, result)`, `chestError(kind, reason, point)`,
+  `burnValue(name)`, `chestPresent(result)`, `transferFailure(kind, result)`, `chestError(kind, reason, point)`,
   `chestCheck(points, kind, near)`, `toolCheck(tools, kind, id?, autoSwap?)` and `missing(checks)`.
   `toolCheck` returns `{ok,text,blocking}`. Missing tools are informational unless
   `autoSwap` is true; `missing` excludes nonblocking checks. Absent equipment facts are unknown.
@@ -192,7 +192,7 @@ and listeners use `listener(sender, message)`.
 - [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
   Calls are `key(p)`, `same(a, b)`, `ore(d, ores)`, `junk(d)`, `distance(a, b)`,
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
-  `cleanup(inv, all, side?)`, `travel(from, goal, point, job?, row?)`,
+  `cleanup(inv, all, side?, selected?)`, `travel(from, goal, point, job?, row?)`,
   `supplyRoute(job, row, stand, point?, lookup?)`, `supplyDistance(job, row, stand?, lookup?)`,
   `next(job, row, lookup, inv, fuel)`, `fuelEstimate(job)`,
   `lane(job, exit)`, `inLane(job, pos)` and `lanePass(job, row)`.
@@ -214,8 +214,8 @@ and listeners use `listener(sender, message)`.
   `next` batches known straight travel and turns, ending at inspect or dig report
   boundaries. Multi-action results include `actions` with one-based `first` step indices.
 - [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
-  Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
-  `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`,
+  Calls are `isLog(block, species?)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
+  `canDig(block, species?)`, `scan(area, ground, dim)`, `access(point, near, blocked)`,
   `travel(from, target, ground)`, `nextCell(from, target, ground, blocked)` and `distance(a, b)`.
   `nextCell` searches at most 2048 cells and returns the first movement cell around
   other workers and their reservations, or nil when no route was found. `travel` returns the next
@@ -722,7 +722,15 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   "out of fuel" when the worker reports a fuel error or zero fuel.
   `budget()` returns `{total,remaining,carried}` from blueprint, cursor and
   inventory. Remaining is an upper bound; carried sums all matching stacks and
-  is nil before inventory arrives. This is a backend model, not a new budget UI.
+  is nil before inventory arrives. The job tab shows `need` and `carried`;
+  carried reads `unknown` before the first report. The setup `material-pick`
+  chip opens a paged inventory picker with summed counts. Rows run
+  `material <name>` and keep the cursor. `no report` and `empty` are distinct.
+  Under 24 columns, only the job tab draws, without tab controls.
+  Saved `returnHome` defaults off. Stopped-job `return on|off` and
+  `home <x> <y> <z> n|e|s|w` configure a journal-fenced, acknowledged return.
+  `completion={phase,target}` and the cursor survive restart. COMPLETE waits
+  for the certain home pose and facing. See [return home](server-only/PROTOCOL.md#builder-return-home).
   Material changes preserve completed-cell progress. START requires usable
   storage, a paired certain pose, parkBatch and positive or unlimited fuel.
   After the initial recovery fuel report, fresh authenticated lease facts can
@@ -1421,7 +1429,7 @@ crowded jobs, missing modules, odd sizes, contrast, frames under 16 KB at 164x81
 generator parity.
 
 RA2 adds `tests/ui/ra2-other.lua` and `tests/ui/other-scene.txt`. `docs/ui/schematic/other.py`
-writes the build, health and turtle detail fixtures (`build-*`, `buildsetup-*`, `health-*`,
+writes the build, health and turtle detail fixtures (`build-*`, `buildsetup-*`, `buildpick*-*`, `health-*`,
 `attention-*`, `alerts-*`, `events-*`, `errors-*`, `turtle-*`, `turtlepose-*`). The test draws
 the scene with the real build and health modules and `U.turtle`, compares every fixture cell by
 cell with contrast and bounds, and checks the old ids, the row targets, the kind chip, paging,
@@ -1689,3 +1697,87 @@ Fluid can still change between commands; the scan cannot inspect the occupied
 block. Neither ender modems nor this feature load chunks. Silent remote leases
 show `remote silent; unloaded?`, retain reservations and recover in place.
 See [the operator guide](../README-SERVER-ONLY.md#nether-and-end-jobs).
+
+
+## Protected routes and world edits
+
+`protectedAreas=false` in `so-server.cfg` gates saved protected boxes and shared
+movement/dig/place/drop admission. `cells.protected()` copies the saved
+`{v=1,revision,boxes}`; `cells.protect(boxes)` validates and saves up to 64 boxes.
+The generation store is `so-data/cells/protected`. Invalid data holds movement
+when enabled. Activation and edits require reconciled leases and reservation
+holders. One offline holder blocks activation without a timeout bypass.
+Disabling protection keeps saved boxes.
+
+`cells.admit(who,from,op,to)` checks operation targets.
+`cells.assessment(who,exit?,targets?)` supplies copied admission facts and a
+memory-only clear lookup. It loads no sections and changes no LRU state.
+`plan.assess(from,steps,checks)` and `lease.assess(id,from,steps,opts)` return
+first-refusal facts; `opts.clear` requires known-clear moves.
+`plan.boundary(action)` returns a prefix through the first move or turn and `rest`.
+Protection, alternate axis orders or storage deliveries enables this boundary
+contract. Each prefix fences the current journal and requires acknowledged pose
+and facing before replanning. Failures retain reservations until reconciliation.
+`lease.boundaries()`, `protectionReady()` and `status(id).boundaryHold` expose it.
+`lease.exitRequest(id,steps,actor,token?)` previews and confirms a known-clear
+exit with complete-path reservations. Approval expires after 30 game seconds
+and is discarded on failure or restart. See [protected paths](server-only/PROTOCOL.md#protected-paths-and-acknowledged-boundaries).
+
+`worldEdits=false` gates RELEASE, authenticated `cells.forget`, mark clearing
+and keep-box edits. `cells.releaseRequest(who,actor,token?)` arms then dispatches
+a stationary fenced GPS lease. Its ACK means pending. A matching advanced
+journal and unchanged pose must prove the occupied cell before route release.
+`releaseStatus(who)` copies the result. Silence is at least five game minutes;
+`releaseSilence` can raise it. `so-data/cells/release-holds` restores conservative
+route holds after restart. Failed release recovery keeps the original route.
+
+`cells.clearMarks(box,actor,token?)` confirms a mark-only clear across at most
+64 sections. Reserved sections, assignments, leases and recovery protect marks.
+It rechecks before each save and reports partial progress. `cells.keep(boxes?)`
+reads or saves up to 64 keep boxes in the dug policy. Any intersection retains
+the whole section, including at ALLOW recheck. Keeps grant no movement permission.
+See [release and retention](server-only/PROTOCOL.md#fenced-release-and-mark-retention).
+
+## Job options and ore finds
+
+Mining saves empty `keep` and `staging`, default-off `recallEnabled` and optional
+`recall={phase,workers}`. KEEP excludes exact IDs from cleanup and surplus unload
+without bypassing inventory headroom or sealing-stock checks. Recall drains work,
+uses acknowledged non-digging routes to distinct staging poses and preserves
+unfinished cursors. STOP pauses it; START after staging retraces checked work
+routes. Restart recovers journals before travel. See [KEEP and recall](server-only/PROTOCOL.md#mining-keep-and-recall)
+for commands and `so-mine-plan` cleanup, unload and recall helpers.
+
+Lumber defaults to `cycleMode="repeat"`, `species=false` and `burnLogs=false`.
+ONCE saves survey, candidates, claims, membership, completion and parking facts.
+Replant, receipt-backed unloading and confirmed distinct stationary parks precede
+COMPLETE. Restart preserves unfinished cycles and revalidates parking.
+`so-lumber-plan` adds `species`, `selected(name,species)` and optional selections
+to `isLog` and `canDig`. Exact selections protect other wood and leaves during
+felling and travel. Emergency burning requires fresh empty-fuel-chest proof at
+its existing access. Saved intents reconcile consumption before another burn.
+The return holds for ordinary fuel. See [ONCE and species](server-only/PROTOCOL.md#lumber-once-and-species)
+and [log fuel](server-only/PROTOCOL.md#lumber-emergency-log-fuel).
+
+Mining `orecoordinates on|off` defaults off and adds proven positions to confirmed
+`mine.ore` events. Map `ore finds on|off` defaults off per session. Its memory-only
+256-find ring reads at most 50 history entries per active tick. Markers expire at
+ten game minutes, stay in their dimension and level, and do not affect FIT,
+movement or reservations. See [recent finds](server-only/PROTOCOL.md#recent-ore-finds).
+
+## Gate B slots and photos
+
+Run `tools/gateb/gateb-retry.sh --slot A|B --full FULL_SHA --worlds 2` from the
+checkout under test. A belongs to UI-B; B belongs to fix-round. `GATEB_SLOT`
+also selects the slot; the driver defaults to A. Each slot owns at most two
+private worlds in the shared runtime home. C3 and C13 wait for running checks,
+then block new checks in both slots during visual checks. Resource admission
+thresholds stay unchanged. Exit 75 means busy admission or ownership. The wrapper
+retries every 60 seconds for at most 30 minutes and preserves real check results.
+Use separate explicit output or candidate-photo directories per invocation.
+Let an older keeper become idle before starting the two-slot driver.
+
+C2 reopens and frames the pocket for its pocket photo. Repair photos retain
+settling diagnostics. C3 waits for the wall shop's search-result frame after
+typing before tapping an item. An item hit in an older frame is insufficient.
+These are driver requirements, not evidence of a completed native run.

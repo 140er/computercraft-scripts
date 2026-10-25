@@ -619,8 +619,8 @@ after three failures. Repair the chest, use `fix` in the generic drop editor if
 marked broken, and send `start` on the lumber screen. Sapling service reuses a
 matching drop point or adds a `storage` point to that editor. Remove unused old
 sapling points there after changing the coordinates.
-Dark oak is excluded. Empty sapling chests disable replanting
-while felling continues. Configure a wood drop and a fuel drop.
+Dark oak is excluded. In REPEAT, empty sapling chests disable replanting
+while felling continues. ONCE holds until replanting can finish. Configure a wood drop and a fuel drop.
 Chest alerts distinguish unconfigured, broken, unreachable, full and empty
 containers. Alerts name the point and coordinates. Full and empty require an
 inspection of a chest, barrel or shulker box and a failed item transfer.
@@ -1020,3 +1020,148 @@ Set `displayAck=true` in `so-server.cfg` to measure display freshness from
 successful frame drawing. It defaults off. Updated displays become stale after
 ten game seconds without a frame ack. Older displays show `unverified`.
 Without the flag, freshness still uses the last send.
+
+
+## Protected paths and reservation release
+
+Set `protectedAreas=true` in `so-server.cfg` and restart to enable protected
+boxes. It defaults off. The server API `SO.mods.cells.protect(boxes)` saves up
+to 64 boxes with unique IDs, dimensions and inclusive integer bounds.
+`SO.mods.cells.protected()` returns the saved set and any load error.
+Saved boxes remain when disabled. Invalid protection data holds movement.
+Activation and edits wait for reconciled leases and reservation holders.
+One offline holder blocks activation until it reconciles, without a timeout bypass.
+
+Protection checks movement, dig, place and drop targets. Ordinary movement and
+these writes from inside boxes are refused too. Mining, lumber, builder and
+setup stop each prefix at its first move or turn. A matching report must prove
+the expected pose and facing with an advanced journal before the next prefix.
+Failed or missing movement reports retain reservations until stationary recovery.
+Route assessment uses memory-only clear facts. Unknown cells are not proven clear.
+
+An idle unassigned turtle inside protection needs an approved exit through
+known-clear cells. `SO.mods.lease.exitRequest(id,steps,actor,token?)` previews
+then confirms the same path within 30 game seconds. The complete route reserves
+before movement. It allows at most 16 moves and 64 move/turn operations, ends
+outside all boxes, and cannot enter a new box or re-enter a departed one.
+A failed boundary or restart discards approval and retains reservations.
+
+Set `worldEdits=true` in `so-server.cfg` to enable reservation RELEASE,
+authenticated `cells.forget`, mark clearing and keep-box edits. It defaults off.
+With it off, `cells.forget` errors without arming confirmation. Saved holds and
+keep boxes remain. Select a map holder and tap RELEASE, then RELEASE? within
+30 game seconds. The worker must be unassigned, have no unresolved lease and
+have been silent for at least five game minutes. `releaseSilence` can raise
+that minimum. Restart starts a fresh silence grace.
+
+WAIT GPS means pending. The worker must acknowledge a stationary fenced GPS
+lease with an advanced journal and unchanged certain pose. The server saves
+its occupied `gps:<id>` cell before freeing the route. New contact, timeout,
+changed reservations or failed saves keeps the route held. Recovery can prove
+the occupied cell while retaining the original route. There is no offline force release.
+
+`SO.mods.cells.clearMarks(box,actor,token?)` previews then confirms a mark-only
+clear of at most 64 sections. It changes no world blocks, reservations or recovery
+records. Work, recovery and any reserved section prevent clearing.
+It skips unexplored areas, rechecks before each save and reports partial failures.
+Restart cancels approval. `SO.mods.cells.keep(boxes)` saves keep boxes;
+`keep()` reads them. Any intersection keeps the whole section during retirement,
+including the final ALLOW check. Keep boxes grant no movement permission and do
+not bypass the disk guard. See [the protocol](docs/server-only/PROTOCOL.md#fenced-release-and-mark-retention).
+
+## Mining KEEP, recall and ore markers
+
+On MINING, `keep <exact namespaced IDs>` replaces the saved list; commas or
+spaces separate up to 64 IDs. `keep none` clears it. Wait for batches and recovery
+to settle before changing it. Selected items stay out of cleanup and surplus
+unloading. KEEP still requires free inventory slots and sealing stock to dig.
+
+Recall defaults off. While stopped, use `recall on` and
+`staging <id> <x> <y> <z> <n|e|s|w>` for each assigned turtle. Destinations must
+be distinct, at home height in the job dimension and outside shared lanes,
+home and chest access. `recall` saves the request, stops new claims, drains
+accepted work and returns without digging or sealing. Every move or turn waits
+for a fenced report. Shared-lane passes reserve before entry. Unknown or blocked
+routes, lost workers and insufficient fuel hold recall.
+
+All turtles must reach their saved destinations and facings before staging
+finishes. STOP pauses recall. START after staging retraces checked routes to
+saved work poses and resumes unfinished mining. Restart preserves cursors and
+recovers journals before travel. `recall off` cannot erase unfinished recall.
+Assignments and route settings stay fixed until it finishes. Settle recall
+before downgrading.
+
+`orecoordinates on` enables proven positions on confirmed mining ore events.
+It defaults off. On MAP, `ore finds on` enables yellow asterisks for that display
+session; `ore finds off` hides them. Finds expire after ten game minutes.
+They show only in their dimension and exact selected level, or ALL. They stay
+below workers, reservations and labels and never expand FIT or change travel.
+The bounded memory cache rebuilds from retained history after restart.
+
+## Builder home and material selection
+
+BUILD's setup material chip opens a paged list of reported inventory items and
+summed counts. Selecting an item changes material without resetting completed
+progress. `no report` differs from an empty inventory. The job tab shows `need`
+and `carried`; carried is `unknown` before the first inventory report.
+Below 24 columns only the job tab draws.
+
+Builder return defaults off. While safely stopped, set
+`home <x> <y> <z> n|e|s|w` and `return on`. The first added worker supplies home
+if none exists; re-adding preserves it. Return requires a certain pose and
+updated workers with `parkBatch` and `setupFence`.
+The final confirmed placement starts RETURNING. Travel never digs and waits
+for journal and pose confirmation after each move or turn. Obstructions, range,
+reservations and insufficient fuel hold the return. Refuel manually and use START
+after fixing the cause. STOP pauses it. Restart preserves placement progress
+and unfinished return, then recovers the pose before replanning. Configuration
+and REMOVE cannot erase it. COMPLETE waits for confirmed home position and
+facing. With `return off`, completion stays at the final target.
+
+## Lumber cycles, species and emergency fuel
+
+Lumber defaults to REPEAT. While stopped without unfinished work, `mode once`
+selects one harvest cycle; `mode repeat` restores repeating surveys.
+ONCE saves the survey, claims and members. It finishes accepted trees, replants,
+unloads with confirmed receipts and parks every member at a distinct clear
+position outside shared access before COMPLETE. It does not wait for regrowth.
+Missing saplings, blocked chests, lost workers or unavailable clear parking hold
+completion. STOP and restart preserve the cycle. START resumes unfinished work;
+START after COMPLETE begins a new cycle. Added workers wait for the next cycle.
+Mode, species, area and existing membership cannot change mid-cycle.
+
+`species <exact log IDs>` selects oak, spruce, birch, jungle, acacia, cherry or
+mangrove logs, such as `species minecraft:oak_log minecraft:birch_log`.
+`species none` selects no trees. `species false` restores legacy classification
+and is the default. Explicit selections admit only those supported logs and
+their mapped leaves. Other wood and leaves block felling and travel, including
+chest trips. Dark oak remains excluded.
+
+`burnLogs true` enables emergency log fuel while stopped without pending
+commands. It defaults false; `burnLogs false` disables it. Only a valid fuel
+chest inspection and confirmed empty pickup into an empty inventory slot at
+the existing access can authorize burning carried overworld logs or wood.
+Wrong items, broken chests, carried ordinary fuel, timeouts and missing facts
+cannot substitute for empty-chest proof. Only the next lease can use the proof;
+START, stop, pause, park, recovery, reload or a lane wait discards unused proof.
+
+The saved refuel intent requests the minimum items needed for the existing
+return reserve, within a conservative 20000-fuel bound and the worker's limit.
+Reports or recovery must reconcile consumption and fuel gain before another
+burn. Another stack needs a fresh empty pickup. After returning, the turtle
+holds for ordinary fuel and keeps the empty-chest alert. START can recheck the
+chest but cannot repeat burns for that empty service. Confirmed ordinary
+refueling clears the hold. Burning changes no routes or production credits.
+
+## Gate B tooling
+
+From the checkout under test, run
+`tools/gateb/gateb-retry.sh --slot A|B --full FULL_SHA --worlds 2`.
+UI-B owns A; fix-round owns B. `GATEB_SLOT` also selects the slot; default is A.
+Each slot owns at most two private worlds in the shared runtime home.
+C3 and C13 wait for running checks and block new checks in both slots during
+visual checks. Exit 75 means busy admission or ownership. The wrapper retries
+every 60 seconds for up to 30 minutes and preserves real check results.
+Use separate output or candidate-photo directories for each invocation.
+Let an older keeper become idle before starting the two-slot driver.
+See [the map](docs/SERVER-ONLY-MAP.md#gate-b-slots-and-photos) for photo ordering.
