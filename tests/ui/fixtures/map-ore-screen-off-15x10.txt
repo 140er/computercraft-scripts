@@ -1,0 +1,31 @@
+15x10 Map, ore finds off, empty history
+ ▼  Y64  ▲  ↑N 
+               
+               
+               
+               
+               
+               
+               
+ ◄   ▲   ▼   ► 
+  -   FIT   +  
+000000000000880
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+000000000000000
+777fffff777ffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+777f777f777f777
+f777f77777f777f
