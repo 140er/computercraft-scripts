@@ -69,6 +69,33 @@ local function match(name,frame,w,h)
 end
 
 return function(test,equal)
+  test("health shows add disk space during the snooze, then restores the pending ask",function()
+    local F=dofile("tests/so/dug-fixture.lua")
+    local cells,m,net=F.setup(nil,500)
+    m.env.SO.mods.state={disk=function() return {pressure=true} end}
+    assert(cells.tick(net.time))
+    assert(cells.decideRetirement(cells.retirement().id,"keep"))
+    net.time=net.time+30001
+    assert(cells.tick(net.time))
+    local t=health()
+    local facts={now=net.time,disk={},retirement=cells.retirement()}
+    equal(facts.retirement.status,"snoozed")
+    local rows=t.mod.attention(facts)
+    equal(#rows,1)
+    equal(rows[1].key,"disk-snooze")
+    equal(rows[1].severity,2)
+    equal(rows[1].text,"Add disk space")
+    equal(rows[1].target,"health")
+    net.time=facts.retirement.untilAt
+    assert(cells.tick(net.time))
+    facts.now,facts.retirement=net.time,cells.retirement()
+    equal(facts.retirement.status,"pending")
+    rows=t.mod.attention(facts)
+    equal(#rows,1)
+    equal(rows[1].key,"dug")
+    equal(rows[1].target,"status")
+  end)
+
   test("health keeps UTF-8 codepoints whole at list and detail cut points",function()
     local function valid(text)
       local i = 1

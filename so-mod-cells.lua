@@ -444,6 +444,8 @@ end
 S.policyValid = function(value)
   if type(value) ~= "table" or type(value.nextAsk) ~= "number" or value.nextAsk ~= value.nextAsk or value.nextAsk < S.threshold
     or value.nextAsk >= math.huge or type(value.workers) ~= "table" then return false end
+  if value.pressureAfter ~= nil and (type(value.pressureAfter) ~= "number" or value.pressureAfter ~= value.pressureAfter
+    or value.pressureAfter < 0 or value.pressureAfter >= math.huge) then return false end
   if value.serial ~= nil and (type(value.serial) ~= "number" or value.serial < 0 or value.serial % 1 ~= 0) then return false end
   local function point(p)
     if type(p) ~= "table" or type(p.dim) ~= "string" then return false end
@@ -554,15 +556,22 @@ end
 S.retirement = function()
   if S.request then
     return { id = S.request.id, status = "pending", bytes = S.request.bytes,
-      count = #S.request.candidates, reclaim = S.request.reclaim, text = S.request.text }
+      count = #S.request.candidates, reclaim = S.request.reclaim, text = S.request.text,
+      areas = SO.store.copy(S.request.areas) }
   end
   if S.notice and SO.now() < S.notice.untilAt then return SO.store.copy(S.notice) end
+  local state = SO.mods.state
+  if S.policy.choice == "keep" and SO.now() < (S.policy.pressureAfter or 0)
+    and state and state.disk and state.disk().pressure then
+    return { status = "snoozed", text = "Disk full. Add disk space.", untilAt = S.policy.pressureAfter }
+  end
 end
 
 S.checkRetirement = function(now)
   local state = SO.mods.state
   local pressure = state and state.disk and state.disk().pressure
-  local pressureAsk = pressure and S.policy.choice == "keep" and now >= (S.pressureAfter or 0)
+  if now < (S.policy.pressureAfter or 0) then return end
+  local pressureAsk = pressure
   if S.request or S.migrations > 0 or (S.total < S.policy.nextAsk and not pressureAsk) or (S.checked and now - S.checked < 10000) then return end
   S.checked = now
   local candidates, reclaim = S.candidates()
@@ -570,10 +579,18 @@ S.checkRetirement = function(now)
   local policy = SO.store.copy(S.policy)
   policy.serial = (policy.serial or 0) + 1
   if not S.savePolicy(policy) then return end
+  local areas = {}
+  for _, candidate in ipairs(candidates) do
+    local dim, x, y, z = candidate.path:match("^so%-data/cells/(.-)/(%-?%d+)_(%-?%d+)_(%-?%d+)$")
+    dim = dim:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end)
+    x, y, z = tonumber(x) * 16, tonumber(y) * 16, tonumber(z) * 16
+    areas[#areas + 1] = { dim = dim, x1 = x, y1 = y, z1 = z, x2 = x + 15, y2 = y + 15, z2 = z + 15 }
+    S.pause()
+  end
   S.request = { id = tostring(now) .. ":" .. policy.serial, bytes = S.total,
-    candidates = candidates, reclaim = reclaim,
-    text = "Dug marks use " .. S.amount(S.total) .. ". Forget " .. #candidates .. " old areas (about "
-      .. S.amount(reclaim) .. ")? Nothing in the world changes. Turtles re-check blocks if they return." }
+    candidates = candidates, reclaim = reclaim, areas = areas, pressure = pressure,
+    text = "Dug marks " .. S.amount(S.total) .. ". Forget " .. #candidates .. " areas ("
+      .. S.amount(reclaim) .. ")?" }
 end
 
 S.decideRetirement = function(id, choice)
@@ -581,6 +598,7 @@ S.decideRetirement = function(id, choice)
   if not request or request.id ~= id or (choice ~= "allow" and choice ~= "keep") then return false end
   local policy = SO.store.copy(S.policy)
   policy.nextAsk, policy.choice = math.max(S.threshold, math.ceil(S.total * 1.5)), choice
+  policy.pressureAfter = SO.now() + (choice == "keep" and 600000 or 60000)
   local ok, err = S.savePolicy(policy)
   if not ok then return false, err end
   local forgotten, freed, forgottenPaths = 0, 0, {}
@@ -588,8 +606,12 @@ S.decideRetirement = function(id, choice)
     local protected = S.protection()
     for _, candidate in ipairs(request.candidates) do
       local path, section = candidate.path, S.sections[candidate.path]
-      if protected and not protected(path) and S.versions[path] == candidate.version
-        and not (section and section.dirty) and S.total > S.target then
+      if protected and not protected(path) and (request.pressure or S.total > S.target) then
+        if section and section.dirty then
+          ok, err = S.saveSection(section)
+          if not ok then break end
+        end
+        local bytes = S.bytes[path] or 0
         -- Remove every recovery generation before the primary, so a restart
         -- cannot restore marks the player allowed us to forget.
         local deleted, deleteErr = pcall(function()
@@ -605,7 +627,7 @@ S.decideRetirement = function(id, choice)
         S.changed(path)
         S.index(path, false)
         forgottenPaths[path] = true
-        forgotten, freed = forgotten + 1, freed + candidate.bytes
+        forgotten, freed = forgotten + 1, freed + bytes - (S.bytes[path] or 0)
       end
       S.pause()
     end
@@ -614,9 +636,8 @@ S.decideRetirement = function(id, choice)
     policy.nextAsk = math.max(S.threshold, math.ceil(S.total * 1.5))
     S.savePolicy(policy)
   end
-  S.pressureAfter = SO.now() + 60000
   S.request = nil
-  local text = choice == "keep" and "Kept. More server storage (sharding) is a future option."
+  local text = choice == "keep" and "Kept."
     or ("Forgot marks for " .. forgotten .. " old areas. Freed " .. S.amount(freed) .. ".")
   if err then text = text .. " Storage error; retry later." end
   S.notice = { status = choice == "keep" and "kept" or "allowed", text = text,

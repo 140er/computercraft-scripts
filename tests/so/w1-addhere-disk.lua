@@ -420,6 +420,8 @@ return function(test,equal)
     m.env.SO.mods.state={disk=function() return {pressure=true} end}
     assert(cells.tick(n.time));assert(cells.decideRetirement(cells.retirement().id,"keep"))
     n.time=n.time+60001;assert(cells.tick(n.time))
+    equal(cells.retirement().status,"snoozed");equal(cells.counts().dug,500)
+    n.time=n.time+540000;assert(cells.tick(n.time))
     equal(cells.retirement().status,"pending");equal(cells.counts().dug,500)
   end)
 end
