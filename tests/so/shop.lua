@@ -995,4 +995,145 @@ return function(test, equal)
     equal(#s.machine.sent,sent+1,"missing exact pin cannot resolve to a partial ID")
   end)
 
+  test("D6 review banner keeps delivered LISTS PIN SAVE and ORDER taps usable", function()
+    local s=savedShop(nil,true)
+    local item="minecraft:iron_ingot"
+    s.stock({[item]=42},{[item]=64})
+    s.machine.install({"so-mod-display.lua"})
+    local e=s.machine.env
+    e.SO.proto={ser=H.encode,build=function(_,_,body) return body end,encode=function(body) return body end}
+    e.SO.pair={key=function() return "key" end}
+    e.SO.mods.cells={retirement=function() return {id="test",status="pending",text="Review old dug cells"} end}
+    local d=e.dofile("so-mod-display.lua")
+    e.SO.mods.display=d
+    for name,screen in pairs(s.screens) do d.screen(name,screen.render,screen.input) end
+    for _,role in ipairs({"shop","pocket","panel"}) do
+      local id=role=="shop" and 7 or role=="pocket" and 8 or 9
+      d.handlers.hello({from=id,body={w=26,h=20,fullH=20,keyboard=true}})
+      assert(d.assign(id,role))
+      local function frame()
+        local got
+        d.handlers["view.get"]({from=id},function(_,body) got=body end)
+        return assert(got)
+      end
+      local function tap(control)
+        for _,b in ipairs(frame().buttons) do
+          if b.id==control then d.handlers.input({from=id,body={id=control,x=b.x,y=b.y}}) return end
+        end
+        error("banner control missing "..role.." "..control)
+      end
+      if role=="pocket" then tap("tab:shop") end
+      d.handlers.input({from=id,body={text="iron",x=1,y=1}})
+      if role=="shop" then tap("item:"..item) end
+      local pins=s.shop.saved("pins")
+      tap("saved2:pin:"..pins.revision..":"..item)
+      equal(s.shop.saved("pins").revision,pins.revision+1,"shifted pin tap")
+      if role~="shop" then
+        tap("saved:min:"..s.shop.saved("minimums").revision..":"..item)
+        d.handlers.input({from=id,body={text="32",x=1,y=1}})
+        tap("saved:save") equal(s.shop.minimum(item),32,"shifted minimum SAVE")
+      end
+      tap("saved2:lists") tap("saved2:new")
+      d.handlers.input({from=id,body={text="List "..id,x=1,y=1}})
+      tap("saved2:save")
+      local lists=s.shop.saved("lists")
+      equal(#lists.entries,id-6,"shifted SAVE")
+      local list=lists.entries[#lists.entries]
+      list.items={{item=item,count=1}}
+      assert(s.shop.setList(list.id,list,lists.revision))
+      local sent=#s.machine.sent
+      tap("saved2:order:"..(lists.revision+1)..":"..list.id..":"..item)
+      equal(#s.machine.sent,sent+1,"shifted ORDER")
+      equal(s.machine.sent[#s.machine.sent].payload.cmd,"order")
+    end
+  end)
+
+  test("D6 review a list named index cannot replace the lists index", function()
+    local s=savedShop(nil,true)
+    assert(s.shop.setList("index",{id="index",name="Valid index ID",items={}},0))
+    local session={id=7,keyboard=true,pocket={page="shop",search=""}}
+    s.tap(session,"saved2:lists")
+    s.tap(session,"saved2:open:1:index")
+    s.tap(session,"saved2:back")
+    s.tap(session,"saved2:open:1:index")
+  end)
+
+  test("D6 review native tabs leave lists and discard an unsaved draft", function()
+    local s=savedShop(nil,true)
+    local session={id=7,keyboard=true}
+    for _,tab in ipairs({"low","find","items"}) do
+      s.tap(session,"saved2:lists","shop") s.tap(session,"saved2:new","shop")
+      s.tap(session,"tab:"..tab,"shop")
+      local found=false
+      for _,b in ipairs(s.frame(session,"shop").buttons) do
+        assert(b.id~="saved2:save","tab left an editor open")
+        found=found or b.id=="saved2:lists"
+      end
+      assert(found,"tab left LISTS open")
+      equal(s.shop.saved("lists").revision,0)
+    end
+  end)
+
+  test("D6 review stale and missing stock show a dash rather than false", function()
+    local item="minecraft:iron_ingot"
+    local s=savedShop({["so-data/shop-lists"]=savedGeneration("lists",{{id="a",name="A",items={{item=item,count=1}}}})},true)
+    local session={id=7,keyboard=true,pocket={page="shop",search="",savedPage="a"}}
+    for _,mode in ipairs({"missing","stale"}) do
+      if mode=="stale" then s.stock({[item]=64},{[item]=64}) s.now=s.now+30000 end
+      local text=table.concat(Scene.capture(s.frame(session),26,20).picture().text,"\n")
+      assert(not text:find("false",1,true),text)
+      assert(text:match("available[^\n]*%-"),text)
+    end
+  end)
+
+  test("D6 review sixteen lists reserve the index pager row", function()
+    local s=savedShop(nil,true)
+    for i=1,16 do assert(s.shop.setList("list-"..i,{id="list-"..i,name="List "..i,items={}},i-1)) end
+    local session={id=7,keyboard=true,pocket={page="shop",search=""}}
+    s.tap(session,"saved2:lists")
+    local found={}
+    for page=1,2 do
+      for _,b in ipairs(s.frame(session).buttons) do
+        local id=b.id:match("^saved2:open:16:(.+)$")
+        if id then assert(b.y<18,"list overlaps pager") found[id]=true end
+      end
+      if page==1 then s.tap(session,"saved2:next") end
+    end
+    local n=0 for _ in pairs(found) do n=n+1 end
+    equal(n,16)
+  end)
+
+  test("D6 review native enabled shop layout matches its route A twins", function()
+    local s=savedShop(nil,true)
+    s.machine.env.os.epoch=function() return 0 end
+    local item="minecraft:iron_ingot"
+    s.stock({[item]=42},{[item]=64})
+    assert(s.shop.setPin(item,true,0))
+    assert(s.shop.setList("supplies",{id="supplies",name="Supplies",items={{item=item,count=37}}},0))
+    local function match(path,session)
+      local fixture=R.load(path)
+      local frame=s.frame(session,"shop",fixture.w,fixture.h)
+      local diff=R.diff(fixture,Scene.capture(frame,fixture.w,fixture.h))
+      assert(#diff==0,path.."\n"..table.concat(diff,"\n"))
+    end
+    local session={id=7,keyboard=true}
+    match("tests/ui/fixtures/shop-saved-browse-M.txt",session)
+    s.tap(session,"item:"..item,"shop")
+    match("tests/ui/fixtures/shop-saved-item-M.txt",session)
+    match("tests/ui/fixtures/shop-saved-item-P.txt",session)
+    s.tap(session,"saved2:lists","shop")
+    match("tests/ui/fixtures/shop-saved-lists-P.txt",session)
+    s.tap(session,"saved2:open:1:supplies","shop")
+    match("tests/ui/fixtures/shop-saved-list-P.txt",session)
+    s.tap(session,"saved2:edit:1:supplies","shop")
+    match("tests/ui/fixtures/shop-saved-draft-P.txt",session)
+    s=savedShop(nil,true)
+    s.machine.env.os.epoch=function() return 0 end
+    s.stock({[item]=42},{[item]=64}) assert(s.shop.setPin(item,true,0))
+    for n=1,16 do assert(s.shop.setList("list-"..n,{id="list-"..n,name="List "..n,items={}},n-1)) end
+    session={id=8,keyboard=true}
+    s.tap(session,"saved2:lists","shop")
+    match("tests/ui/fixtures/shop-saved-lists-full-P.txt",session)
+  end)
+
 end

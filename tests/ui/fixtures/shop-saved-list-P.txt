@@ -1,0 +1,61 @@
+26x20 Native shop shared saved data
+ items   low   find  ---  
+                          
+ LISTS -----------------  
+ Supplies                 
+                          
+ IRON INGOT               
+ requested ··········· 37 
+ available ·· 42 [ORDER]  
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  EDIT              BACK  
+000000008888808888880ccc00
+00000000000000000000000000
+0888880ccccccccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08888888880ccccccccccc0000
+08888888880cc0000800000800
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+7777777fffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777ffffffffffff777777f

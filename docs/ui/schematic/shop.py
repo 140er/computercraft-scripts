@@ -57,13 +57,13 @@ def short(n):
     return "%dk" % (n // 1000) if n >= 10000 else str(n)
 
 
-def items(data):
+def items(data, minimums=None):
     out = []
     for it in data["items"]:
         s = it["samples"]
         delta = it["count"] - s[0]
         rate = math.floor(abs(delta) * 60 / max(1, len(s) - 1) + 0.5)
-        state = "empty" if it["count"] == 0 else "low" if it["count"] < min(16, it["stack"]) else "ok"
+        state = "empty" if it["count"] == 0 else "low" if it["count"] < (minimums or {}).get(it["name"], min(16, it["stack"])) else "ok"
         out.append(dict(it, label=label(it["name"]), rate=-rate if delta < 0 else rate, state=state))
     return out
 
@@ -83,7 +83,8 @@ def view(**kw):
 
 
 def gather(data, v, recent=()):
-    m = dict(found=True, stale=False, time=NOW, all=items(data), items=[], recipes=data["recipes"],
+    m = dict(found=data.get("found", True), stale=data.get("stale", False), time=data.get("time", NOW),
+             all=items(data, (v.get("saved") or {}).get("minimums")), items=[], recipes=data["recipes"],
              recent=list(recent))
     for it in m["all"]:
         if v["tab"] == "items":
@@ -228,6 +229,10 @@ def pane(cv, m, v, it, x, y, pw, bottom, close):
         ok = on and (n != "all" or it["count"] > 0)
         chip(cv, x + i * (cw2 + 1), y + 2, n, "order:%s:%s" % (n, it["name"]), "plain" if ok else "muted", cw2)
     y += 4 if tall else 3
+    if v.get("saved") is not None and y <= bottom:
+        import pocket as PK
+        PK.saved_nav(cv, v["saved"], it["name"], x, y, pw)
+        y += 1
     for e in m["recent"]:
         if y > bottom:
             break
@@ -269,6 +274,17 @@ def layout(m, v, w, h, title="", most=MOST):
     gap = 1 if h >= 16 else 0
     y, bottom, wide = 2 + gap, h - 1 - gap, w >= 52
     it = m.get("selected")
+    saved = v.get("saved")
+    if saved is not None:
+        if v.get("savedPage") is not None:
+            saved_canvas(cv, saved.get("lists", []), revision=saved.get("listRevision", 0),
+                         page=None if v["savedPage"] is True else v["savedPage"], draft=v.get("listDraft"),
+                         totals={i["name"]: i["count"] for i in m["all"]} if m["found"] and not m["stale"] else None,
+                         stacks={i["name"]: i["stack"] for i in m["all"]}, list_page=v.get("listPage", 1))
+            return cv
+        import pocket as PK
+        PK.saved_nav(cv, saved, None, 2, y, w - 2)
+        y += 1
     if it and not wide:
         pane(cv, m, v, it, 2, y, w - 2, bottom, False)
         note(cv, m, chip(cv, 2, h, "back", "items") + 1, h)
@@ -458,7 +474,7 @@ def saved_canvas(cv, entries, revision=1, page="supplies", draft=None, totals=No
         else:
             chip(cv, 2, h, "EDIT", "saved2:edit:%d:%s" % (revision, selected["id"]))
     else:
-        per = max(1, h - 6)
+        per = max(1, h - 7)
         pages = max(1, math.ceil(len(entries) / per))
         list_page = max(1, min(list_page, pages))
         for i in range((list_page - 1) * per, min(len(entries), list_page * per)):
@@ -486,8 +502,33 @@ def saved_pocket(page="supplies", editing=False, row=None, w=26, h=20):
 
 
 FIXTURES += [
-    ("pocket-shoplists-P", lambda: saved_pocket(page="index")),
+    ("pocket-shoplists-P", lambda: saved_pocket(page=None)),
     ("pocket-shoplist-P", saved_pocket),
     ("pocket-shoplist-edit-P", lambda: saved_pocket(editing=True)),
     ("pocket-shoplist-row-P", lambda: saved_pocket(editing=True, row=1)),
+]
+
+
+def saved_native(selected=None, saved_page=None, editing=False, full=False, w=26, h=20):
+    item = "minecraft:iron_ingot"
+    data = dict(items=[dict(name=item, count=42, samples=[42], stack=64, cat="ores", sub="ingot")],
+                recipes={}, time="01:00")
+    lists = [dict(id="supplies", name="Supplies", items=[dict(item=item, count=37)])]
+    if full:
+        lists = [dict(id="list-%d" % i, name="List %d" % i, items=[]) for i in range(1, 17)]
+    saved = dict(pins=[item], pinRevision=1, lists=lists, listRevision=16 if full else 1)
+    v = view(selected=selected, saved=saved, savedPage=saved_page)
+    if editing:
+        v["listDraft"] = dict(value=lists[0])
+    return layout(gather(data, v), v, w, h, "Native shop shared saved data")
+
+
+FIXTURES += [
+    ("shop-saved-browse-M", lambda: saved_native(w=57, h=24)),
+    ("shop-saved-item-M", lambda: saved_native(selected="minecraft:iron_ingot", w=57, h=24)),
+    ("shop-saved-item-P", lambda: saved_native(selected="minecraft:iron_ingot")),
+    ("shop-saved-lists-P", lambda: saved_native(saved_page=True)),
+    ("shop-saved-list-P", lambda: saved_native(saved_page="supplies")),
+    ("shop-saved-draft-P", lambda: saved_native(saved_page="supplies", editing=True)),
+    ("shop-saved-lists-full-P", lambda: saved_native(saved_page=True, full=True)),
 ]

@@ -456,10 +456,20 @@ S.savedNav = function(c, _state, item, x, y, width, lists)
   if item and nx+5 <= x+width then c.chip(nx,y,"ADD","saved2:add:"..item) end
 end
 S.savedRecord = function(state, frame)
+  state.savedHeight = #frame.rows
   state.extraDrawn = {}
   for _, b in ipairs(frame.buttons) do
     if b.id:match("^saved2:") then state.extraDrawn[b.id] = b end
   end
+end
+S.savedHit = function(event, button, state)
+  if not button or type(event.x) ~= "number" or type(event.y) ~= "number" then return false end
+  local session, y = event.session, event.y
+  if session and type(session.h) == "number" and state.savedHeight then
+    y = y-math.max(0,session.h-state.savedHeight)
+  end
+  return event.x >= button.x and event.x < button.x+button.w
+    and y >= button.y and y < button.y+(button.h or 1)
 end
 S.savedCanvas = function(c, state, w, h)
   local data, why = S.saved("lists")
@@ -498,7 +508,7 @@ S.savedCanvas = function(c, state, w, h)
         c.hit("saved2:row:"..i,2,y,w-2,2)
       else
         local stack, room = S.stacks[row.item], S.status()
-        local available = room.found and not room.stale and S.totals[row.item]
+        local available = room.found and not room.stale and S.totals[row.item] or nil
         c.leader(2,y+1,w-2,"requested",tostring(row.count))
         c.leader(2,y+2,w < 24 and w-2 or w-11,"available",available ~= nil and tostring(available) or "-",available ~= nil and "0" or "8")
         local orderY = y+(w < 24 and 3 or 2)
@@ -520,7 +530,7 @@ S.savedCanvas = function(c, state, w, h)
       c.chip(2,h,"SAVE","saved2:save")
     else c.chip(2,h,"EDIT","saved2:edit:"..data.revision..":"..list.id) end
   else
-    local per = math.max(1,h-6)
+    local per = math.max(1,h-7)
     local pages = math.max(1,math.ceil(#data.entries/per))
     state.listPage = math.max(1,math.min(state.listPage or 1,pages))
     for i = (state.listPage-1)*per+1,math.min(#data.entries,state.listPage*per) do
@@ -554,8 +564,7 @@ S.savedInput = function(event, state)
   end
   if type(id) ~= "string" or not id:match("^saved2:") then return false end
   local b = state.extraDrawn and state.extraDrawn[id]
-  if not b or type(event.x) ~= "number" or type(event.y) ~= "number" or event.x < b.x
-      or event.x >= b.x+b.w or event.y < b.y or event.y >= b.y+(b.h or 1) then return true end
+  if not S.savedHit(event,b,state) then return true end
   state.extraDrawn = nil
   if not S.savedEnabled() then return true end
   state.savedResult, state.listOrder = nil,nil
@@ -570,13 +579,13 @@ S.savedInput = function(event, state)
     return true
   end
   if id == "saved2:lists" or id:match("^saved2:add:") then
-    state.savedPage,state.listDraft,state.listPage,state.addItem = "index",nil,1,id:match("^saved2:add:(.+)$")
+    state.savedPage,state.listDraft,state.listPage,state.addItem = true,nil,1,id:match("^saved2:add:(.+)$")
     return true
   end
   if id == "saved2:back" then
     if draft and draft.row then draft.row = nil
     elseif draft then state.listDraft = nil
-    elseif state.savedPage ~= "index" then state.savedPage,state.listPage = "index",1
+    elseif state.savedPage ~= true then state.savedPage,state.listPage = true,1
     else state.savedPage,state.addItem = nil,nil end
     return true
   end
@@ -618,7 +627,7 @@ S.savedInput = function(event, state)
     if id == "saved2:delete" then
       if U.confirm(draft,"delete",SO.now()) then
         local ok, err = S.setList(draft.value.id,nil,draft.revision)
-        if ok then state.savedPage,state.listDraft = "index",nil else state.savedResult = err end
+        if ok then state.savedPage,state.listDraft = true,nil else state.savedResult = err end
       end
       return true
     end
@@ -1402,6 +1411,7 @@ S.press = function(view, client, id)
   end
   if tab == "items" or tab == "low" or tab == "find" then
     view.tab = tab
+    view.savedPage,view.listDraft,view.savedResult,view.addItem = nil,nil,nil,nil
     if tab == "find" then view.keys = true end
   elseif known then view.tab, view.cat, view.sub = "items", cat, "all"
   elseif sub then
@@ -1528,6 +1538,7 @@ return {
   savedNav = S.savedNav,
   savedCanvas = S.savedCanvas,
   savedRecord = S.savedRecord,
+  savedHit = S.savedHit,
   savedInput = S.savedInput,
   fuelConfig = S.fuelConfig,
   fuelEmpty = S.fuelEmpty,

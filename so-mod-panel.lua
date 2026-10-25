@@ -263,8 +263,7 @@ P.savedInput = function(event, state)
   end
   if type(id) ~= "string" or not id:match("^saved:") then return false end
   local b = state.savedDrawn and state.savedDrawn[id]
-  if not b or type(event.x) ~= "number" or type(event.y) ~= "number"
-      or event.x < b.x or event.x >= b.x+b.w or event.y < b.y or event.y >= b.y+(b.h or 1) then return true end
+  if not shop or type(shop.savedHit) ~= "function" or not shop.savedHit(event,b,state) then return true end
   state.savedDrawn = nil
   if not shop or type(shop.saved) ~= "function" or select(2,shop.saved("minimums")) == "off" then return true end
   local target = state.savedTargets and state.savedTargets[id]

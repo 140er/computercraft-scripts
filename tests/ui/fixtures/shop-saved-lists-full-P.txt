@@ -1,0 +1,61 @@
+26x20 Native shop shared saved data
+ items   low   find  ---  
+                          
+ LISTS -----------------  
+                          
+ List 1 ··············· 0 
+ List 2 ··············· 0 
+ List 3 ··············· 0 
+ List 4 ··············· 0 
+ List 5 ··············· 0 
+ List 6 ··············· 0 
+ List 7 ··············· 0 
+ List 8 ··············· 0 
+ List 9 ··············· 0 
+ List 10 ·············· 0 
+ List 11 ·············· 0 
+ List 12 ·············· 0 
+ List 13 ·············· 0 
+  ◄  1/2  ►               
+                          
+                    BACK  
+000000008888808888880ccc00
+00000000000000000000000000
+0888880ccccccccccccccccc00
+00000000000000000000000000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+08888880ccccccccccccccc000
+088888880cccccccccccccc000
+088888880cccccccccccccc000
+088888880cccccccccccccc000
+088888880cccccccccccccc000
+00000888000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+7777777fffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777fffff777ffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffffffff777777f
