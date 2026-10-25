@@ -13,7 +13,7 @@ for _=1,inputs do
   local bytes=file:read('*a') file:close()
   assert(P.hex(P.sha256(bytes))==digest,'stale size expectations: '..name..'; run python3 tests/ui/size-coverage.py --prepare')
 end
-local count, failed, groups = 0, 0, {}
+local count, failed, pendingCount, groups = 0, 0, 0, {}
 local router=S.new()
 for header in input:lines() do
   local id,state,ws,hs=header:match('^(%S+) (%S+) (%d+) (%d+)$')
@@ -28,12 +28,15 @@ for header in input:lines() do
   for _=1,assert(tonumber(controls),'missing required controls') do required[assert(input:read('*l'))]=true end
   local disabled={}
   for _=1,assert(tonumber(off),'missing disabled controls') do disabled[assert(input:read('*l'))]=true end
+  local pending=assert(assert(input:read('*l')):match('^pending (.*)$'),'missing pending status')
   if previous~=id then print('size-render: checking '..id) io.stdout:flush() previous=id end
   local name=id..'/'..state..'/'..ws..'x'..hs
   local ok,err=pcall(function()
     local frame,handler,session=A.render(id,state,w,h,{budget=tonumber(budget)})
     assert(frame,'adapter returned no frame')
     assert(#frame.rows==h,'row count')
+    local diff=R.diff(expected,S.capture(frame,w,h))
+    assert(#diff==0,table.concat(diff,'\n'))
     for _,b in ipairs(frame.buttons or {}) do
       assert(b.x>=1 and b.y>=1 and b.w>0 and (b.h or 1)>0 and b.x+b.w-1<=w and b.y+(b.h or 1)-1<=h,'button bounds '..b.id)
     end
@@ -57,11 +60,19 @@ for header in input:lines() do
       end
     end
     Actions.required(frame,required,reachable)
-    local diff=R.diff(expected,S.capture(frame,w,h))
-    assert(#diff==0,table.concat(diff,'\n'))
   end)
   count=count+1
   if count%500==0 then print("size-render: "..count.." cases checked") io.stdout:flush() end
+  if pending~='' then
+    local detail=tostring(err):match('^.-:%d+: (.*)$')
+    if not ok and detail==pending then
+      pendingCount=pendingCount+1
+      print('EXPECTED-PENDING '..name..': '..pending)
+      ok=true
+    elseif ok then
+      ok,err=false,'expected-pending case passed; remove its manifest exception'
+    end
+  end
   if not ok then
     failed=failed+1
     local group=id..'/'..state
@@ -71,6 +82,6 @@ for header in input:lines() do
 end
 input:close()
 for id,n in pairs(groups) do print('FAILURES '..id..' '..n) end
-print(string.format('size-render: %d cases, %d failed',count,failed))
+print(string.format('size-render: %d cases, %d failed, %d expected-pending',count,failed,pendingCount))
 return count,failed
 end

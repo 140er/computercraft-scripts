@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -75,13 +76,20 @@ def validate(doc):
         need(set(states) == set(spec["states"]), ident + " missing or unknown state")
         cases = set()
         for f in array(s["fixtures"], ident + " fixtures"):
-            fields(f, "name width height state", ident + " fixture")
+            fields(f, "name width height state" + (" expected-pending" if "expected-pending" in f else ""), ident + " fixture")
             need(type(f["name"]) is str and f["name"], ident + " invalid fixture name")
             need(f["name"] not in names, "duplicate fixture " + f["name"])
             names.add(f["name"])
             need(dimension(f["width"], 164) and dimension(f["height"], 81), ident + " invalid fixture dimensions")
             need(f["state"] in states, ident + " unknown fixture state")
+            need((f["state"], f["width"], f["height"]) not in cases, ident + " duplicate fixture case")
             cases.add((f["state"], f["width"], f["height"]))
+            if "expected-pending" in f:
+                pending = f["expected-pending"]
+                fields(pending, "reason error", ident + " expected-pending")
+                need(type(pending["reason"]) is str and pending["reason"].strip(), ident + " missing pending reason")
+                need(type(pending["error"]) is str and re.fullmatch(r"(?:overlapping controls \S+ \S+|button bounds \S+)", pending["error"]),
+                     ident + " pending must identify an exact control geometry error")
         for state in states:
             for w, h in A.BASELINE:
                 need((state, w, h) in cases, "missing required case " + case_name(ident, state, w, h))
@@ -133,6 +141,10 @@ def self_test(doc):
     for ident in ("status-alerts", "pocket-worker"):
         bad(lambda d, ident=ident: d.update(screens=[s for s in d["screens"] if s["id"] != ident]))
     bad(lambda d: next(s for s in d["screens"] if s["id"] == "terminal-code")["widths"].remove(42))
+    for pending in ({"reason": "", "error": "button bounds back"},
+                    {"reason": "layout bug", "error": "row 1 column 1 layer text"},
+                    {"reason": "layout bug", "error": "button bounds back", "extra": True}):
+        bad(lambda d, pending=pending: d["screens"][0]["fixtures"][0].update({"expected-pending": pending}))
     for candidate in trials:
         try:
             validate(candidate)
@@ -162,6 +174,8 @@ def main():
     lua = os.environ.get("SIZE_COVERAGE_LUA") or shutil.which("lua5.2") or shutil.which("lua") or (str(Path(r"C:\Tools\lua52\lua52.exe")) if Path(r"C:\Tools\lua52\lua52.exe").is_file() else None)
     need(lua or args.prepare, "Lua 5.2 not found")
     count, selected = 0, set()
+    pending = {case_name(s["id"], f["state"], f["width"], f["height"]): f["expected-pending"]
+               for s in doc["screens"] for f in s["fixtures"] if "expected-pending" in f}
     with tempfile.TemporaryDirectory(prefix="size-coverage-") as temporary:
         expected = ROOT / "tests/evidence/ui-size-coverage.txt" if args.prepare else Path(temporary) / "expected.txt"
         expected.parent.mkdir(parents=True, exist_ok=True)
@@ -189,6 +203,7 @@ def main():
                 out.write("controls %d budget %d disabled %d\n" % (len(controls), A.options(ident, state, w, h), len(disabled)))
                 out.writelines(b["id"] + "\n" for b in controls)
                 out.writelines(bid + "\n" for bid in disabled)
+                out.write("pending " + pending.get(case_name(ident, state, w, h), {}).get("error", "") + "\n")
                 count += 1
         need(count > 0, "no size cases selected")
         if args.prepare:
