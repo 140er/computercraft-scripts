@@ -105,7 +105,14 @@ return function(test, equal)
     watch(turtle, seen)
     input("remove 2") net.advance(5)
     equal({ turtle.pos.x, turtle.pos.y, turtle.pos.z }, { 0, -4, -4 })
-    input("add 2 0 -4 -4 s") net.advance(1) input("start")
+    input("add 2 0 -4 -4 s")
+    for _=1,20 do
+      net.advance(0.25)
+      local current=row(server)
+      if current and not current.recover and current.fuel then break end
+    end
+    assert(row(server).fuel and not row(server).recover,"re-added worker did not reconcile before START")
+    input("start")
     net.advance(300)
     assert(not server.error, tostring(server.error))
     assert(not turtle.error, tostring(turtle.error))

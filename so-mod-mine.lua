@@ -1069,6 +1069,8 @@ plan = function(id,row)
     else reservePose(id,row) park(id,row,false) end
     return
   end
+  local lease = mod("lease")
+  if lease.restartReady and not lease.restartReady() then return end
   local finishing = job.complete and row.route and row.counted == row.branch
     and not row.returning and not row.trip and not row.resumeTrip
   if row.stopRoute or not job.running and not finishing and row.route then clearRoute(row) save() end

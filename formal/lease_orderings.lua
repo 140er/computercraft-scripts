@@ -75,6 +75,8 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
         if actual.failSave then expected, reason = nil, "disk"
         else
           model.open, model.expires, model.durableSeq, model.restored = expected, model.now+1000, model.seq, false
+          model.leaseJournal = model.capabilities and model.journal or nil
+          model.proof = nil
           model.cells["mine:2"] = true
         end
       end
@@ -89,6 +91,7 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
       model.lost = model.open ~= nil or model.terminal ~= nil or model.recovering == true
       model.uncertain = model.terminal and model.terminalUncertain or false
       model.seq, model.restored = model.durableSeq, model.lost
+      model.journal, model.capabilities, model.proof = nil, false, nil
     elseif action == "forget" then
       local pending = model.open or model.terminal or model.recovering
       local saved = not (pending and actual.failSave)
@@ -100,18 +103,22 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
         equal("recovery_forget",next(actual.disk.records),nil)
       end
       if saved then model.uncertain, model.lost = true, true end
-    elseif action == "expire" then
-      actual.now, model.now = grace, grace
+    elseif action == "expire" or action == "tick_early" then
+      actual.now, model.now = action == "tick_early" and 50 or grace, action == "tick_early" and 50 or grace
       lease.tick(actual.now)
-      if model.open and model.now > model.expires + 10000 and not actual.failSave then
+      if model.open and (model.now > model.expires + 10000 or model.proof) and not actual.failSave then
         model.calls[#model.calls + 1] = model.open .. ":expire"
         model.terminal, model.terminalUncertain, model.open, model.terminalStatus = model.open, false, nil, "expired"
+        model.proof = nil
       end
     elseif action == "fail_save" then actual.failSave=true
     elseif action == "save_ok" then actual.failSave=false
-    elseif action == "hello" then
-      lease.handlers.hello({from=2,body={journal={id="journal",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true,setupFence=true}}})
-      model.uncertain, model.lost = false, false
+    elseif action == "hello" or action == "hello_changed" or action == "hello_pending" then
+      local journal = action == "hello" and "journal" or "changed"
+      local pending = action == "hello_pending" and {op="forward"} or nil
+      lease.handlers.hello({from=2,body={journal={id=journal,pose={x=0,y=0,z=0,f=0},pending=pending},capabilities={parkBatch=true,setupFence=true}}})
+      model.uncertain, model.lost, model.journal, model.capabilities = false, false, journal, true
+      if model.restored and model.open and model.leaseJournal and journal ~= model.leaseJournal and not pending then model.proof = true end
     elseif action == "ack" then
       local record = lease.outcome(2)
       if model.terminal then
@@ -126,7 +133,7 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
       else equal("restart_ack",record,nil) end
     elseif action == "uncertain" then
       lease.handlers.hello({ from = 2, body = { journal = { id = "journal", uncertain = true } } })
-      model.uncertain, model.lost = true, false
+      model.uncertain, model.lost, model.journal, model.capabilities = true, false, "journal", false
     else
       local id = actual.ids.send_a or "not-issued"
       local expectedId = model.ids.send_a or "not-issued"
@@ -140,6 +147,7 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
       lease.handlers["step.report"]({ from = sender, body = { lease = id, results = results } })
       if sender == 2 and expectedId == model.open and #results == batchSize and not actual.failSave then
         model.calls[#model.calls + 1] = model.open .. ":report"
+        model.proof = nil
         model.terminal, model.terminalUncertain, model.open, model.uncertain, model.lost, model.terminalStatus = model.open, false, nil, false, model.restored == true, "reported"
       end
     end
@@ -202,6 +210,12 @@ if foreign then
 elseif witness == "restarts:1" or witness == "restarts:16" then
   local size=tonumber(witness:match("%d+"))
   run({"send_a","report_a","expire","ack","restart","restart2","hello"},"wrong-id",size,11001,true)
+elseif witness == "journal-recovery" then
+  for _,trace in ipairs({
+    {"hello","send_a","restart","hello_changed","tick_early","ack","restart2","hello","send_b"},
+    {"hello","send_a","restart","hello_pending","tick_early","send_b"},
+    {"hello","send_a","restart","hello_changed","fail_save","tick_early","save_ok","tick_early","ack"},
+  }) do run(trace,"wrong-id",1,11001) end
 elseif witness == "recovery" then
   for _,size in ipairs({1,16}) do
     for _,trace in ipairs({

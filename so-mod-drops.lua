@@ -607,6 +607,8 @@ end
 
 S.setupSend = function()
   if S.reconciling then return true end
+  local lease=SO.mods.lease
+  if lease.restartReady and not lease.restartReady() then return true end
   local task=S.task
   local step=task.steps[task.next]
   if not step then
