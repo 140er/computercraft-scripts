@@ -155,6 +155,11 @@ def photo(ctx, name, label):
         raise Blocked(f"{name} {label} photo requires a live display outside REPAIR")
     area = None
     if name == "pocket":
+        view = ctx.manifest.get("client_views", {}).get("pocket")
+        if not view:
+            raise Blocked("C2 pocket photos require client_views.pocket")
+        photos.prepare(ctx)
+        ctx.command(view)
         photos.open_pocket(ctx)
     else:
         view = wall_camera(ctx)

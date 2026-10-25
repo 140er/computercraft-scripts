@@ -279,6 +279,61 @@ class RepairTests(unittest.TestCase):
                 repair.wall_camera(ctx)
         self.assertEqual(kept, [("shot.png", "C2R-wall-repair.png")])
 
+    def test_pocket_photo_reopens_gui_after_aiming_away_from_wall(self):
+        from checks import photos
+        view = "tp GateBTester -1.5 64 -4.5 -90 -90"
+        with tempfile.TemporaryDirectory() as tmp:
+            class Client(MockWorld):
+                def __init__(self):
+                    super().__init__()
+                    self.states["pocket"] = state(10)
+                    self.manifest = {"client_views": {"pocket": view}}
+                    self.output, self.gui, self.camera = Path(tmp), "world", "wall"
+                    self.commands, self.shots, self.uses = [], 0, []
+                    owner = self
+                    class Keys:
+                        def press(self, key):
+                            if key == "Escape":
+                                owner.gui = "menu" if owner.gui == "world" else "world"
+                        def click(self, x, y, button):
+                            owner.uses.append(owner.camera)
+                            if owner.camera == "sky":
+                                owner.gui = "pocket"
+                    self.native_input = Keys()
+                def command(self, text):
+                    self.commands.append(text)
+                    if text == view:
+                        self.camera = "sky"
+                def shot(self):
+                    self.shots += 1
+                    path = self.output / f"shot-{self.shots}.png"
+                    path.write_text(self.gui)
+                    return path
+                def sleep(self, seconds): pass
+                def keep(self, source, name):
+                    (self.output / name).write_bytes(Path(source).read_bytes())
+            ctx = Client()
+            with patch.object(photos, "pocket_open", side_effect=lambda p: Path(p).read_text() == "pocket"), \
+                 patch.object(photos, "menu_open", side_effect=lambda p: Path(p).read_text() == "menu"), \
+                 patch.object(photos, "loading", return_value=False), \
+                 patch.object(photos, "changed", return_value=0):
+                for label in ("repair", "reboot"):
+                    ctx.gui, ctx.camera = "world", "wall"
+                    result = repair.photo(ctx, "pocket", label)
+                    self.assertEqual((ctx.output / result).read_text(), "pocket")
+            self.assertEqual(ctx.uses, ["sky", "sky"])
+            self.assertEqual(ctx.commands.count(view), 2)
+
+    def test_missing_pocket_camera_blocks_before_opening_gui(self):
+        from checks import photos
+        ctx = MockWorld()
+        ctx.states["pocket"] = state(10)
+        ctx.manifest = {}
+        with patch.object(photos, "open_pocket") as opened:
+            with self.assertRaisesRegex(Blocked, "C2 pocket photos require client_views.pocket"):
+                repair.photo(ctx, "pocket", "repair")
+        opened.assert_not_called()
+
     def test_mock_world_drives_every_phase_and_reboots_both_clients(self):
         ctx = MockWorld()
         result = self.drive(ctx)

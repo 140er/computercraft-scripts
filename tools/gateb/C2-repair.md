@@ -44,7 +44,10 @@ including its bezel and margin, in the 416x272 rectangle at pixel 432,216 of the
 1280x720 native image. The 3% pixel fuzz and 2% motion limit are unchanged. Motion
 in the surrounding world no longer prevents a stable wall from settling. Other
 wall geometry or FOV blocks instead of using an uncalibrated rectangle. Pocket
-photos retain the existing pocket region.
+photos first apply `client_views.pocket`, then reopen the pocket GUI using the
+same helper as C3. This aims the item-use click away from the wall left in view by
+wall photos. The camera is required for both repair and reboot photos; the strict
+bezel probe and existing pocket settling region are unchanged.
 
 When settling blocks, the shared photo helper keeps the last three full native
 samples as `<photo>-settle-1.png` through `-3.png`, or fewer when fewer samples
