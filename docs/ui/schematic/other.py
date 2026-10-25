@@ -432,6 +432,19 @@ def metrics(hs):
             ("modems", str(hs["modems"][0])),
             ("paired", "%d online%s%d lost" % (online, dot, lost), None, "%d lost" % lost if lost else None),
             ("leases", "%d open" % len(hs["leases"]))]
+    if hs.get("slowest"):
+        slow = hs["slowest"]
+        rows += [("slow module", slow["name"][:24]), ("peak tick", "%dms" % slow["tick_ms"]),
+                 ("peak age", duration(now-slow["at"]))]
+    if hs.get("refused"):
+        refused = hs["refused"]
+        reasons = ("shape", "time", "mac", "replay", "blocked")
+        total = sum(refused["totals"].get(reason, 0) for reason in reasons)
+        rows += [("deny " + reason, str(refused["totals"].get(reason, 0)),
+                  "1" if refused["totals"].get(reason, 0) else None) for reason in reasons]
+        rows += [("refused", str(total), "1" if total else None), ("evicted", str(refused.get("evicted", 0)))]
+        rows += [("sender %d" % sender, str(sum(row.get(reason, 0) for reason in reasons)), "1")
+                 for sender, row in sorted(refused.get("senders", {}).items())]
     if hs.get("modules") is not None:
         modules = hs["modules"]
         loaded = sum(m["status"] == "loaded" and not m.get("tick_error") for m in modules.values())
@@ -439,7 +452,7 @@ def metrics(hs):
         absent = sum(m["status"] == "absent" for m in modules.values())
         cfg = hs.get("config", {})
         flags = [name for name in ("enroll", "retireLegacyPair", "remoteDimensions", "setupMovement",
-                 "dropsSavedSetup", "arFollowups", "panelUpdates", "workerSettings", "workerPark") if cfg.get(name) is True]
+                 "dropsSavedSetup", "arFollowups", "panelUpdates", "workerSettings", "workerPark", "alarm", "pocketTone") if cfg.get(name) is True]
         if cfg.get("state", {}).get("coalesceHeartbeats") is True:
             flags.append("state.coalesceHeartbeats")
         pos = cfg.get("pos")
@@ -728,15 +741,18 @@ def diagnostic_case(name, w, h):
     hs.update(modules={"so-mod-mine.lua": dict(status="loaded", last_good=3595000),
                        "so-mod-shop.lua": dict(status="failed", error="loader failed"),
                        "so-mod-ar.lua": dict(status="absent")}, revision="a"*40,
-              config=dict(retireLegacyPair=True), gps_gap=10)
+              config=dict(retireLegacyPair=True), gps_gap=10,
+              slowest=dict(name="mine", tick_ms=142, at=3480000),
+              refused=dict(totals=dict(shape=512, time=2, mac=3, replay=4, blocked=5), evicted=384,
+                           senders={612: dict(shape=1)}))
     if name.startswith("lost"):
         hs.pop("gps_gap")
         hs["machines"] = [dict(id=12, role="worker", seen=3180000, pose=dict(x=120, y=64, z=-30))]
     return health("health" if name.startswith("facts") else "attention", w, h, "Health facts",
-                  facts=hs, page=(2 if h >= 16 else 3) if name == "facts-modules" else 2 if name == "facts-next" else 1, lost_detail=name == "lost-detail")
+                  facts=hs, page=math.ceil(len(metrics(hs))/(15 if h >= 16 else 9)) if name == "facts-modules" else 3 if name == "facts-runtime" else 2 if name == "facts-next" else 1, lost_detail=name == "lost-detail")
 
 
-HEALTH_FIXTURES = []
+HEALTH_FIXTURES = [("health/facts-runtime-29x12", lambda: diagnostic_case("facts-runtime", 29, 12))]
 for _w, _h in ((26, 20), (29, 12)):
     for _name in ("facts", "facts-next", "facts-modules", "lost", "lost-detail", "gps-gap"):
         HEALTH_FIXTURES.append(("health/%s-%dx%d" % (_name, _w, _h),

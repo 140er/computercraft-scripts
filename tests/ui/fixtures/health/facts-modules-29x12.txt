@@ -1,25 +1,25 @@
 29x12 Health facts
  HEALTH  NEEDS 1  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
- leases ············· 0 open 
+ refused ··············· 526 
+ evicted ··············· 384 
+ sender 612 ·············· 1 
  ar ················· absent 
  mine ············ ok 5s ago 
  shop ··············· failed 
  error ······· loader failed 
                              
                              
-                             
-                             
-                 3/3  ◄   ►  
+                 4/4  ◄   ►  
 000000008888888180cccccccccc0
 8888888888888888888888880ccc0
-08888880ccccccccccccc00000000
+088888880ccccccccccccccc01110
+088888880ccccccccccccccc00000
+088888888880cccccccccccccc010
 0880ccccccccccccccccc08888880
 088880cccccccccccc00000000000
 088880ccccccccccccccc0eeeeee0
 0888880ccccccc0eeeeeeeeeeeee0
-00000000000000000000000000000
-00000000000000000000000000000
 00000000000000000000000000000
 00000000000000000000000000000
 00000000000000000888000008880

@@ -1,5 +1,6 @@
 local U = dofile("so-ui.lua")
-local H = { now=0, items={}, metrics={}, jobs={}, kinds={} }
+local H = { now=0, items={}, metrics={}, jobs={}, kinds={},
+  sound={ready=false,quiet=false,keys={},due={}} }
 
 local function call(name, method, ...)
   local mod = SO.mods[name]
@@ -145,14 +146,21 @@ H.gather = function(now)
   local errors = SO.errors and SO.errors.status() or {}
   local entries = SO.errors and SO.errors.entries() or {}
   local runtime = SO.health or {}
-  H.items = attention({now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,snoozed=snoozed,
+  local facts = {now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,snoozed=snoozed,
     gpsGap=runtime.gpsGap,configError=runtime.configError,
     clockRefused=SO.clock and SO.clock.refused,
     errorCount=errors.count,errorAt=entries[#entries] and entries[#entries].at,
     points=call("drops","list") or {},fuelAlerts=call("shop","fuelAlerts") or {},retirement=call("cells","retirement"),
     forgotten=call("state","get","pair.forgotten"),
     pairing=SO.pair and SO.pair.pending and SO.pair.pending() ~= nil,
-    requests=enroll and enroll.rows or {}})
+    requests=enroll and enroll.rows or {}}
+  H.items = attention(facts)
+  facts.snoozed = {}
+  H.sound.keys = {}
+  for _, row in ipairs(attention(facts)) do
+    if row.severity == 1 then H.sound.keys[#H.sound.keys+1] = row.key end
+  end
+  table.sort(H.sound.keys)
   local log = call("state","diagnostics") or {}
   local clock = generation("so-data/clock")
   local modems = peripheral and peripheral.find and {peripheral.find("modem")} or {}
@@ -177,6 +185,33 @@ H.gather = function(now)
     {"paired", online.." online"..dot..lost.." lost", nil, lost > 0 and (lost.." lost")},
     {"leases", open.." open"},
   }
+  if runtime.slowest then
+    local slow = runtime.slowest
+    H.metrics[#H.metrics+1] = {"slow module",tostring(slow.name):sub(1,24)}
+    H.metrics[#H.metrics+1] = {"peak tick",ms(slow.tickMs)}
+    H.metrics[#H.metrics+1] = {"peak age",duration(now-slow.at)}
+  end
+  if runtime.refused then
+    local refused = runtime.refused
+    local total = 0
+    for _, reason in ipairs({"shape","time","mac","replay","blocked"}) do
+      local n = (refused.totals or {})[reason] or 0
+      total = total+n
+      H.metrics[#H.metrics+1] = {"deny "..reason,tostring(n),n>0 and "1"}
+    end
+    H.metrics[#H.metrics+1] = {"refused",tostring(total),total>0 and "1"}
+    H.metrics[#H.metrics+1] = {"evicted",tostring(refused.evicted or 0)}
+    local senders = {}
+    for id in pairs(refused.senders or {}) do senders[#senders+1]=id end
+    table.sort(senders)
+    for _, id in ipairs(senders) do
+      local row = refused.senders[id]
+      local n = 0
+      for _, reason in ipairs({"shape","time","mac","replay","blocked"}) do n=n+(row[reason] or 0) end
+      H.metrics[#H.metrics+1] = {"sender "..id,tostring(n),"1"}
+    end
+  end
+  if runtime.soundError then H.metrics[#H.metrics+1] = {"sound","quiet invalid","e"} end
   if runtime.modules then
     local cfg = type(runtime.config) == "table" and runtime.config or {}
     local loaded, failed, absent, modules = 0, 0, 0, {}
@@ -189,7 +224,7 @@ H.gather = function(now)
     local summary = #modules > 0 and (loaded.." loaded") or "unavailable"
     local flags = {}
     for _, name in ipairs({"enroll","retireLegacyPair","remoteDimensions","setupMovement","dropsSavedSetup",
-      "arFollowups","panelUpdates","workerSettings","workerPark"}) do
+      "arFollowups","panelUpdates","workerSettings","workerPark","alarm","pocketTone"}) do
       if cfg[name] == true then flags[#flags+1] = name end
     end
     if type(cfg.state) == "table" and cfg.state.coalesceHeartbeats == true then flags[#flags+1]="state.coalesceHeartbeats" end
@@ -213,6 +248,7 @@ H.gather = function(now)
   end
   if errors.error then H.metrics[#H.metrics+1] = {flag="error save "..errors.error} end
   if entries[#entries] then H.metrics[#H.metrics+1] = {last=entries[#entries].text} end
+  H.sound.ready = true
 end
 
 local function sessionView(session, role)
@@ -560,12 +596,64 @@ H.input = function(role,event)
   end
 end
 
+local function quietSound()
+  local runtime = SO.health or {}
+  local cfg = runtime.config or {}
+  local hours = cfg.soundQuiet
+  local valid = hours == nil or hours == false
+  local function minute(v) return type(v)=="number" and v>=0 and v<=1439 and v%1==0 end
+  if type(hours)=="table" then valid=minute(hours.startMinute) and minute(hours.endMinute) end
+  if not valid then
+    if not runtime.soundError and SO.error then SO.error("so-health: invalid soundQuiet; sound muted") end
+    runtime.soundError = "invalid soundQuiet; sound muted"
+    return true
+  end
+  runtime.soundError = nil
+  if not hours then return false end
+  local civil = U.clock(os.epoch("utc"))
+  local now, first, last = civil.h*60+civil.m, hours.startMinute, hours.endMinute
+  return first==last or (first<last and now>=first and now<last)
+    or (first>last and (now>=first or now<last))
+end
+
+local function soundTick(now, enabled, quiet, baseline)
+  local sound, active = H.sound, {}
+  for _, key in ipairs(sound.keys) do
+    active[key] = true
+    if baseline or quiet or (sound.quiet and sound.due[key]) then sound.due[key]=now+300000
+    elseif not sound.due[key] then sound.due[key]=now end
+  end
+  for key in pairs(sound.due) do if not active[key] or not enabled then sound.due[key]=nil end end
+  sound.quiet, sound.enabled = quiet, enabled
+  if not enabled or quiet then return end
+  for _, key in ipairs(sound.keys) do
+    if sound.due[key] and now>=sound.due[key] then
+      sound.due[key] = now+300000
+      pcall(function()
+        local names = peripheral.getNames()
+        table.sort(names)
+        for _, name in ipairs(names) do
+          if peripheral.getType(name)=="speaker" then
+            peripheral.wrap(name).playNote("pling",0.5,12)
+            return
+          end
+        end
+      end)
+      return
+    end
+  end
+end
+
 H.tick = function(now)
   H.now = now
   local clock, refused = os.clock(), SO.clock and SO.clock.refused
-  if not H.last or clock-H.last>=5 or refused~=H.refused then
+  local enabled = SO.health and SO.health.config and SO.health.config.alarm == true or false
+  local baseline = not H.sound.ready or enabled~=H.sound.enabled
+  local quiet = quietSound()
+  if baseline or not H.last or clock-H.last>=5 or refused~=H.refused then
     H.gather(now);H.last=clock;H.refused=refused
   end
+  soundTick(now,enabled,quiet,baseline)
   local display = SO.mods.display
   if display and not H.registered then
     for _, role in ipairs({"health","attention","alerts","events","errors"}) do
@@ -574,4 +662,9 @@ H.tick = function(now)
     H.registered=true
   end
 end
-return {name="health",handlers={},tick=H.tick,attention=attention,count=function() return #H.items end}
+return {name="health",handlers={},tick=H.tick,attention=attention,count=function() return #H.items end,
+  soundFacts=function()
+    local keys = {}
+    for i, key in ipairs(H.sound.keys) do keys[i]=key end
+    return {ready=H.sound.ready,quiet=H.sound.quiet,keys=keys}
+  end}

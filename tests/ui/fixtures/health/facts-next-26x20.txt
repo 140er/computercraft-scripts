@@ -6,19 +6,19 @@
  modems ··············· 1 
  paired 0 online · 0 lost 
  leases ·········· 0 open 
- ar ·············· absent 
- mine ········· ok 5s ago 
- shop ············ failed 
- error ···· loader failed 
+ slow module ······· mine 
+ peak tick ········ 142ms 
+ peak age ············ 2m 
+ deny shape ········· 512 
+ deny time ············ 2 
+ deny mac ············· 3 
+ deny replay ·········· 4 
+ deny blocked ········· 5 
+ refused ············ 526 
+ evicted ············ 384 
+ sender 612 ··········· 1 
                           
-                          
-                          
-                          
-                          
-                          
-                          
-                          
-              2/2  ◄   ►  
+              2/3  ◄   ►  
 000000008888888180ccccccc0
 88888888888888888888888800
 00000000000000000000000000
@@ -26,19 +26,19 @@
 08888880ccccccccccccccc000
 08888880000000000000000000
 08888880cccccccccc00000000
-0880cccccccccccccc08888880
-088880ccccccccc00000000000
-088880cccccccccccc0eeeeee0
-0888880cccc0eeeeeeeeeeeee0
+0888888888880ccccccc000000
+08888888880cccccccc0000000
+0888888880cccccccccccc0000
+088888888880ccccccccc01110
+08888888880cccccccccccc010
+0888888880ccccccccccccc010
+0888888888880cccccccccc010
+08888888888880ccccccccc010
+088888880cccccccccccc01110
+088888880cccccccccccc00000
+088888888880ccccccccccc010
 00000000000000000000000000
-00000000000000000000000000
-00000000000000000000000000
-00000000000000000000000000
-00000000000000000000000000
-00000000000000000000000000
-00000000000000000000000000
-00000000000000000000000000
-00000000000000888000008880
+00000000000000888000000000
 77777777ffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
