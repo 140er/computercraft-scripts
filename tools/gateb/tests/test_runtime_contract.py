@@ -215,6 +215,8 @@ class ContractTests(unittest.TestCase):
             home=Path("/private-runtime")
             @staticmethod
             def status():return active
+            @staticmethod
+            def release_stopped_port(world):calls.append({"release":world})
         class Keeper:
             @staticmethod
             def call(home,request):
@@ -230,6 +232,7 @@ class ContractTests(unittest.TestCase):
         self.assertTrue(result["stopped"])
         self.assertEqual(active,{"unrelated":456})
         self.assertEqual(calls[0]["key"],"owned-1")
+        self.assertEqual(calls[-1],{"release":"owned-1"})
 
     def test_failed_exact_install_does_not_run_check(self):
         calls=[]
@@ -263,7 +266,7 @@ class ContractTests(unittest.TestCase):
                     ctx.linked_install()
                     raise Blocked("Missing reviewed pixels")
                 return Verdict("pass")
-        with tempfile.TemporaryDirectory() as temp, patch.object(run,"admit"), patch.object(run,"reserve_local_slot"), patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:object()), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
+        with tempfile.TemporaryDirectory() as temp, patch.object(run,"admit"), patch.object(run,"reserve_local_slot"), patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:SimpleNamespace(release_stopped_port=lambda name:None)), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
             code=run.main(["--checks","C1,C3,C5","--output",temp,"--worlds","2"])
             report=json.loads((Path(temp)/"report.json").read_text())
         self.assertEqual(code,1)

@@ -138,10 +138,50 @@ class Runtime:
                     time.sleep(.05)
             raise RuntimeError('Keeper did not start')
 
+    def port_owner_live(self, name, active):
+        if name in active:
+            return True
+        try:
+            state = self.state(name)
+            if not isinstance(state, dict):
+                return True
+            pid = state.get('pid')
+        except FileNotFoundError:
+            return False
+        except (OSError, ValueError):
+            return True
+        if pid is None:
+            return False
+        if type(pid) is not int or pid <= 0:
+            return True
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            pass
+        return True
+
+    def stale_port(self, name, active):
+        # An operation can own a run before it has written run.json or a PID.
+        with self.lock_path(name).open('a') as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return False
+            return not self.port_owner_live(name, active)
+
     def allocate_port(self, name):
+        self.run(name)
         with locked(self.home / 'ports.lock'):
             path = self.home / 'ports.json'
             ports = json.loads(path.read_text()) if path.exists() else {}
+            (self.home / 'locks').mkdir(exist_ok=True)
+            active = self.status()
+            reclaimed = {owner for owner in ports if self.stale_port(owner, active)}
+            if reclaimed:
+                ports = {owner: port for owner, port in ports.items() if owner not in reclaimed}
+                atomic(path, ports)
             if name in ports:
                 return ports[name]
             for port in range(self.config.get('port_start',25600), self.config.get('port_end',25700)):
@@ -154,6 +194,30 @@ class Runtime:
                         continue
                 ports[name] = port;atomic(path,ports);return port
             raise RuntimeError('No free Gate B ports')
+
+    def release_port(self, name):
+        with locked(self.home / 'ports.lock'):
+            path = self.home / 'ports.json'
+            if not path.exists():
+                return
+            ports = json.loads(path.read_text())
+            if name in ports:
+                del ports[name]
+                atomic(path, ports)
+
+    def release_stopped_port(self, name):
+        with locked(self.lock_path(name)):
+            if not self.port_owner_live(name, self.status()):
+                self.release_port(name)
+
+    def reserve_port(self, name, state):
+        port = self.allocate_port(name)
+        path = self.run(name) / 'server.properties'
+        properties = re.sub(r'(?m)^server-port=.*\n?', '', path.read_text())
+        path.write_text(properties + f'\nserver-port={port}\n')
+        state['port'] = port
+        atomic(self.run(name) / 'run.json', state)
+        return port
 
     def distribution(self, destination):
         source = Path(self.config.get('server_source', WORK/'gateb-livefiles/server')).resolve()
@@ -217,28 +281,35 @@ class Runtime:
     def prepare_template(self):
         from fixtures import clean_disks, prepare, farm_allowlist
         name='template-build'
-        run=self.run(name)
-        if run.exists():
-            if name in self.status(): raise RuntimeError('Template build is already running')
-            shutil.rmtree(run)
-        copytree(self.home/'template',run)
-        port=self.allocate_port(name)
-        with (run/'server.properties').open('a') as handle: handle.write(f'\nserver-port={port}\n')
-        atomic(run/'run.json',{'version':1,'name':name,'port':port})
-        clean_disks(self,name)
-        try:
-            self.serve(name)
-            manifest=prepare(self,name)
-        finally:
-            self.stop(name)
-        proof=farm_allowlist(run/'world',manifest['farm'])
-        manifest['farm'].update(trees=proof['trees'],dig_cells=[b['pos'] for b in proof['blocks']])
-        atomic(run/'manifest.json',manifest)
-        target=self.home/'template'
-        shutil.rmtree(target/'world');copytree(run/'world',target/'world')
-        shutil.copy2(run/'manifest.json',target/'manifest.json')
-        shutil.copy2(run/'fixture-proof.json',target/'fixture-proof.json')
-        return manifest
+        with locked(self.lock_path(name)):
+            run=self.run(name)
+            if self.port_owner_live(name, self.status()):
+                raise RuntimeError('Template build is already running')
+            try:
+                if run.exists():
+                    try:
+                        shutil.rmtree(run)
+                    finally:
+                        self.release_port(name)
+                copytree(self.home/'template',run)
+                self.reserve_port(name, {'version':1,'name':name})
+                clean_disks(self,name)
+                try:
+                    self._serve(name)
+                    manifest=prepare(self,name)
+                finally:
+                    self._stop(name)
+                proof=farm_allowlist(run/'world',manifest['farm'])
+                manifest['farm'].update(trees=proof['trees'],dig_cells=[b['pos'] for b in proof['blocks']])
+                atomic(run/'manifest.json',manifest)
+                target=self.home/'template'
+                shutil.rmtree(target/'world');copytree(run/'world',target/'world')
+                shutil.copy2(run/'manifest.json',target/'manifest.json')
+                shutil.copy2(run/'fixture-proof.json',target/'fixture-proof.json')
+                return manifest
+            finally:
+                if not self.port_owner_live(name, self.status()):
+                    self.release_port(name)
 
     def discover(self, world):
         names = {1:'server',2:'wall',3:'pocket',4:'miner1',5:'miner2',6:'lumber',9:'storage',10:'probe'}
@@ -310,48 +381,61 @@ class Runtime:
                 with (target/'server.properties').open('a') as handle:
                     handle.write(f'\nserver-port={port}\n')
                 atomic(target/'run.json',{'version':1,'name':name,'port':port})
-            except Exception:
-                shutil.rmtree(target,ignore_errors=True);raise
+            except BaseException:
+                try:
+                    shutil.rmtree(target,ignore_errors=True)
+                finally:
+                    self.release_port(name)
+                raise
             return {'run':name,'path':str(target),'port':port}
 
     def serve(self, name, timeout=180):
-        run = self.run(name);state=self.state(name)
         with locked(self.lock_path(name)):
-            self.ensure_keeper()
-            if name in self.status():
-                pid=self.status()[name]
-                log=run/'console.log'
-                if state.get('pid')==pid and state.get('ready'):
-                    return {'run':name,'pid':pid,'warm':True}
-                raise RuntimeError('Server exists but has not reached its ready marker')
-            for cid in self.manifest(name)['computers']:
-                base=self.computer_disk(name,cid)/'.gateb'
-                (base/'screen.json').unlink(missing_ok=True)
-                shutil.rmtree(base/'in',ignore_errors=True)
-                shutil.rmtree(base/'out',ignore_errors=True)
-            fifo=run/'console.fifo'
-            fifo.unlink(missing_ok=True);os.mkfifo(fifo,0o600)
+            existing = name in self.status()
+            try:
+                return self._serve(name, timeout)
+            except BaseException:
+                if not existing:
+                    self._stop(name)
+                raise
+
+    def _serve(self, name, timeout=180):
+        run = self.run(name);state=self.state(name)
+        self.ensure_keeper()
+        if name in self.status():
+            pid=self.status()[name]
             log=run/'console.log'
-            start=log.stat().st_size if log.exists() else 0
-            java = Path(self.config.get('java',WORK/'gateb-runtime/java/bin/java'))
-            argv=[str(java),'@user_jvm_args.txt']
-            args=list((run/'libraries/net/neoforged/neoforge').glob('*/unix_args.txt'))
-            if len(args)!=1: raise RuntimeError('Expected one NeoForge unix_args.txt')
-            argv+=['@'+str(args[0]),'nogui']
-            info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024,'server':True})
-            state.update(pid=info['pid'],ready=False);atomic(run/'run.json',state)
-            deadline=time.monotonic()+timeout
-            while time.monotonic()<deadline:
-                if name not in self.status(): raise RuntimeError('Server exited; inspect '+str(log))
-                with log.open(errors='replace') as handle:
-                    handle.seek(start);text=handle.read()
-                if re.search(r'Done \([\d.]+s\)!',text):
-                    self.command(name,'forceload add '+' '.join(map(str,self.manifest(name)['forceload'])))
-                    state['ready']=True;atomic(run/'run.json',state)
-                    return {**info,'run':name,'port':state['port'],'warm':True}
-                time.sleep(.25)
-            self.stop(name)
-            raise RuntimeError('Server startup timed out; inspect '+str(log))
+            if state.get('pid')==pid and state.get('ready'):
+                return {'run':name,'pid':pid,'warm':True}
+            raise RuntimeError('Server exists but has not reached its ready marker')
+        self.reserve_port(name, state)
+        for cid in self.manifest(name)['computers']:
+            base=self.computer_disk(name,cid)/'.gateb'
+            (base/'screen.json').unlink(missing_ok=True)
+            shutil.rmtree(base/'in',ignore_errors=True)
+            shutil.rmtree(base/'out',ignore_errors=True)
+        fifo=run/'console.fifo'
+        fifo.unlink(missing_ok=True);os.mkfifo(fifo,0o600)
+        log=run/'console.log'
+        start=log.stat().st_size if log.exists() else 0
+        java = Path(self.config.get('java',WORK/'gateb-runtime/java/bin/java'))
+        argv=[str(java),'@user_jvm_args.txt']
+        args=list((run/'libraries/net/neoforged/neoforge').glob('*/unix_args.txt'))
+        if len(args)!=1: raise RuntimeError('Expected one NeoForge unix_args.txt')
+        argv+=['@'+str(args[0]),'nogui']
+        info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024,'server':True})
+        state.update(pid=info['pid'],ready=False);atomic(run/'run.json',state)
+        deadline=time.monotonic()+timeout
+        while time.monotonic()<deadline:
+            if name not in self.status(): raise RuntimeError('Server exited; inspect '+str(log))
+            with log.open(errors='replace') as handle:
+                handle.seek(start);text=handle.read()
+            if re.search(r'Done \([\d.]+s\)!',text):
+                self.command(name,'forceload add '+' '.join(map(str,self.manifest(name)['forceload'])))
+                state['ready']=True;atomic(run/'run.json',state)
+                return {**info,'run':name,'port':state['port'],'warm':True}
+            time.sleep(.25)
+        raise RuntimeError('Server startup timed out; inspect '+str(log))
 
     def command(self, name, command, timeout=15):
         if name not in self.status(): raise RuntimeError('Server is not running')
@@ -377,21 +461,29 @@ class Runtime:
         return {'run':name,'stopped':True,**info}
 
     def stop(self, name):
-        self.client_stop(name)
-        if name not in self.status(): return self.stopped_result(name)
+        with locked(self.lock_path(name)):
+            return self._stop(name)
+
+    def _stop(self, name):
         try:
-            self.command(name,'stop',timeout=3)
-        except RuntimeError:
-            pass
-        deadline=time.monotonic()+60
-        while time.monotonic()<deadline:
+            self.client_stop(name)
             if name not in self.status(): return self.stopped_result(name)
-            time.sleep(.2)
-        raise RuntimeError('Server did not stop cleanly; process retained for inspection')
+            try:
+                self.command(name,'stop',timeout=3)
+            except RuntimeError:
+                pass
+            deadline=time.monotonic()+60
+            while time.monotonic()<deadline:
+                if name not in self.status(): return self.stopped_result(name)
+                time.sleep(.2)
+            raise RuntimeError('Server did not stop cleanly; process retained for inspection')
+        finally:
+            if not self.port_owner_live(name, self.status()):
+                self.release_port(name)
 
     def reset(self, name):
         with locked(self.lock_path(name)):
-            running=name in self.status();self.stop(name)
+            running=name in self.status();self._stop(name)
             run=self.run(name)
             shutil.rmtree(run/'world');copytree(self.home/'template/world',run/'world')
             shutil.copy2(self.home/'template/manifest.json',run/'manifest.json')
