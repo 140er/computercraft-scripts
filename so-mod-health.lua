@@ -620,7 +620,7 @@ local function soundTick(now, enabled, quiet, baseline)
   local sound, active = H.sound, {}
   for _, key in ipairs(sound.keys) do
     active[key] = true
-    if baseline or quiet or sound.quiet then sound.due[key]=now+300000
+    if baseline or quiet or (sound.quiet and sound.due[key]) then sound.due[key]=now+300000
     elseif not sound.due[key] then sound.due[key]=now end
   end
   for key in pairs(sound.due) do if not active[key] or not enabled then sound.due[key]=nil end end

@@ -319,6 +319,25 @@ return function(test,equal)
     t.tick();equal(t.mod.soundFacts().quiet,true)
   end)
 
+  test("a new severity one key sounds on the quiet-end tick while standing keys wait five minutes",function()
+    local t=sounding({alarm=true,soundQuiet={startMinute=1380,endMinute=60}},function(s)
+      s.points={{id="standing",broken=true}}
+    end)
+    equal(t.mod.soundFacts().quiet,true)
+    equal(#t.notes,0)
+    t.points[#t.points+1]={id="new",broken=true}
+    t.utc=1767225600000
+    t.tick(t.now+1000)
+    equal(t.mod.soundFacts().quiet,false)
+    equal(t.mod.soundFacts().keys,{"drop/new","drop/standing"})
+    equal(#t.notes,1)
+    t.tick(t.now+299999)
+    equal(#t.notes,1)
+    t.points={{id="standing",broken=true}}
+    t.tick(t.now+1)
+    equal(#t.notes,2)
+  end)
+
   test("quiet hours follow both Amsterdam DST transitions and equal endpoints mute all day",function()
     local t=sounding({soundQuiet={startMinute=120,endMinute=180}})
     for _,case in ipairs({{1774745999000,false},{1774746000000,false},
