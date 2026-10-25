@@ -285,31 +285,72 @@ S.run = function()
     end,
   }
 
-  -- Batch enrollment stays off unless so-server.cfg sets enroll = true.
-  local config = type(store.read) == "function" and store.read("so-server.cfg")
-  local enrollConfigCached = true
-  if type(config) == "table" and config.enroll == true then
-    SO.enroll = {
-      open = pair.enrollOpen,
-      view = pair.enrollView,
-      close = pair.enrollClose,
-      extend = pair.enrollExtend,
-      decide = function(id, n, approve)
-        local ok, err = pair.enrollDecide(id, n, approve)
-        if not ok then return nil, err end
-        print("so-server: enroll " .. (approve and "approved " or "denied ") .. tostring(id))
-        if approve then pairDone(id) end
-        return true
-      end,
-    }
+  local function readConfig()
+    local path = fs.exists("so-server.cfg") and "so-server.cfg" or "so-server.cfg.bak"
+    return type(store.read) == "function" and store.read(path) or nil
   end
+  local config = readConfig()
+  local enrollConfigCached = true
+  local function enrollEnabled()
+    if not enrollConfigCached then
+      config, enrollConfigCached = readConfig(), true
+    end
+    return type(config) == "table" and config.enroll == true
+  end
+  SO.enroll = {
+    enabled = enrollEnabled,
+    setEnabled = function(enabled)
+      if type(enabled) ~= "boolean" then return nil, "boolean required" end
+      local current = readConfig()
+      if current == nil and (fs.exists("so-server.cfg") or fs.exists("so-server.cfg.bak")) then
+        return nil, "bad so-server.cfg"
+      end
+      if current ~= nil and type(current) ~= "table" then return nil, "bad so-server.cfg" end
+      local merged = store.copy(current or {})
+      merged.enroll = enabled
+      local h
+      local ok, err = pcall(function()
+        local text = textutils.serialize(merged)
+        h = assert(fs.open("so-server.cfg.tmp", "w"), "config open failed")
+        h.write(text)
+        h.close()
+        h = nil
+        local checked, bytes = store.read("so-server.cfg.tmp")
+        assert(type(checked) == "table" and bytes == text, "config verification failed")
+        if fs.exists("so-server.cfg") then
+          fs.delete("so-server.cfg.bak")
+          fs.move("so-server.cfg", "so-server.cfg.bak")
+        end
+        fs.move("so-server.cfg.tmp", "so-server.cfg")
+      end)
+      if h then pcall(h.close) end
+      if not ok then return nil, tostring(err) end
+      config, enrollConfigCached = merged, true
+      if not enabled then pair.enrollClose() end
+      return true
+    end,
+    open = function(owner)
+      if not enrollEnabled() then return nil, "off" end
+      return pair.enrollOpen(owner)
+    end,
+    view = pair.enrollView,
+    close = pair.enrollClose,
+    extend = function(owner)
+      if not enrollEnabled() then return nil, "off" end
+      return pair.enrollExtend(owner)
+    end,
+    decide = function(id, n, approve)
+      if not enrollEnabled() then return nil, "off" end
+      local ok, err = pair.enrollDecide(id, n, approve)
+      if not ok then return nil, err end
+      print("so-server: enroll " .. (approve and "approved " or "denied ") .. tostring(id))
+      if approve then pairDone(id) end
+      return true
+    end,
+  }
   builtin.enroll = function(msg, reply)
     -- Network input stays out of the SO.errors ring, so no error() here.
-    if not enrollConfigCached then
-      config = type(store.read) == "function" and store.read("so-server.cfg")
-      enrollConfigCached = true
-    end
-    local enabled = type(config) == "table" and config.enroll == true
+    local enabled = enrollEnabled()
     local ok, t, body, event = pcall(pair.enrollAnswer, msg.from, msg.body, enabled)
     if not ok then
       print("so-server: enroll failed for " .. tostring(msg.from))

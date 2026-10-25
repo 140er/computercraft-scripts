@@ -1,5 +1,5 @@
 local ROLES = {
-  common = {
+  common = { enrollRoles = true,
     "install.lua", "update.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
     "lib/ccryptolib/random.lua", "lib/ccryptolib/config.lua",
     "lib/ccryptolib/chacha20.lua", "lib/ccryptolib/blake3.lua",
@@ -467,10 +467,12 @@ local function installerRoles(bytes)
   assert(type(roles) == "table" and type(roles.common) == "table", "Bad pinned ROLES")
   return roles
 end
-local function prepareInstaller(bytes)
+local function prepareInstaller(bytes, clientOptions)
   local apply,roles = compile("install.lua",bytes)("prepare")
   assert(type(apply) == "function" and type(roles) == "table",
     "pinned installer too old for staged update/offline kit; update from a newer commit")
+  assert(not clientOptions or (type(roles.common) == "table" and roles.common.enrollRoles == true),
+    "Pinned installer does not support role tokens and server selection")
   return apply
 end
 local function readKit(mount)
@@ -493,7 +495,7 @@ local function readKit(mount)
   local roles = installerRoles(chunk)
   selectFiles(kit.files,kit.role,roles,true)
   local apply = prepareInstaller(chunk)
-  return kit,bytes,apply
+  return kit,bytes,apply,chunk
 end
 local function previousFiles(role)
   local paths = {}
@@ -586,7 +588,10 @@ local function installPlan(role, config, manifest, previous, sha, roles)
   generated[".so-protocol"] = "1"
   generated["startup.lua"] = 'if shell.run("/install.lua", "recover") then shell.run("/' .. roles[role].program .. '") end\n'
   generated[".so-role"] = role
-  if config then generated["so-server.cfg"] = config end
+  if config then
+    local path = role == "server" and "so-server.cfg" or role == "worker" and "so-worker.cfg" or "so-display.cfg"
+    generated[path] = config
+  end
   for path in pairs(generated) do add(path) end
   for _,path in ipairs(previous) do
     assert(validPath(path), "Bad previous file path")
@@ -665,12 +670,37 @@ local function enrollToken(text)
   if #rest ~= 16 or rest:find("[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]") then return nil end
   return id .. "-" .. rest:sub(1, 4) .. "-" .. rest:sub(5, 8) .. "-" .. rest:sub(9, 12) .. "-" .. rest:sub(13, 16)
 end
-local function main(command, handoff, extra, last)
-  if command == "kit" then return exportKit(handoff,extra,last) end
-  local kit,kitBytes,kitApply
+local function main(...)
+  local args = table.pack(...)
+  if args[1] == "kit" then return exportKit(args[2],args[3],args[4]) end
+  local selectedServer
+  if type(args[2]) ~= "table" then
+    local clean, i = {}, 1
+    while i <= args.n do
+      if args[i] == "--server" then
+        local id = args[i+1]
+        assert(selectedServer == nil and type(id) == "string" and id:match("^%d+$")
+          and tonumber(id) <= 9007199254740991, "Expected one nonnegative integer server id")
+        selectedServer, i = tonumber(id), i+2
+      else
+        clean[#clean+1], i = args[i], i+1
+      end
+    end
+    assert(#clean <= 3, "Too many installer arguments")
+    args = clean
+  end
+  local command, handoff, extra, last = table.unpack(args,1,4)
+  if type(handoff) == "table" then selectedServer = handoff.server end
+  if selectedServer ~= nil then
+    assert(type(selectedServer) == "number" and selectedServer >= 0 and selectedServer % 1 == 0
+      and selectedServer <= 9007199254740991, "Bad selected server")
+    assert(command ~= "check" and command ~= "update" and command ~= "rollback"
+      and command ~= "reset" and command ~= "recover", "Server selection is for unpaired installs")
+  end
+  local kit,kitBytes,kitApply,kitInstaller
   if command == "offline" then
     assert(extra == nil and last == nil, "Use install offline <mount>")
-    kit,kitBytes,kitApply = readKit(handoff)
+    kit,kitBytes,kitApply,kitInstaller = readKit(handoff)
     recover()
     command,handoff = fs.exists("/.so-role") and "update" or nil,nil
     if command == "update" then assert(readFile("/.so-role"):match("^%s*(.-)%s*$") == kit.role, "Kit role differs from installed role") end
@@ -685,7 +715,7 @@ local function main(command, handoff, extra, last)
       assert(requestedRevision == nil, "Supply only one commit SHA")
       requestedRevision, command = command, nil
     end
-    assert(requestedRevision == nil or ((command == nil or command == "update") and validRevision(requestedRevision)),
+    assert(requestedRevision == nil or ((command == nil or command == "update" or enrollToken(command)) and validRevision(requestedRevision)),
       "Expected a full 40-character commit SHA")
     assert(command == nil or command == "update" or command == "rollback" or command == "reset"
       or command == "recover" or command == "check" or enrollToken(command),
@@ -741,9 +771,14 @@ local function main(command, handoff, extra, last)
     (pocket and role ~= "display") or (role == "worker" and not turtle) then
     error("Role does not match this machine", 0)
   end
-  if enroll and role ~= "worker" then error("Enroll tokens are for turtles", 0) end
-  if enroll and (fs.exists("/so-keys") or fs.exists("/so-keys.bak") or fs.exists("/so-keys.tmp")) then
-    print("This turtle has paired keys. Run install reset first.")
+  if enroll and role == "server" then error("Enroll tokens are for clients", 0) end
+  if selectedServer ~= nil then
+    assert(role ~= "server" and not updating, "Server selection is for unpaired clients")
+    assert(not enroll or tonumber(enroll:match("^%d+")) == selectedServer, "Token names a different server")
+  end
+  if (enroll or selectedServer ~= nil) and (fs.exists("/so-keys") or fs.exists("/so-keys.bak") or fs.exists("/so-keys.tmp")) then
+    print(turtle and "This turtle has paired keys. Run install reset first."
+      or "This machine has paired keys. Use its repair screen to change server.")
     return
   end
   if role == "server" then
@@ -756,6 +791,14 @@ local function main(command, handoff, extra, last)
   end
   local config = handoff and handoff.config
   if role == "server" and not updating and not handoff then config = position() end
+  if selectedServer ~= nil then
+    local path = role == "worker" and "/so-worker.cfg" or "/so-display.cfg"
+    local merged = {}
+    if fs.exists(path) then merged = textutils.unserialize(readFile(path)) end
+    assert(type(merged) == "table", "Bad client config; refusing to replace saved settings")
+    merged.server = selectedServer
+    config = textutils.serialize(merged)
+  end
   if not handoff then
     local ok, err = pcall(function()
       local saved
@@ -770,7 +813,9 @@ local function main(command, handoff, extra, last)
       local index = cacheIndex(sha,role,manifest)
       local bytes = kitBytes or cached(index,manifest,resume)
       local previousFilesList = previousFiles(role)
+      local clientOptions = selectedServer ~= nil or (enroll ~= nil and role == "display")
       local nextInstaller = kitApply
+      if kit then nextInstaller = prepareInstaller(kitInstaller,clientOptions) end
       if not kit then
         local installerEntry
         for _,v in ipairs(manifest) do if v.path == "install.lua" then installerEntry = v end end
@@ -783,11 +828,11 @@ local function main(command, handoff, extra, last)
         local roles = installerRoles(installer)
         local list,generated,entries = installPlan(role,config,manifest,previousFilesList,sha,roles)
         admission(list,bytes,generated,entries,index)
-        nextInstaller = prepareInstaller(installer)
+        nextInstaller = prepareInstaller(installer,clientOptions)
       end
       assert(type(nextInstaller) == "function", "Commit installer does not support pinned updates")
       nextInstaller(command, { revision = sha, previous = previousFilesList, role = role, config = config, updating = updating,
-        enroll = enroll, manifest=manifest,index=index,bytes=bytes,offline=kit ~= nil })
+        enroll = enroll, server = selectedServer, manifest=manifest,index=index,bytes=bytes,offline=kit ~= nil })
     end)
     if not ok then
       if not fs.exists(OLD .. "/manifest") and not fs.exists(NEW .. "/committed") then fs.delete(NEW) end

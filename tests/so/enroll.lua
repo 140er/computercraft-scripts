@@ -115,7 +115,293 @@ local function sweep(t, machines, needle)
   end
 end
 
+local function installerMachine(kind)
+  local source = read("install.lua")
+  local m = H.new().machine({ id = 9, capacity = 16000000 })
+  local e, queue = m.env, {}
+  e.turtle, e.pocket = kind == "worker" and {} or nil, kind == "pocket" and {} or nil
+  e.keys, e.colors = { up = 1, down = 2, enter = 3 }, { white = 1, gray = 128, black = 32768 }
+  e.os.queueEvent = function(...) queue[#queue+1] = table.pack(...) end
+  e.os.pullEvent = function()
+    if #queue > 0 then return table.unpack(table.remove(queue,1)) end
+    return "key", e.keys.enter
+  end
+  local fs = e.fs
+  local function norm(path) return path:gsub("^/+", "") end
+  for _, name in ipairs({ "exists", "open", "getSize", "getFreeSpace" }) do
+    local f = fs[name]
+    fs[name] = function(path, ...) return f(norm(path), ...) end
+  end
+  fs.getDrive = function() return "hdd" end
+  fs.getDir = function(path) return path:match("^(.*)/[^/]*$") or "" end
+  fs.delete = function(path)
+    path = norm(path)
+    for name in pairs(m.files) do
+      if name == path or name:sub(1,#path+1) == path .. "/" then m.files[name] = nil end
+    end
+  end
+  local move = fs.move
+  fs.move = function(from, to)
+    if m.onMove then m.onMove(norm(from),norm(to)) end
+    return move(norm(from),norm(to))
+  end
+  e.peripheral.find = function(name)
+    if name == "monitor" and kind == "wall" then return e.term end
+  end
+  m.runs, m.urls = {}, {}
+  e.shell = { run = function(path) m.runs[#m.runs+1] = path; return true end }
+  local sha = string.rep("a",40)
+  local roles = assert(load(source:match("^(.-)local BASE =") .. "return ROLES"))()
+  local digest = assert(load(source:match("(local yieldEvent.-)local function validPath") .. "return digest",
+    "@install-digest", "t", e))()
+  local role = kind == "worker" and "worker" or "display"
+  local tree
+  e.textutils.unserializeJSON = function(bytes)
+    if bytes == "branch" then return {commit={sha=sha}} end
+    return {tree=tree}
+  end
+  e.http = { get = function(url)
+    m.urls[#m.urls+1] = url
+    local bytes
+    if url:find("/branches/",1,true) then bytes = "branch"
+    elseif url:find("/git/trees/",1,true) then
+      tree = {}
+      for _, group in ipairs({roles.common,roles[role]}) do
+        for _, path in ipairs(group) do
+          local value = path == "install.lua" and (m.pinnedInstaller or source) or read(path)
+          tree[#tree+1] = {path=path,type="blob",mode="100644",size=#value,
+            sha=digest("blob " .. #value .. "\0" .. value,true)}
+        end
+      end
+      bytes = "tree"
+    else
+      local pin, path = url:match("computercraft%-scripts/([^/]+)/(.*)$")
+      assert(pin == sha, "unpinned role download")
+      bytes = path == "install.lua" and (m.pinnedInstaller or source) or read(path)
+    end
+    return {readAll=function() return bytes end,getResponseCode=function() return 200 end,close=function() end}
+  end }
+  m.run = function(...) return assert(load(source,"@install.lua","t",e))(...) end
+  return m
+end
+
 return function(test, equal)
+  test("enroll saved runtime toggle defaults off, merges settings and restarts without a window", function()
+    local t = boot(nil)
+    equal(t.so.enroll.enabled(), false)
+    equal(select(2, t.so.enroll.open(OWNER)), "off")
+    t.s.files["so-server.cfg"] = H.encode({ pos = { x = 7 }, remoteDimensions = true, other = { keep = 9 } })
+    assert(t.so.enroll.setEnabled(true))
+    equal(t.so.enroll.enabled(), true)
+    local token = t.open()
+    local body = t.request(token, 10, string.rep("a", 32))
+    t.so.pair.enrollAnswer(10, body)
+    assert(t.so.enroll.setEnabled(false))
+    equal(t.so.enroll.enabled(), false)
+    equal(t.so.enroll.view(OWNER), nil)
+    equal(select(2, t.so.enroll.decide(10, 1, true)), "off")
+    local cfg = t.s.env.textutils.unserialize(t.s.files["so-server.cfg"])
+    equal(cfg, { enroll = false, pos = { x = 7 }, remoteDimensions = true, other = { keep = 9 } })
+    t.net.kill(t.s)
+    t.s = t.net.boot(t.s)
+    t.net.flush()
+    assert(t.s.alive(), tostring(t.s.error))
+    equal(t.s.env.SO.enroll.enabled(), false)
+    equal(t.s.env.SO.enroll.view(OWNER), nil)
+    assert(t.s.env.SO.enroll.setEnabled(true))
+    assert(t.s.env.SO.enroll.open(OWNER))
+    equal(#t.s.env.SO.enroll.view(OWNER).rows, 0)
+    t.net.kill(t.s)
+    t.s = t.net.boot(t.s)
+    t.net.flush()
+    equal(t.s.env.SO.enroll.enabled(), true)
+    equal(t.s.env.SO.enroll.view(OWNER), nil)
+  end)
+
+  test("enroll runtime toggle refuses malformed config and failed saves without changing the flag or window", function()
+    for _, failure in ipairs({ "open", "write", "verify", "move" }) do
+      local t = boot(true)
+      local token = t.open()
+      local open, move = t.s.env.fs.open, t.s.env.fs.move
+      t.s.env.fs.open = function(path, mode)
+        if path == "so-server.cfg.tmp" then
+          if failure == "open" and mode == "w" then return nil end
+          if failure == "write" and mode == "w" then error("disk full") end
+          if failure == "verify" and mode == "r" then return nil end
+        end
+        return open(path, mode)
+      end
+      t.s.env.fs.move = function(from, to)
+        if failure == "move" and from == "so-server.cfg.tmp" then error("move failed") end
+        return move(from, to)
+      end
+      equal(t.so.enroll.setEnabled(false), nil)
+      equal(t.so.enroll.enabled(), true)
+      equal(t.so.enroll.view(OWNER).token, token)
+      t.net.kill(t.s)
+      t.s = t.net.boot(t.s)
+      t.net.flush()
+      assert(t.s.alive(), tostring(t.s.error))
+      equal(t.s.env.SO.enroll.enabled(), true)
+      equal(t.s.env.SO.enroll.view(OWNER), nil)
+    end
+    local t = boot(true)
+    t.s.files["so-server.cfg"] = "broken"
+    equal(t.so.enroll.setEnabled(false), nil)
+    equal(t.s.files["so-server.cfg"], "broken")
+  end)
+
+  test("enroll approved keys remain collectible through runtime OFF while undecided rows are cancelled", function()
+    local t = boot(true)
+    local token = t.open()
+    local approved, pending = turtle(t, 10, token), turtle(t, 11, token)
+    t.net.advance(4)
+    local rows = t.so.enroll.view(OWNER).rows
+    assert(t.so.enroll.decide(10, rows[1].n, true))
+    assert(t.so.enroll.setEnabled(false))
+    equal(t.so.enroll.view(OWNER), nil)
+    t.net.advance(10)
+    equal(savedKey(approved, 1), t.so.pair.key(10))
+    equal(approved.files["so-enroll"], nil)
+    equal(pending.env.textutils.unserialize(pending.files["so-enroll"]).paused, "off")
+    assert(t.so.enroll.setEnabled(true))
+    assert(t.so.enroll.open(OWNER))
+    equal(t.so.enroll.decide(11, rows[2].n, true), nil)
+    equal(t.so.pair.key(11), nil)
+  end)
+
+  test("enroll server stages worker, pocket and wall requests with kind-bound approvals", function()
+    local t = boot(true)
+    local token = t.open()
+    for i, kind in ipairs({ "turtle", "pocket", "computer" }) do
+      local id, sk = 9+i, string.rep(string.char(20+i), 32)
+      local body, pub = t.request(token, id, sk, kind)
+      local wire, reply = t.so.pair.enrollAnswer(id, body, t.so.enroll.enabled())
+      equal(wire, "ack")
+      equal(reply.state, "pending")
+      local row = t.so.enroll.view(OWNER).rows[1]
+      equal(row.kind, kind)
+      assert(t.so.enroll.decide(id, row.n, true))
+      wire, reply = t.so.pair.enrollAnswer(id, body, false)
+      equal(wire, "ack")
+      local xs = t.unhex(reply.pub)
+      local k = t.x.exchange(sk, xs)
+      equal(reply.tag, t.hex(t.tag(token, 3, "1", tostring(id), pub, kind, xs, k)))
+      equal(t.so.pair.key(id), t.so.pair.machineKey(t.C.sha512(t.C.lv("so-enroll isk", "1", tostring(id), pub, xs, k))))
+    end
+  end)
+
+  test("enroll installer stages worker, pocket and wall tokens with the selected server and preserves config", function()
+    for _, kind in ipairs({ "worker", "pocket", "wall" }) do
+      local m = installerMachine(kind)
+      local cfgPath = kind == "worker" and "so-worker.cfg" or "so-display.cfg"
+      m.files[cfgPath] = H.encode({ repairServer = true, retryInput = true, other = { keep = 7 } })
+      local token = "12-K7QP-3MXA-9WTD-HR2E"
+      m.run(token, "--server", "12")
+      equal(m.env.textutils.unserialize(m.files["so-enroll"]), {token=token})
+      equal(m.env.textutils.unserialize(m.files[cfgPath]),
+        {server=12,repairServer=true,retryInput=true,other={keep=7}})
+      equal(m.files["so-server.cfg"], nil)
+      equal(m.runs, {kind == "worker" and "/worker.lua" or "/display.lua"})
+      equal(m.files[".so-revision"], string.rep("a",40))
+      assert(not table.concat(m.log):find("K7QP",1,true))
+    end
+  end)
+
+  test("enroll installer rejects a different explicit server before downloading or changing config", function()
+    local m = installerMachine("worker")
+    m.files["so-worker.cfg"] = H.encode({other=7,server=3})
+    local before = H.encode(m.files)
+    local ok, err = pcall(m.run, "12-K7QP-3MXA-9WTD-HR2E", "--server", "3")
+    equal(ok,false)
+    assert(tostring(err):find("different server",1,true))
+    equal(H.encode(m.files),before)
+    equal(#m.urls,0)
+  end)
+
+  test("enroll installer accepts an unpaired explicit server without a token and leaves missing selection untouched", function()
+    local m = installerMachine("worker")
+    m.files["so-worker.cfg"] = H.encode({autoToolSwap=true})
+    m.run("--server", "0")
+    equal(m.env.textutils.unserialize(m.files["so-worker.cfg"]), {server=0,autoToolSwap=true})
+    equal(m.files["so-enroll"],nil)
+    m = installerMachine("pocket")
+    m.files["so-display.cfg"] = H.encode({other=9})
+    m.run("12-K7QP-3MXA-9WTD-HR2E")
+    equal(m.env.textutils.unserialize(m.files["so-display.cfg"]), {other=9})
+  end)
+
+  test("enroll installer refuses role tokens and selected-server trust changes for every saved key generation", function()
+    for _, kind in ipairs({"worker","pocket","wall"}) do
+      for _, suffix in ipairs({"", ".bak", ".tmp"}) do
+        local m = installerMachine(kind)
+        m.files["so-keys" .. suffix] = "saved trust"
+        local before = H.encode(m.files)
+        m.run("--server", "12")
+        m.run("12-K7QP-3MXA-9WTD-HR2E")
+        equal(H.encode(m.files),before)
+        equal(#m.urls,0)
+        equal(#m.runs,0)
+      end
+    end
+  end)
+
+  test("enroll installer validates server ids and keeps install check read-only", function()
+    for _, args in ipairs({ {"--server","-1"}, {"--server","1.5"}, {"--server","nan"},
+      {"--server","9007199254740992"}, {"--server"}, {"--server","1","--server","2"},
+      {"check","--server","12"}, {"update","--server","12"} }) do
+      local m = installerMachine("worker")
+      local ok = pcall(m.run,table.unpack(args))
+      equal(ok,false)
+      equal(next(m.files),nil)
+      equal(#m.urls,0)
+    end
+    local m = installerMachine("worker")
+    m.files["so-worker.cfg"] = H.encode({server=3,other=7})
+    local before = H.encode(m.files)
+    m.run("check")
+    equal(H.encode(m.files),before)
+    equal(#m.runs,0)
+  end)
+
+  test("enroll installer refuses malformed client config without replacing unrelated settings", function()
+    for _, kind in ipairs({"worker","pocket"}) do
+      local m = installerMachine(kind)
+      local path = kind == "worker" and "so-worker.cfg" or "so-display.cfg"
+      m.files[path] = "broken config"
+      equal(pcall(m.run,"--server","12"),false)
+      equal(m.files[path],"broken config")
+      equal(#m.urls,0)
+    end
+  end)
+
+  test("enroll selected-server config rolls back with an interrupted installer swap", function()
+    local m = installerMachine("worker")
+    m.files["so-worker.cfg"] = H.encode({other=7,server=3})
+    local before = m.files["so-worker.cfg"]
+    m.onMove = function(from)
+      if from == ".so-new/so-worker.cfg" then error("interrupted config swap") end
+    end
+    m.run("--server","12")
+    equal(m.files["so-worker.cfg"],before)
+    equal(m.files["worker.lua"],nil)
+    equal(m.files[".so-revision"],nil)
+    equal(#m.runs,0)
+  end)
+
+  test("enroll selected-server and display-token installs refuse an older pinned installer without falling back", function()
+    for _, args in ipairs({{"--server","12"},{"12-K7QP-3MXA-9WTD-HR2E"}}) do
+      local m = installerMachine("pocket")
+      m.pinnedInstaller = read("install.lua"):gsub(' enrollRoles = true,', '')
+      m.run(table.unpack(args))
+      equal(m.files["so-display.cfg"],nil)
+      equal(m.files["so-enroll"],nil)
+      equal(m.files["display.lua"],nil)
+      equal(#m.runs,0)
+      assert(table.concat(m.log):find("Pinned installer does not support",1,true))
+    end
+  end)
+
   test("enroll rerun before approval leaves one row and keeps the secret", function()
     local t = boot(true)
     local token = t.open()
@@ -175,7 +461,7 @@ return function(test, equal)
     equal(w.files["so-enroll"], nil)
   end)
 
-  test("enroll sixteen forged off replies cannot pause or set hints in a noisy round", function()
+  test("enroll a full reply cap before the first tagged share cannot persistently pause a turtle", function()
     for _, locked in ipairs({ false, true }) do
       for _, text in ipairs({ "off", "closed" }) do
         local t = boot(true)
@@ -193,6 +479,7 @@ return function(test, equal)
             for _ = 1, 16 do
               w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1, wire, "so")
             end
+            return
           end
           send(id, payload, protocol)
         end
@@ -209,6 +496,7 @@ return function(test, equal)
         assert(not screenText:find("enroll off", 1, true), "noisy off changed the screen")
         assert(not screenText:find("window closed", 1, true), "noisy closed changed the screen")
         flood = false
+        t.net.advance(4)
         local row = t.so.enroll.view(OWNER).rows[1]
         assert(t.so.enroll.decide(10, row.n, true))
         t.net.advance(7)
@@ -284,7 +572,7 @@ return function(test, equal)
   test("enroll off survives reboot and pauses attempts until explicit resume", function()
     local t = boot(true)
     local token = t.open()
-    t.s.files["so-server.cfg"] = H.encode({ enroll = false })
+    assert(t.so.enroll.setEnabled(false))
     local w = turtle(t, 10, token)
     t.net.advance(7)
     local saved = w.env.textutils.unserialize(w.files["so-enroll"])
@@ -294,7 +582,7 @@ return function(test, equal)
     w = t.net.boot(w)
     t.net.advance(30)
     for _, packet in ipairs(w.sent) do assert(packet.payload.t ~= "enroll", "paused reboot sent enroll") end
-    t.s.files["so-server.cfg"] = H.encode({ enroll = true })
+    assert(t.so.enroll.setEnabled(true))
     token = t.open()
     w.env.os.queueEvent("paste", token)
     w.env.os.queueEvent("key", 257)
@@ -768,7 +1056,7 @@ return function(test, equal)
 
   test("enroll off replies off and the handler answers with the flag off and on", function()
     local t = boot(nil)
-    equal(t.so.enroll, nil)
+    equal(t.so.enroll.enabled(), false)
     local w = turtle(t, 10, "1-K7QP-3MXA-9WTD-HR2E")
     t.net.advance(7)
     local function last()
@@ -923,10 +1211,9 @@ return function(test, equal)
     assert(not log:find("K7QP", 1, true), log)
     assert(log:find("server 12", 1, true), log)
     e.turtle, e.pocket = nil, {}
-    local refused, err = pcall(main, nil, { revision = string.rep("a", 40), previous = {}, role = "display",
+    main(nil, { revision = string.rep("a", 40), previous = {}, role = "display",
       enroll = "12-K7QP-3MXA-9WTD-HR2E" })
-    equal(refused, false)
-    assert(tostring(err):find("turtles", 1, true), tostring(err))
+    equal(e.textutils.unserialize(written["/so-enroll"]).token, handed.token)
   end)
 
   test("enroll answers every valid tag1 with a tagged notice", function()

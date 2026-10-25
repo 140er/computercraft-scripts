@@ -842,8 +842,8 @@ end
 
 -- Sends one request and keeps every reply to it for E.poll seconds. Reply
 -- envelopes use the public key, so the tags decide what counts.
--- Also returns true when the round was noisy: a reply was dropped by the
--- cap of 16, or so many messages arrived that CraftOS may have dropped
+-- Also returns true when the round was noisy: the 16-reply cap was
+-- reached, or so many messages arrived that CraftOS may have dropped
 -- events from its queue. A noisy round may be missing the real server's
 -- reply, so it can never confirm a key.
 E.ask = function(server, body)
@@ -864,7 +864,8 @@ E.ask = function(server, body)
       if reply and reply.rid == msg.rid and reply.from == server and type(reply.body) == "table"
         and S.proto.macOk(S.envelope, reply) then
         -- A flood of forged replies costs at most 16 checks per round.
-        if #out < 16 then out[#out + 1] = reply else noisy = true end
+        if #out < 16 then out[#out + 1] = reply end
+        if #out == 16 then noisy = true end
       end
     end
   end
