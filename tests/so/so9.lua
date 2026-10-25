@@ -29,11 +29,21 @@ return function(test, equal, read)
   end
   local function machine(role, cap)
     local m = H.new().machine({ id = 99, capacity = cap or 16000000 })
-    local e, disk, dirs = m.env, {}, { [""] = true }
+    local e, disk, dirs = m.env, {}, { [""] = true, disk = true }
     m.kind = role
     m.files, m.dirs, m.calls, m.runs = disk, dirs, 0, {}
     m.urls, m.remote, m.sha = {}, {}, string.rep("a", 40)
     local function norm(p) return p:gsub("^/+", ""):gsub("/+$", "") end
+    local function exists(p)
+      p = norm(p)
+      if disk[p] ~= nil or dirs[p] then return true end
+      for _,group in ipairs({disk,dirs}) do
+        for name in pairs(group) do
+          if name:sub(1,#p+1) == p .. "/" then return true end
+        end
+      end
+      return false
+    end
     e.fs = {
       getDir = function(p) return p:match("^(.*)/[^/]*$") or "" end,
       getCapacity = function() return m.capacity end,
@@ -45,8 +55,12 @@ return function(test, equal, read)
         return m.capacity-used
       end,
       isReadOnly = function() return false end,
-      getDrive = function(p) return p:match("^/?disk") and "left" or "hdd" end,
-      exists = function(p) p = norm(p); return disk[p] ~= nil or dirs[p] == true end,
+      getDrive = function(p)
+        p = norm(p)
+        if not exists(p) then return nil end
+        return (p == "disk" or p:sub(1,5) == "disk/") and "left" or "hdd"
+      end,
+      exists = exists,
       makeDir = function(p)
         p = norm(p)
         dirs[p] = true
@@ -1725,6 +1739,54 @@ return function(test, equal, read)
     assert(stats.yields >= #files("server"))
     assert(stats.peak <= 8192)
     assert(table.concat(m.log):find("Resuming pinned commit " .. pinned,1,true))
+  end)
+  test("SO9 absent installer state paths inherit the nearest existing root drive", function()
+    for _,role in ipairs({"worker","display","server"}) do
+      local m = machine(role)
+      equal(m.env.fs.getDrive("/"),"hdd")
+      for _,path in ipairs({"/.so-new","/.so-old","/.so-prev","/.so-download","/startup/so-install-recover.lua"}) do
+        equal(m.env.fs.exists(path),false)
+        equal(m.env.fs.getDrive(path),nil)
+      end
+      m.run()
+      equal(m.files[".so-role"],role)
+      equal(m.files[".so-revision"],m.sha)
+      for _,path in ipairs(files(role)) do equal(m.files[path],read(path),path) end
+      equal(m.runs,{{"/" .. roles[role].program}})
+    end
+  end)
+  test("SO9 absent state paths beneath a mounted disk are still refused", function()
+    for _,parentExists in ipairs({false,true}) do
+      local m = installed("worker")
+      m.dirs["disk/installer"] = parentExists or nil
+      local path = "/disk/installer/.so-download"
+      equal(m.env.fs.getDrive(path),nil)
+      equal(m.env.fs.getDrive("/disk"),"left")
+      m.source = source:gsub('local CACHE = "/.so%-download"','local CACHE = "' .. path .. '"')
+      assert(m.source ~= source)
+      local before = snapshot(m)
+      m.run("update")
+      unchanged(m,before)
+      equal(m.calls,0)
+      equal(#m.runs,0)
+      assert(table.concat(m.log):find("Installer state crosses a mount",1,true))
+    end
+  end)
+  test("SO9 absent code paths beneath an existing mount are still refused", function()
+    local m = machine("worker")
+    m.dirs.lib = true
+    local getDrive = m.env.fs.getDrive
+    m.env.fs.getDrive = function(path)
+      if path == "/lib" or path == "lib" then return "right" end
+      return getDrive(path)
+    end
+    equal(m.env.fs.getDrive("/lib/ccryptolib/random.lua"),nil)
+    m.run()
+    equal(m.calls,1)
+    equal(m.files[".so-role"],nil)
+    equal(m.files["worker.lua"],nil)
+    equal(#m.runs,0)
+    assert(table.concat(m.log):find("Install path crosses a mount",1,true))
   end)
 
 end

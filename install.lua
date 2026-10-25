@@ -31,6 +31,13 @@ local RECOVERY = 'for _, path in ipairs({"/install.lua", "/.so-old/install.lua",
     '    return\n' ..
     '  end\n' ..
     'end\n'
+local function pathDrive(path)
+  while path ~= "/" and not fs.exists(path) do
+    path = fs.getDir(path)
+    if path == "" then path = "/" end
+  end
+  return fs.getDrive(path)
+end
 local function readFile(path)
   local h = assert(fs.open(path, "r"), "Cannot read " .. path)
   local value = h.readAll()
@@ -406,7 +413,7 @@ local function admission(list, cachedBytes, generated, entries, index)
   local S,L,N = 0,0,0
   local paths = {}
   for _,path in ipairs({NEW,OLD,PREV,CACHE,BOOT}) do
-    assert(fs.getDrive(path) == fs.getDrive("/"), "Installer state crosses a mount")
+    assert(pathDrive(path) == fs.getDrive("/"), "Installer state crosses a mount")
   end
   local function count(path)
     while path ~= "" and path ~= "/" do
@@ -476,7 +483,7 @@ local function prepareInstaller(bytes, clientOptions)
   return apply
 end
 local function readKit(mount)
-  assert(type(mount) == "string" and mount:match("^/?[%w_-]+$") and fs.getDrive(mount) ~= fs.getDrive("/"), "Expected a mounted kit disk")
+  assert(type(mount) == "string" and mount:match("^/?[%w_-]+$") and pathDrive(mount) ~= fs.getDrive("/"), "Expected a mounted kit disk")
   local root = mount .. "/so-kit"
   local kit = textutils.unserialize(readFile(root .. "/manifest"))
   assert(type(kit) == "table" and kit.version == 1 and validRevision(kit.commit) and
@@ -580,7 +587,7 @@ local function installPlan(role, config, manifest, previous, sha, roles)
     entries[#entries+1] = {path=path,existed=fs.exists("/" .. path),remove=remove}
   end
   for _,path in ipairs(files) do
-    assert(fs.getDrive("/" .. path) == fs.getDrive("/"), "Install path crosses a mount")
+    assert(pathDrive("/" .. path) == fs.getDrive("/"), "Install path crosses a mount")
     add(path)
   end
   generated[".so-files"] = textutils.serialize(files)
@@ -623,7 +630,7 @@ local function install(role, config, handoff)
 end
 local function exportKit(mount,role,sha)
   assert(validRevision(sha), "Expected a full 40-character commit SHA")
-  assert(type(mount) == "string" and mount:match("^/?[%w_-]+$") and fs.getDrive(mount) ~= fs.getDrive("/"), "Expected a mounted kit disk")
+  assert(type(mount) == "string" and mount:match("^/?[%w_-]+$") and pathDrive(mount) ~= fs.getDrive("/"), "Expected a mounted kit disk")
   local root = mount .. "/so-kit"
   assert(not fs.exists(root), "Kit directory already exists")
   local list = metadata(sha)
