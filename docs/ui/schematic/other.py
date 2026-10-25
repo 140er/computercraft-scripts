@@ -383,7 +383,13 @@ def attention(hs):
         rows.append((2, "%s/%d" % (hold["role"], hold["id"]), "T%d %s" % (hold["id"], hold["text"]), hold["role"]))
     for m in hs["machines"]:
         if m["role"] in ("worker", "turtle") and now - m["seen"] > 180000:
-            rows.append((1, "lost/%d" % m["id"], "T%d lost" % m["id"], owners.get(m["id"], "mining")))
+            pose = m.get("pose")
+            text = "T%d lost %s" % (m["id"], duration(now - m["seen"]))
+            if pose:
+                text += " x%d y%d z%d" % (pose["x"], pose["y"], pose["z"])
+            rows.append((1, "lost/%d" % m["id"], text, owners.get(m["id"], "mining")))
+    if hs.get("gps_gap", 0) > 2:
+        rows.append((2, "gps", "Server GPS gap %.1f blocks" % hs["gps_gap"], "health"))
     if hs["disk"][0] >= 0.8:
         rows.append((1, "disk", "Disk %d%% full" % int(hs["disk"][0] * 100), "health"))
     if hs["errors"][0] and hs["entries"] and 0 <= now - hs["entries"][-1]["at"] < 600000:
@@ -392,6 +398,16 @@ def attention(hs):
         rows.append((2, "pair/%d" % request["id"], "Pair %d" % request["id"], "panel"))
     rows.sort(key=lambda r: (r[0], r[1]))
     return [dict(severity=r[0], key=r[1], text=r[2], target=r[3]) for r in rows]
+
+
+def byte_size(n):
+    if n is None:
+        return "-"
+    if n >= 1048576:
+        return "%.1f MB" % (n / 1048576)
+    if n >= 1024:
+        return "%.1f KB" % (n / 1024)
+    return "%d B" % n
 
 
 def metrics(hs):
@@ -404,18 +420,45 @@ def metrics(hs):
     dot = " %s " % DOT
     count, nbytes = hs["errors"]
     rows = [("uptime", duration(now - started)),
-            ("tick", "%dms%swall %dms" % (cadence, dot, wall)),
-            ("tick cost", "%dms" % cost),
-            ("clock reserve", duration(hs["clock"][0] - now)),
-            ("events", "#%d%s%d seg" % (seq, dot, segments)),
-            ("event bytes", str(size)),
-            ("snapshot", "#%d %s" % (snap, duration(now - snap_at))),
+            ("tick", "%s%swall %s" % ("%dms" % cadence if cadence is not None else "-", dot, "%dms" % wall if wall is not None else "-")),
+            ("tick cost", "%dms" % cost if cost is not None else "-"),
+            ("clock reserve", duration(hs["clock"][0] - now) if hs["clock"] else "unknown", None if hs["clock"] else "8"),
+            ("events", "#%d%s%d seg" % (seq, dot, segments) if seq is not None else "unavailable", None if seq is not None else "8"),
+            ("event bytes", byte_size(size)),
+            ("snapshot", "#%d %s" % (snap, duration(now - snap_at)) if snap else "none", None if snap else "8"),
             ("disk", "%d%%" % int(ratio * 100), "e" if ratio >= 0.8 else None),
-            ("disk free", "%d B" % free),
-            ("errors", "%d%s%d B" % (count, dot, nbytes)),
+            ("disk free", byte_size(free)),
+            ("errors", "%d%s%s" % (count, dot, byte_size(nbytes))),
             ("modems", str(hs["modems"][0])),
             ("paired", "%d online%s%d lost" % (online, dot, lost), None, "%d lost" % lost if lost else None),
             ("leases", "%d open" % len(hs["leases"]))]
+    if hs.get("modules") is not None:
+        modules = hs["modules"]
+        loaded = sum(m["status"] == "loaded" and not m.get("tick_error") for m in modules.values())
+        failed = sum(m["status"] == "failed" or bool(m.get("tick_error")) for m in modules.values())
+        absent = sum(m["status"] == "absent" for m in modules.values())
+        cfg = hs.get("config", {})
+        flags = [name for name in ("enroll", "retireLegacyPair", "remoteDimensions", "setupMovement",
+                 "dropsSavedSetup", "arFollowups", "panelUpdates", "workerSettings", "workerPark") if cfg.get(name) is True]
+        if cfg.get("state", {}).get("coalesceHeartbeats") is True:
+            flags.append("state.coalesceHeartbeats")
+        pos = cfg.get("pos")
+        prefix = [("modules", "%d loaded" % loaded if modules else "unavailable"),
+                  ("skip", "%d fail %d absent" % (failed, absent)),
+                  ("rev", hs.get("revision", "unknown")[:8]), ("cfg", flags[0] if flags else "defaults"),
+                  ("pos", "x%d y%d z%d" % (pos["x"], pos["y"], pos["z"]) if pos else "missing"),
+                  ("GPS gap", "%.1f blocks" % hs["gps_gap"] if "gps_gap" in hs else "unavailable",
+                   "1" if hs.get("gps_gap", 0) > 2 else None)]
+        prefix += [("cfg", flag) for flag in flags[1:]]
+        rows = prefix + rows
+        for file, status in sorted(modules.items()):
+            name = file.removeprefix("so-mod-").removesuffix(".lua")
+            value = status["status"]
+            if value == "loaded":
+                value = "tick failed" if status.get("tick_error") else "ok %s ago" % duration(now-status["last_good"]) if "last_good" in status else "loaded"
+            rows.append((name, value, "e" if status["status"] == "failed" or status.get("tick_error") else "8" if value == "absent" else None))
+            if status.get("error") or status.get("tick_error"):
+                rows.append(("error", status.get("error") or status["tick_error"], "e"))
     if hs["entries"]:
         rows.append(dict(last=hs["entries"][-1]["text"]))
     return rows
@@ -485,7 +528,7 @@ def event_facts(e):
 
 
 def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, page=1, held=False, find=None,
-           picker=False, fact=None):
+           picker=False, fact=None, lost_detail=False):
     """so-mod-health's render for role: tabs, the page's rows from the top, paging on the last row."""
     cv = Canvas(w, h, title)
     hs = facts if facts is not None else SCENE["health"]
@@ -496,6 +539,15 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
                          [("EVENTS", "events"), ("ALERTS", "alerts"), ("ERRORS", "errors")]], role, 4)
     gap, lw = (1 if h >= 16 else 0), min(w - 2, 40)
     top = last + 1 + gap
+    if role == "attention" and lost_detail:
+        machine = hs["machines"][0]
+        cv.put(2, top, "T%d lost %s" % (machine["id"], duration(now-machine["seen"])), "e")
+        pose = machine.get("pose")
+        cv.put(2, top+1, fit("x%d y%d z%d" % (pose["x"], pose["y"], pose["z"]) if pose else "pose unknown", lw), "0")
+        chip(cv, 2, h, "BACK", "lost-back")
+        chip(cv, 9, h, "SNOOZE", "lost-snooze")
+        chip(cv, w-5, h, "OPEN", "lost-open")
+        return cv
     history = role in ("events", "alerts")
     if history and fact is not None:
         cv.put(2, top, fact["kind"][:w - 2], "0")
@@ -582,6 +634,9 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
         count = max(1, capacity)
         more = len(rows) > page * count
         rows = rows[(page - 1) * count:page * count]
+    total_rows = len(rows)
+    if not history:
+        rows = rows[(page-1)*max(1, capacity):page*max(1, capacity)]
     if not rows:
         if role == "attention":
             cv.put(2, top, "all clear", "d")
@@ -596,7 +651,7 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
                 cv.put(2, y, row["label"], "8")
                 cv.put(7, y, row["text"], "0")
             else:
-                leader(cv, 2, y, lw, row[0], row[1], (row[2] if len(row) > 2 and row[2] else None)
+                leader(cv, 2, y, lw, row[0], fit(row[1], max(1, lw-len(row[0])-1)), (row[2] if len(row) > 2 and row[2] else None)
                        or ("8" if row[1] == "-" else "0"))
                 if len(row) > 3 and row[3]:
                     cv.put(2 + lw - len(row[3]), y, row[3], "e")
@@ -614,12 +669,12 @@ def health(role, w, h, title, kind=None, facts=None, error=None, error_page=1, p
             cv.put(x, y, fit(row["text"], w - x), "0")
             if history:
                 cv.hit("event:%d" % (i + 1), 1, y, w, 1)
-    pages = max(1, -(-len(rows) // max(1, capacity)))
+    pages = max(1, -(-total_rows // max(1, capacity)))
     if history:
         chip(cv, 2, h - foot + 1, *left)
         pager(cv, h, note, page > 1, more)
     else:
-        pager(cv, h, "1/%d" % pages, False, pages > 1)
+        pager(cv, h, "%d/%d" % (page, pages), page > 1, page < pages)
     return cv
 
 
@@ -666,8 +721,26 @@ def history_case(w, h, n=40, **options):
     return health("events", w, h, "Health history at %dx%d" % (w, h), facts=hs, **options)
 
 
+def diagnostic_case(name, w, h):
+    hs = dict(SCENE["health"], now=[3600000], runtime=[3600000, None, None, None],
+              clock=None, log=[None, None, 6100000, None, None], disk=[0, 6100000], modems=[1],
+              machines=[], leases={}, points=[], holds=[], requests=[], errors=[0, 340], entries=[])
+    hs.update(modules={"so-mod-mine.lua": dict(status="loaded", last_good=3595000),
+                       "so-mod-shop.lua": dict(status="failed", error="loader failed"),
+                       "so-mod-ar.lua": dict(status="absent")}, revision="a"*40,
+              config=dict(retireLegacyPair=True), gps_gap=10)
+    if name.startswith("lost"):
+        hs.pop("gps_gap")
+        hs["machines"] = [dict(id=12, role="worker", seen=3180000, pose=dict(x=120, y=64, z=-30))]
+    return health("health" if name.startswith("facts") else "attention", w, h, "Health facts",
+                  facts=hs, page=(2 if h >= 16 else 3) if name == "facts-modules" else 2 if name == "facts-next" else 1, lost_detail=name == "lost-detail")
+
+
 HEALTH_FIXTURES = []
 for _w, _h in ((26, 20), (29, 12)):
+    for _name in ("facts", "facts-next", "facts-modules", "lost", "lost-detail", "gps-gap"):
+        HEALTH_FIXTURES.append(("health/%s-%dx%d" % (_name, _w, _h),
+                                lambda n=_name, w=_w, h=_h: diagnostic_case(n, w, h)))
     for _name, _role, _options in (
         ("needs-error", "attention", {}),
         ("needs-enroll", "attention", dict(pending=True)),

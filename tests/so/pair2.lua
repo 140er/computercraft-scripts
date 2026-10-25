@@ -132,7 +132,7 @@ local function entropy(m, failures, silent)
 end
 
 return function(test, equal)
-  test("legacy retirement publishes the D1 notice before server discovery and pairing", function()
+  test("legacy retirement publishes the D1 notice only while legacy pair is kept", function()
     local notice = "The next server-only release removes legacy pair. " ..
       "Old turtles must run install update before pairing again. " ..
       "Update pockets and wall displays too. Saved pairings keep working. Updated clients use pair2 only."
@@ -145,10 +145,11 @@ return function(test, equal)
           return host(...)
         end
       end)
-      equal(server.env.NOTICE_BEFORE_HOST, true)
+      equal(server.env.NOTICE_BEFORE_HOST, not enabled)
       pressP(net, server)
       local log = logtext(server)
-      assert(log:find(notice, 1, true) < log:find("Pair code:", 1, true))
+      if enabled then assert(not log:find(notice, 1, true))
+      else assert(log:find(notice, 1, true) < log:find("Pair code:", 1, true)) end
     end
   end)
 

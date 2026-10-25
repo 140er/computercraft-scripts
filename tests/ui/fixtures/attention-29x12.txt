@@ -2,7 +2,7 @@
  HEALTH  NEEDS 4  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
  ! Chest ore broken          
- ! T3 lost                   
+ ! T3 lost 10m               
  ! Server errors 2           
  ! T8 out of saplings        
                              

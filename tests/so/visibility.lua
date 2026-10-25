@@ -151,10 +151,13 @@ return function(test,equal)
       local so=s.server.env.SO
       -- Roles change only by assignment; the history screens open as pages of the assigned role.
       s.assign("health");equal(s.frame().role,"health")
-      assert(has(s.frame(),"uptime") and has(s.frame(),"tick") and has(s.frame(),"events"))
+      assert(has(s.frame(),"uptime") and has(s.frame(),"tick"))
+      assert(has(s.frame(),"modules") and has(s.frame(),"rev") and has(s.frame(),"cfg"))
+      if size[2]>=16 then assert(has(s.frame(),"events")) end
       -- Route A pages turn with the right and left chips.
       s.press("\16")
       assert(has(s.frame(),"modems") and has(s.frame(),"paired"))
+      if size[2]<16 then assert(has(s.frame(),"events")) end
       s.press("\17")
       s.press("ERRORS");assert(has(s.frame(),"ERRORS"))
       so.error("visibility test failure")

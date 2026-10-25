@@ -1,0 +1,37 @@
+29x12 Health facts
+ HEALTH  NEEDS 1  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ modules ·········· 1 loaded 
+ skip ······ 1 fail 1 absent 
+ rev ·············· aaaaaaaa 
+ cfg ······ retireLegacyPair 
+ pos ··············· missing 
+ GPS gap ······· 10.0 blocks 
+ uptime ················· 0s 
+ tick ··········· - · wall - 
+ tick cost ··············· - 
+                 1/3  ◄   ►  
+000000008888888180cccccccccc0
+8888888888888888888888880ccc0
+088888880cccccccccc0000000000
+088880cccccc00000000000000000
+08880cccccccccccccc0000000000
+08880cccccc000000000000000000
+08880ccccccccccccccc000000000
+088888880ccccccc0111111111110
+08888880ccccccccccccccccc0000
+088880ccccccccccc000000000000
+08888888880ccccccccccccccc080
+00000000000000000888088800000
+77777777fffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777f777f

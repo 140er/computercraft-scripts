@@ -17,6 +17,26 @@ local function generation(path)
   return picked and picked.value
 end
 
+local function duration(ms)
+  local s = math.max(0,math.floor((ms or 0)/1000))
+  if s < 60 then return s.."s" end
+  if s < 3600 then return math.floor(s/60).."m" end
+  return string.format("%dh%02dm",math.floor(s/3600),math.floor(s/60)%60)
+end
+
+local function poseText(p)
+  if type(p) == "table" and type(p.x) == "number" and type(p.y) == "number" and type(p.z) == "number" then
+    return "x"..p.x.." y"..p.y.." z"..p.z
+  end
+end
+
+local function bytes(n)
+  if type(n) ~= "number" then return "-" end
+  if n >= 1048576 then return string.format("%.1f MB",n/1048576) end
+  if n >= 1024 then return string.format("%.1f KB",n/1024) end
+  return n.." B"
+end
+
 -- This hook accepts gathered facts and never changes jobs or reservations.
 local function attention(facts)
   local rows = {}
@@ -45,6 +65,10 @@ local function attention(facts)
       add(role,2,role:upper().." "..tostring(job.alert or job.blocked),role)
     end
   end
+  if facts.configError then add("config",1,"Config unreadable; defaults active","health") end
+  if facts.gpsGap and facts.gpsGap > 2 then
+    add("gps",2,string.format("Server GPS gap %.1f blocks",facts.gpsGap),"health")
+  end
   for id, row in pairs(facts.machines or {}) do
     local lease = (facts.leases or {})[tostring(id)] or {}
     local role = owners[tostring(id)] or "mining"
@@ -58,10 +82,15 @@ local function attention(facts)
         add("tool/"..id,2,"T"..id.." "..(lease.toolError or ("needs "..kind)),role,{"setup"})
       end
     end
+    local seen = math.max(row.seen or 0,lease.seen or 0)
     if lease.uncertain then
       add("pose/"..id,1,"T"..id.." pose uncertain",role,{"setup"})
-    elseif lease.lost or ((row.role == "worker" or row.role == "turtle") and facts.now-(row.seen or 0)>180000) then
-      add("lost/"..id,1,"T"..id.." lost",role)
+    elseif lease.lost or ((row.role == "worker" or row.role == "turtle") and facts.now-seen>180000) then
+      if not (facts.snoozed or {})[tostring(id)] then
+        local pose = poseText(row.pose)
+        add("lost/"..id,1,"T"..id.." lost "..duration(facts.now-seen)..(pose and " "..pose or ""),role)
+        rows[#rows].lost = {id=tostring(id),seen=seen,pose=pose}
+      end
     end
   end
   if facts.retirement and facts.retirement.status == "pending" then
@@ -86,13 +115,6 @@ local function attention(facts)
   return rows
 end
 
-local function duration(ms)
-  local s = math.max(0,math.floor((ms or 0)/1000))
-  if s < 60 then return s.."s" end
-  if s < 3600 then return math.floor(s/60).."m" end
-  return string.format("%dh%02dm",math.floor(s/3600),math.floor(s/60)%60)
-end
-
 H.gather = function(now)
   local state = SO.mods.state
   local machines = call("state","get","machines") or {}
@@ -100,10 +122,19 @@ H.gather = function(now)
   for id in pairs(keys and keys.keys or {}) do
     if not machines[tostring(id)] then machines[tostring(id)] = {id=tonumber(id)} end
   end
+  if not H.snoozes then H.snoozes = call("display","snoozer",3600000) end
+  H.snoozedAt = H.snoozedAt or {}
+  local snoozed = {}
   local leases, online, lost, open = {}, 0, 0, 0
   for id, row in pairs(machines) do
     local lease = call("lease","status",tonumber(id)) or {}
-    leases[tostring(id)] = lease
+    local key, seen = tostring(id), math.max(row.seen or 0,lease.seen or 0)
+    if H.snoozes then
+      if H.snoozedAt[key] and seen > H.snoozedAt[key] then H.snoozes.clear(key);H.snoozedAt[key]=nil end
+      snoozed[key] = H.snoozes.on(key,now)
+      if not snoozed[key] then H.snoozedAt[key]=nil end
+    end
+    leases[key] = lease
     if lease.open then open = open+1 end
     if row.seen and now-row.seen<=180000 and not lease.lost then online=online+1 else lost=lost+1 end
   end
@@ -113,7 +144,9 @@ H.gather = function(now)
   local enroll = SO.enroll and SO.enroll.view()
   local errors = SO.errors and SO.errors.status() or {}
   local entries = SO.errors and SO.errors.entries() or {}
-  H.items = attention({now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,
+  local runtime = SO.health or {}
+  H.items = attention({now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,snoozed=snoozed,
+    gpsGap=runtime.gpsGap,configError=runtime.configError,
     clockRefused=SO.clock and SO.clock.refused,
     errorCount=errors.count,errorAt=entries[#entries] and entries[#entries].at,
     points=call("drops","list") or {},fuelAlerts=call("shop","fuelAlerts") or {},retirement=call("cells","retirement"),
@@ -122,7 +155,6 @@ H.gather = function(now)
     requests=enroll and enroll.rows or {}})
   local log = call("state","diagnostics") or {}
   local clock = generation("so-data/clock")
-  local runtime = SO.health or {}
   local modems = peripheral and peripheral.find and {peripheral.find("modem")} or {}
   -- Leaders { label, value, fg?, tail? } for the health page: a value of "-" is muted, a tail is the
   -- value's coral end.
@@ -133,18 +165,52 @@ H.gather = function(now)
     {"uptime", duration(now-(runtime.started or now))},
     {"tick", ms(runtime.cadence)..dot.."wall "..ms(runtime.wallCadence)},
     {"tick cost", ms(runtime.tickMs)},
-    {"clock reserve", SO.clock and SO.clock.refused and "refused" or clock and duration(clock.ceiling-now) or "unavailable",
+    {"clock reserve", SO.clock and SO.clock.refused and "refused" or clock and duration(clock.ceiling-now) or "unknown",
       SO.clock and SO.clock.refused and "e" or not clock and "8"},
     {"events", log.available and ("#"..log.seq..dot..log.segments.." seg") or "unavailable", not log.available and "8"},
-    {"event bytes", tostring(log.bytes or "-")},
+    {"event bytes", bytes(log.bytes)},
     {"snapshot", (snapshot or "none")..(log.due and " due" or ""), log.due and "1" or not snapshot and "8"},
     {"disk", math.floor(ratio*100).."%", ratio >= 0.8 and "e"},
-    {"disk free", disk.free and (disk.free.." B") or "-"},
-    {"errors", tostring(errors.count or 0)..dot..tostring(errors.bytes or 0).." B"},
+    {"disk free", bytes(disk.free)},
+    {"errors", tostring(errors.count or 0)..dot..bytes(errors.bytes or 0)},
     {"modems", tostring(#modems)},
     {"paired", online.." online"..dot..lost.." lost", nil, lost > 0 and (lost.." lost")},
     {"leases", open.." open"},
   }
+  if runtime.modules then
+    local cfg = type(runtime.config) == "table" and runtime.config or {}
+    local loaded, failed, absent, modules = 0, 0, 0, {}
+    for file, status in pairs(runtime.modules or {}) do
+      modules[#modules+1] = file
+      if status.status == "loaded" and not status.tickError then loaded=loaded+1
+      elseif status.status == "absent" then absent=absent+1 else failed=failed+1 end
+    end
+    table.sort(modules)
+    local summary = #modules > 0 and (loaded.." loaded") or "unavailable"
+    local flags = {}
+    for _, name in ipairs({"enroll","retireLegacyPair","remoteDimensions","setupMovement","dropsSavedSetup",
+      "arFollowups","panelUpdates","workerSettings","workerPark"}) do
+      if cfg[name] == true then flags[#flags+1] = name end
+    end
+    if type(cfg.state) == "table" and cfg.state.coalesceHeartbeats == true then flags[#flags+1]="state.coalesceHeartbeats" end
+    local prefix = {
+      {"modules",summary}, {"skip",failed.." fail "..absent.." absent"}, {"rev",runtime.revision and runtime.revision:sub(1,8) or "unknown"},
+      {"cfg",runtime.configError and "unreadable" or #flags==0 and "defaults" or flags[1]},
+      {"pos",poseText(cfg.pos) or "missing"},
+      {"GPS gap",runtime.gpsGap and string.format("%.1f blocks",runtime.gpsGap) or "unavailable",runtime.gpsGap and runtime.gpsGap>2 and "1"},
+    }
+    for i=2,#flags do prefix[#prefix+1] = {"cfg",flags[i]} end
+    for _, metric in ipairs(H.metrics) do prefix[#prefix+1]=metric end
+    for _, file in ipairs(modules) do
+      local status = runtime.modules[file]
+      local name = file:match("^so%-mod%-(.+)%.lua$") or file
+      local value = status.status == "loaded" and (status.tickError and "tick failed" or status.lastGood
+        and ("ok "..duration(now-status.lastGood).." ago") or "loaded") or status.status
+      prefix[#prefix+1] = {name,value,(status.status=="failed" or status.tickError) and "e" or status.status=="absent" and "8"}
+      if status.error or status.tickError then prefix[#prefix+1] = {"error",status.error or status.tickError,"e"} end
+    end
+    H.metrics = prefix
+  end
   if errors.error then H.metrics[#H.metrics+1] = {flag="error save "..errors.error} end
   if entries[#entries] then H.metrics[#H.metrics+1] = {last=entries[#entries].text} end
 end
@@ -240,6 +306,20 @@ H.render = function(role,w,h,session)
     {{"EVENTS","events"},{"ALERTS","alerts"},{"ERRORS","errors"}}},role,4)
   local gap, lw = h >= 16 and 1 or 0, math.min(w-2,40)
   local top = last+1+gap
+  if role == "attention" and v.lost then
+    local row
+    for _, item in ipairs(H.items) do if item.key == v.lost then row=item end end
+    if row and row.lost then
+      c.put(2,top,"T"..row.lost.id.." lost "..duration(H.now-row.lost.seen),"e")
+      c.put(2,top+1,U.fit(row.lost.pose or "pose unknown",lw),"0")
+      c.chip(2,h,"BACK","lost-back")
+      if H.snoozes then c.chip(9,h,"SNOOZE","lost-snooze") end
+      c.chip(w-5,h,"OPEN","lost-open")
+      v.lostRow = row
+      return c.frame()
+    end
+    v.lost,v.lostRow = nil,nil
+  end
   local history = role == "events" or role == "alerts"
   if history and v.fact then
     -- One event's facts: its kind and age, then leaders and the text, BACK to the same list page.
@@ -364,7 +444,7 @@ H.render = function(role,w,h,session)
       if row.flag then c.flag(2,y,lw,row.flag)
       elseif row.text then c.put(2,y,row.label,"8") c.put(7,y,row.text,"0")
       else
-        c.leader(2,y,lw,row[1],row[2],row[3] or (row[2]=="-" and "8" or "0"))
+        c.leader(2,y,lw,row[1],U.fit(row[2],math.max(1,lw-#row[1]-1)),row[3] or (row[2]=="-" and "8" or "0"))
         if row[4] then c.put(2+lw-#row[4],y,row[4],"e") end
       end
     elseif row and role == "attention" then
@@ -400,7 +480,24 @@ H.input = function(role,event)
   if not event.session then return end
   local v = sessionView(event.session,role)
   local id = event.id
-  if role == "errors" and id == "error-back" then
+  if role == "attention" and v.lostRow then
+    local row = v.lostRow
+    if id == "lost-snooze" and H.snoozes then
+      H.snoozes.set(row.lost.id,H.now)
+      H.snoozedAt[row.lost.id] = row.lost.seen
+      H.gather(H.now)
+      v.lost,v.lostRow = nil,nil
+    elseif id == "lost-open" and event.open then
+      v.lost,v.lostRow = nil,nil
+      event.open(row.target,row.actions)
+    elseif id == "lost-back" then v.lost,v.lostRow = nil,nil
+    elseif event.open and (id=="health" or id=="attention" or id=="events" or id=="alerts" or id=="errors") then
+      v.lost,v.lostRow = nil,nil
+      event.open(id)
+    end
+  elseif role == "attention" and v.targets and v.targets[id] and v.targets[id].lost then
+    v.lost = v.targets[id].key
+  elseif role == "errors" and id == "error-back" then
     v.error,v.errorPage,v.errorNext = nil,nil,nil
   elseif role == "errors" and v.error then
     if id == "next" and v.errorNext then v.errorPage = v.errorPage+1
