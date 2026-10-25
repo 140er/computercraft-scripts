@@ -396,16 +396,18 @@ return function(test, equal)
       { facts = { ready = false, quiet = false, keys = { "drop/2" } } },
       { facts = { ready = true, quiet = false, keys = { "drop/3", "fuel/1" } } },
     }
+    -- The unready and unmatched snapshots stay unready and unmatched for the whole 10 s.
     for i, opts in ipairs(cases) do
       if opts.health == false then opts.health = {} end
       local s = toned(opts)
       raise(s, "drops.alert", BROKEN)
       assert(s.takeover(), "case " .. i .. " still takes over")
+      for t = 1500, 12000, 500 do s.at(t) end
       equal(#s.sounds(), 0, "case " .. i)
     end
   end)
 
-  test("B11-U: walls stay silent and gaining a key never reopens or sounds a running takeover", function()
+  test("B11-U: a key health gathers within 10 s still sounds once on the pocket, never on a wall", function()
     local s = toned()
     s.open("status", 39, 13, 3)
     s.at(500)
@@ -413,10 +415,54 @@ return function(test, equal)
     s.m.env.SO.mods.health.soundFacts = function() return facts end
     raise(s, "drops.alert", BROKEN)
     assert(s.takeover(2) and s.takeover(3))
+    s.at(4000)
+    equal(#s.sounds(2), 0)
     facts.keys = { "drop/2" }
-    for t = 1500, 40000, 500 do s.at(t) end
-    equal(#s.sounds(2), 0, "the key came after the first frame")
+    s.at(6000)
+    equal(#s.sounds(2), 1, "the pending tone rides the next frame after health gathers")
+    equal(s.sounds(2)[1].key, "drop/2")
+    for t = 6500, 40000, 500 do s.at(t) end
+    equal(#s.sounds(2), 1)
     equal(#s.sounds(3), 0, "a wall never sounds")
+  end)
+
+  test("B11-U: a key gathered after 10 s, or after the next takeover, is silent and opens nothing", function()
+    local s = toned()
+    local facts = { ready = true, quiet = false, keys = {} }
+    s.m.env.SO.mods.health.soundFacts = function() return facts end
+    raise(s, "drops.alert", BROKEN)
+    for t = 1500, 11000, 500 do s.at(t) end
+    facts.keys = { "drop/2" }
+    for t = 11500, 30000, 500 do s.at(t) end
+    equal(#s.sounds(), 0)
+    equal(s.takeover(), nil, "gaining the key reopened nothing")
+    facts.keys = {}
+    raise(s, "mine.alert", { id = 5, text = "T5 lost" }, 31500)
+    assert(s.takeover())
+    raise(s, "lumber.alert", { id = 6, text = "T6 lost" }, 62000)
+    facts.keys = { "lost/5" }
+    for t = 62500, 65000, 500 do s.at(t) end
+    equal(#s.sounds(), 0, "the replaced takeover's tone is gone")
+  end)
+
+  test("B11-U: quiet hours are checked when the frame goes out, not from health's last tick", function()
+    for _, hours in ipairs({ "now", { startMinute = 10, endMinute = 10 }, { startMinute = 1, endMinute = 2000 }, "x" }) do
+      local s = toned()
+      if hours == "now" then
+        local civil = s.m.env.dofile("so-ui.lua").clock(s.m.env.os.epoch("utc"))
+        local minute = civil.h * 60 + civil.m
+        hours = { startMinute = minute, endMinute = (minute + 1) % 1440 }
+      end
+      s.m.env.SO.health.config.soundQuiet = hours
+      raise(s, "drops.alert", BROKEN)
+      assert(s.takeover())
+      for t = 1500, 12000, 500 do s.at(t) end
+      equal(#s.sounds(), 0, "health still said quiet=false: " .. H.encode(hours))
+    end
+    local s = toned()
+    s.m.env.SO.health.config.soundQuiet = false
+    raise(s, "drops.alert", BROKEN)
+    equal(#s.sounds(), 1, "quiet off sounds")
   end)
 
   test("B11-U: a standing alert through a restart takes over silently", function()
@@ -442,16 +488,17 @@ return function(test, equal)
     equal(#s.sounds(), 1)
   end)
 
-  test("B11-U: a view.get reply carries the first tone and the next push does not", function()
+  test("B11-U: a view.get reply cannot use up the tone; the next push repeats its id once", function()
     local s = toned()
     s.values["drops.alert"] = BROKEN
     s.clock = 1000
     local replies = {}
     s.d.handlers["view.get"]({ from = 2, rid = "r1" }, function(kind, body) replies[#replies + 1] = copy(body) end)
     equal(#replies, 1)
-    equal(replies[1].sound and replies[1].sound.key, "drop/2")
+    local tone = assert(replies[1].sound, "the reply carries the tone")
+    equal(tone.key, "drop/2")
     for t = 1000, 6000, 500 do s.at(t) end
-    equal(#s.sounds(), 0, "pushed frames after the reply stay silent")
+    equal(s.sounds(), { tone }, "a lost reply still sounds: the next push carries the same id, once")
     s.d.handlers["view.get"]({ from = 2, rid = "r2" }, function(kind, body) replies[#replies + 1] = copy(body) end)
     equal(replies[2].sound, nil, "a later reply is silent")
   end)
