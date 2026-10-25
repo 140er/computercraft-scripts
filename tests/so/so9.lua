@@ -1,8 +1,18 @@
 local H = dofile("tests/so/harness.lua")
 return function(test, equal, read)
   local source = read("install.lua")
-  local hashSource = assert(source:match("(local function digest.-)local function validPath"))
-  local hash = assert(load(hashSource .. "return digest"))()
+  local hashSource = assert(source:match("(local yieldEvent.-)local function validPath"))
+  local function eventQueue()
+    local queue = {}
+    return {queueEvent=function(...) queue[#queue+1] = table.pack(...) end,
+      pullEvent=function()
+        local event = assert(table.remove(queue,1), "yield did not queue its event")
+        return table.unpack(event,1,event.n)
+      end},queue
+  end
+  local hashOs = eventQueue()
+  local hash = assert(load(hashSource .. "return digest","@installer-digests","t",
+    setmetatable({os=hashOs},{__index=_G})))()
   local hashes = {}
   local function blob(value)
     if not hashes[value] then hashes[value] = hash("blob " .. #value .. "\0" .. value,true) end
@@ -100,7 +110,13 @@ return function(test, equal, read)
     e.pocket = role == "display" and {} or nil
     e.keys = { up = 1, down = 2, enter = 3 }
     e.colors = { white = 1, gray = 128, black = 32768 }
-    e.os.pullEvent = function() return "key", e.keys.enter end
+    local installOs,events = eventQueue()
+    m.events = events
+    e.os.queueEvent = installOs.queueEvent
+    e.os.pullEvent = function()
+      if #events > 0 then return installOs.pullEvent() end
+      return "key", e.keys.enter
+    end
     e.gps = { locate = function(timeout) equal(timeout, 2); return 1, 2, 3 end }
     e.read = function() return "" end
     e.shell = { run = function(...) m.runs[#m.runs + 1] = { ... }; return true end }
@@ -681,7 +697,11 @@ return function(test, equal, read)
         m.env.peripheral.getName = function() return "left" end
         events = mode == "monitor" and { { "key", 3 } } or { { "monitor_touch", "left", 2, 12 } }
       end
-      m.env.os.pullEvent = function() return table.unpack(table.remove(events, 1)) end
+      local pull = m.env.os.pullEvent
+      m.env.os.pullEvent = function()
+        if #m.events > 0 then return pull() end
+        return table.unpack(table.remove(events,1))
+      end
       m.run()
       equal(m.files[".so-role"], "display")
     end
@@ -1606,6 +1626,105 @@ return function(test, equal, read)
     equal(m.calls,0)
     equal(m.files,before)
     equal(#m.runs,0)
+  end)
+  test("SO9 an old-style pinned installer is refused before any role download", function()
+    local m = installed("worker")
+    m.remote["install.lua"] = source:gsub('return main, ROLES end','return main end')
+    assert(m.remote["install.lua"] ~= source)
+    local before = snapshot(m)
+    m.run("update",m.sha)
+    unchanged(m,before)
+    equal(m.calls,1)
+    equal(#m.runs,0)
+    assert(table.concat(m.log):find("pinned installer too old for staged update/offline kit; update from a newer commit",1,true))
+  end)
+  test("SO9 an old-style offline installer is refused before filesystem writes or HTTP", function()
+    local m = kitMachine("worker")
+    local old = source:gsub('return main, ROLES end','return main end')
+    local manifest = m.env.textutils.unserialize(m.files["disk/so-kit/manifest"])
+    for _,v in ipairs(manifest.files) do
+      if v.path == "install.lua" then v.bytes,v.blob,v.sha256 = #old,blob(old),hash(old) end
+    end
+    m.files["disk/so-kit/code/install.lua"] = old
+    m.files["disk/so-kit/manifest"] = m.env.textutils.serialize(manifest)
+    local before = snapshot(m)
+    for _,name in ipairs({"delete","move","makeDir"}) do m.env.fs[name] = function() error("Unexpected kit write") end end
+    local open = m.env.fs.open
+    m.env.fs.open = function(path,mode) equal(mode,"r"); return open(path,mode) end
+    local ok,err = pcall(m.run,"offline","disk")
+    equal(ok,false)
+    assert(tostring(err):find("pinned installer too old for staged update/offline kit; update from a newer commit",1,true))
+    equal(m.files,before)
+    equal(#m.urls,0)
+    equal(#m.runs,0)
+  end)
+  local function boundedHashWork(m)
+    local stats = {bytes=0,total=0,peak=0,yields=0}
+    local bits = {}
+    for name,fn in pairs(m.env.bit32) do bits[name] = fn end
+    local shift = bits.lshift
+    bits.lshift = function(value,n)
+      if n == 24 then
+        stats.bytes,stats.total = stats.bytes+4,stats.total+4
+        stats.peak = math.max(stats.peak,stats.bytes)
+        assert(stats.bytes <= 8192,"More than 8192 hash bytes without yielding")
+      end
+      return shift(value,n)
+    end
+    m.env.bit32 = bits
+    local pull = m.env.os.pullEvent
+    m.env.os.pullEvent = function(...)
+      local event = table.pack(pull(...))
+      if event[1]:match("^so%-install%-yield%-") then
+        stats.bytes,stats.yields = 0,stats.yields+1
+      end
+      return table.unpack(event,1,event.n)
+    end
+    return stats
+  end
+  test("SO9 large SHA1 and SHA256 inputs yield every 8192 bytes and retain unrelated events", function()
+    local m = machine("worker")
+    local stats = boundedHashWork(m)
+    local hashWithYields = assert(load(hashSource .. "return digest","@installer-digests","t",m.env))()
+    local value = string.rep("x",32769)
+    m.env.os.queueEvent("timer",42)
+    m.env.os.queueEvent("mouse_click",1,3,4)
+    equal(hashWithYields(value),hash(value))
+    equal(hashWithYields(value,true),hash(value,true))
+    assert(stats.yields >= 8)
+    equal(stats.peak,8192)
+    equal(m.events,{table.pack("timer",42),table.pack("mouse_click",1,3,4)})
+  end)
+  test("SO9 server offline verification yields between files and stages bytes without rehashing", function()
+    local m = kitMachine("server")
+    local stats = boundedHashWork(m)
+    m.run("offline","disk")
+    local size = 0
+    for _,path in ipairs(files("server")) do
+      size = size+#read(path)
+      equal(m.files[path],read(path),path)
+    end
+    assert(stats.total >= 2*size)
+    assert(stats.total < 2*size+512*#files("server")+16384,"Offline bytes were hashed again while staging")
+    assert(stats.yields >= #files("server"))
+    assert(stats.peak <= 8192)
+    equal(m.calls,0)
+  end)
+  test("SO9 server resume yields while rehashing and shows the complete pinned commit", function()
+    local m = installed("server")
+    m.failFrom = #files("server")
+    m.run("update")
+    assert(m.files[".so-download/index"])
+    local calls = m.calls
+    local stats = boundedHashWork(m)
+    local pinned = m.sha
+    m.sha,m.failFrom = string.rep("c",40),nil
+    m.run("update","--resume")
+    equal(m.files[".so-revision"],pinned)
+    equal(m.calls,calls+1)
+    assert(stats.yields >= #files("server"))
+    assert(stats.peak <= 8192)
+    assert(table.concat(m.log):find("Resuming pinned commit " .. pinned,1,true))
   end)
 
 end

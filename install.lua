@@ -245,6 +245,18 @@ local function revision(allowSaved)
   error("Cannot resolve server-only commit" .. (allowSaved == false and "" or " and no valid saved commit exists"), 0)
 end
 
+local yieldEvent = "so-install-yield-" .. tostring({})
+local function yieldWork()
+  local pending = {}
+  os.queueEvent(yieldEvent)
+  while true do
+    local event = table.pack(os.pullEvent())
+    if event[1] == yieldEvent then break end
+    pending[#pending+1] = event
+  end
+  -- Filtered pulls discard other events, so put them back for the role or caller.
+  for _,event in ipairs(pending) do os.queueEvent(table.unpack(event,1,event.n)) end
+end
 local function digest(msg, git)
   local K
   if not git then
@@ -298,9 +310,11 @@ local function digest(msg, git)
     end
     local state = git and {a,c,d,e,f} or {a,c,d,e,f,g,j,l}
     for i,v in ipairs(state) do h[i] = b.band(h[i]+v,mask) end
+    if (block+63) % 8192 == 0 then yieldWork() end
   end
   local out = {}
   for i,v in ipairs(h) do out[i] = string.format("%08x",v) end
+  yieldWork()
   return table.concat(out)
 end
 local function validPath(path)
@@ -357,6 +371,7 @@ local function verified(v, bytes)
   if v.sha256 then assert(digest(bytes) == v.sha256, "Digest mismatch " .. v.path) end
   if v.blob then assert(digest("blob " .. #bytes .. "\0" .. bytes,true) == v.blob, "Blob mismatch " .. v.path) end
   compile(v.path,bytes)
+  yieldWork()
   return bytes
 end
 local function cacheIndex(sha, role, list)
@@ -452,6 +467,12 @@ local function installerRoles(bytes)
   assert(type(roles) == "table" and type(roles.common) == "table", "Bad pinned ROLES")
   return roles
 end
+local function prepareInstaller(bytes)
+  local apply,roles = compile("install.lua",bytes)("prepare")
+  assert(type(apply) == "function" and type(roles) == "table",
+    "pinned installer too old for staged update/offline kit; update from a newer commit")
+  return apply
+end
 local function readKit(mount)
   assert(type(mount) == "string" and mount:match("^/?[%w_-]+$") and fs.getDrive(mount) ~= fs.getDrive("/"), "Expected a mounted kit disk")
   local root = mount .. "/so-kit"
@@ -471,8 +492,7 @@ local function readKit(mount)
   local chunk = assert(bytes["install.lua"], "Missing kit installer")
   local roles = installerRoles(chunk)
   selectFiles(kit.files,kit.role,roles,true)
-  local apply = compile("install.lua",chunk)("prepare")
-  assert(type(apply) == "function", "Bad kit installer")
+  local apply = prepareInstaller(chunk)
   return kit,bytes,apply
 end
 local function previousFiles(role)
@@ -579,9 +599,10 @@ local function install(role, config, handoff)
   local ok,err = pcall(function()
     admission(list,handoff.bytes,generated,entries,handoff.index)
     for _,v in ipairs(list) do
-      local value = handoff.offline and verified(v,assert(handoff.bytes[v.path]))
+      local value = handoff.offline and assert(handoff.bytes[v.path])
         or obtain(v,handoff.revision,handoff.index,handoff.bytes)
       writeFile(NEW .. "/" .. v.path,value)
+      yieldWork()
     end
     for path,value in pairs(generated) do writeFile(NEW .. "/" .. path,value) end
     if handoff.updating then writeFile(NEW .. "/keep","yes") end
@@ -762,7 +783,7 @@ local function main(command, handoff, extra, last)
         local roles = installerRoles(installer)
         local list,generated,entries = installPlan(role,config,manifest,previousFilesList,sha,roles)
         admission(list,bytes,generated,entries,index)
-        nextInstaller = compile("install.lua",installer)("prepare")
+        nextInstaller = prepareInstaller(installer)
       end
       assert(type(nextInstaller) == "function", "Commit installer does not support pinned updates")
       nextInstaller(command, { revision = sha, previous = previousFilesList, role = role, config = config, updating = updating,
