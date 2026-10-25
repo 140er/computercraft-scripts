@@ -139,6 +139,13 @@ return function(test, equal)
     so = a.s.env.SO
     so.now = function() return began end
     lease = so.mods.lease
+    local state
+    for i=1,10 do
+      local name,value=debug.getupvalue(lease.send,i)
+      if name=="S" then state=value break end
+    end
+    -- Force a broken server counter; normal restarts retain it.
+    assert(state).seq=0
     local reports = 0
     lease.onReport("reused", function(_, _, results, record)
       equal(record.status, "reported")

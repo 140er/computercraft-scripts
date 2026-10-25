@@ -247,7 +247,11 @@ return function(test, equal)
         end
       end
       local pending=c.releaseRequest("setup:9",10,offer.token)
-      if failure=="send" or failure=="hold save" then equal(pending,nil)
+      if failure=="hold save" then equal(pending,nil)
+      elseif failure=="send" then
+        equal(pending.status,"pending")
+        equal(lease.peek(9).open,pending.lease)
+        net.time=net.time+25001 lease.tick(net.time)
       elseif failure=="timeout" then net.time=net.time+25001 lease.tick(net.time)
       elseif failure=="restart" then c=boot(m.files)
       else
@@ -369,7 +373,7 @@ return function(test, equal)
       equal(c.releaseStatus("setup:9").status,"held")
       equal(lease.peek(9).releasing,false) equal(lease.peek(9).releaseHold,true)
       equal(lease.peek(9).boundaryHold,nil)
-      equal(lease.protectionReady(),true)
+      equal(lease.protectionReady(),false)
       local protected={}
       assert(lease.dugProtection(function(d,p,margin) protected[#protected+1]={d=d,p=p,margin=margin} end))
       equal(protected[1],{d=dim,p={dim=dim,x=4,y=5,z=6},margin=48})

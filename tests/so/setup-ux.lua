@@ -309,6 +309,11 @@ return function(test,equal)
     a.n.flush() a.n.advance(3)
     a.ui=a.s.env.SO.mods.display.screen("generic")
     a.hello()
+    equal(a.s.env.SO.mods.lease.status(2).open,delayed.body.lease)
+    a.ui.input({text="release 2"})
+    assert(#a.s.env.SO.mods.cells.list("setup:2",100)>0,"open lease released its route")
+    a.n.advance(26)
+    a.hello() a.n.advance(1) a.hello()
     a.ui.input({text="release 2"})
     a.n.advance(1)
     equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
@@ -323,6 +328,31 @@ return function(test,equal)
     F.check(a)
     equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
     assert(not text(a.ui.render(29,12,{})):find("held",1,true))
+  end)
+  test("setup restart reconciles a saved inspection once when its caller receipt save failed",function()
+    local a=setup(true)
+    assert(a.s.env.SO.mods.drops.add({id="missing",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+    local open=a.s.env.fs.open
+    a.s.env.fs.open=function(path,mode)
+      if path=="so-data/cells/setup.tmp" and mode=="w" then
+        local value=a.s.env.SO.store.read("so-drops")
+        if value and value.value.points[1].fails==1 then return nil end
+      end
+      return open(path,mode)
+    end
+    a.ui.input({text="test missing"}) press(a.ui,29,12,"facing:1",{})
+    a.n.advance(4) F.check(a)
+    equal(a.s.env.SO.store.read("so-drops").value.points[1].fails,1)
+    assert(a.s.env.SO.mods.lease.outcome(2),"failed caller save acknowledged the inspection")
+    local before=#F.sent(a.s,"lease.batch")
+    a.n.kill(a.s) a.s=a.n.boot(a.s) a.n.flush() a.n.advance(1) F.check(a)
+    equal(a.s.env.SO.store.read("so-drops").value.points[1].fails,1)
+    equal(a.s.env.SO.mods.lease.outcome(2),nil)
+    for _,batch in ipairs(F.sent(a.s,"lease.batch")) do
+      for _,step in ipairs(batch.body.steps) do equal(step.op,"gps") end
+    end
+    assert(before>0)
+    assert(#a.s.env.SO.mods.cells.list("setup:2",100)>0)
   end)
   test("setup fenced work refuses a failed pending-journal save without moving",function()
     local a=setup(true)

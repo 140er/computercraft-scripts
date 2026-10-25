@@ -510,7 +510,7 @@ return function(test,equal)
     local drops=private(so.mods.drops.busy,"S")
     drops.task={id=3,lease="setup"}
     local lease=private(so.mods.lease.forget,"S")
-    lease.turtles[3]={open={id="moving",expires=so.now()+100,owner="mine",steps={{op="forward"}}}}
+    lease.turtles[3]={open={id="moving",turtleId=3,status="open",expires=so.now()+100,owner="mine",steps={{op="forward"}}}}
     assert(so.mods.cells.reserve("setup:3",5,64,0,"minecraft:overworld"))
     local invitation=assert(so.pairCode(3))
     local function planners()
@@ -627,7 +627,7 @@ return function(test,equal)
     build.running=true
     local lease=private(so.mods.lease.forget,"S")
     local called=false
-    lease.turtles[3]={open={id="moving",expires=so.now()+100,owner="mine",steps={{op="forward"}}},probe={done=function() called=true end},range=96}
+    lease.turtles[3]={open={id="moving",turtleId=3,status="open",expires=so.now()+100,owner="mine",steps={{op="forward"}}},probe={done=function() called=true end},range=96}
     for i,owner in ipairs({"mine:3","lumber:3","build:3","moving","gps:3"}) do
       assert(so.mods.cells.reserve(owner,i,64,0,"minecraft:overworld"))
     end

@@ -18,18 +18,27 @@ local function signature(value)
   return table.concat(out, ",")
 end
 local checks, traces = 0, 0
-local function run(trace, foreign, batchSize, grace)
+local function run(trace, foreign, batchSize, grace, exhaustive)
   steps = {}
   for i = 1, batchSize do steps[i] = { op = "forward" } end
   local actual = { now = 0, cells = {}, calls = {}, ids = {} }
-  local model = { now = 0, seq = 0, cells = {}, calls = {}, ids = {}, uncertain = false }
+  local model = { now = 0, seq = 0, durableSeq = 0, cells = {}, calls = {}, ids = {}, uncertain = false }
   local lease
   local function boot()
     local env = setmetatable({
       os = { epoch = function() return actual.now end }, print = function() end,
       rednet = { send = function() return true end },
       SO = { now = function() return actual.now end,
-        store = { copy = copy, read = function() return { pos = { x = 0, y = 0, z = 0 } } end },
+        store = { copy = copy, read = function() return { pos = { x = 0, y = 0, z = 0 } } end,
+          store = function(_, valid)
+            assert(not actual.disk or valid(actual.disk))
+            return {value=copy(actual.disk),save=function(value)
+              if actual.failSave then return false,"disk" end
+              if not valid(value) then return false,"invalid state" end
+              actual.disk=copy(value)
+              return true
+            end}
+          end },
         pair = { key = function() return "paired" end },
         proto = { build = function(_, kind, body) return { kind = kind, body = body } end,
           encode = function(value) return value end },
@@ -51,17 +60,23 @@ local function run(trace, foreign, batchSize, grace)
         .. " actual=" .. tostring(got) .. " expected=" .. tostring(want), 0)
     end
   end
-  for _, action in ipairs(trace) do
+  local function step(action)
     prefix[#prefix + 1] = action
     if action == "send_a" or action == "send_b" then
       local expected, reason
       if model.uncertain then reason = "pose uncertain"
+      elseif model.lost then reason = "lost"
       elseif model.open then reason = "busy"
+      elseif model.terminal then reason = "lease outcome pending"
+      elseif model.recovering then reason = "restart needs fenced observation"
       else
         model.seq = model.seq + 1
         expected = string.format("2-%.0f-%d", model.now, model.seq)
-        model.open, model.expires = expected, model.now + 1000
-        model.cells["mine:2"] = true
+        if actual.failSave then expected, reason = nil, "disk"
+        else
+          model.open, model.expires, model.durableSeq, model.restored = expected, model.now+1000, model.seq, false
+          model.cells["mine:2"] = true
+        end
       end
       local id, err = lease.send(2, steps, { owner = "mine", ms = 1000 })
       local property = model.uncertain and "uncertainty" or "dispatch"
@@ -69,19 +84,38 @@ local function run(trace, foreign, batchSize, grace)
       equal(property, err, reason)
       actual.ids[action], model.ids[action] = id, expected
       if id then actual.cells["mine:2"] = true end
-    elseif action == "restart" then
+    elseif action == "restart" or action == "restart2" then
       boot()
-      model.open, model.expires, model.seq, model.uncertain = nil, nil, 0, false
+      model.lost = model.open ~= nil or model.terminal ~= nil or model.recovering == true
+      model.uncertain = model.terminal and model.terminalUncertain or false
+      model.seq, model.restored = model.durableSeq, model.lost
     elseif action == "expire" then
       actual.now, model.now = grace, grace
       lease.tick(actual.now)
-      if model.open and model.now > model.expires + 10000 then
+      if model.open and model.now > model.expires + 10000 and not actual.failSave then
         model.calls[#model.calls + 1] = model.open .. ":expire"
-        model.open = nil
+        model.terminal, model.terminalUncertain, model.open, model.terminalStatus = model.open, false, nil, "expired"
       end
+    elseif action == "fail_save" then actual.failSave=true
+    elseif action == "save_ok" then actual.failSave=false
+    elseif action == "hello" then
+      lease.handlers.hello({from=2,body={journal={id="journal",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true,setupFence=true}}})
+      model.uncertain, model.lost = false, false
+    elseif action == "ack" then
+      local record = lease.outcome(2)
+      if model.terminal then
+        equal("restart_ack",record and record.id,model.terminal)
+        local ok, err = lease.ackOutcome(record.id)
+        equal("restart_ack",ok,not actual.failSave)
+        equal("restart_ack",err,actual.failSave and "disk" or nil)
+        if not actual.failSave then
+          model.recovering, model.terminal = model.terminalStatus == "expired" or model.restored == true, nil
+          model.durableSeq = model.seq
+        end
+      else equal("restart_ack",record,nil) end
     elseif action == "uncertain" then
       lease.handlers.hello({ from = 2, body = { journal = { id = "journal", uncertain = true } } })
-      model.uncertain = true
+      model.uncertain, model.lost = true, false
     else
       local id = actual.ids.send_a or "not-issued"
       local expectedId = model.ids.send_a or "not-issued"
@@ -93,20 +127,53 @@ local function run(trace, foreign, batchSize, grace)
         else results = {} end
       end
       lease.handlers["step.report"]({ from = sender, body = { lease = id, results = results } })
-      if sender == 2 and expectedId == model.open and #results == batchSize then
+      if sender == 2 and expectedId == model.open and #results == batchSize and not actual.failSave then
         model.calls[#model.calls + 1] = model.open .. ":report"
-        model.open, model.uncertain = nil, false
+        model.terminal, model.terminalUncertain, model.open, model.uncertain, model.lost, model.terminalStatus = model.open, false, nil, false, model.restored == true, "reported"
       end
     end
     local status = lease.status(2)
-    equal("report_integrity", status.open, model.open)
+    equal((action=="restart" or action=="restart2") and "restart_restore" or "report_integrity", status.open, model.open)
+    local outcome=lease.outcome(2)
+    equal("restart_ack",outcome and outcome.id,model.terminal)
     equal("uncertainty", not not status.uncertain, model.uncertain)
     local property = (action == "expire" or action == "restart")
       and "reservation_retention" or "report_integrity"
     equal(property, signature(actual.cells), signature(model.cells))
     equal("callback_once", table.concat(actual.calls, ","), table.concat(model.calls, ","))
   end
-  traces = traces + 1
+  if exhaustive then
+    local actions = trace
+    local used = {}
+    local function stateOf()
+      for i=1,10 do
+        local name, value = debug.getupvalue(lease.send,i)
+        if name == "S" then return value end
+      end
+      error("lease state upvalue missing")
+    end
+    local function visit(depth)
+      if depth > #actions then traces=traces+1 return end
+      local state = stateOf()
+      local savedActual, savedModel, savedPrefix = copy(actual), copy(model), copy(prefix)
+      local savedRows, savedValue, savedSeq, savedBox = copy(state.turtles), copy(state.saved), state.seq, state.box
+      local savedLease = lease
+      for i, action in ipairs(actions) do
+        if not used[i] then
+          used[i] = true
+          step(action)
+          visit(depth+1)
+          actual, model, prefix, lease = copy(savedActual), copy(savedModel), copy(savedPrefix), savedLease
+          state.turtles, state.saved, state.seq, state.box = copy(savedRows), copy(savedValue), savedSeq, savedBox
+          used[i] = nil
+        end
+      end
+    end
+    visit(1)
+  else
+    for _, action in ipairs(trace) do step(action) end
+    traces=traces+1
+  end
   return actual
 end
 local witnesses = {
@@ -115,33 +182,27 @@ local witnesses = {
   reservation_retention = { "send_a", "expire" },
   uncertainty = { "uncertain", "send_a" },
   callback_once = { "send_a", "report_a", "report_again" },
+  restart_restore = {"send_a","restart"},
 }
-if witness then
-  run(assert(witnesses[witness], "unknown witness"), "wrong-id", 1, 11001)
-else
-  local actions = { "send_a", "send_b", "report_a", "report_again", "foreign", "expire", "restart", "uncertain" }
-  local trace, used = {}, {}
-  local function visit(depth)
-    if depth > #actions then
-      for _, foreign in ipairs({ "wrong-id", "wrong-sender", "malformed" }) do
-        for _, batchSize in ipairs({ 1, 16 }) do
-          for _, grace in ipairs({ 11000, 11001 }) do run(trace, foreign, batchSize, grace) end
-        end
-      end
-      return
-    end
-    for i, action in ipairs(actions) do
-      if not used[i] then
-        used[i], trace[depth] = true, action
-        visit(depth + 1)
-        used[i] = nil
-      end
-    end
+local foreign, batch, grace = (witness or ""):match("^partition:([^:]+):(%d+):(%d+)$")
+if foreign then
+  run({"send_a","send_b","report_a","report_again","foreign","expire","restart","uncertain"},foreign,tonumber(batch),tonumber(grace),true)
+elseif witness == "restarts:1" or witness == "restarts:16" then
+  local size=tonumber(witness:match("%d+"))
+  run({"send_a","report_a","expire","ack","restart","restart2","hello"},"wrong-id",size,11001,true)
+elseif witness == "failures" then
+  for _,size in ipairs({1,16}) do
+    for _,trace in ipairs({
+      {"fail_save","send_a","restart","save_ok","hello","send_b"},
+      {"send_a","fail_save","report_a","restart","save_ok","hello","report_a","ack","restart2"},
+      {"send_a","fail_save","expire","restart","save_ok","hello","expire","ack","restart2"},
+      {"send_a","report_a","fail_save","ack","restart","save_ok","hello","ack","restart2","send_b","report_a"},
+      {"send_a","restart","hello","report_a","ack","restart2","hello","send_b","report_a"},
+    }) do run(trace,"wrong-id",size,11001) end
   end
-  visit(1)
-  local collision = run({ "send_a", "restart", "send_b", "report_a" }, "wrong-id", 1, 11001)
-  assert(collision.ids.send_a == collision.ids.send_b and #collision.calls == 1)
-  print("FINDING restart-id-reuse at fixed clock send_a=" .. collision.ids.send_a
-    .. " restart send_b=" .. collision.ids.send_b .. " old_report_a closes send_b")
+elseif witness then
+  run(assert(witnesses[witness],"unknown witness"),"wrong-id",1,11001)
+else
+  error("run through formal/verify_lease.py to enumerate all partitions")
 end
 print("PASS traces=" .. traces .. " comparisons=" .. checks)

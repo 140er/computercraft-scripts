@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check lease event orderings and require scratch Lua defects to fail."""
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import re
@@ -11,7 +12,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SYNC_COMMIT = "a5f8de520e1ce15dafe2f352e6c54766eb7b088a"
+SYNC_COMMIT = "d82f456583671350a655ee9c982c126ddd2795d4"
 MUTATIONS = {
     "dispatch": (
         'if row.open then return nil, "busy" end',
@@ -22,12 +23,16 @@ MUTATIONS = {
         'then -- scratch: accept a foreign lease id',
     ),
     "reservation_retention": (
-        'lease.status = "expired"',
-        'lease.status = "expired"\n      SO.mods.cells.releaseOwner("mine:" .. lease.turtleId)',
+        '      lease.status = "expired"\n      if not S.persist',
+        '      lease.status = "expired"\n      SO.mods.cells.releaseOwner("mine:" .. lease.turtleId)\n      if not S.persist',
     ),
     "uncertainty": (
         'if row.uncertain or row.anchor then return nil, "pose uncertain" end',
         '-- scratch: dispatch with an uncertain pose',
+    ),
+    "restart_restore": (
+        'if record.status == "open" then row.open = row.record end',
+        '-- scratch: discard restored open work',
     ),
     "callback_once": (
         'S.notify(lease, results)',
@@ -48,6 +53,8 @@ def main():
     source_bytes = args.source.resolve().read_bytes()
     source = source_bytes.decode()
     source_hash = hashlib.sha256(source_bytes).hexdigest()
+    model_hash = hashlib.sha256((ROOT / "formal/lease_orderings.lua").read_bytes()).hexdigest()
+    verifier_hash = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     test_path = ROOT / "tests/so/lease.lua"
     test_source = test_path.read_text()
     test_anchor = r'local evidenceSourceHash = "[0-9a-f]{64}"'
@@ -55,6 +62,8 @@ def main():
         recorded = json.loads(args.check_evidence.read_text())
         if recorded.get("source_sha256") != source_hash:
             raise SystemExit("lease evidence hash differs from source; rerun verification")
+        if recorded.get("model_sha256") != model_hash or recorded.get("verifier_sha256") != verifier_hash:
+            raise SystemExit("lease evidence differs from verifier or model; rerun verification")
         if f'local evidenceSourceHash = "{source_hash}"' not in test_source:
             raise SystemExit("lease test evidence hash differs from source; rerun verification")
         print("PASS lease evidence and test hashes match source")
@@ -64,12 +73,18 @@ def main():
         "sync_commit": SYNC_COMMIT,
         "covered_file": "so-mod-lease.lua",
         "source_sha256": source_hash,
+        "model_sha256": model_hash,
+        "verifier_sha256": verifier_hash,
         "tool": subprocess.check_output([lua, "-v"], stderr=subprocess.STDOUT, text=True).strip(),
         "bounds": {"event_permutations": 40320, "events_per_trace": 8,
                    "workers_with_work": 1, "foreign_sender": 3, "dispatch_attempts": 2,
                    "restarts": 1, "batch_sizes": [1, 16],
                    "foreign_report_modes": ["wrong-id", "wrong-sender", "malformed"],
-                   "tick_times_ms": [11000, 11001]},
+                   "tick_times_ms": [11000, 11001], "prefix_sharing": True,
+                   "restart_event_permutations": 5040, "restart_events_per_trace": 7,
+                   "restart_batch_sizes": [1, 16], "restart_traces": 10080,
+                   "save_failure_traces": 10, "parallel_processes": 4,
+                   "subprocess_budget_seconds": 55},
         "mutations": [],
     }
 
@@ -80,13 +95,30 @@ def main():
         remaining = 55 - (time.monotonic() - started)
         if remaining <= 0:
             raise SystemExit("verification exceeded the 55-second budget")
-        return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=remaining)
+        try:
+            return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=remaining)
+        except subprocess.TimeoutExpired as error:
+            raise SystemExit("verification exceeded the 55-second budget") from error
 
-    baseline = run(args.source.resolve())
-    evidence["baseline"] = {"exit_code": baseline.returncode, "output": baseline.stdout + baseline.stderr}
-    print(baseline.stdout + baseline.stderr, end="")
-    if baseline.returncode:
-        raise SystemExit(baseline.returncode)
+    partitions = [f"partition:{foreign}:{size}:{grace}"
+                  for foreign in ("wrong-id", "wrong-sender", "malformed")
+                  for size in (1, 16) for grace in (11000, 11001)]
+    partitions += ["restarts:1", "restarts:16", "failures"]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        baselines = list(executor.map(lambda part: run(args.source.resolve(), part), partitions))
+    output = "".join(result.stdout + result.stderr for result in baselines)
+    baseline_code = next((result.returncode for result in baselines if result.returncode), 0)
+    totals = re.findall(r"PASS traces=(\d+) comparisons=(\d+)", output)
+    expected_traces = 40320 * 12 + 5040 * 2 + 10
+    if not baseline_code and (len(totals) != len(partitions) or sum(int(t[0]) for t in totals) != expected_traces):
+        raise SystemExit("verification did not enumerate every bounded trace")
+    summary = (f"PASS traces={sum(int(t[0]) for t in totals)} "
+               f"comparisons={sum(int(t[1]) for t in totals)}; "
+               "all legacy schedules, two restarts, acknowledgements and save failures\n")
+    evidence["baseline"] = {"exit_code": baseline_code, "output": output, "summary": summary}
+    print(output if baseline_code else summary, end="")
+    if baseline_code:
+        raise SystemExit(baseline_code)
     with tempfile.TemporaryDirectory(prefix="verify-lease-") as scratch:
         for property_name, (before, after) in MUTATIONS.items():
             if source.count(before) != 1:
@@ -110,7 +142,7 @@ def main():
         args.evidence.write_text(json.dumps(evidence, indent=2) + "\n")
         test_path.write_text(re.sub(test_anchor,
                                    f'local evidenceSourceHash = "{source_hash}"', test_source))
-    print(f"PASS real-source verification and all 5 scratch defects; {evidence['elapsed_seconds']}s")
+    print(f"PASS real-source verification and all {len(MUTATIONS)} scratch defects; {evidence['elapsed_seconds']}s")
 
 
 if __name__ == "__main__":

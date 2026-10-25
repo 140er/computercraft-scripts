@@ -1,6 +1,6 @@
 local P = dofile("so-plan.lua")
 local M = dofile("so-mine-plan.lua")
-local S = { wired = false, pending = {}, known = {}, dugFacts = {}, burst = { n = 0 }, error = nil }
+local S = { wired = false, pending = {}, resume = {}, known = {}, dugFacts = {}, burst = { n = 0 }, error = nil }
 S.homeRoutes = setmetatable({}, {__mode="k"})
 local unloadKeep = {
   ["minecraft:bucket"] = true, ["minecraft:lava_bucket"] = true,
@@ -34,6 +34,7 @@ local function call(name, fn, ...)
   if m and type(m[fn]) == "function" then return m[fn](...) end
 end
 local function save()
+  if S.reconciling then return true end
   local ok, err = box.save(job)
   if not ok then S.error = tostring(err) job.running = false end
   return ok
@@ -176,7 +177,7 @@ local function park(id, row, recover)
     if not S.recall.ready(status) or not status.journal then row.error="recall needs fenced worker" return end
     steps, journal = {{op="inspectDown",park=true}}, status.journal
   end
-  local lid, err = call("lease", "send", id, steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose, frame = row.frame, journal=journal })
+  local lid, err = call("lease", "send", id, steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose, frame = row.frame, journal=journal, intent={kind=recover and "recover" or row.paused and "workerPark" or "park"} })
   if lid then S.pending[id] = { kind = recover and "recover" or row.paused and "workerPark" or "park" } row.parkUntil = SO.now() + P.park.ms
   else row.error = err end
 end
@@ -593,6 +594,32 @@ local function report(_, id, results, lease)
   if action and action.kind~="park" and action.kind~="workerPark" and action.kind~="recover" and (not row.trip or row.trip.shared==false) and job.running and S.burst.n<limit
       and (not S.handoffAt or now-S.handoffAt>50) then plan(id,row) end
 end
+S.reconcile = function(id,row,record)
+  local lease = mod("lease")
+  record = record or lease and lease.outcome and lease.outcome(id)
+  if not record or record.owner ~= "mine" then return false end
+  local receipt = record.id .. ":" .. record.status
+  if row.leaseReceipt ~= receipt then
+    S.pending[id] = SO.store.copy(record.intent) or {kind="recover"}
+    row.recover = false
+    S.reconciling = true
+    report(record.id,id,record.results,record)
+    S.reconciling = nil
+    row.leaseReceipt = receipt
+  end
+  if save() and lease.ackOutcome(record.id) then
+    local resume = S.resume[id]
+    S.resume[id] = nil
+    if resume then plan(id,row) end
+  end
+  return true
+end
+S.report = function(lid,id,results,record)
+  local row = job.turtles[tostring(id)]
+  if not row or row.forgotten then return end
+  if mod("lease").outcome then S.reconcile(id,row,record)
+  else report(lid,id,results,record) end
+end
 local function send(id, row, action)
   if action.kind == "skip" then
     job.skipped = job.skipped or {}
@@ -680,7 +707,7 @@ local function send(id, row, action)
     end
     action.steps[1].park=true
   end
-  local lid, why = call("lease", "send", id, action.steps, { owner = "mine", pose = action.pose or row.pose, frame = row.frame, ms = 60000, journal=journal })
+  local lid, why = call("lease", "send", id, action.steps, { owner = "mine", pose = action.pose or row.pose, frame = row.frame, ms = 60000, journal=journal, intent=action })
   if not lid then row.inflight = nil row.error = why return false end
   row.parkUntil = nil
   S.pending[id] = action return true
@@ -1011,6 +1038,8 @@ local function scanAction(row)
   return { kind = "scan", cell = c, cells = {c}, steps = { {op = n == 5 and "inspectUp" or n == 6 and "inspectDown" or "inspect"} } }
 end
 plan = function(id,row)
+  if S.reconciling then S.resume[id]=true return end
+  if S.reconcile(id,row) then return end
   if row.forgotten then return end
   local status = call("lease", "status", id)
   if not status then return end
@@ -1022,7 +1051,7 @@ plan = function(id,row)
     row.laneWait=nil
     return
   end
-  if status.lost then row.parkConfirmed=nil row.state, row.error, row.recover = "lost", "worker beacon", true row.laneWait=nil end
+  if status.lost then row.parkConfirmed=nil row.state, row.error, row.recover = "lost", job.dim ~= "minecraft:overworld" and "remote silent; unloaded?" or "worker beacon", true row.laneWait=nil end
   if status.open then return end
   if status.lost or row.recover then
     local cells,p=mod("cells"),row.pose
@@ -2253,7 +2282,7 @@ return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostr
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end
-    lease.onReport("mine",report) display.screen("mining",render,input) S.wired=true
+    lease.onReport("mine",S.report) display.screen("mining",render,input) S.wired=true
     local cleared=false
     for id,row in pairs(job.turtles) do
       if not workerPark and (row.paused or row.removeRequested or row.parkConfirmed) then

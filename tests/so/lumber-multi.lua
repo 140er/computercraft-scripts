@@ -210,6 +210,13 @@ return function(test, equal)
     assert(g.server.env.SO.store.read('so-data/lumber/job').value.running)
     g.server.co, g.server.timers, g.server.inbox = nil, {}, {}
     g.server.boot('so-server.lua') g.net.advance(2)
+    F.run(g,function(v)
+      for _,w in ipairs(v.workers) do
+        local status=v.server.env.SO.mods.lease.status(w.id)
+        if status.lost or status.uncertain then return false end
+      end
+      return true
+    end,90)
     assert(g.server.env.SO.store.read('so-data/lumber/job').value.turtles['3'].paused)
     equal(worker.pos, parked)
     g.command('start')

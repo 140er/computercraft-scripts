@@ -896,6 +896,7 @@ return function(test,equal)
     s.machine.env.SO.pair.key = function() return string.rep("a",64) end
     local lease = s.machine.env.dofile("so-mod-lease.lua")
     s.machine.env.SO.mods.lease = lease
+    lease.onReport("mine",function(id) assert(lease.ackOutcome(id)) end)
     local function report(ok)
       local id = assert(lease.send(8, {{op="forward"}}, {owner="mine"}))
       lease.handlers["step.report"]({from=8,body={lease=id,results={{ok=ok}}}})

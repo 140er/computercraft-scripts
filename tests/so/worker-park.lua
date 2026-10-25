@@ -65,16 +65,25 @@ local function fixture(name, enabled)
     local lid=mods.lease.status(id or 2).open
     for i=#f.calls,1,-1 do if f.calls[i].id==lid then return f.calls[i] end end
   end
+  f.journals, f.workerPoses = {}, {[2]=pose(2),[3]=pose(3)}
+  f.hello=function(id)
+    local at=f.workerPoses[id]
+    mods.lease.handlers.hello({from=id,body={role="worker",dim=dim,
+      capabilities={parkBatch=true,setupFence=true},journal={id=f.journals[id] or "initial-"..id,
+        pose={x=at.x,y=at.y,z=at.z,f=at.facing}}}})
+  end
   f.report=function(id,missing)
     id=id or 2
     local q=assert(f.pending(id),"no pending report")
-    local at=copy(f.pose(id))
+    local at=copy(f.workerPoses[id])
     local results={}
     for i,step in ipairs(q.steps) do
       at=P.apply(at,step.op)
       results[i]={ok=not step.op:match("^inspect"),err=step.op:match("^inspect") and "No block to inspect" or nil}
     end
-    mods.lease.handlers["step.report"]({from=id,body={lease=q.id,results=results,
+    f.journals[id]="report-"..q.id
+    f.workerPoses[id]=copy(at)
+    mods.lease.handlers["step.report"]({from=id,body={lease=q.id,results=results,journal=f.journals[id],
       pose=not missing and {x=at.x,y=at.y,z=at.z,f=at.facing} or nil,fuel=4000,inv=copy(f.inventory)}})
     return q
   end
@@ -90,9 +99,11 @@ local function fixture(name, enabled)
     end
     mods[name]=env.dofile(({mine="so-mod-mine.lua",lumber="so-mod-lumber.lua",build="so-mod-build.lua"})[name])
     f.job=job
+    f.hello(2) if name~="build" then f.hello(3) end
     if name=="build" then mods.build.handlers.hello({from=2,body={capabilities={parkBatch=true}}}) end
     f.tick()
   end
+  f.hello(2) if name~="build" then f.hello(3) end
   f.tick()
   f.report(2) if name~="build" then f.report(3) end
   if name=="build" then mods.build.handlers.hello({from=2,body={capabilities={parkBatch=true}}}) end
@@ -256,6 +267,7 @@ local function moduleTests(test,equal)
   test("mining keeps a parked shared-lane worker until access is cleared",function()
     local f=fixture("mine") local row=f.row()
     row.pose={dim=f.job.dim,x=0,y=2,z=-1,facing=0}
+    f.workerPoses[2]=copy(row.pose) f.hello(2)
     f.input("remove 2") parkReport(f) f.tick()
     assert(f.row()) assert(row.error:find("shared lane",1,true))
     assert(#f.mods.cells.list("mine:2",100000)>0)
