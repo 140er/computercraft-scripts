@@ -285,6 +285,20 @@ C.onFrame = function(msg)
   C.clipDraw()
   if key == C.outputKey and type(ack) == "table" then C.send("view.ack", { v = 1, token = ack.token }) end
   C.arm(10)
+  C.tone(msg)
+end
+
+-- D11: a fresh frame's tone plays once on a pocket without a monitor.
+C.heard = {}
+C.tone = function(msg)
+  local t, h = msg.body.sound, C.heard
+  if type(t) ~= "table" or not pocket or C.monitor or t.v ~= 1 or type(t.id) ~= "string" or #t.id > 48
+    or type(t.key) ~= "string" or t.instrument ~= "pling" or t.volume ~= 0.5 or t.pitch ~= 12
+    or h[t.id] or not C.proto.fresh(msg) then return end
+  h[t.id], h[#h + 1] = true, t.id
+  if #h > 128 then h[table.remove(h, 1)] = nil end
+  local p = peripheral.find("speaker")
+  if p then pcall(p.playNote, "pling", 0.5, 12) end
 end
 
 C.markStale = function()

@@ -806,4 +806,87 @@ return function(test,equal)
     event(t,"paste",token); t.n.advance(4)
     approve(t,"computer")
   end)
+
+  -- B11-U (D11): a pocket plays a fresh frame's tone once through its speaker.
+  local function toneClient(w,h,wall,isPocket,speaker)
+    local notes={}
+    local t=setup(w,h,wall,false,nil,nil,function(c)
+      if isPocket then c.env.pocket={} end
+      local find=c.env.peripheral.find
+      c.env.peripheral.find=function(kind)
+        if kind~="speaker" then return find(kind) end
+        if speaker=="none" then return nil end
+        return {playNote=function(...)
+          notes[#notes+1]={...}
+          if speaker=="error" then error("speaker failed") end
+          return speaker~="busy"
+        end}
+      end
+    end)
+    pair(t); t.n.advance(2)
+    t.notes=notes
+    return t
+  end
+  local function tone(id,over)
+    local sound={v=1,id=id or "1-7000-1",key="drop/2",instrument="pling",volume=0.5,pitch=12}
+    for k,v in pairs(over or {}) do sound[k]=v end
+    return sound
+  end
+  local function signed(t,sound,key)
+    local P=t.s.env.SO.proto
+    return P.encode(P.build(key or t.s.env.SO.pair.key(t.c.id),"view.frame",{rows={{text="TONE"}},buttons={},sound=sound}))
+  end
+  local function deliver(t,wire,from) event(t,"rednet_message",from or 1,wire,"so") end
+  test("B11-U: a pocket with a speaker plays a tone once; repeats and replays stay silent",function()
+    local t=toneClient(26,20,false,true)
+    equal(#t.notes,0,"frames without sound are silent")
+    local wire=signed(t,tone())
+    deliver(t,wire)
+    equal(t.notes,{{"pling",0.5,12}})
+    assert(t.face.text():find("TONE",1,true),"the frame is drawn")
+    deliver(t,wire)
+    deliver(t,signed(t,tone()))
+    t.n.advance(10)
+    equal(#t.notes,1,"a replayed wire, a resent id and later frames never repeat it")
+    deliver(t,signed(t,tone("1-7000-2")))
+    equal(#t.notes,2,"a new occurrence plays")
+  end)
+  test("B11-U: the client keeps the last 128 tone ids",function()
+    local t=toneClient(26,20,false,true)
+    local first=signed(t,tone("1-1-1"))
+    deliver(t,first)
+    for i=2,129 do deliver(t,signed(t,tone("1-1-"..i))) end
+    equal(#t.notes,129)
+    deliver(t,signed(t,tone("1-1-129")))
+    deliver(t,first)
+    equal(#t.notes,129,"a replayed wire stays silent after its id left memory")
+    deliver(t,signed(t,tone("1-1-1")))
+    equal(#t.notes,130,"the 129th id pushed the first out")
+  end)
+  test("B11-U: spoofed, foreign and malformed tones are refused",function()
+    local t=toneClient(26,20,false,true)
+    local key=t.s.env.SO.pair.key(t.c.id)
+    deliver(t,signed(t,tone("1-1-1"),(key:sub(1,1)=="0" and "1" or "0")..key:sub(2)))
+    deliver(t,signed(t,tone("1-1-2")),77)
+    for i,over in ipairs({{v=2},{volume=1},{pitch=13},{instrument="bell"},{id=string.rep("9",49)},{id=5},{key=false}}) do
+      deliver(t,signed(t,tone("1-2-"..i,over)))
+    end
+    equal(#t.notes,0)
+    deliver(t,signed(t,tone("1-1-1")))
+    equal(#t.notes,1,"the refused spoof did not burn its id")
+  end)
+  test("B11-U: a computer, a pocket on a monitor, and a missing, busy or failing speaker stay quiet",function()
+    for _,c in ipairs({{26,20,false,false},{29,12,true,true}}) do
+      local t=toneClient(c[1],c[2],c[3],c[4])
+      deliver(t,signed(t,tone()))
+      equal(#t.notes,0)
+    end
+    for _,speaker in ipairs({"none","busy","error"}) do
+      local t=toneClient(26,20,false,true,speaker)
+      deliver(t,signed(t,tone()))
+      deliver(t,signed(t,tone()))
+      equal(#t.notes,speaker=="none" and 0 or 1,speaker)
+      assert(t.face.text():find("TONE",1,true),speaker)
+    end
+  end)
 end

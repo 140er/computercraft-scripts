@@ -426,8 +426,10 @@ D.sendFrame = function(id, now, force)
   end
   if body == last and not beat then return end
   local slot = (session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
+  -- The tone rides only this send; the kept body never repeats it.
+  body.sound = session.tone and D.sound(session, role, now) or nil
   local challenge = D.challenge(session, now)
-  if D.ackOn and not D.room(body, challenge) then return end
+  if D.ackOn and not D.room(body, challenge) then body.sound = nil return end
   local msg = SO.proto.build(key, "view.frame", body)
   local wire = SO.proto.encode(msg)
   while not wire do
@@ -436,8 +438,11 @@ D.sendFrame = function(id, now, force)
     msg = SO.proto.build(key, "view.frame", body)
     wire = SO.proto.encode(msg)
   end
-  if type(wire) ~= "table" then return end
-  if rednet.send(id, wire, "so") == false then return end
+  if type(wire) ~= "table" then body.sound = nil return end
+  local sent = rednet.send(id, wire, "so") ~= false
+  body.sound = nil
+  if not sent then return end
+  session.tone = nil
   D.track(session, challenge, now)
   D.rememberFrame(session,body)
   session.sent, session.roleSent, session.scaleSent, session.bodySent, session.stampSent = now, body.role, scale, body, stamp
@@ -908,10 +913,38 @@ D.takeover = function(session, model, w, h, now)
     if look then
       seen[look.key] = true
       session.alertAt, session.alertUntil, session.takeover = now, now + 5000, look
+      -- A new takeover's first sent frame may carry a tone; one standing through a restart never does.
+      if look.sequence > (D.bootSequence or 0) then session.tone = look end
     end
   end
   if session.takeover and now < (session.alertUntil or 0) then
     return D.alertFrame(model, session.takeover, w, h, session.alertUntil - now)
+  end
+end
+
+-- D11 pocket tone, for the first frame sent of the pocket's takeover tone marked: with pocketTone on
+-- and outside quiet hours, the takeover subject's health stop-level key, else nil. Health classifies;
+-- this only maps the alert's point, turtle or disk to that key. The id never holds alert text.
+D.toneSerial = 0
+D.sound = function(session, role, now)
+  local look, cfg, health = session.tone, SO.health and SO.health.config, SO.mods.health
+  if not look or role ~= "pocket" or session.takeover ~= look or now >= (session.alertUntil or 0)
+    or type(cfg) ~= "table" or cfg.pocketTone ~= true or type(health) ~= "table"
+    or type(health.soundFacts) ~= "function" then return end
+  local ok, facts = pcall(health.soundFacts)
+  if not ok or type(facts) ~= "table" or facts.ready ~= true or facts.quiet ~= false then return end
+  local held = {}
+  for _, key in ipairs(facts.keys or {}) do held[key] = true end
+  local wants = {}
+  if look.point and look.point.id ~= nil then wants[#wants + 1] = "drop/" .. tostring(look.point.id) end
+  if look.id ~= nil then wants[#wants + 1], wants[#wants + 2] = "lost/" .. tostring(look.id), "pose/" .. tostring(look.id) end
+  if look.key:match("^disk%.alert:") then wants[#wants + 1] = "disk" end
+  for _, key in ipairs(wants) do
+    if held[key] then
+      D.toneSerial = D.toneSerial + 1
+      return { v = 1, id = os.getComputerID() .. "-" .. math.floor(SO.health.started or 0) .. "-" .. D.toneSerial,
+        key = key, instrument = "pling", volume = 0.5, pitch = 12 }
+    end
   end
 end
 
@@ -1138,10 +1171,12 @@ D.once = function(msg, reply)
   body.scale = D.saved.far[tostring(msg.from)] and 1 or 0.5
   -- The challenge goes in before reply signs the frame under the request's rid, in room fitted for it.
   local now = D.now()
+  body.sound = session.tone and D.sound(session, role, now) or nil
   local challenge = D.challenge(session, now)
   if D.ackOn and not D.room(body, challenge, msg.rid) then return end
   -- reply cannot report a failed send, so this token is provisional: it never pushes out a sent one.
   reply("view.frame", body)
+  session.tone = nil
   D.rememberFrame(session,body)
   D.track(session, challenge, now, true)
 end
