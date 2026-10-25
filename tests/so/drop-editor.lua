@@ -423,4 +423,41 @@ return function(test, equal)
     end
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
+
+  test("U4-A a number names only a list row: with a point whose id is 9, test 9 and room 9 on are missing", function()
+    local t = routeA()
+    local a = {id=7}
+    assert(t.mod.add({id="p1", kind="ore", dim=0, x=110, y=64, z=-340, side="front"}))
+    assert(t.mod.add({id="9", kind="ore", dim=0, x=112, y=64, z=-340, side="front"}))
+    local tested, run = {}, t.S.testPoint
+    t.S.testPoint = function(id, turtle) tested[#tested+1] = id return run(id, turtle) end
+    t.type(a, "test 9")
+    equal({tested[1], t.S.message}, {false, "missing point"})
+    t.type(a, "room 9 on")
+    equal({t.S.message, t.mod.list()[2].room}, {"missing point", nil})
+    t.type(a, "test 2")
+    equal(tested[2], "9")
+    t.type(a, "test p1")
+    equal(tested[3], "p1")
+  end)
+
+  test("U4-A the dimension filter stays on screen through all four states at 15x10", function()
+    local t = routeA()
+    local a = {id=7}
+    assert(t.mod.add({id="n1", kind="ore", dim=-1, x=5, y=64, z=5, side="front"}))
+    for i = 1, 20 do assert(t.mod.add({id="w" .. i, kind="fuel", dim=0, x=10 + i, y=64, z=5, side="front"})) end
+    for _, want in ipairs({{0, "OVW"}, {-1, "NTH"}, {1, "END"}, {nil, "ALL"}}) do
+      local before = t.ids(a, 15, 10).dims
+      assert(before, "no filter at 15x10")
+      t.tap(a, "dims")
+      equal(t.S.views[7].dim, want[1])
+      local frame = t.render(15, 10, a)
+      local chip
+      for _, b in ipairs(frame.buttons) do if b.id == "dims" then chip = b end end
+      assert(chip and chip.label == want[2], "filter chip missing or wrong on " .. want[2])
+      for _, b in ipairs(frame.buttons) do
+        assert(b == chip or b.y ~= 1 or b.x > chip.x + chip.w - 1, "filter chip overlaps " .. b.id)
+      end
+    end
+  end)
 end

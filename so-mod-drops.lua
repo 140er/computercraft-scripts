@@ -35,8 +35,8 @@ local S = {
     missing = "missing point",
   },
   dimOf = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 },
-  -- The list's dimension filter, in tap order; ALL shows every point.
-  filters = { { "ALL" }, { "WORLD", 0 }, { "NETHER", -1 }, { "END", 1 } },
+  -- The list's dimension filter, in tap order, with the short label narrow screens use; ALL shows every point.
+  filters = { { "ALL", nil, "ALL" }, { "WORLD", 0, "OVW" }, { "NETHER", -1, "NTH" }, { "END", 1, "END" } },
 }
 
 S.whole = function(n)
@@ -711,10 +711,11 @@ S.addDraft = function(view, tapped)
   end
 end
 
--- A typed point is its list number or its id; a number past the list stays an id, so it reads as missing.
+-- A typed point is its list number or, when not a number, its id; a number past the list is missing.
 S.pointId = function(word)
-  local n = word:match("^%d+$") and tonumber(word)
-  return n and S.points[n] and S.points[n].id or word
+  if not word:match("^%d+$") then return word end
+  local p = S.points[tonumber(word)]
+  return p and p.id or false
 end
 
 S.typed = function(text, view)
@@ -978,13 +979,21 @@ S.list = function(C, m)
   local page = math.min(m.page, pages)
   local right, roomy = tostring(#pts), w >= 30
   if pages > 1 then right = string.format(roomy and "    %d/%d    " or " %d/%d ", page, pages) end
-  -- The dimension filter shows once points span two dimensions, or while it is set; it needs the
-  -- short title on narrow screens and is left out where even that is too wide.
-  local title, filter = roomy and "DROP POINTS" or "DROPS", nil
-  for _, f in ipairs(m.dims and S.filters or {}) do if f[2] == m.dim then filter = f[1] end end
-  if filter and #title + #filter + 4 > w - #right - 2 then title = "DROPS" end
-  C.bar(title, {}, nil, right, "8")
-  if filter and #title + #filter + 4 <= w - #right - 2 then C.chip(#title + 3, 1, filter, "dims", m.dim and "on" or "plain") end
+  -- The dimension filter shows once points span two dimensions, or while it is set. Narrow screens
+  -- shorten the title, then the labels, then drop the title, sized for the longest label so the
+  -- chip never vanishes when tapped on.
+  local title = roomy and "DROP POINTS" or "DROPS"
+  if m.dims then
+    local label
+    for _, try in ipairs({ { title, 1, 6 }, { "DROPS", 1, 6 }, { "DROPS", 3, 3 }, { "", 3, 3 } }) do
+      title, label = try[1], try[2]
+      if (title == "" and 2 or #title + 3) + try[3] + 1 <= w - #right - 2 then break end
+    end
+    C.bar(title, {}, nil, right, "8")
+    for _, f in ipairs(S.filters) do
+      if f[2] == m.dim then C.chip(title == "" and 2 or #title + 3, 1, f[label], "dims", m.dim and "on" or "plain") end
+    end
+  else C.bar(title, {}, nil, right, "8") end
   if pages > 1 then
     C.chip(w - #right, 1, U.g.left, "prev", "plain", roomy and 3 or 1)
     C.chip(w - (roomy and 3 or 1), 1, U.g.right, "next", "plain", roomy and 3 or 1)

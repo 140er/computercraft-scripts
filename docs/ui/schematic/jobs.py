@@ -799,7 +799,7 @@ def lumber(m, w, h, setup=False, title=""):
 
 # ================================================================ drop points
 
-FILTERS = [("ALL", None), ("WORLD", 0), ("NETHER", -1), ("END", 1)]
+FILTERS = [("ALL", None, "ALL"), ("WORLD", 0, "OVW"), ("NETHER", -1, "NTH"), ("END", 1, "END")]
 
 
 def drop_choose(points, kind, pos, sink):
@@ -975,15 +975,19 @@ def drops_list(cv, m):
     right, roomy = str(len(pts)), w >= 30
     if pages > 1:
         right = ("    %d/%d    " if roomy else " %d/%d ") % (page, pages)
-    # The dimension filter shows once points span two dimensions, or while it is set; it needs the
-    # short title on narrow screens and is left out where even that is too wide.
+    # The dimension filter shows once points span two dimensions, or while it is set. Narrow screens
+    # shorten the title, then the labels, then drop the title, sized for the longest label so the
+    # chip never vanishes when tapped on.
     title = "DROP POINTS" if roomy else "DROPS"
-    label = next((f for f, d in FILTERS if d == m["dim"]), None) if m["dims"] else None
-    if label and len(title) + len(label) + 4 > w - len(right) - 2:
-        title = "DROPS"
-    bar(cv, title, [], None, right, "8")
-    if label and len(title) + len(label) + 4 <= w - len(right) - 2:
-        chip(cv, len(title) + 3, 1, label, "dims", "on" if m["dim"] is not None else "plain")
+    if m["dims"]:
+        for title, short, longest in ((title, False, 6), ("DROPS", False, 6), ("DROPS", True, 3), ("", True, 3)):
+            if (2 if title == "" else len(title) + 3) + longest + 1 <= w - len(right) - 2:
+                break
+        bar(cv, title, [], None, right, "8")
+        label = next((s if short else f for f, d, s in FILTERS if d == m["dim"]))
+        chip(cv, 2 if title == "" else len(title) + 3, 1, label, "dims", "on" if m["dim"] is not None else "plain")
+    else:
+        bar(cv, title, [], None, right, "8")
     if pages > 1:
         chip(cv, w - len(right), 1, "◄", "prev", "plain", 3 if roomy else 1)
         chip(cv, w - (3 if roomy else 1), 1, "►", "next", "plain", 3 if roomy else 1)
