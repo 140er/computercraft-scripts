@@ -242,7 +242,11 @@ local function moduleTests(test,equal)
     end
   end
   test("builder re-adds a removed worker and reclaims its standing cell",function()
-    local f=fixture("build") moving(f) f.input("remove 2") f.report() parkReport(f)
+    local f=fixture("build")
+    f.mods.drops={choose=function()
+      return {point={id="build-stock",dim=0,x=0,y=0,z=0,side="down",kind="storage"}}
+    end}
+    moving(f) f.input("remove 2") f.report() parkReport(f)
     local p=copy(f.pose(2)) f.tick() equal(f.row(),nil)
     f.input("add 2 "..p.x.." "..p.y.." "..p.z.." e")
     assert(f.row()) equal(f.mods.cells.owner(p.x,p.y,p.z,p.dim),"build:2")
