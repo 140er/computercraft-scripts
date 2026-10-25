@@ -90,6 +90,16 @@ S.chestAlert = function(kind, reason, point)
   end
   S.alert(P.chestError(kind, reason, point), point, reason)
 end
+S.clearFuelAlert = function()
+  local row, state = S.row, S.module("state")
+  local text = row.alert
+  if type(text) ~= "string" or not (text == "no fuel chest set" or text:match("^fuel ")) then return end
+  row.alert = nil
+  local active = state.get and state.get("lumber.alert")
+  if type(active) == "table" and active.id == row.turtle.id and active.text == text then
+    S.emit("lumber.alert", false)
+  end
+end
 S.autoFuel = function()
   local shop = S.module("shop")
   local policy = shop.fuelConfig and shop.fuelConfig()
@@ -637,6 +647,7 @@ S.service = function(kind, resume)
     end
     return false
   end
+  if kind == "fuel" then S.clearFuelAlert() end
   local p = j.turtle.pose
   j.service = {
     kind = kind, point = point, resume = resume or j.phase, stage = "travel",
@@ -884,7 +895,7 @@ S.report = function(id, turtleId, results, lease)
     if not ok then j.blocked = "hold" S.alert("sapling return failed") end
   elseif action == "refuel" then
     if j.service then
-      if not ok then S.fuelWait("no usable fuel") else j.service.stage = "return" end
+      if not ok then S.fuelWait("no usable fuel") else S.clearFuelAlert() j.service.stage = "return" end
     end
   elseif action == "junk" then
     if not ok then j.blocked = "hold" S.chestAlert("wood", inspected and P.transferFailure("wood",result) or "broken", j.service.point) end

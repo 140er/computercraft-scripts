@@ -230,6 +230,57 @@ return function(test, equal)
     equal(s.row.service, nil)
   end)
 
+  test('lumber fuel alert resets after reload and refuel without START and alerts on the next outage', function()
+    local s = setup('waiting', 0)
+    s.row.tree, s.job.nextRound = nil, 600000
+    realDrops(s)
+    local emit, active, raised = s.mods.state.emit, nil, 0
+    s.mods.state.emit = function(kind, data)
+      emit(kind, data)
+      if kind == 'lumber.alert' then
+        active = data
+        if data ~= false then raised = raised + 1 end
+      end
+    end
+    s.mods.state.get = function(key) if key == 'lumber.alert' then return active end end
+    s.tick(1)
+    equal(raised, 1)
+    equal(s.row.alert, 'no fuel chest set')
+    s.tick(2)
+    if s.queued() then s.report(false) end
+    assert(s.mods.drops.add({ id = 'fuel', dim = 0, x = 0, y = 1, z = 0, side = 'down', kind = 'fuel' }))
+    s.tick = assert(loadfile('so-mod-lumber.lua', 't', s.env))().tick
+    s.tick(3)
+    s.report(false)
+    equal(s.row.blocked, nil)
+    s.tick(4)
+    equal(s.row.service.kind, 'fuel')
+    equal(s.row.alert, nil)
+    equal(active, false)
+    s.report(false, { { ok = true, data = { name = 'minecraft:chest' } } })
+    s.tick(5)
+    s.row.inv = { { slot = 1, name = 'minecraft:coal', count = 8 } }
+    s.report(false, { { ok = true }, { ok = true } })
+    s.tick(6)
+    equal(s.queued().steps[2].op, 'refuel')
+    s.row.fuel, s.row.inv = 640, {}
+    s.report(false, { { ok = true }, { ok = true } })
+    s.tick(7)
+    equal(s.row.service, nil)
+    equal(s.row.alert, nil)
+    equal(raised, 1)
+    assert(s.mods.drops.remove('fuel'))
+    s.row.fuel = 0
+    s.tick(8)
+    equal(raised, 2)
+    equal(active.text, 'no fuel chest set')
+    equal(active.id, s.row.turtle.id)
+    s.tick(9)
+    s.report(false)
+    s.tick(10)
+    equal(raised, 2)
+  end)
+
   test('lumber stops after three failed base digs and names start on screen', function()
     local s = setup('base')
     for _ = 1, 3 do s.tick(1) s.report(false) s.tick(1) s.report(true) end
