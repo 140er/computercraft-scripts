@@ -36,6 +36,9 @@ computer_space_limit = 16000000
 
 A larger value also works. A 1 MB or 8 MB disk cannot run the server.
 
+Disk warnings start at 70% usage and name the largest measured store in MB.
+Starts and job writes remain allowed below 80% if no event write is pending or
+failed. At 72% the server warns and allows them; at 82% it warns and refuses.
 Mining and lumber refuse `start` when the server disk is 80% full or more.
 The screen shows `disk >=80%; free space`. Free space and submit `start` again.
 At 85% the server shows `DISK pressure`, keeps heartbeat updates in memory and
@@ -107,7 +110,9 @@ wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/head
 
 A turtle installs as a worker. A pocket computer installs as a display.
 A regular computer offers server or display. Use the arrow keys and Enter,
-a mouse click, or monitor touch. With a monitor attached, display is the default.
+a mouse click, or monitor touch. SERVER and DISPLAY are separate buttons.
+Only touches inside a drawn button select it. With a monitor attached, display
+is the default.
 
 For the server, the installer checks disk capacity before any download.
 It tries GPS for two seconds. If GPS does not answer, enter the server's
@@ -132,8 +137,13 @@ wrong codes burn the code; press P for a new one. Wrong codes from a machine
 that proves its saved key do not count toward the ten.
 Pairing uses the CPace protocol, so a recorded pairing does not reveal the code.
 Update the server first. Updated clients cannot pair with an older server.
-Clients from the previous release still pair this release; update them before
-the next one, which drops the old method.
+Legacy pairing stays enabled unless `so-server.cfg.retireLegacyPair=true`.
+Set it only after updating turtles, pockets and wall displays, then restart the
+server. Only boolean `true` retires legacy `pair`; saved pairings keep working.
+Updated clients use `pair2`. The release notice is
+[issue #308](https://github.com/140er/computercraft-scripts/issues/308).
+Startup prints `legacy pair: retired` or `legacy pair: kept`. The next-release
+removal notice appears only while legacy pairing is kept.
 Displays show the pairing prompt and digits on the monitor and computer terminal.
 Backspace removes a digit. The sixth digit starts pairing. If it fails, the
 display shows the reason and accepts a new code. Displays keep looking when
@@ -143,6 +153,9 @@ Paired turtles never ask for another code at boot. They show `waiting for server
 and retry discovery and authenticated hello with backoff capped at 30 seconds.
 If discovery fails, they use their saved server id. Unpaired turtles keep
 retrying discovery while waiting for six digits and Enter at `Code:`.
+Before pairing, the boot code row shows the discovered `server N`.
+An unpaired worker honors the server selected by `install --server <id>` even
+if discovery finds another server. Saved pairing keys govern paired boots.
 
 Display text commands appear on the bottom row while you type. Backspace
 edits the line and Enter sends it and clears it. Wall displays also echo the
@@ -189,6 +202,81 @@ versions is refused. Releases without protocol metadata use protocol 1.
 Run `install reset` and type `yes` to delete everything except `install.lua`
 and `/rom`. This removes pairing keys and saved data. Run `install` again and
 pair the machine again after a reset.
+
+### Space admission and offline kits
+
+Online installs resolve one commit and read its Git-tree sizes and blob IDs
+before downloading code. The first space check covers the bootstrap installer
+and its role and digest helpers. The second uses that verified installer's role
+list and refuses before role-code downloads if space or metadata is missing.
+Both checks print required and free bytes. Refusal preserves installed files
+and the retained rollback release. Missing destination paths use their nearest
+existing parent's drive; paths on another mount still refuse.
+
+Failed downloads remain in `/.so-download/`. Run `install update [sha] --resume`
+or `install --resume` to reuse verified files at that same commit. The console
+prints `Resuming pinned commit <full SHA>`. A normal retry starts a new cache.
+A successful online install removes the cache. Rollback checks space too.
+
+On a machine with HTTP access, run `install kit <mount> <role> <full-commit-sha>`.
+Use a separate disk with space for the complete kit. Export downloads the pinned
+release and publishes `so-kit/manifest` last. The kit has code and dependency
+licences, with file sizes, Git blob IDs and SHA-256 digests. It has no keys,
+config, runtime data, journals or enrollment tokens.
+
+Use a trusted installed or manually supplied installer to run
+`install offline <mount>`. A kit runs its own installer. Only use disks from a
+trusted source. Digests detect changes relative to the manifest; they do not
+prove who supplied it. Offline installation verifies the role file list, sizes,
+both digests and Lua syntax before changing installed files. The offline installation path uses kit files without download requests or online
+fallback. The kit installer runs with normal environment access, so only use kits
+from a trusted source. Older pinned installers without staged-update or offline-kit
+support are refused. Fresh machines pair afterward; updates preserve runtime
+files.
+
+### Pinned worker updates
+
+Set `panelUpdates=true` in `so-server.cfg` and `remoteUpdates=true` in
+`so-worker.cfg` to allow `SO.updateWorker(id)`. Both default off. The server
+proposes its running full revision to one idle, unassigned worker. Requests
+are refused rather than queued. Busy, offline or older workers refuse, as do
+workers with recovery holds, uncertain journals or a saved API cooldown.
+A cooldown refusal shows `api cooldown` and starts no installer or reboot.
+
+The installed updater proves that the target belongs to `server-only` history
+and strictly descends from the running worker revision. Unknown, equal, older,
+diverged or malformed revisions refuse. It checks GitHub response budget headers
+and uses at most four sequential API calls per uncached remote update, including
+the pinned tree. Missing budget headers, insufficient budget or a failed request
+stop the attempt. There is no automatic API retry or rate-limit polling.
+Ten simultaneous workers need at most 40 calls from the shared unauthenticated
+60-per-hour budget. `updateApiRetryAt` saves the UTC-second cooldown across reboot.
+
+Code comes only from the fixed repository at the full target SHA, with redirects
+disabled. A pinned failure never falls back to branch code. Trust rests in the
+paired operator, repository history and GitHub/TLS, without a separate content
+signature. A locally typed `install update <sha>` can select an older commit
+that still belongs to branch history. Unpinned manual updates remain available
+for old clients.
+
+After acceptance, the worker stops accepting leases, leaves its event loop,
+runs the installed updater and reboots after success or handled failure.
+Only a later hello with the target revision confirms completion. Pending state
+expires after 120000 game milliseconds and does not survive server restart.
+
+### Local worker settings
+
+Set `settingsControl=true` in `so-worker.cfg` to show WORLD, NETHER, END and SWAP
+on the turtle. Set `workerSettings=true` in `so-server.cfg` to permit backend
+settings requests too. Both flags default off. `remoteDimensions` separately
+controls remote movement.
+
+Stop and unassign the turtle before editing. Queued work, recovery, journal
+uncertainty, an unexpired park or stale server/unassignment contact blocks edits.
+Local and remote edits share the same durable record; the last saved edit wins.
+Turning SWAP on equips no tool. Changing dimension with retained history saves
+uncertainty and requires an explicit re-anchor. Config recovery also holds
+movement until an explicit re-anchor in a configured dimension.
 
 ## Display roles
 
@@ -698,6 +786,18 @@ person and opens the screen for each repair. The list refreshes every five
 game seconds. `ALERTS` keeps retained alert events after they clear. `EVENTS`
 browses state history with a kind filter. `ERRORS` shows the bounded persistent
 server error log. NEEDS includes pending enrollments and recent server errors.
+HEALTH also shows module counts and load/tick status, `rev`, `cfg`, saved
+position and GPS gap. The revision row shows eight characters or `unknown`.
+The cfg rows list recognized enabled startup flags, `defaults` or `unreadable`.
+Storage rows use KB and MB. NEEDS warns if boot GPS differs from the saved
+position by more than two blocks. The warning does not move the saved origin.
+An unreadable existing `so-server.cfg` warns in the terminal, error log and
+NEEDS that defaults are active. Repair the file before relying on its flags.
+
+A lost turtle's NEEDS row shows silence age and its last known world position.
+Tap it for BACK, SNOOZE and OPEN. SNOOZE hides that turtle's lost row on all
+displays for one game hour. Contact or server restart clears the snooze.
+OPEN goes to its job page. Other warnings remain visible.
 ERRORS rows open the complete message with wrapping, paging and BACK.
 `PREV`, `NEXT` and `BACK` work on pockets and compact monitors.
 Recent errors save at most once per 30 game seconds; a power loss can lose
@@ -709,6 +809,15 @@ On the map, FOCUS centres the first broken chest; BROKEN opens its drop-list
 page. Tapping a broken chest opens that point. Status also has a BROKEN tile.
 The next unassigned mining branch appears in blue in AR and amber on the map.
 AR trails show active progress and up to 64 recent completed branches.
+Map dots show the newest 20 recorded poses per assigned mining or lumber worker.
+They follow the dimension and level filter and disappear when parked or removed.
+They do not fade with time or affect FIT; older dots are dropped to fit the frame.
+
+With `arFollowups=true` in `so-server.cfg`, AR offers ALL, turtle and drop focus.
+It defaults off. Focus hides unrelated geometry but keeps broken-chest warnings,
+HUD totals, alerts and retirement consent. A missing target shows `missing` until
+ALL is selected. With `remoteDimensions=true` too, WORLD/NETHER/END saves the AR
+dimension and resets focus to ALL. Changes redraw without restarting.
 For C13 label trials, set `arLabelScale = 0.6` in `so-server.cfg` and restart.
 Allowed scales are 0.5 to 0.7; the default stays 0.5 until measured in-game.
 
@@ -750,6 +859,14 @@ The refusal shows the needed and available fuel. After setup, the turtle's
 standing cell remains reserved until its next setup or assignment takes it.
 Display button presses must belong to the last delivered screen; stale controls
 need a fresh frame before they can be used.
+
+With `dropsSavedSetup=true` in `so-server.cfg`, SETUP saves FOUND candidates
+and offers SUSPEND/RESUME for a selected point. The flag defaults off. ADD keeps
+the candidate; CLEAR FOUND requires two taps. Suspended points remain listed
+but new selections skip them. Existing committed trips finish. Suspension sends
+no movement or cancellation. Saved suspensions still exclude points with the
+flag off; re-enable it to resume them. Archive all `so-drops` generations before
+rollout, because older binaries reject the v2 file.
 
 ### Forget a paired device
 
