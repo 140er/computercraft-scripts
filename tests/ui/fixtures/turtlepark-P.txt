@@ -1,0 +1,61 @@
+26x20 Parked turtle detail with worker park at 26x20
+ TURTLE #2  ------ parked 
+                          
+ pose ········ 12,60,-5 E 
+ fuel ················ 42 
+ inventory ···· 1/16 · 14 
+ lease ·········· lease-2 
+ step ··········· forward 
+ ore ················· 14 
+ seen ················ 3s 
+                          
+ b1 |||········· 12/48    
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  RESUME   REMOVE   BACK  
+000000000000cccccc0dddddd0
+00000000000000000000000000
+088880cccccccc000000000000
+088880cccccccccccccccc0110
+08888888880cccc00000000000
+0888880cccccccccc000000000
+088880ccccccccccc000000000
+08880ccccccccccccccccc0000
+088880cccccccccccccccc0000
+00000000000000000000000000
+08803338888888880000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0999999990eeeeeeee00000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777f77777777f777777f

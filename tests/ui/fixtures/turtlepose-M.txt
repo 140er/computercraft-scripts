@@ -1,0 +1,73 @@
+57x24 Pose editor for an uncertain turtle, room monitor 57x24
+ TURTLE #2  ------------------------------------- pose ? 
+                                                         
+ POSE -------------------------------------- 12,60,-5 E  
+                                                         
+ x                                        -    12     +  
+                                                         
+ y                                        -    60     +  
+                                                         
+ z                                        -    -5     +  
+                                                         
+ facing                                   -     E     +  
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+  RE-ADD   step 1                                  BACK  
+000000000000ccccccccccccccccccccccccccccccccccccc0eeeeee0
+000000000000000000000000000000000000000000000000000000000
+088880cccccccccccccccccccccccccccccccccccccc0000000000000
+000000000000000000000000000000000000000000000000000000000
+080000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+080000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+080000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888800000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+099999999000000000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffff777fffffffff777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffff777fffffffff777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffff777fffffffff777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffff777fffffffff777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777f77777777ffffffffffffffffffffffffffffffff777777f

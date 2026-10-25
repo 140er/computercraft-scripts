@@ -1,7 +1,7 @@
 local U = dofile('so-ui.lua')
 local R = dofile('tests/ui/render.lua')
 local fixtures = {[26]='tests/ui/fixtures/turtle-P.txt',[29]='tests/ui/fixtures/turtle-S.txt',[57]='tests/ui/fixtures/turtle-M.txt'}
-local function setup(w,h)
+local function setup(w,h,cfg)
   local s={now=100000,commands={},sent={}}
   s.mine={home={x=0,y=64,z=0,facing=0},homeSet=true,bottom=60,length=48,mode='thorough',ores={},
     dim='minecraft:overworld',running=true,progress={done=0,nextBranch=2},turtles={
@@ -14,7 +14,7 @@ local function setup(w,h)
   local env=setmetatable({},{__index=_G})
   env.os=setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
   env.SO={now=function() return s.now end,proto=dofile('so-proto.lua'),pair={key=function() return string.rep('01',32) end},
-    mods={},store={copy=store.copy,read=function() return {} end,store=function(path)
+    mods={},store={copy=store.copy,read=function(path) return path=='so-server.cfg' and cfg or {} end,store=function(path)
       return {value=path=='so-data/mine/job' and s.mine or path=='so-data/lumber/job' and s.lumber or {roles={['9']='mining',['10']='mining'}},
         save=function() return true end}
     end}}
@@ -347,5 +347,149 @@ return function(test,equal)
     s.press('turtle-remove') equal(commands,{'stop'}) equal(label(),'CONFIRM')
     s.now=s.now+1000
     s.press('turtle-remove') equal(commands,{'stop','remove 2'})
+  end)
+  test('P-U1-1 the pose editor steps x, y and z by 10 from 36 cells',function()
+    local s=setup(57,24) s.uncertain=2 s.display.tick(s.now)
+    local commands={}
+    s.display.screen('mining').input=function(e) commands[#commands+1]=e.text end
+    s.press('turtle:2') s.press('turtle-add')
+    local diff=R.diff('tests/ui/fixtures/turtlepose-M.txt',(capture(s.frame(),57,24)))
+    assert(#diff==0,table.concat(diff,'\n'))
+    s.press('pose-step')
+    local _,text=capture(s.frame(),57,24) assert(text:find('step 10',1,true),text)
+    s.press('pose:x:1') s.press('pose:y:-1') s.press('pose:facing:1')
+    s.press('pose-step') s.press('pose:z:1')
+    s.press('turtle-save') s.press('turtle-save')
+    equal(commands,{'add 2 22 50 -4 s'})
+    -- 26 cells keep the old editor: no step chip, and every chip moves by 1.
+    local small=setup(26,20) small.uncertain=2 small.display.tick(small.now)
+    small.press('turtle:2') small.press('turtle-add')
+    for _,b in ipairs(small.frame().buttons) do assert(b.id~='pose-step','step chip at 26 cells') end
+  end)
+  test('P-U1-3 the wall map thumbnail opens the map and visit-back returns',function()
+    local s=setup(100,38) assert(s.display.assign(9,'status'))
+    local function ids()
+      local out={} for _,b in ipairs(s.frame().buttons) do out[b.id]=b end return out
+    end
+    local map=ids().map
+    assert(map and map.x==60 and map.y==3 and map.w>1 and map.h>1,'no map hit over the thumbnail')
+    s.press('map')
+    local b=ids()
+    assert(b['visit-back'] and not b.map,'map page not open')
+    assert(b['map-fit'] or b['map-in'],'map controls missing')
+    s.press('visit-back')
+    b=ids()
+    assert(b.map and not b['visit-back'],'visit-back did not return to status')
+  end)
+  test('PARK RESUME and REMOVE on the detail page send the worker commands with workerPark',function()
+    local s=setup(26,20,{workerPark=true})
+    local function ids()
+      local out={} for _,b in ipairs(s.frame().buttons) do out[b.id]=b end return out
+    end
+    s.press('turtle:2')
+    local b=ids()
+    equal(b['turtle-park'].label,'PARK') assert(b['turtle-remove'] and not b['turtle-resume'])
+    s.press('turtle-park')
+    local row=s.mine.turtles['2']
+    assert(row.paused and row.state=='parking' and s.mine.running)
+    assert(not s.mine.turtles['3'].paused,'park reached another worker')
+    -- A parking worker still shows PARK; RESUME waits for the park report.
+    assert(not ids()['turtle-resume'])
+    row.state,row.parkConfirmed='parked',true s.display.tick(s.now)
+    local out=capture(s.frame(),26,20)
+    local diff=R.diff('tests/ui/fixtures/turtlepark-P.txt',out)
+    assert(#diff==0,table.concat(diff,'\n'))
+    s.press('turtle-resume')
+    assert(not row.paused and row.state=='mining')
+    b=ids() assert(b['turtle-park'] and not b['turtle-resume'])
+    s.press('turtle-remove') assert(not row.removeRequested,'REMOVE fired on the first tap')
+    s.press('turtle-remove') assert(row.paused and row.removeRequested)
+    assert(s.mine.turtles['2'],'remove parks before the row goes')
+    -- Lumber gets the same three chips.
+    lumberWorkers(s)
+    s.press('turtle:5')
+    b=ids() equal(b['turtle-park'].label,'PARK') assert(b['turtle-remove'])
+    s.press('turtle-remove') s.press('turtle-remove')
+    local five=s.lumber.turtles['5']
+    assert(five.paused and five.removeRequested and not s.lumber.turtles['6'].paused)
+  end)
+  test('without workerPark the detail page keeps PARK ALL and lumber has no REMOVE',function()
+    local s=setup(26,20)
+    s.mine.turtles['2'].state='parked' s.display.tick(s.now)
+    s.press('turtle:2')
+    local b={} for _,x in ipairs(s.frame().buttons) do b[x.id]=x end
+    equal(b['turtle-park'].label,'PARK ALL') assert(not b['turtle-resume'])
+    lumberWorkers(s)
+    s.press('turtle:5')
+    b={} for _,x in ipairs(s.frame().buttons) do b[x.id]=x end
+    assert(b['turtle-park'] and not b['turtle-remove'] and not b['turtle-resume'])
+  end)
+  test('U6-T schematic generator reproduces the step and worker park fixtures',function()
+    local started,pipe=pcall(io.popen,'pwd')
+    local root=started and pipe and pipe:read('*l')
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1,1)~='/' or not os.execute('python3 -V > /dev/null 2>&1') then
+      return dofile('tests/skips.lua').record('U6-T schematic generator','needs host processes, a POSIX shell and python3')
+    end
+    local function read(path) local f=assert(io.open(path,'rb')) local text=f:read('*a') f:close() return text end
+    local dir=os.tmpname()
+    os.remove(dir)
+    assert(os.execute("mkdir -p '"..dir.."'"))
+    assert(os.execute("python3 -I '"..root.."/docs/ui/schematic/screens.py' --fixtures '"..dir.."' > /dev/null"))
+    for _,name in ipairs({'turtlepose-M','turtlepark-P'}) do
+      equal(read(dir..'/'..name..'.txt'),read('tests/ui/fixtures/'..name..'.txt'))
+    end
+    assert(os.execute("rm -r '"..dir.."'"))
+  end)
+  test('P-U1-1 a display narrowed below 36 cells drops the x10 step',function()
+    local s=setup(57,24) s.uncertain=2 s.display.tick(s.now)
+    local commands={}
+    s.display.screen('mining').input=function(e) commands[#commands+1]=e.text end
+    s.press('turtle:2') s.press('turtle-add') s.press('pose-step')
+    s.display.handlers.hello({from=9,body={w=26,h=20}})
+    s.press('pose:x:1')
+    s.display.handlers.hello({from=9,body={w=57,h=24}})
+    local _,text=capture(s.frame(),57,24) assert(text:find('step 1',1,true) and not text:find('step 10',1,true),text)
+    s.press('turtle-save') s.press('turtle-save')
+    equal(commands,{'add 2 13 60 -5 e'})
+  end)
+  test('P-U1-3 the crowded 164x81 wall keeps its map hit inside the budget',function()
+    local s=setup(164,81) assert(s.display.assign(9,'status'))
+    local D
+    for i=1,60 do local k,v=debug.getupvalue(s.display.tick,i) if k=='D' then D=v break end if not k then break end end
+    assert(D,'display table')
+    local frame=s.frame()
+    local slim={}
+    for i,b in ipairs(frame.buttons) do slim[i]={id=b.id,x=b.x,y=b.y,w=b.w,h=b.h,label=b.label~='' and b.label or nil} end
+    local bytes,buttons=#s.env.SO.proto.ser({rows=frame.rows,buttons=slim}),#frame.buttons
+    -- A crowd one byte under the budget: with an empty label on every hit it would redraw tight.
+    D.budget=bytes+1 D.model=nil
+    local _,full=capture(frame,164,81)
+    frame=s.frame()
+    local _,text=capture(frame,164,81) equal(text,full)
+    local map
+    for _,b in ipairs(frame.buttons) do if b.id=='map' then map=b end assert(b.label~='','empty label sent') end
+    assert(map and map.x==60 and map.y==3 and map.w==48 and map.h==30,'no map hit on the 164x81 wall')
+    assert(bytes+13*buttons>D.budget and #s.env.SO.proto.ser(frame)<=16384)
+    s.press('map')
+    local open=false
+    for _,b in ipairs(s.frame().buttons) do if b.id=='visit-back' then open=true end end
+    assert(open,'map page not open on the 164x81 wall')
+  end)
+  test('build workers get no PARK RESUME or REMOVE: so-mod-build has no turtle view',function()
+    local frame=U.turtle.render(26,20,{id='7'},{role='worker',workerPark=true,state='parked'},1000)
+    equal(#frame.buttons,1) equal(frame.buttons[1].id,'turtle-back')
+  end)
+  test('a blocked lumber worker that is parked still shows PARK: lumber exports no park flag',function()
+    local s=setup(26,20,{workerPark=true}) lumberWorkers(s)
+    s.press('turtle:5') s.press('turtle-park')
+    local row=s.lumber.turtles['5']
+    row.parkConfirmed=true s.display.tick(s.now)
+    local function ids() local out={} for _,b in ipairs(s.frame().buttons) do out[b.id]=b end return out end
+    assert(ids()['turtle-resume'],'parked lumber worker has no RESUME')
+    row.blocked='path blocked' s.display.tick(s.now)
+    local b=ids()
+    -- Pinned: the view's state word is the block, so the page cannot tell the park was confirmed.
+    assert(b['turtle-park'] and not b['turtle-resume'] and b['turtle-remove'])
   end)
 end

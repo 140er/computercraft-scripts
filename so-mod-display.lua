@@ -222,7 +222,8 @@ D.fit = function(picture, w, h)
       local width = b.w
       if b.x + width - 1 > w then width = w - b.x + 1 end
       local label = type(b.label) == "string" and b.label or b.id
-      buttons[#buttons + 1] = { id = b.id, x = b.x, y = b.y, w = width, label = label:sub(1, width),
+      -- A hit without a label leaves the field out: 13 bytes a button, and clients read it as "".
+      buttons[#buttons + 1] = { id = b.id, x = b.x, y = b.y, w = width, label = label ~= "" and label:sub(1, width) or nil,
         h = math.min(D.whole(b.h) and b.h or 1, h - b.y + 1) }
     end
   end
@@ -1057,7 +1058,7 @@ D.consent = function(event, role, w, h, session)
   if not cells or type(cells.decideRetirement) ~= "function" then return end
   local frame = D.compose(role, w, h, session)
   for _, button in ipairs(frame.buttons) do
-    if button.id == event.id and button.label == event.id:match("^dug%.(%a+)/")
+    if button.id == event.id and type(button.label) == "string" and button.label == event.id:match("^dug%.(%a+)/")
       and #button.label == button.w and event.y == button.y
       and event.x >= button.x and event.x < button.x + button.w then
       local choice, token = event.id:match("^dug%.(%a+)/(.+)$")
@@ -1103,6 +1104,7 @@ D.handle = function(role, session, event, now)
       elseif event.id == "alert-prev" then session.alertList = session.alertList - 1 end
       return
     elseif event.id == "disk" and D.screens.disk then session.visit = "disk"; return
+    elseif role == "status" and event.id == "map" and D.screens.map then session.visit = "map"; return
     elseif (role == "status" or not screen) and event.id == "alerts" and U then
       session.alertList = 0
       return
@@ -1143,6 +1145,7 @@ D.gatherTurtles = function()
     local status = lease and type(lease.status)=="function" and lease.status(tonumber(id)) or {}
     row.lease,row.uncertain = status.open,status.uncertain
     row.seen = row.seen or status.seen
+    row.workerPark = D.workerPark
   end
   D.details = out
 end
@@ -1157,6 +1160,8 @@ D.turtleInput = function(event,w,h)
     if id == "turtle-cancel" and selected.draft then selected.draft,selected.confirm=nil,nil return true end
   end
   if selected and selected.draft then selected.draft=Turtle.draft(selected.draft) end
+  -- The step chip is drawn from 36 cells; a narrower display steps by 1 again.
+  if selected and w < 36 then selected.step=nil end
   local frame = D.compose(event.role,w,h,session)
   local drawn = false
   for _,b in ipairs(frame.buttons) do
@@ -1181,15 +1186,17 @@ D.turtleInput = function(event,w,h)
   end
   if id == "turtle-back" then session.turtle=nil
   elseif id == "turtle-cancel" then selected.draft=nil
-  elseif id == "turtle-park" then command(row.role == "lumber" and ("park "..selected.id) or "stop")
+  elseif id == "turtle-park" then command((D.workerPark or row.role == "lumber") and ("park "..selected.id) or "stop")
+  elseif id == "turtle-resume" then command("resume "..selected.id)
+  elseif id == "pose-step" then selected.step = selected.step ~= 10 and 10 or nil
   elseif id == "turtle-remove" then
     if fire then command("remove "..selected.id) end
   elseif id == "turtle-add" and row.uncertain then
-    selected.draft=Turtle.draft(row.pose or row.anchor)
+    selected.draft,selected.step=Turtle.draft(row.pose or row.anchor),nil
   elseif selected.draft then
     local axis,delta=id:match("^pose:(%a+):(%-?%d+)$")
     if axis and selected.draft[axis] then
-      selected.draft[axis]=selected.draft[axis]+tonumber(delta)
+      selected.draft[axis]=selected.draft[axis]+tonumber(delta)*(axis~="facing" and selected.step or 1)
       if axis=="facing" then selected.draft.facing=selected.draft.facing%4 end
     elseif key == "add" and fire then
       local p=selected.draft
@@ -1489,6 +1496,8 @@ end
 
 D.load = function()
   for i = 1, #D.order do D.known[D.order[i]] = true end
+  -- The job modules read the same flag once at load; the detail page offers their park commands.
+  D.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
