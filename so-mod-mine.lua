@@ -10,6 +10,17 @@ local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "ta
 local job = box.value or { homeSet = false, dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
   length = 64, branches = 8, continuous = false, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
 job.ores = job.ores or {}
+job.keep, job.staging = job.keep or {}, job.staging or {}
+job.recallEnabled = job.recallEnabled == true
+S.recall = {}
+S.recall.worker = function(id) return job.recall and job.recall.workers[tostring(id)] end
+S.recall.blocked = function(id,reason)
+  local worker=S.recall.worker(id)
+  if worker and worker.phase~="draining" then worker.phase,worker.error="blocked",reason end
+end
+S.recall.ready = function(status)
+  return status and status.parkBatch == true and status.setupFence == true
+end
 local function branchLine(branch)
   local d = ({[0]={0,-1},{1,0},{0,1},{-1,0}})[job.home.facing]
   local distance = 1 + (branch+1)*(job.mode=="fast" and 2 or 4)
@@ -31,7 +42,7 @@ local function owner(id) return "mine:" .. id end
 local workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
 S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
 S.finish = function()
-  if not job.running or #(job.unfinished or {}) > 0 then return end
+  if job.recall or not job.running or #(job.unfinished or {}) > 0 then return end
   if job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then return end
   local workers = 0
   for _, row in pairs(job.turtles) do
@@ -60,7 +71,7 @@ local function failedDig(id, row, cell, reason)
   end
 end
 local function claimBranch()
-  if not job.running then return nil end
+  if job.recall or not job.running then return nil end
   if job.unfinished and #job.unfinished > 0 then return table.remove(job.unfinished, 1), true end
   local branch = job.progress.nextBranch or 0
   if job.continuous and branch >= (job.branches or 8) then return nil end
@@ -135,7 +146,7 @@ local function cleanupAction(row)
   if not target then return nil end
   local turn=target.facing and M.turn(row.pose,target.facing)
   if turn then return {kind="turn",steps={turn},cells={},pose=P.apply(row.pose,turn.op)} end
-  return {kind="cleanup",steps=M.cleanup(row.inv,false,target.side),cells={},cell=target.cell}
+  return {kind="cleanup",steps=M.cleanup(row.inv,false,target.side,job.keep),cells={},cell=target.cell}
 end
 local function reservePose(id, row)
   local p = row.pose
@@ -146,7 +157,13 @@ end
 local function park(id, row, recover)
   if recover or row.state ~= "wait lane" then row.laneWait = nil end
   if not recover and (not row.paused or row.parkConfirmed) and row.parkUntil and SO.now() < row.parkUntil - 60000 then return end
-  local lid, err = call("lease", "send", id, P.park.steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose, frame = row.frame })
+  local steps, journal = P.park.steps, nil
+  if S.recall.worker(id) then
+    local status = call("lease","status",id)
+    if not S.recall.ready(status) or not status.journal then row.error="recall needs fenced worker" return end
+    steps, journal = {{op="inspectDown",park=true}}, status.journal
+  end
+  local lid, err = call("lease", "send", id, steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose, frame = row.frame, journal=journal })
   if lid then S.pending[id] = { kind = recover and "recover" or row.paused and "workerPark" or "park" } row.parkUntil = SO.now() + P.park.ms
   else row.error = err end
 end
@@ -246,7 +263,7 @@ end
 local function releaseBatch(id,row)
   if row.lane then
     if M.inLane(job,row.pose) then row.lane.entered=true
-    elseif row.lane.entered and not row.trip then
+    elseif row.lane.entered and (not row.trip or S.recall.worker(id)) then
       row.lane.release=true
       reservePose(id,row)
       return
@@ -272,7 +289,8 @@ local function reserveBatch(id,row,action)
   end
   for _,cell in ipairs(action.cells or {}) do add(cell) end
   local leaving=row.yield and row.yield.stage=="out"
-  local pass=needs and (row.yield and (leaving and row.yield.path or row.yield.pass) or M.lanePass(job,row)) or {}
+  local recalling = S.recall.worker(id)
+  local pass=recalling and recalling.remaining or needs and (row.yield and (leaving and row.yield.path or row.yield.pass) or M.lanePass(job,row)) or {}
   if needs and not row.lane then
     row.laneWait=row.laneWait or {at=SO.now(),passes=0}
     local first=id
@@ -381,14 +399,15 @@ local function report(_, id, results, lease)
   if not row or row.forgotten then return end
   local action, interrupted = S.pending[id], row.inflight
   S.pending[id] = nil
-  if not results or not lease.report or not lease.report.pose then
+  if not results or not lease.report or not lease.report.pose or lease.report.uncertain then
     row.parkConfirmed=nil
-    row.state, row.error, row.recover = "lost", job.dim ~= "minecraft:overworld" and "remote silent; unloaded?" or "lease expired or missing pose", true row.laneWait=nil save() return
+    row.state, row.error, row.recover = "lost", job.dim ~= "minecraft:overworld" and "remote silent; unloaded?" or "lease expired or missing pose", true row.laneWait=nil
+    S.recall.blocked(id,row.error) save() return
   end
-  if action and action.boundary and (lease.report.uncertain or not row.frame
+  if action and action.boundary and (action.journal and (not lease.report.journal or lease.report.journal==action.journal) or not row.frame
     or not P.confirm(action.from,action.steps,results,P.toWorld(row.frame,lease.report.pose))) then
     row.state, row.error, row.recover = "lost", "boundary unconfirmed; reservations held", true
-    save() return
+    S.recall.blocked(id,row.error) save() return
   end
   row.inflight = nil
   local facts = lease.report
@@ -449,7 +468,20 @@ local function report(_, id, results, lease)
       end
       cursor = P.replay(cursor, action.steps or {}, results)
       if row.lane and M.inLane(job,cursor) then row.lane.entered=true end
-      if action.kind == "workerPark" then row.parkConfirmed=true row.state="parked"
+      if action.kind == "recall" then
+        local worker = S.recall.worker(id)
+        if worker then worker.remaining=nil end
+      elseif action.kind == "recallFuel" then
+        local worker = S.recall.worker(id)
+        if worker then
+          for _,result in ipairs(results) do
+            if not result.ok then
+              worker.phase,worker.error="fuel",result.err or "fuel service failed"
+              worker.retryAfter=SO.now()+60000
+            end
+          end
+        end
+      elseif action.kind == "workerPark" then row.parkConfirmed=true row.state="parked"
       elseif action.kind == "recover" then row.recover, row.error = false, nil row.state = (job.running or job.complete and row.route) and "mining" or "stopped"
       elseif action.kind == "inspect" or action.kind == "scan" then
         local result = results[#results]
@@ -462,7 +494,7 @@ local function report(_, id, results, lease)
         if action.kind == "scan" then
           row.scan.index = row.scan.index + 1
           if result.ok and result.data and (result.data.name == "minecraft:lava" or result.data.name == "minecraft:water") then row.fluid = action.cell end
-          if result.ok and M.ore(result.data, job.ores) and not call("cells", "isDug", action.cell.x, action.cell.y, action.cell.z, job.dim)
+          if not job.recall and result.ok and M.ore(result.data, job.ores) and not call("cells", "isDug", action.cell.x, action.cell.y, action.cell.z, job.dim)
             and (row.veinCount or 0) < 64 then
             row.veins = row.veins or {}
             local duplicate = false
@@ -493,7 +525,7 @@ local function report(_, id, results, lease)
           if not result.ok then rerouteYield(id,row,action) break end
         end
       elseif action.kind == "cleanup" then
-        row.cleanup = #M.cleanup(row.inv,false) > 0
+        row.cleanup = #M.cleanup(row.inv,false,nil,job.keep) > 0
         for i, step in ipairs(action.steps) do
           if step.op == "discard" and not results[i].ok then
             row.cleanupBlocked[M.key(action.cell)] = true
@@ -563,6 +595,13 @@ local function send(id, row, action)
   end
   if #action.steps == 0 then return false end
   for _, step in ipairs(action.steps) do
+    if #job.keep>0 and (step.op=="dig" or step.op=="digUp" or step.op=="digDown") then
+      local _,stock=M.unload(row.inv or {},job.keep)
+      if P.free(row.inv or {})<2 or not stock then
+        row.state,row.error="hold",not stock and "KEEP needs sealing stock" or "KEEP needs two free slots"
+        return false
+      end
+    end
     if step.op == "dig" or step.op == "digUp" or step.op == "digDown" then
       local status = call("lease", "status", id)
       if not P.toolCheck(status and status.tools, "pickaxe").ok then
@@ -578,12 +617,22 @@ local function send(id, row, action)
     if part.detour ~= nil then row.detour = part.detour or nil end
   end
   local proposed=action
-  local boundaries = call("lease", "boundaries")
+  local recalling = S.recall.worker(id)
+  local boundaries = recalling or call("lease", "boundaries")
+  local journal
+  if recalling then
+    local status = call("lease","status",id)
+    if not S.recall.ready(status) or not status.journal or not status.pose
+        or not P.samePose(row.pose,P.toWorld(row.frame,status.pose)) then
+      row.error="recall needs certain fenced worker" return false
+    end
+    journal, action.journal = status.journal, status.journal
+  end
   if boundaries then
     action.from = row.pose
     action = P.boundary(action)
     action.boundary = action.kind ~= "recover"
-    local check = call("lease", "assess", id, row.pose, action.steps, {owner="mine"})
+    local check = call("lease", "assess", id, row.pose, action.steps, {owner="mine",clear=recalling ~= nil})
     if not check or not check.ok then row.state,row.error="hold",check and check.reason or "assessment unavailable" return false end
   end
   action = P.rangeBatch(mod("lease"), id, action)
@@ -605,10 +654,223 @@ local function send(id, row, action)
   end
   row.inflight = action
   if not save() then row.inflight = nil return false end
-  local lid, why = call("lease", "send", id, action.steps, { owner = "mine", pose = action.pose or row.pose, frame = row.frame, ms = 60000 })
+  if recalling then
+    local cells, at = mod("cells"), row.pose
+    if not cells or not cells.admit then row.inflight=nil row.error="admission unavailable" return false end
+    for _,step in ipairs(action.steps) do
+      local target = P.target(at,step.op)
+      if target then
+        local allowed, reason = cells.admit(owner(id),at,step.op,target)
+        if not allowed then row.inflight=nil row.error=reason or "admission refused" return false end
+      end
+      at = P.apply(at,step.op)
+    end
+    action.steps[1].park=true
+  end
+  local lid, why = call("lease", "send", id, action.steps, { owner = "mine", pose = action.pose or row.pose, frame = row.frame, ms = 60000, journal=journal })
   if not lid then row.inflight = nil row.error = why return false end
   row.parkUntil = nil
   S.pending[id] = action return true
+end
+S.recall.dimension = function(dim)
+  return ({[0]="minecraft:overworld",[-1]="minecraft:the_nether",[1]="minecraft:the_end"})[dim] or P.dimension(dim)
+end
+S.recall.clear = function(cell)
+  if lookup(cell) == false then return false end
+  if lookup(cell) ~= nil then return lookup(cell) end
+  if call("cells","isDug",cell.x,cell.y,cell.z,cell.dim) then return false end
+end
+S.recall.route = function(row, worker)
+  local path, why
+  if job.recall.phase == "resuming" then
+    path={SO.store.copy(row.pose)}
+    local found=false
+    for i=#(worker.outbound or {}),1,-1 do
+      local cell=worker.outbound[i]
+      if found then path[#path+1]=SO.store.copy(cell)
+      elseif M.same(cell,row.pose) then found=true end
+    end
+    if not found then return nil,"resume pose outside confirmed recall route" end
+  else
+    path,why=M.recallRoute(job,row,worker.destination,S.recall.clear)
+  end
+  if not path then return nil,why end
+  for i=2,#path do
+    if S.recall.clear(path[i])~=false then return nil,"recall route not clear" end
+    for _,point in ipairs(call("drops","list") or {}) do
+      local dim=S.recall.dimension(point.dim)
+      if dim==job.dim and M.same(path[i],{dim=dim,x=point.x,y=point.y,z=point.z}) then
+        return nil,"recall route crosses chest"
+      end
+    end
+  end
+  return path
+end
+S.recall.service = function(row,fuel)
+  local near=SO.store.copy(row.pose)
+  near.dim=({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[job.dim]
+  local picked=call("drops","pick","fuel",near)
+  local point=picked and SO.store.copy(picked.point)
+  if not point or S.recall.dimension(point.dim)~=job.dim then return end
+  point.dim=job.dim
+  local stands={}
+  if point.side=="down" then stands[1]={dim=job.dim,x=point.x,y=point.y+1,z=point.z}
+  else
+    for facing=0,3 do
+      local pose={dim=job.dim,x=point.x,y=point.y,z=point.z,facing=facing}
+      local stand=M.cell(pose,"back") stand.facing=facing stands[#stands+1]=stand
+    end
+  end
+  table.sort(stands,function(a,b) return M.distance(row.pose,a)<M.distance(row.pose,b) end)
+  for _,stand in ipairs(stands) do
+    local path=M.supplyRoute(job,row,stand,point,S.recall.clear)
+    local valid=path and fuel>=#path-1+64
+    for i=2,#(path or {}) do if S.recall.clear(path[i])~=false then valid=false break end end
+    if valid then return {kind="fuel",stage="out",path=path,stand=stand,back=SO.store.copy(row.pose),point=point} end
+  end
+end
+S.recall.cursor = function(row)
+  local cursor={}
+  for _,key in ipairs({"pose","branch","route","index","rebuild","returning","veins","goal","trip","resumeTrip"}) do
+    cursor[key]=SO.store.copy(row[key])
+  end
+  return cursor
+end
+S.recall.finish = function()
+  local phase=job.recall.phase=="resuming" and "resumed" or "staged"
+  for id,worker in pairs(job.recall.workers) do
+    local row=job.turtles[id]
+    if worker.phase~=phase or not row or row.recover or row.forgotten then return end
+  end
+  local pending,oldPhase=job.recall,job.recall.phase
+  if phase=="resumed" then job.recall=nil
+  else job.recall.phase="staged" job.running=false end
+  if not save() then job.recall=pending pending.phase=oldPhase end
+end
+S.recall.plan = function(id,row)
+  local worker=S.recall.worker(id)
+  local status=call("lease","status",id)
+  if not S.recall.ready(status) then row.error="recall needs parkBatch and setupFence" return end
+  if row.lane and row.lane.release then return end
+  if not reservePose(id,row) then worker.phase="blocked" return end
+  if not job.running or worker.phase=="staged" and job.recall.phase~="resuming" or worker.phase=="resumed" then
+    row.state=worker.phase=="staged" and "staged" or worker.phase
+    if job.running then S.recall.finish() end
+    if S.recall.worker(id) then park(id,row,false) end
+    return
+  end
+  if worker.phase=="draining" then
+    worker.cursor=S.recall.cursor(row)
+    worker.phase="returning"
+    if not save() then return end
+  end
+  if worker.retryAfter and SO.now()<worker.retryAfter then
+    row.state,row.error="fuel",worker.error
+    park(id,row,false) return
+  end
+  worker.retryAfter=nil
+  local path,why=S.recall.route(row,worker)
+  if not path then
+    worker.phase,worker.error,row.state,row.error="blocked",why,"blocked",why
+    save() park(id,row,false) return
+  end
+  worker.remaining=path
+  if job.recall.phase~="resuming" and not worker.outbound then worker.outbound=SO.store.copy(path) end
+  local target=job.recall.phase=="resuming" and worker.cursor.pose or worker.destination
+  if M.same(row.pose,target) and row.pose.facing==target.facing then
+    worker.phase,row.state,worker.error,row.error=job.recall.phase=="resuming" and "resumed" or "staged",
+      job.recall.phase=="resuming" and "mining" or "staged",nil,nil
+    if not save() then return end
+    releaseBatch(id,row)
+    S.recall.finish()
+    if S.recall.worker(id) then park(id,row,false) end
+    return
+  end
+  local fuel=type(row.fuel)=="number" and (row.fuel<0 and math.huge or row.fuel) or 0
+  if fuel<#path-1 then
+    worker.phase,row.state,row.error="fuel","fuel","recall needs fuel"
+    for _,item in ipairs(row.inv or {}) do
+      local value=P.fuelValue(item.name)
+      if value>0 then
+        local n=math.min(item.count,math.max(1,math.ceil((#path-1+64-fuel)/value)))
+        if send(id,row,{kind="recallFuel",steps={{op="select",slot=item.slot},{op="refuel",n=n}},cells={}}) then return end
+      end
+    end
+    -- A service trip needs a confirmed route and enough fuel to reach its chest.
+    if not worker.service then worker.service=S.recall.service(row,fuel) end
+    local service=worker.service
+    if service then
+      local servicePath=M.travel(row.pose,service.stand,service.point,job,{trip=service})
+      local remaining=servicePath and #servicePath or math.huge
+      local clear=true
+      for _,cell in ipairs(servicePath or {}) do if S.recall.clear(cell)~=false then clear=false break end end
+      if clear and fuel>=remaining then
+        if remaining>0 then
+          worker.remaining={SO.store.copy(row.pose)}
+          for _,cell in ipairs(servicePath) do worker.remaining[#worker.remaining+1]=cell end
+          local action=M.recallStep(row.pose,servicePath[1])
+          if send(id,row,action) then return end
+        else
+          local turn=service.point.side=="front" and M.turn(row.pose,service.stand.facing)
+          if turn then
+            if send(id,row,{kind="recall",steps={turn},cells={},pose=P.apply(row.pose,turn.op)}) then return end
+          else
+            local occupied={} for _,item in ipairs(row.inv or {}) do occupied[item.slot]=true end
+            for slot=1,16 do
+              if not occupied[slot] then
+                local steps={{op=service.point.side=="down" and "inspectDown" or "inspect"},
+                  {op="select",slot=slot},{op=service.point.side=="down" and "suckDown" or "suck",n=64}}
+                if send(id,row,{kind="recallFuel",steps=steps,cells={}}) then return end
+                break
+              end
+            end
+          end
+        end
+      end
+    end
+    save() park(id,row,false) return
+  end
+  worker.service=nil
+  worker.phase,row.state,worker.error,row.error="returning","returning",nil,nil
+  local action=M.recallStep(row.pose,path[2] or target)
+  if not send(id,row,action) then
+    worker.phase,worker.error,row.state="blocked",row.error,"blocked"
+    save() park(id,row,false)
+  end
+end
+S.recall.staging = function(id,target)
+  if target.dim~=job.dim then return false,"staging dimension mismatch" end
+  if target.y~=job.home.y or M.inLane(job,target) or M.same(target,job.home) then return false,"staging needs a surface cell outside access" end
+  for other,p in pairs(job.staging) do
+    if other~=tostring(id) and M.same(p,target) then return false,"staging cells must be distinct" end
+  end
+  for _,point in ipairs(call("drops","list") or {}) do
+    if S.recall.dimension(point.dim)==job.dim then
+      local chest={dim=job.dim,x=point.x,y=point.y,z=point.z}
+      if M.same(chest,target) or point.side=="down" and target.x==chest.x and target.z==chest.z and target.y==chest.y+1
+        or point.side~="down" and target.y==chest.y and M.distance(chest,target)==1 then return false,"staging blocks chest access" end
+    end
+  end
+  return true
+end
+S.recall.start = function()
+  if not job.recallEnabled then S.error="recall disabled" return end
+  if job.recall then S.error="recall already pending; use START" return end
+  local workers={}
+  for id,row in pairs(job.turtles) do
+    local status=call("lease","status",tonumber(id))
+    local target=job.staging[id]
+    if row.forgotten or not S.recall.ready(status) then S.error="recall needs parkBatch and setupFence #"..id return end
+    if not target then S.error="staging missing #"..id return end
+    local valid,why=S.recall.staging(tonumber(id),target)
+    if not valid then S.error=why return end
+    workers[id]={destination=SO.store.copy(target),phase="draining",cursor=S.recall.cursor(row)}
+  end
+  if not next(workers) then S.error="no assigned turtles" return end
+  local running,complete=job.running,job.complete
+  job.recall,job.running,job.complete={phase="returning",workers=workers},true,nil
+  if not save() then job.recall,job.running,job.complete=nil,running,complete return end
+  S.error=nil
 end
 local function yieldLane(id,row)
   local y=row.yield
@@ -680,6 +942,7 @@ plan = function(id,row)
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
+  if S.recall.worker(id) then S.recall.plan(id,row) return end
   if workerPark and row.paused then
     row.state=row.parkConfirmed and "parked" or "parking"
     if row.removeRequested and row.parkConfirmed then removeParked(id,row)
@@ -740,7 +1003,7 @@ plan = function(id,row)
     end
   end
   row.inv = row.inv or {}
-  local clean = M.cleanup(row.inv,false)
+  local clean = M.cleanup(row.inv,false,nil,job.keep)
   if not row.trip and #clean > 0 and (row.cleanup or (row.dug or 0)-(row.cleaned or 0)>=10 or P.free(row.inv)<2) then
     local action=cleanupAction(row)
     if action then send(id,row,action) return end
@@ -769,14 +1032,17 @@ plan = function(id,row)
         send(id,row,{kind="turn",steps={turn},cells={},pose=P.apply(row.pose,turn.op)}) return
       elseif t.kind == "ore" then
         local steps = {}
-        for _, item in ipairs(row.inv) do
-          if not M.junk(item) and not unloadKeep[item.name] and not item.name:match("_pickaxe$") and not item.name:match("_axe$")
-              and not item.name:match("_shovel$") and not item.name:match("_hoe$") and not item.name:match("_sword$") then
-            steps[#steps+1]={op="select",slot=item.slot}
-            local drop = call("drops","steps",t.point) or {}
-            for _, step in ipairs(drop) do steps[#steps+1]=step end
-            break
+        local surplus, stock = M.unload(row.inv,job.keep)
+        if surplus then
+          steps[1]={op="select",slot=surplus.slot}
+          for _,step in ipairs(call("drops","steps",t.point) or {}) do
+            step=SO.store.copy(step)
+            if step.op=="drop" or step.op=="dropDown" or step.op=="dropUp" then step.n=surplus.n end
+            steps[#steps+1]=step
           end
+        elseif #job.keep>0 and (P.free(row.inv)<2 or not stock) then
+          row.state,row.error="hold",P.free(row.inv)<2 and "KEEP needs two free slots" or "KEEP needs sealing stock"
+          park(id,row,false) return
         end
         if #steps==0 then t.stage="back" else send(id,row,{kind="unload",steps=steps,cells={}}) return end
       else
@@ -885,8 +1151,9 @@ plan = function(id,row)
       if not skipped(exit) then row.goal=exit end
     end
     if not row.goal then
+      local keptSurplus = #job.keep>0 and M.unload(row.inv,job.keep)
       for _, item in ipairs(row.inv) do
-        if not M.junk(item) and not unloadKeep[item.name] and not item.name:match("_pickaxe$") and not item.name:match("_axe$")
+        if keptSurplus or not M.junk(item) and not unloadKeep[item.name] and not item.name:match("_pickaxe$") and not item.name:match("_axe$")
               and not item.name:match("_shovel$") and not item.name:match("_hoe$") and not item.name:match("_sword$") and P.fuelValue(item.name) == 0 then
           if trip(id,row,"ore") then save() plan(id,row)
           else park(id,row,false) end
@@ -1535,6 +1802,10 @@ local function command(event)
     end)
     return
   end
+  if job.recall and (cmd=="home" or cmd=="bottom" or cmd=="length" or cmd=="branches" or cmd=="continuous"
+      or cmd=="mode" or cmd=="add" or cmd=="remove" or cmd=="park" or cmd=="resume" or cmd=="staging") then
+    S.error="finish recall before changing assignments or routes" return
+  end
   local geometry = cmd=="home" or cmd=="bottom" or cmd=="length" or cmd=="branches" or cmd=="continuous" or cmd=="mode"
   if geometry then
     if job.running then S.error="stop mining before geometry changes" return end
@@ -1544,7 +1815,42 @@ local function command(event)
       if row.stopRoute or row.route and not finishedBudget then S.error="wait for mining routes to stop" return end
     end
   end
-  if cmd=="fuel" then
+  if cmd=="keep" and a[2] then
+    for id,row in pairs(job.turtles) do
+      local status=call("lease","status",tonumber(id))
+      if row.inflight or row.recover or status and (status.open or status.lost or status.uncertain) then
+        S.error="wait for mining batches to settle" return
+      end
+    end
+    local names,seen={},{}
+    if not (#a==2 and a[2]=="none") then
+      for name in table.concat(a," ",2):gmatch("[^,%s]+") do
+        if not name:match("^[%l%d_.-]+:[%l%d_./-]+$") then S.error="KEEP needs exact item IDs" return end
+        if not seen[name] then names[#names+1]=name seen[name]=true end
+      end
+      if #names==0 or #names>64 then S.error="KEEP accepts at most 64 IDs" return end
+    end
+    table.sort(names)
+    local old=job.keep job.keep=names
+    if not save() then job.keep=old return end
+    S.error=nil return
+  elseif cmd=="recall" and #a==2 and (a[2]=="on" or a[2]=="off") then
+    local old=job.recallEnabled job.recallEnabled=a[2]=="on"
+    if not save() then job.recallEnabled=old return end
+    S.error=nil return
+  elseif cmd=="recall" and #a==1 then S.recall.start() return
+  elseif cmd=="staging" and #a==6 and num(2) and num(3) and num(4) and num(5) and dirs[a[6]] then
+    local id=num(2)
+    if job.running or not job.turtles[tostring(id)] then S.error="stop mining and assign turtle before staging" return end
+    local target={dim=job.dim,x=num(3),y=num(4),z=num(5),facing=dirs[a[6]]}
+    local valid,why=S.recall.staging(id,target)
+    if not valid then S.error=why return end
+    local err=dimensionError(target.y)
+    if err then S.error=err return end
+    local old=job.staging[tostring(id)] job.staging[tostring(id)]=target
+    if not save() then job.staging[tostring(id)]=old return end
+    S.error=nil return
+  elseif cmd=="fuel" then
     local ok, err
     if a[2]=="auto" and (a[3]=="on" or a[3]=="off") and #a==3 then ok,err=call("shop","fuelConfig",a[3]=="on")
     elseif a[2]=="output" and a[3] and #a==3 then ok,err=call("shop","fuelConfig",nil,a[3])
@@ -1661,6 +1967,11 @@ local function command(event)
   elseif cmd=="start" then
     local ok, err = call("state", "canStart")
     if not ok then S.error = err or "disk guard unavailable" emit("mine.alert",{text=S.error}) return "published" end
+    if job.recall then
+      if job.recall.phase=="staged" then job.recall.phase="resuming" end
+      job.running,S.error=true,nil
+      save() return
+    end
     local missing=P.missing(readiness())
     if #missing>0 then
       S.error=table.concat(missing,"; ")
@@ -1680,7 +1991,7 @@ local function command(event)
     job.running=false
     for id, row in pairs(job.turtles) do
       local status=call("lease","status",tonumber(id))
-      if row.route then
+      if row.route and not job.recall then
         if status and status.open and not call("lease","cancelPark",tonumber(id),"mine") then row.stopRoute=true
         else clearRoute(row) end
       end
@@ -1844,6 +2155,8 @@ return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostr
       end
       -- Rows saved before counted existed were counted when they finished.
       if row.state=="done" and row.counted==nil then row.counted=row.branch end
+      local recalling=S.recall.worker(tonumber(id))
+      if recalling then recalling.remaining=nil end
       if not row.forgotten then row.parkConfirmed=nil row.parkUntil=nil row.recover=true row.state="recovering" end
     end
     if cleared and not save() then return end

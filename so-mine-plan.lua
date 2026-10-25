@@ -149,19 +149,65 @@ function M.sealable(item)
   end
   return true
 end
-function M.cleanup(inv, all, side)
+function M.cleanup(inv, all, side, selected)
   local steps, kept = {}, false
   for _, item in ipairs(inv) do
-    if M.junk(item) then
-      if kept or all or not M.sealable(item) then
+    local chosen = false
+    for _, name in ipairs(selected or {}) do if name == item.name then chosen = true break end end
+    local reserved = not kept and not all and M.sealable(item)
+    if reserved then kept = true end
+    if M.junk(item) and not chosen then
+      if not reserved then
         steps[#steps+1] = { op = "select", slot = item.slot }
         steps[#steps+1] = { op = "discard", side = side or "down" }
-      else kept = true end
+      end
     end
     if #steps >= 16 then break end
   end
   return steps
 end
+function M.unload(inv, selected)
+  local reserve, stock = {}, false
+  for _, item in ipairs(inv) do
+    if not stock and item.count > 0 and M.sealable(item) then
+      reserve[item.slot], stock = item.count, true
+    end
+  end
+  for _, item in ipairs(inv) do
+    local chosen = false
+    for _, name in ipairs(selected or {}) do if name == item.name then chosen = true break end end
+    local tool = item.name:match("_pickaxe$") or item.name:match("_axe$") or item.name:match("_shovel$")
+      or item.name:match("_hoe$") or item.name:match("_sword$")
+    local held = item.name == "minecraft:bucket" or item.name == "minecraft:water_bucket"
+      or item.name == "minecraft:lava_bucket" or item.name == "minecraft:torch"
+    local n = math.min(item.maxCount or 64, item.count - (reserve[item.slot] or 0))
+    if n > 0 and (chosen or not M.junk(item)) and not tool and not held
+        and (#(selected or {}) == 0 or P.fuelValue(item.name) == 0) then
+      return {slot=item.slot,n=n}, stock
+    end
+  end
+  return nil, stock
+end
+
+function M.recallRoute(job, row, target, lookup)
+  local path = M.supplyRoute(job,row,target,nil,lookup)
+  if not path then return nil,"no known mine route" end
+  for i=2,#path do
+    if lookup(path[i]) ~= false then return nil,"recall route not clear" end
+  end
+  return path
+end
+
+function M.recallStep(from, target)
+  if M.same(from,target) then
+    local turn = M.turn(from,target.facing or from.facing)
+    return turn and {kind="recall",steps={turn},cells={},pose=P.apply(from,turn.op)} or nil
+  end
+  local action = P.path(from,target,{order="yxz"})
+  action.kind, action.from = "recall", from
+  return P.boundary(action)
+end
+
 function M.supplyRoute(job, row, stand, point, lookup)
   local top = P.apply({dim=job.dim,x=job.home.x,y=job.home.y,z=job.home.z,facing=job.home.facing}, "forward")
   local bottom = {dim=job.dim,x=top.x,y=job.bottom,z=top.z,facing=top.facing}
