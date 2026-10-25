@@ -978,8 +978,8 @@ M.render = function(w, h, session, tries)
   if L.roster then M.roster(C, L, w, s) end
   M.pickArea(C, L, v.box and v.box[5])
   local frame = M.pack(C)
-  -- Frames stay under the 16 KB message limit: a crowded view draws one zoom step out.
-  if (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
+  -- Wait for complete planes before choosing a zoom for the 16 KB message limit.
+  if v.ready and (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
     if v.fit then v.extra = math.min((v.extra or 0) + 1, #M.free) else M.zoom(v, 1) end
     return M.render(w, h, session, (tries or 0) + 1)
   end

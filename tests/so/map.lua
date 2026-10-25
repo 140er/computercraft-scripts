@@ -356,6 +356,47 @@ return function(test,equal)
     equal(s.cells.owner(held.x,held.y,held.z),"setup:99","lookup is a copy")
   end)
 
+  test("map cold FIT in adversarial column order settles to warm-only FIT", function()
+    local warm = setup()
+    -- The thumbnail warms the same planes without choosing a wire-frame zoom.
+    for _ = 1, 20 do warm.map.thumb(U.canvas(164,81),1,1,164,81) warm.step() end
+    local reference = {}
+    local expected = warm.screen.render(164,81,reference)
+    assert(reference.map.ready,"reference must start with warm planes")
+    local largest, partial = 0, 0
+    for seed = 1, 20 do
+      local cold, random = setup(), seed
+      local columns = cold.cells.dugColumns
+      cold.cells.dugColumns = function(...)
+        local result = columns(...)
+        for i = #result, 2, -1 do
+          random = random*16807%2147483647
+          local j = random%i+1
+          result[i], result[j] = result[j], result[i]
+        end
+        return result
+      end
+      local session = {}
+      for _ = 1, 60 do
+        local frame = cold.screen.render(164,81,session)
+        if session.map.ready then break end
+        partial = partial+1
+        largest = math.max(largest,#cold.machine.env.SO.proto.ser(frame))
+        equal(session.map.extra or 0,0,"partial planes must not latch extra zoom")
+        cold.step()
+      end
+      assert(session.map.ready,"cold planes never finished")
+      local actual = cold.settle(164,81,session)
+      local a, b = session.map, reference.map
+      equal({a.sx,a.sz,a.left,a.top,a.extra or 0},{b.sx,b.sz,b.left,b.top,b.extra or 0},"cold FIT differs at seed " .. seed)
+      local diffs = R.diff(picture(expected,164,81).picture(),picture(actual,164,81).picture())
+      equal(#diffs,0,table.concat(diffs,"\n"))
+    end
+    assert(partial>0,"test must draw partially loaded planes")
+    assert(largest>15000,"adversarial cold frames did not cross the wire budget: " .. largest)
+    print("map cold FIT: " .. partial .. " partial frames, largest " .. largest .. " bytes; 20 warm-only comparisons matched")
+  end)
+
   for seed = 1, 20 do
     test("map-XL fixture ignores randomized prior state " .. seed, function()
       local s = setup()
@@ -371,6 +412,15 @@ return function(test,equal)
       s.screen.render(164,81,{map={fit=true,level="all",pick={k="shaft"}}})
       s.mine, s.lumber, s.machines, s.leases = mine, lumber, machines, leases
       s.machine.env.SO.now = clock
+      local columns = s.cells.dugColumns
+      s.cells.dugColumns = function(...)
+        local result = columns(...)
+        for i = #result, 2, -1 do
+          local j = nextValue(i)+1
+          result[i], result[j] = result[j], result[i]
+        end
+        return result
+      end
       s.reloadMap()
       local frame = s.settle(164,81,{})
       local diffs = R.diff(R.load(FIXTURES["schematic-map-XL"]),picture(frame,164,81).picture())
