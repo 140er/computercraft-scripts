@@ -497,8 +497,9 @@ FLEET.
   reads CONFIRM when armed. ADD shares the last row. At most 24 rows per page.
 - **Dimension:** an ALL / WORLD / NETHER / END chip appears in the list bar once points cover
   two dimensions, or while a filter is set. A filter uses `on`, keeps the original point
-  numbers and filters before paging. Narrow titles shorten to DROPS; the chip drops only
-  when it cannot fit. Opening a point from another screen clears a filter that hides it.
+  numbers and filters before paging. Narrow screens shorten the title to DROPS, shorten
+  labels to OVW/NTH/END, then drop the title to keep the chip. Opening a point from another
+  screen clears a filter that hides it.
 - **Plan (room monitors):** behind a rule, the chests around home at one block per cell
   when they fit, labelled by row number, with `@ server`, `º shaft` and the farm edge for
   context. Both farm corners are in the fit, so the edge is always drawn. The selected
@@ -554,8 +555,9 @@ FLEET.
   set`). A job that is not loaded shows its section and grey chips. ALERTS and PAIR are chips
   on the last row.
 - **Shop block:** six rows hold the section, search, best match and stock, order chips, last
-  order and reply. A typed count replaces `1 16 64` with `ORDER n`, or muted `MAX n` over
-  the stack limit. Without a room it reads coral `storage room not found` over muted chips.
+  order and reply. A typed count replaces `1 16 64` with `ORDER n`; counts over the stack
+  limit are refused as `bad count`. Without a room it reads coral `storage room not found`
+  over muted chips.
   Shared labels carry their namespace as on pocket SHOP. Tapping the last order repeats its
   item and count, even after a new search.
 - **Fleet controls:** `N lost` in the row-3 turtles leader opens ALERTS. When the fuel policy
@@ -670,7 +672,8 @@ twin. Fixtures `ar-M/W/L/P/S/XS/A/AS`, from the models in `tests/ui/ra3-ar.lua`,
   The drawn dimension is green, others muted, each an `ar-dim:<world|nether|end>` hit.
   These rows keep the layer spacing; alerts follow where they fit. Changing dimension resets
   focus to ALL. Turtle focus keeps that turtle and its reservations; drop focus keeps the
-  point. Warnings and HUD totals remain. A missing target stays missing until ALL is chosen.
+  point. Warnings and HUD totals remain. An unavailable target shows `[missing]` without
+  falling back to ALL.
 - **Focus list:** the FOCUS section shows `page/pages` when needed, then ALL, turtle and drop
   rows at the layer spacing, the current one green and each a full-width hit. BACK, id
   `ar-back`, sits bottom left; MORE, id `ar-more`, bottom right when more pages exist.
