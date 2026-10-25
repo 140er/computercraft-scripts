@@ -3,7 +3,7 @@
  EVENTS  ALERTS  ERRORS   
                           
  modules ······· 1 loaded 
- skip ··· 1 fail 1 absent 
+ skip · 1 fail · 1 absent 
  rev ··········· aaaaaaaa 
  cfg ··· retireLegacyPair 
  pos ············ missing 
@@ -23,7 +23,7 @@
 88888888888888888888888800
 00000000000000000000000000
 088888880ccccccc0000000000
-088880ccc00000000000000000
+088880c0000000000000000000
 08880ccccccccccc0000000000
 08880ccc000000000000000000
 08880cccccccccccc000000000

@@ -2,12 +2,12 @@
  HEALTH  NEEDS 0  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
  kind  all                   
- • 20s mine.alert ore chest  
+ • 20s mine.alert ore...     
  • 40s mine.ore              
  • 1m mine.ore               
  • 1m mine.ore               
  • 1m mine.ore               
- • 2m mine.alert ore chest   
+ • 2m mine.alert ore...      
  • 2m mine.ore               
  • 2m mine.ore               
   LIVE                ◄   ►  

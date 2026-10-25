@@ -2,10 +2,10 @@
  HEALTH  NEEDS 1  ------- 
  EVENTS  ALERTS  ERRORS   
                           
- ar ·············· absent 
  mine ········· ok 5s ago 
  shop ············ failed 
  error ···· loader failed 
+                          
                           
                           
                           
@@ -22,10 +22,10 @@
 000000008888888180ccccccc0
 88888888888888888888888800
 00000000000000000000000000
-0880cccccccccccccc08888880
 088880ccccccccc00000000000
 088880cccccccccccc0eeeeee0
 0888880cccc0eeeeeeeeeeeee0
+00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000

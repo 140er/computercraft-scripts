@@ -22,7 +22,7 @@
                                                          
                                                          
                                                          
-                                             1/1  ◄   ►  
+                                                         
 000000008888888e8008888888888888888888888880cccccccccccc0
 000000000000000000000000000000000000000000000000000000000
 08888880ccccccccccccccccccccccccccccc00000000000000000000
@@ -46,7 +46,7 @@
 000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000
-000000000000000000000000000000000000000000000888088808880
+000000000000000000000000000000000000000000000000000000000
 77777777fffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -70,4 +70,4 @@ fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffff777f777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

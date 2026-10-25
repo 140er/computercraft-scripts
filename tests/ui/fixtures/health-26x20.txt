@@ -18,7 +18,7 @@
  last lease 7 report      
       rejected            
                           
-              1/1  ◄   ►  
+                          
 000000008888888e80ccccccc0
 88888888888888888888888800
 00000000000000000000000000
@@ -38,7 +38,7 @@
 08888000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
-00000000000000888088808880
+00000000000000000000000000
 77777777ffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -58,4 +58,4 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffff777f777f
+ffffffffffffffffffffffffff

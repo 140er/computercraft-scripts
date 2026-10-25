@@ -4,19 +4,19 @@
                           
  kind  all                
                           
- • 20s mine.alert ore     
+ • 20s mine.alert ore...  
  • 40s mine.ore           
  • 1m mine.ore            
  • 1m mine.ore            
  • 1m mine.ore            
- • 2m mine.alert ore      
+ • 2m mine.alert ore...   
  • 2m mine.ore            
  • 2m mine.ore            
  • 3m mine.ore            
  • 3m mine.ore            
- • 3m mine.alert ore      
+ • 3m mine.alert ore...   
  • 4m mine.ore            
- • 4m drops.broken chest  
+ • 4m drops.broken...     
                           
   LIVE             ◄   ►  
 888888888888888880ccccccc0

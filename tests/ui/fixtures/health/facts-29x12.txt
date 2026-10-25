@@ -2,7 +2,7 @@
  HEALTH  NEEDS 1  ---------- 
  EVENTS  ALERTS  ERRORS  --- 
  modules ·········· 1 loaded 
- skip ······ 1 fail 1 absent 
+ skip ···· 1 fail · 1 absent 
  rev ·············· aaaaaaaa 
  cfg ······ retireLegacyPair 
  pos ··············· missing 
@@ -14,7 +14,7 @@
 000000008888888180cccccccccc0
 8888888888888888888888880ccc0
 088888880cccccccccc0000000000
-088880cccccc00000000000000000
+088880cccc0000000000000000000
 08880cccccccccccccc0000000000
 08880cccccc000000000000000000
 08880ccccccccccccccc000000000

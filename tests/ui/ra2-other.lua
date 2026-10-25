@@ -258,9 +258,12 @@ return function(test, equal)
         { 'attention', 29, 12 }, { 'alerts', 26, 20 }, { 'alerts', 29, 12 }, { 'events', 26, 20 }, { 'events', 29, 12 },
         { 'events', 57, 24 }, { 'errors', 26, 20 }, { 'errors', 29, 12 } }) do
       local frame = t.render(case[1], case[2], case[3])
-      match(case[1] .. '-' .. case[2] .. 'x' .. case[3], frame)
+      local out = match(case[1] .. '-' .. case[2] .. 'x' .. case[3], frame)
       local b = ids(frame)
-      for _, id in ipairs({ 'health', 'attention', 'events', 'alerts', 'errors', 'prev', 'next' }) do assert(b[id], id) end
+      for _, id in ipairs({ 'health', 'attention', 'events', 'alerts', 'errors' }) do assert(b[id], id) end
+      -- The pager shows only beside a second page.
+      local paged = out.picture().text[case[3]]:find(R.char(17), 1, true) ~= nil
+      assert((b.prev ~= nil) == paged and (b.next ~= nil) == paged, 'pager ' .. case[1])
     end
   end)
 

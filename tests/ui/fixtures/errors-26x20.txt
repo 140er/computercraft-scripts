@@ -2,8 +2,8 @@
  HEALTH  NEEDS 4  ------- 
  EVENTS  ALERTS  ERRORS   
                           
- • 10s lease 7 report     
- • 3m tick failed:        
+ • 10s lease 7 report...  
+ • 3m tick failed:...     
                           
                           
                           
@@ -18,7 +18,7 @@
                           
                           
                           
-              1/1  ◄   ►  
+                          
 888888888888888e80ccccccc0
 88888888888888880000000000
 00000000000000000000000000
@@ -38,7 +38,7 @@
 00000000000000000000000000
 00000000000000000000000000
 00000000000000000000000000
-00000000000000888088808880
+00000000000000000000000000
 ffffffffffffffffffffffffff
 ffffffffffffffff77777777ff
 ffffffffffffffffffffffffff
@@ -58,4 +58,4 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffff777f777f
+ffffffffffffffffffffffffff

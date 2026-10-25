@@ -1,16 +1,16 @@
 15x10 Health history at 15x10
- HEALTH  NEEDS 
- EVENTS  ALERTS
+ HLT  ! 0  --- 
+ EVT  ALR  ERR 
  • all         
-   drops.broke 
+   drops.br... 
    lumber.logs 
    mine.alert  
    mine.ore    
                
+               
   BACK         
-   1/1  ◄   ►  
-888888888888888
-000000008888888
+88888888880ccc0
+000008888888888
 000000000000000
 000888888888880
 000888888888880
@@ -18,9 +18,10 @@
 000888888880000
 000000000000000
 000000000000000
-000888088808880
+000000000000000
 fffffffffffffff
-77777777fffffff
+77777ffffffffff
+fffffffffffffff
 fffffffffffffff
 fffffffffffffff
 fffffffffffffff
@@ -28,4 +29,3 @@ fffffffffffffff
 fffffffffffffff
 fffffffffffffff
 f777777ffffffff
-fffffff777f777f
