@@ -104,15 +104,17 @@ def roster(cv, L, w):
         cv.put(x + 16, y, "%d,%d,%d" % (t["x"], t["y"], t["z"]), "8")
 
 
-def screen(w, h, title, level="all", scale=None, centre=None, pick=None, dim=None):
+def screen(w, h, title, level="all", scale=None, centre=None, pick=None, dim=None, ore_finds=False):
     """scale (sx, sz) and centre (cx, cz) give a panned or zoomed view; without them the view fits.
-    dim (remoteDimensions) adds the dimension chip."""
+    dim (remoteDimensions) adds the dimension chip. ore_finds is the per-display text opt-in;
+    Lua currently draws no chip for it. The marker pass belongs to mapdraw."""
     cv = Canvas(w, h, title)
     L = layout(w, h, len(MD.turtles()))
     if scale:
         v = MD.view(L["mw"], L["mh"], level, scale[0], scale[1], centre[0], centre[1])
     else:
         v = MD.fit(L["mw"], L["mh"], level)
+    v["oreFinds"] = ore_finds is True
     taken, _ = MD.draw(cv, v, L["mx"], L["my"], pick=pick)
     got = MD.callout(cv, v, L["mx"], L["my"], pick, taken) if pick else None
     controls(cv, L, w, h, level, not scale, dim)
@@ -149,3 +151,14 @@ def make(v):
 
 # One fixture per view line in tests/ui/map-scene.txt; tests/so/map.lua renders the same views.
 FIXTURES = [(v["name"], make(v)) for v in S["views"]]
+
+
+def ore_option(w, h, enabled):
+    """Empty history looks the same with either setting. Keep these views away from the shared
+    scene's ore markers, which B4-UD tests separately."""
+    return lambda: screen(w, h, "Map, ore finds %s, empty history" % ("on" if enabled else "off"),
+                          level=64, scale=(1, 1), centre=(1000, 1000), ore_finds=enabled)
+
+
+FIXTURES += [("map-ore-screen-%s-%dx%d" % (state, w, h), ore_option(w, h, state == "on"))
+             for w, h in ((15, 10), (26, 20), (29, 12), (57, 24)) for state in ("off", "on")]

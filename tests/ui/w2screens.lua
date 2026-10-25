@@ -131,7 +131,135 @@ local function buildReturn(mode)
   return s
 end
 
+local function oreMap(w,h)
+  local s=setup(w,h)
+  s.events={}
+  s.env.SO.mods.drops={list=function()
+    return {{id=3,kind='ore',dim='minecraft:overworld',x=180,y=64,z=-370,broken=true}}
+  end}
+  s.env.SO.mods.state.history={page=function(q)
+    local entries={}
+    if q.kind=='mine.ore' then
+      for _,ev in ipairs(s.events) do if ev.seq>(q.from or 0) then entries[#entries+1]=ev end end
+    end
+    return {entries=entries}
+  end}
+  s.map=s.env.SO.mods.map
+  s.view=function()
+    return {map={fit=false,sx=1,sz=1,cx=1000,cz=1000,level=64}}
+  end
+  s.render=function(session)
+    local frame
+    for _=1,60 do
+      frame=s.map.render(w,h,session)
+      s.map.tick(s.now)
+      if session.map.ready then return s.map.render(w,h,session) end
+    end
+    error('ore screen planes did not settle')
+  end
+  s.find=function(age)
+    s.events[#s.events+1]={seq=#s.events+1,kind='mine.ore',gameAt=s.now-(age or 0),
+      data={id=2,name='minecraft:diamond_ore',count=1,pos={dim='minecraft:overworld',x=996,y=64,z=997}}}
+    s.map.tick(s.now)
+  end
+  return s
+end
+
 return function(test,equal)
+  for _,size in ipairs({{15,10},{26,20},{29,12},{57,24}}) do
+    local w,h=size[1],size[2]
+    test('B4-US ore setting matches Lua without an invented control at '..w..'x'..h,function()
+      local s=oreMap(w,h)
+      local a,b=s.view(),s.view()
+      local off=s.render(a)
+      equal(a.map.oreFinds,false)
+      s.map.input({session=b,text='ore finds on'})
+      local on=s.render(b)
+      assert(b.map.oreFinds and not a.map.oreFinds)
+      for state,frame in pairs({off=off,on=on}) do
+        local out=capture(frame,w,h)
+        local diff=R.diff('tests/ui/fixtures/map-ore-screen-'..state..'-'..w..'x'..h..'.txt',out)
+        assert(#diff==0,table.concat(diff,'\n'))
+        for _,button in ipairs(frame.buttons) do assert(button.id~='map-ore','Lua has no visible ore toggle') end
+      end
+      equal(on.rows,off.rows) equal(on.buttons,off.buttons)
+    end)
+    test('B4-US ore arrivals and exact expiry redraw cached screens at '..w..'x'..h,function()
+      local s=oreMap(w,h)
+      local a,b=s.view(),s.view()
+      s.map.input({session=a,text='ore finds on'})
+      local blank=s.render(a)
+      equal(s.map.render(w,h,a),blank)
+      s.render(b)
+      s.find(599999)
+      local found=s.map.render(w,h,a)
+      assert(found~=blank,'arrival reused the cached frame')
+      local x=1+math.floor((996-a.map.left)/a.map.sx)
+      local y=a.map.L.my+math.floor((997-a.map.top)/a.map.sz)
+      local out=capture(found,w,h)
+      equal(out.cells[y][x],{'*','4','f'})
+      equal(s.map.render(w,h,a),found)
+      local hidden=s.map.render(w,h,b)
+      equal(capture(hidden,w,h).cells[y][x][1],' ')
+      s.map.input({session=a,text='ore finds off'})
+      equal(s.map.render(w,h,a).rows,hidden.rows)
+      s.map.input({session=a,text='ore finds on'})
+      found=s.map.render(w,h,a)
+      -- Render must prune an expired find even when no tick ran after the clock advanced.
+      s.now=s.now+1
+      local expired=s.map.render(w,h,a)
+      assert(expired~=found,'expiry reused the cached frame')
+      equal(expired.rows,blank.rows)
+      assert(a.map.oreFinds and not b.map.oreFinds)
+      equal(a.map.sx,1) equal(a.map.sz,1)
+      assert(#s.env.SO.proto.ser(expired)<16384)
+    end)
+  end
+  test('B4-US display text opt-in and redraws belong to one session',function()
+    local s=oreMap(26,20)
+    s.display.screen('map',function(w,h,session)
+      if not session.map then session.map=s.view().map end
+      return s.map.render(w,h,session)
+    end,s.map.input)
+    s.display.handlers.hello({from=10,body={w=26,h=20}})
+    for _,id in ipairs({9,10}) do assert(s.display.assign(id,'map')) end
+    s.frame(9) s.frame(10) s.find(0)
+    local function shown(id)
+      for _,r in ipairs(s.frame(id).rows) do if r.text:find('*',1,true) then return true end end
+      return false
+    end
+    assert(not shown(9) and not shown(10))
+    s.display.handlers.input({from=9,body={text='ore finds on',x=1,y=1}})
+    assert(shown(9) and not shown(10))
+    s.display.handlers.input({from=9,body={text='ore finds off',x=1,y=1}})
+    assert(not shown(9) and not shown(10))
+  end)
+  test('B4-US generator reproduces every ore screen fixture',function()
+    local started,pipe=pcall(io.popen,'pwd')
+    local root=started and pipe and pipe:read('*l')
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1,1)~='/' or not os.execute('python3 -V > /dev/null 2>&1') then
+      return dofile('tests/skips.lua').record('B4-US generator','needs host processes, a POSIX shell and python3')
+    end
+    local function read(path) local f=assert(io.open(path,'rb')) local text=f:read('*a') f:close() return text end
+    local dir=os.tmpname()
+    os.remove(dir)
+    assert(os.execute("mkdir -p '"..dir.."'"))
+    local names={}
+    for _,size in ipairs({'15x10','26x20','29x12','57x24'}) do
+      for _,state in ipairs({'off','on'}) do names[#names+1]='map-ore-screen-'..state..'-'..size end
+    end
+    local ok=os.execute("python3 -I '"..root.."/docs/ui/schematic/screens.py' --fixtures '"..dir.."' "..table.concat(names,' ')..' > /dev/null')
+    local mismatches={}
+    if ok then
+      for _,name in ipairs(names) do
+        if read(dir..'/'..name..'.txt')~=read('tests/ui/fixtures/'..name..'.txt') then mismatches[#mismatches+1]=name end
+      end
+    end
+    assert(os.execute("rm -r '"..dir.."'"))
+    assert(ok,'ore screen generator failed')
+    equal(mismatches,{})
+  end)
   for _,size in ipairs({{26,20},{29,12}}) do
     local w,h=size[1],size[2]
     for _,mode in ipairs(BUILD_RETURN_MODES) do
