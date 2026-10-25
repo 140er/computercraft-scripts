@@ -163,6 +163,29 @@ function P.fuelValue(name)
   return fuels[name] or 0
 end
 
+local burnValues = {
+  ["minecraft:oak_log"] = 15, ["minecraft:oak_wood"] = 15,
+  ["minecraft:stripped_oak_log"] = 15, ["minecraft:stripped_oak_wood"] = 15,
+  ["minecraft:spruce_log"] = 15, ["minecraft:spruce_wood"] = 15,
+  ["minecraft:stripped_spruce_log"] = 15, ["minecraft:stripped_spruce_wood"] = 15,
+  ["minecraft:birch_log"] = 15, ["minecraft:birch_wood"] = 15,
+  ["minecraft:stripped_birch_log"] = 15, ["minecraft:stripped_birch_wood"] = 15,
+  ["minecraft:jungle_log"] = 15, ["minecraft:jungle_wood"] = 15,
+  ["minecraft:stripped_jungle_log"] = 15, ["minecraft:stripped_jungle_wood"] = 15,
+  ["minecraft:acacia_log"] = 15, ["minecraft:acacia_wood"] = 15,
+  ["minecraft:stripped_acacia_log"] = 15, ["minecraft:stripped_acacia_wood"] = 15,
+  ["minecraft:dark_oak_log"] = 15, ["minecraft:dark_oak_wood"] = 15,
+  ["minecraft:stripped_dark_oak_log"] = 15, ["minecraft:stripped_dark_oak_wood"] = 15,
+  ["minecraft:mangrove_log"] = 15, ["minecraft:mangrove_wood"] = 15,
+  ["minecraft:stripped_mangrove_log"] = 15, ["minecraft:stripped_mangrove_wood"] = 15,
+  ["minecraft:cherry_log"] = 15, ["minecraft:cherry_wood"] = 15,
+  ["minecraft:stripped_cherry_log"] = 15, ["minecraft:stripped_cherry_wood"] = 15,
+}
+
+function P.burnValue(name)
+  return burnValues[name]
+end
+
 function P.free(inv)
   local occupied = {}
   for _, item in ipairs(inv) do
