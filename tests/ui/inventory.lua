@@ -10,7 +10,8 @@ local FIXTURE = {
   ['inventory-XS'] = 'tests/ui/fixtures/inventory-XS.txt', ['inventory3-XS'] = 'tests/ui/fixtures/inventory3-XS.txt',
   ['inventoryempty-S'] = 'tests/ui/fixtures/inventoryempty-S.txt',
   ['inventoryunknown-P'] = 'tests/ui/fixtures/inventoryunknown-P.txt',
-  ['inventorystale-M'] = 'tests/ui/fixtures/inventorystale-M.txt', ['turtleinv-S'] = 'tests/ui/fixtures/turtleinv-S.txt' }
+  ['inventorystale-M'] = 'tests/ui/fixtures/inventorystale-M.txt', ['turtleinv-S'] = 'tests/ui/fixtures/turtleinv-S.txt',
+  ['turtleinvflag-XS'] = 'tests/ui/fixtures/turtleinvflag-XS.txt' }
 
 local function read(path) local f=assert(io.open(path,'rb')) local text=f:read('*a') f:close() return text end
 
@@ -270,6 +271,49 @@ return function(test,equal)
     assert(text:find('1/2',1,true),'the page did not start at 1')
   end)
 
+  test('B10-U at 15x10 a retry flag and progress leave the inventory leader reachable',function()
+    local row={role='mining',state='mining',pose={x=12,y=60,z=-5,facing=1},fuel=42,lease='lease-2',
+      step='forward',ore=14,seen=97000,branch=0,done=12,total=48,
+      error='path blocked by bedrock below the branch',retry=130000}
+    local inv={id='2',known=true,stale=false,at=100000,slots={}}
+    local frame=U.turtle.render(15,10,{id='2'},row,100000,inv)
+    local hit
+    for _,b in ipairs(frame.buttons) do if b.id=='turtle-inventory' then hit=b end end
+    assert(hit,'no inventory leader at 15x10 under a retry flag')
+    local _,text=capture(frame,15,10)
+    assert(text:find('retry 30s',1,true),text)
+    -- Without the model the flag keeps its three rows.
+    _,text=capture(U.turtle.render(15,10,{id='2'},row,100000),15,10)
+    assert(not text:find('inventory',1,true),text)
+  end)
+
+  test('B10-U a hello with a missing or invalid journal id keeps the cached sample',function()
+    local s=setup(26,20,ON)
+    s.hello(sample())
+    local at=s.model().at
+    s.now=s.now+5000
+    for _,journal in ipairs({false,{},{id=7},{id=''},{id=string.rep('j',65)}}) do
+      s.hello({{slot=4,name='minecraft:dirt',count=1}},journal)
+      local m=s.model()
+      equal(m.known,true,'an invalid journal dropped the sample')
+      equal(m.at,at) equal(m.slots[1].name,'minecraft:diamond') equal(m.slots[4],nil)
+    end
+    s.hello(nil,{id='2-9'})
+    equal(s.model().known,false,'a valid different journal keeps the old sample')
+  end)
+
+  test('B10-U inventory BACK only fires inside its drawn rectangle',function()
+    local s=setup(26,20,ON)
+    s.hello(sample())
+    s.press('turtle:2') s.press('turtle-inventory')
+    local back=s.ids()['inventory-back']
+    assert(back.x>1)
+    s.display.handlers.input({from=9,body={id='inventory-back',x=1,y=20}})
+    assert(s.text():find('INVENTORY #2',1,true),'a tap at 1,h closed the inventory page')
+    s.press('inventory-back')
+    assert(s.text():find('TURTLE #2',1,true))
+  end)
+
   test('B10-U the inventory screens match the schematic fixtures',function()
     local T=U.turtle
     local slots={} for _,row in ipairs(SCENE.list) do slots[row.slot]={name=row.name,count=row.count} end
@@ -292,6 +336,10 @@ return function(test,equal)
       inv={{slot=1,count=14}},lease='lease-2',step='forward',ore=14,seen=97000,branch=0,done=12,total=48}
     local out=capture(T.render(29,12,{id='2'},row,100000,model('unknown')),29,12)
     local diff=R.diff(FIXTURE['turtleinv-S'],out)
+    assert(#diff==0,table.concat(diff,'\n'))
+    row.error,row.retry='path blocked by bedrock below the branch',130000
+    out=capture(T.render(15,10,{id='2'},row,100000,model('known')),15,10)
+    diff=R.diff(FIXTURE['turtleinvflag-XS'],out)
     assert(#diff==0,table.concat(diff,'\n'))
   end)
 

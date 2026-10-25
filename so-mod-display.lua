@@ -1085,8 +1085,8 @@ end
 
 -- turtleInventory. An authenticated turtle hello is the only sample: a dense array of at most 16
 -- { slot, name, count } rows with distinct slots 1..16, namespaced ids of at most 128 bytes and counts
--- 1..64, else the whole sample is rejected. A hello naming another journal drops the cached sample
--- first; one without a valid inventory leaves the cache and its time alone.
+-- 1..64, else the whole sample is rejected. A hello naming another valid journal id drops the cached
+-- sample first; one without a valid journal id or inventory leaves the cache and its time alone.
 D.invSample = function(inv)
   local function whole(n, hi) return type(n) == "number" and n % 1 == 0 and n >= 1 and n <= hi end
   if type(inv) ~= "table" then return nil end
@@ -1108,10 +1108,11 @@ D.invSample = function(inv)
 end
 D.observe = function(id, body)
   local key, journal = tostring(id), type(body.journal) == "table" and body.journal.id or nil
-  if type(journal) ~= "string" or #journal < 1 or #journal > 64 then journal = nil end
+  -- A hello without a valid journal id is no sample and leaves the cache alone.
+  if type(journal) ~= "string" or #journal < 1 or #journal > 64 then return end
   local old = D.inv[key]
   if old and old.journal ~= journal then D.inv[key] = nil end
-  local slots = journal and D.invSample(body.inv)
+  local slots = D.invSample(body.inv)
   if slots then D.inv[key] = { known = true, at = D.now(), journal = journal, slots = slots } end
 end
 -- The pure render model: unknown without a sample, stale 120 s after it.
@@ -1309,7 +1310,6 @@ D.turtleInput = function(event,w,h)
   if not selected and not target then return false end
   if selected and event.x >= 1 and event.x <= w and event.y == h then
     if id == "turtle-back" and not selected.draft and selected.page ~= "inventory" then session.turtle=nil return true end
-    if id == "inventory-back" and selected.page == "inventory" then selected.page,selected.inventoryPage=nil,nil return true end
     if id == "turtle-cancel" and selected.draft then selected.draft,selected.confirm=nil,nil return true end
   end
   if selected and selected.draft then selected.draft=Turtle.draft(selected.draft) end

@@ -243,7 +243,11 @@ def turtle(w, h, title, sel=None, row=None, now=None, inv=None):
     y, bottom = 2 + gap, top - 1 - gap
     retry = "retry %ds" % max(0, math.ceil((row["retry"] - now) / 1000)) if row.get("retry") is not None else ""
     if row.get("error") or retry:
-        y += flag_lines(cv, 2, y, w - 2, row.get("error") or "", retry, 3 if retry else 2, True) + gap
+        n = 3 if retry else 2
+        # With an inventory model the flag leaves rows for three leaders, so inventory stays reachable.
+        if inv:
+            n = max(1, min(n, bottom - y + 1 - gap - 3 - (1 + gap if row.get("total") is not None else 0)))
+        y += flag_lines(cv, 2, y, w - 2, row.get("error") or "", retry, n, True) + gap
     carried = list(inv["slots"].values()) if inv else row.get("inv") or []
     fuel = row.get("fuel")
     seen = row.get("seen")
@@ -350,8 +354,13 @@ def _inventory(w, h, title, kind, page=1):
     return lambda: inventory(w, h, title, inv_model(kind), page, now)
 
 
-def _turtleinv(w, h, title, kind):
-    return lambda: turtle(w, h, title, None, None, None, inv_model(kind))
+def _turtleinv(w, h, title, kind, flag=False):
+    def make():
+        row = detail_row()
+        if flag:
+            row["error"], row["retry"] = "path blocked by bedrock below the branch", SCENE["detail"]["now"] + 30000
+        return turtle(w, h, title, None, row, None, inv_model(kind))
+    return make
 
 
 def _turtle(w, h, title):
@@ -948,7 +957,9 @@ FIXTURES += [("inventory-P", _inventory(26, 20, "Turtle inventory at 26x20", "kn
              ("inventoryempty-S", _inventory(29, 12, "Known empty turtle inventory at 29x12", "empty")),
              ("inventoryunknown-P", _inventory(26, 20, "Unknown turtle inventory at 26x20", "unknown")),
              ("inventorystale-M", _inventory(57, 24, "Stale turtle inventory, room monitor 57x24", "stale")),
-             ("turtleinv-S", _turtleinv(29, 12, "Turtle detail with an unknown inventory at 29x12", "unknown"))]
+             ("turtleinv-S", _turtleinv(29, 12, "Turtle detail with an unknown inventory at 29x12", "unknown")),
+             ("turtleinvflag-XS", _turtleinv(15, 10, "Turtle detail with a retry flag and inventory at 15x10",
+                                             "known", True))]
 
 
 if __name__ == "__main__":

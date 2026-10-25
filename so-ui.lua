@@ -780,7 +780,10 @@ T.render = function(w,h,selection,row,now,inv)
   local retry = row.retry and ('retry '..math.max(0, math.ceil((row.retry - now) / 1000))..'s') or ''
   -- The countdown leads on its own row, so a long error cannot push it out.
   if row.error or retry ~= '' then
-    y = y + U.flagLines(c, 2, y, w - 2, row.error or '', retry, retry ~= '' and 3 or 2, true) + gap
+    local n = retry ~= '' and 3 or 2
+    -- With an inventory model the flag leaves rows for three leaders, so inventory stays reachable.
+    if inv then n = math.max(1, math.min(n, bottom - y + 1 - gap - 3 - (row.total and 1 + gap or 0))) end
+    y = y + U.flagLines(c, 2, y, w - 2, row.error or '', retry, n, true) + gap
   end
   local slots, count = 0, 0
   for _,item in pairs(inv and inv.slots or row.inv or {}) do slots = slots + 1 count = count + (item.count or 0) end

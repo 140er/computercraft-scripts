@@ -1,0 +1,31 @@
+15x10 Turtle detail with a retry flag and inventory at 15x10
+ TURTLE #2   m 
+ ! retry 30s   
+   path...     
+ po 12,60,-5 E 
+ fuel ····· 42 
+ in 6/16 · 126 
+ b1 |··· 12/48 
+  PARK ALL     
+  REMOVE       
+         BACK  
+0000000000000d0
+0e0888888888000
+000000000000000
+088000000000000
+088880ccccc0110
+088000000000000
+088038880000000
+000000000000000
+0eeeeeeee000000
+000000000000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f7777777777ffff
+f77777777ffffff
+ffffffff777777f
