@@ -12,7 +12,7 @@ local function private(fn, key)
   for i=1,40 do local n,v=debug.getupvalue(fn,i) if n==key then return v end end
   error("missing "..key)
 end
-local function setup(w,h)
+local function setup(w,h,config)
   local net = H.new()
   local m = net.machine({id=1,modem=true})
   m.install(FILES)
@@ -23,6 +23,7 @@ local function setup(w,h)
       f:close()
     end
   end
+  if config then m.files["so-server.cfg"] = H.encode(config) end
   m.boot("so-server.lua")
   net.flush()
   assert(m.alive(),tostring(m.error))
@@ -90,6 +91,220 @@ local function strokesShow(f,w,prefix)
   assert(n>0,"no "..prefix.." label drawn")
 end
 return function(test,equal)
+  local function packet(s, from, kind, body)
+    local key = s.so.pair.key(from)
+    local msg = s.so.proto.build(key, kind, body or {})
+    msg.from = from
+    msg.mac = s.so.proto.sign(key, msg)
+    return assert(s.so.proto.encode(msg))
+  end
+  local function deliver(s, from, wire)
+    s.m.env.os.queueEvent("rednet_message", from, wire, "so")
+    s.net.flush()
+    assert(s.m.alive(), tostring(s.m.error))
+  end
+  local function terminal(s, text)
+    for _=1,#s.so.terminal.input do s.m.env.os.queueEvent("key",14,false) end
+    s.m.env.os.queueEvent("paste", text)
+    s.m.env.os.queueEvent("key", 28, false)
+    s.net.flush()
+    assert(s.m.alive(), tostring(s.m.error))
+  end
+  local function openTerminal(s)
+    s.m.env.os.queueEvent("key", 19, false)
+    s.net.flush()
+    equal(s.so.terminal.mode, "role")
+  end
+  test("server refusal buckets separate shape time MAC and replay by sender without payloads",function()
+    local s = setup(26,20)
+    local accepted = 0
+    s.so.mods.state.handlers["f6c.silent"] = function() accepted = accepted + 1 end
+    deliver(s,2,{secret="untrusted body"})
+    local old = packet(s,2,"hello")
+    old.at = old.at - 120001
+    deliver(s,2,old)
+    local bad = packet(s,2,"hello",{secret="untrusted body"})
+    bad.mac = string.rep("0",64)
+    deliver(s,2,bad)
+    local once = packet(s,2,"f6c.silent")
+    deliver(s,2,once); deliver(s,2,once)
+    deliver(s,3,packet(s,2,"hello"))
+    equal(accepted,1)
+    local facts = s.so.health.refused
+    equal(facts.senders[2].shape,1); equal(facts.senders[2].time,1)
+    equal(facts.senders[2].mac,1); equal(facts.senders[2].replay,1)
+    equal(facts.senders[3].shape,1); equal(facts.senders[3].mac,0)
+    local text = H.encode(facts)
+    assert(not text:find("untrusted body",1,true) and not text:find(s.so.pair.key(2),1,true))
+    equal(s.so.errors.status().count,0)
+  end)
+  test("server refusal flood bounds sender buckets and leaves the error ring untouched",function()
+    local s = setup(26,20)
+    local count = s.so.errors.status().count
+    for i=1,512 do deliver(s,100+i,{}) end
+    local facts, countSenders = s.so.health.refused, 0
+    for _ in pairs(s.so.health.refused.senders) do countSenders = countSenders + 1 end
+    equal(countSenders,facts.cap); equal(facts.cap,128)
+    equal(s.so.errors.status().count,count)
+    equal(#s.so.terminal.log,200)
+    assert(s.so.terminal.log[200]:find("612",1,true))
+    local at = s.so.now()
+    s.so.now = function() return at + facts.windowMs end
+    deliver(s,612,{})
+    equal(facts.senders[612].shape,1)
+    s.net.advance(1.05)
+    countSenders = 0
+    for _ in pairs(facts.senders) do countSenders = countSenders + 1 end
+    equal(countSenders,1)
+    equal(s.so.errors.status().count,count)
+  end)
+  test("server flood of 192 failing dispatches keeps the newest 128 errors and cached replies",function()
+    local s = setup(26,20)
+    local calls, wire = 0, nil
+    s.so.mods.state.handlers["f6c.fail"] = function(msg)
+      calls = calls + 1
+      error("flood " .. msg.body.n,0)
+    end
+    for i=1,192 do
+      wire = packet(s,2,"f6c.fail",{n=i})
+      deliver(s,2,wire)
+      local reply = assert(s.so.proto.decode(s.m.sent[#s.m.sent].payload))
+      equal(reply.t,"err"); equal(reply.body,{code="handler"})
+      equal(reply.rid,wire.rid)
+      assert(s.so.proto.macOk(s.so.pair.key(2),reply))
+    end
+    local entries = s.so.errors.entries()
+    equal(#entries,128); equal(s.so.errors.status().count,128)
+    for i,entry in ipairs(entries) do equal(entry.text,"so-server: handler f6c.fail failed: flood " .. (i+64)) end
+    local cached = s.m.sent[#s.m.sent].payload
+    deliver(s,2,wire)
+    equal(calls,192); equal(s.m.sent[#s.m.sent].payload,cached)
+    equal(s.so.errors.entries(),entries)
+  end)
+  test("server module tick timing names the slowest peak and ages it in game time",function()
+    local s = setup(26,20)
+    local clock, extra = s.m.env.os.clock, 0
+    s.m.env.os.clock = function() return clock()+extra end
+    s.so.mods.mine.tick = function() extra = extra + 0.025 end
+    s.so.mods.lumber.tick = function() extra = extra + 0.080 end
+    s.net.advance(1.05)
+    local health = s.so.health
+    equal(health.modules["so-mod-mine.lua"].tickMs,25)
+    equal(health.modules["so-mod-lumber.lua"].tickMs,80)
+    equal(health.modules["so-mod-lumber.lua"].peakMs,80)
+    equal(health.slowest.name,"lumber"); equal(health.slowest.tickMs,80)
+    equal(health.slowest.age,0)
+    s.so.mods.mine.tick = function() end
+    s.so.mods.lumber.tick = function() end
+    s.net.advance(1.05)
+    equal(health.modules["so-mod-lumber.lua"].tickMs,0)
+    equal(health.modules["so-mod-lumber.lua"].peakMs,80)
+    assert(health.slowest.age >= 1000)
+    s.so.mods.lumber.tick = function() extra=extra+0.090 error("slow failure",0) end
+    s.net.advance(1.05)
+    equal(health.modules["so-mod-lumber.lua"].tickMs,90)
+    equal(health.modules["so-mod-lumber.lua"].peakMs,90)
+    equal(health.modules["so-mod-lumber.lua"].tickError,"slow failure")
+    equal(health.slowest.tickMs,90); equal(health.slowest.age,0)
+  end)
+  test("forget impact reads parks 1 job for lumber and counts jobs and scans without writes",function()
+    local s = setup(26,20)
+    local so = s.so
+    private(so.mods.lumber.forget,"S").job.turtles["3"] = {turtle={id=3},inv={}}
+    local before = H.encode(s.m.files)
+    local impact = so.forgetImpact(3)
+    equal(impact,{jobs=1,scans=0,jobNames={"lumber"},text="parks 1 job"})
+    equal(H.encode(s.m.files),before)
+    private(so.mods.mine.assigned,"job").turtles["3"] = {}
+    private(so.mods.build.forget,"j").turtle = {id=3}
+    private(so.mods.drops.busy,"S").task = {id=3}
+    before = H.encode(s.m.files)
+    impact = so.forgetImpact(3)
+    equal(impact,{jobs=3,scans=1,jobNames={"mine","lumber","build"},text="parks 3 jobs; holds 1 scan"})
+    equal(so.forgetImpact(4).text,"parks 0 jobs")
+    equal(so.forgetImpact(999).jobs,0)
+    equal(H.encode(s.m.files),before)
+    assert(so.pair.key(3))
+    impact.jobNames[1] = "changed"
+    equal(so.forgetImpact(3).jobNames,{"mine","lumber","build"})
+  end)
+  test("terminal revoke is disabled by default and refuses an unknown device",function()
+    local s = setup(26,20)
+    openTerminal(s)
+    local before = H.encode(s.m.files)
+    terminal(s,"3 revoke"); terminal(s,"3")
+    assert(s.so.pair.key(3))
+    equal(H.encode(s.m.files),before)
+    s.m.files["so-server.cfg"] = H.encode({terminalRevoke=true})
+    terminal(s,"999 revoke")
+    equal(s.so.terminal.notice,"device not paired")
+  end)
+  test("terminal revoke refuses a mismatched id without changing keys jobs leases scans or reservations",function()
+    local s = setup(26,20,{terminalRevoke=true})
+    local so = s.so
+    local mine = private(so.mods.mine.assigned,"job")
+    mine.turtles["3"] = {state="mining",recover=false}
+    local lumber = private(so.mods.lumber.forget,"S").job
+    lumber.turtles["3"] = {turtle={id=3},inv={}}
+    local build = private(so.mods.build.forget,"j")
+    build.turtle, build.running = {id=3}, true
+    local drops = private(so.mods.drops.busy,"S")
+    drops.task = {id=3,lease="scan"}
+    local lease = private(so.mods.lease.forget,"S")
+    lease.turtles[3] = {open={id="moving"}}
+    assert(so.mods.cells.reserve("setup:3",5,64,0,"minecraft:overworld"))
+    openTerminal(s)
+    local function snapshot()
+      return H.encode({files=s.m.files,mine=mine,lumber=lumber,build=build,task=drops.task,lease=lease.turtles[3],
+        keys=so.pair.list(),pending=so.pair.forgetPending(),forgotten=so.mods.state.get("pair.forgotten"),sent=s.m.sent})
+    end
+    local before = snapshot()
+    terminal(s,"3 revoke")
+    equal(snapshot(),before)
+    terminal(s,"4")
+    equal(so.terminal.notice,"revoke id mismatch")
+    equal(snapshot(),before)
+    equal(so.mods.cells.owner(5,64,0,"minecraft:overworld"),"setup:3")
+    terminal(s,"3")
+    equal(snapshot(),before)
+  end)
+  test("terminal revoke with a repeated id uses durable forget cleanup and preserves held cells",function()
+    local s = setup(26,20,{terminalRevoke=true})
+    local so = s.so
+    local job = private(so.mods.lumber.forget,"S").job
+    job.turtles["3"] = {turtle={id=3},inv={}}
+    assert(so.mods.cells.reserve("lumber:3",5,64,0,"minecraft:overworld"))
+    openTerminal(s)
+    terminal(s,"3 revoke")
+    assert(so.terminal.notice:find("parks 1 job",1,true))
+    assert(so.pair.key(3))
+    terminal(s,"3")
+    equal(so.pair.key(3),nil); assert(so.pair.key(4))
+    assert(job.turtles["3"].turtle.forgotten and job.turtles["3"].paused)
+    equal(so.mods.cells.owner(5,64,0,"minecraft:overworld"),"lumber:3")
+    equal(so.pair.forgetPending(),{})
+    equal(so.mods.state.get("pair.forgotten").actor,1)
+  end)
+  for _,kind in ipairs({"escape","expired","rekeyed","disabled"}) do
+    test("terminal revoke refuses a confirmation after " .. kind,function()
+      local s = setup(26,20,{terminalRevoke=true})
+      openTerminal(s)
+      terminal(s,"3 revoke")
+      if kind == "escape" then
+        s.m.env.os.queueEvent("key",1,false); s.net.flush(); openTerminal(s)
+      elseif kind == "expired" then
+        local at = s.so.now()
+        s.so.now = function() return at+15000 end
+      elseif kind == "rekeyed" then
+        assert(s.so.pair.remember(3,string.rep("ab",32)))
+      else s.m.files["so-server.cfg"] = H.encode({terminalRevoke=false}) end
+      local before = H.encode(s.m.files)
+      terminal(s,"3")
+      assert(s.so.pair.key(3))
+      equal(H.encode(s.m.files),before)
+      equal(s.so.pair.forgetPending(),{})
+    end)
+  end
   test("forget and confirm labels keep their top stroke on the panel and pocket",function()
     for _,size in ipairs({{26,20},{29,12},{57,24}}) do
       local s=setup(unpack(size))

@@ -77,6 +77,26 @@ S.run = function()
     end
   end
   SO.health = { started = SO.now(), tickMs = 0, modules = {} }
+  SO.health.refused = { windowMs = 600000, cap = 128, senders = {} }
+  local function refused(sender, reason)
+    local facts, at = SO.health.refused, SO.now()
+    local bucket = math.floor(at / facts.windowMs)
+    local row = facts.senders[sender]
+    if not row then
+      local count, oldest = 0, nil
+      for id, candidate in pairs(facts.senders) do
+        count = count + 1
+        if not oldest or candidate.last < facts.senders[oldest].last then oldest = id end
+      end
+      if count >= facts.cap then facts.senders[oldest] = nil end
+    end
+    if not row or row.bucket ~= bucket then
+      row = { bucket = bucket, shape = 0, time = 0, mac = 0, replay = 0, blocked = 0 }
+      facts.senders[sender] = row
+    end
+    row.last, row[reason] = at, row[reason] + 1
+    -- Refused network input never writes to the durable error ring.
+  end
   for _, name in ipairs({"ar","build","cells","daily","display","drops","health","lease",
     "lumber","map","mine","panel","shop","state"}) do
     SO.health.modules["so-mod-"..name..".lua"] = {status="absent"}
@@ -123,7 +143,7 @@ S.run = function()
     started = SO.now(), offset = 0 }
   SO.terminal = view
   local memory = 120000
-  local codeOwner
+  local codeOwner, revoke
   -- Envelopes stamped before this start were handled by an earlier run.
   proto.since(os.epoch("utc"))
 
@@ -135,6 +155,7 @@ S.run = function()
 
   local function showPrompt()
     view.mode, view.offset = "normal", 0
+    revoke = nil
     view.codeError = nil
     if term and not term.blit then
       term.clear()
@@ -175,6 +196,23 @@ S.run = function()
   end
 
   local forgetNames = {"mine", "lumber", "build", "drops", "lease", "display"}
+  SO.forgetImpact = function(id)
+    local impact = { jobs = 0, scans = 0, jobNames = {} }
+    if pair.key(id) then
+      for _, name in ipairs({"mine", "lumber", "build"}) do
+        local mod = SO.mods[name]
+        if mod and type(mod.assigned) == "function" and mod.assigned(id) then
+          impact.jobs = impact.jobs + 1
+          impact.jobNames[#impact.jobNames + 1] = name
+        end
+      end
+      local drops = SO.mods.drops
+      if drops and type(drops.busy) == "function" and drops.busy(id) then impact.scans = 1 end
+    end
+    impact.text = "parks " .. impact.jobs .. (impact.jobs == 1 and " job" or " jobs")
+    if impact.scans > 0 then impact.text = impact.text .. "; holds 1 scan" end
+    return impact
+  end
   local function finishForget(row)
     local id = row.id
     sent[id] = nil
@@ -550,8 +588,9 @@ S.run = function()
   end
 
   local function dispatch(sender, payload)
-    local msg = proto.decode(payload)
+    local msg, why = proto.decode(payload)
     if not msg or msg.from ~= sender then
+      refused(sender, why == "time" and "time" or "shape")
       print("so-server: bad message from " .. tostring(sender))
       return
     end
@@ -563,6 +602,7 @@ S.run = function()
     elseif msg.t == "pair" then
       local code = pair.pending()
       if code and pair.blocked(msg.from) and not recall(msg) then
+        refused(sender, "blocked")
         print("so-server: pair blocked " .. tostring(sender))
         return
       end
@@ -583,6 +623,7 @@ S.run = function()
         and proto.macOk(slot.hs, msg) then key = slot.hs end
     end
     if not key or not proto.macOk(key, msg) then
+      refused(sender, "mac")
       if msg.t == "pair" and pair.pending() then reject(msg.from, true) end
       if msg.t == "hello" or msg.t == "beacon" or msg.t == "step.report" then
         rednet.send(sender, { t = "pair.required", from = os.getComputerID() }, "so")
@@ -597,6 +638,7 @@ S.run = function()
       return
     end
     if not fresh then
+      refused(sender, "replay")
       print("so-server: replay from " .. tostring(sender))
       return
     end
@@ -626,14 +668,38 @@ S.run = function()
   local pairKey = (type(keys) == "table" and keys.p) or 25
   local roleKey = (type(keys) == "table" and keys.r) or 19
   local function keyCode(name, legacy) return (type(keys) == "table" and keys[name]) or legacy end
+  local function terminalCommand(text)
+    local pending = revoke
+    revoke = nil
+    local id = text:match("^%s*(%d+)%s+revoke%s*$")
+    if not pending and not id then return nil end
+    local cfg = readConfig()
+    if not cfg or cfg.terminalRevoke ~= true then return false, "terminal revoke disabled" end
+    if pending then
+      local confirm = text:match("^%s*(%d+)%s*$")
+      if not confirm or tonumber(confirm) ~= pending.id then return false, "revoke id mismatch" end
+      if SO.now() >= pending.expires or pair.key(pending.id) ~= pending.key then
+        return false, "revoke confirmation expired"
+      end
+      local ok, err = SO.forgetDevice(pending.id, os.getComputerID())
+      return ok, ok and ("Forgot device " .. pending.id) or err
+    end
+    id = tonumber(id)
+    local key = pair.key(id)
+    if not key then return false, "device not paired" end
+    revoke = { id = id, key = key, expires = SO.now() + 15000 }
+    return true, "Type " .. id .. " to revoke; " .. SO.forgetImpact(id).text
+  end
   -- R opens a one-line "<id> <role>" prompt; display.command applies it.
   local function roleKeyEvent(a)
     if a == keyCode("enter", 28) or a == keyCode("numPadEnter", 156) then
       local display = SO.mods.display
-      local ok, text = false, "display module missing"
-      if display and type(display.command) == "function" then
+      local ok, text = terminalCommand(view.input)
+      if ok == nil and display and type(display.command) == "function" then
         local called, a1, a2 = pcall(display.command, view.input)
         if called then ok, text = a1, a2 else text = "role command failed: " .. tostring(a1) end
+      elseif ok == nil then
+        ok, text = false, "display module missing"
       end
       print("role: " .. tostring(text))
       view.notice = text
@@ -641,7 +707,7 @@ S.run = function()
     elseif a == keyCode("backspace", 14) then
       view.input = view.input:sub(1, -2)
     elseif a == keyCode("escape", 1) then
-      view.mode, view.input, view.notice = "normal", nil, nil
+      view.mode, view.input, view.notice, revoke = "normal", nil, nil, nil
     end
     view.swallow = false
   end
@@ -656,6 +722,9 @@ S.run = function()
     local began, now = os.clock(), SO.now()
     local wall = os.epoch("utc")
     local health = SO.health
+    for id, row in pairs(health.refused.senders) do
+      if row.bucket ~= math.floor(now / health.refused.windowMs) then health.refused.senders[id] = nil end
+    end
     if health.last then health.cadence, health.wallCadence = now-health.last, wall-health.wall end
     health.last, health.wall = now, wall
     for from, by in pairs(sent) do
@@ -669,8 +738,16 @@ S.run = function()
     for i = 1, #mods do
       local fn = mods[i].tick
       if type(fn) == "function" then
+        local moduleBegan = os.clock()
         local ok, err = pcall(fn, now)
         local status = mods[i].healthStatus
+        status.tickMs = math.max(0, math.floor((os.clock() - moduleBegan) * 1000 + 0.5))
+        if not status.peakMs or status.tickMs > status.peakMs then
+          status.peakMs, status.peakAt = status.tickMs, now
+        end
+        if not health.slowest or status.peakMs > health.slowest.tickMs then
+          health.slowest = { name = mods[i].name, tickMs = status.peakMs, at = status.peakAt }
+        end
         if ok then status.lastGood, status.tickError = now, nil
         else
           status.tickError = tostring(err):sub(1,160)
@@ -678,6 +755,7 @@ S.run = function()
         end
       end
     end
+    if health.slowest then health.slowest.age = now - health.slowest.at end
     SO.health.tickMs = math.floor((os.clock()-began)*1000+0.5)
     if S.errors then S.errors.flush(now) end
     timer, ticked = os.startTimer(1), os.clock()
@@ -700,6 +778,7 @@ S.run = function()
       view.swallow = false
       redraw()
     elseif ev == "key" and a == roleKey and not b and view.mode ~= "code" then
+      revoke = nil
       view.mode, view.offset, view.input, view.notice, view.swallow = "role", 0, "", nil, true
       redraw()
     elseif ev == "key" and a == pairKey and not b then
