@@ -1,5 +1,5 @@
 {
-  "sync_commit": "a0026388576f06fbbb5b4a670c53f7357d6a3f42",
+  "sync_commit": "a5f8de520e1ce15dafe2f352e6c54766eb7b088a",
   "covered_file": "so-mod-lease.lua",
   "source_sha256": "b5514c400c13a86790c836264f7e33e630ab7facf751653eb3b80061bb3b6cd3",
   "tool": "Lua 5.2.4  Copyright (C) 1994-2015 Lua.org, PUC-Rio",
@@ -66,5 +66,5 @@
     "output": "FINDING restart-id-reuse at fixed clock send_a=2-0-1 restart send_b=2-0-1 old_report_a closes send_b\nPASS traces=483841 comparisons=17418260\n"
   },
   "scratch_removed": true,
-  "elapsed_seconds": 47.549
+  "elapsed_seconds": 37.017
 }

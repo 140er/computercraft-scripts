@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SYNC_COMMIT = "a0026388576f06fbbb5b4a670c53f7357d6a3f42"
+SYNC_COMMIT = "a5f8de520e1ce15dafe2f352e6c54766eb7b088a"
 MUTATIONS = {
     "dispatch": (
         'if row.open then return nil, "busy" end',
