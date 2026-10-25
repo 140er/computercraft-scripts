@@ -67,7 +67,7 @@ def mining_model(empty=False):
 
 
 def chest_check(points, kind, near):
-    """so-plan's chestCheck for unverified points: the nearest working point of the kind or any."""
+    """so-plan's chestCheck for points that are not scanned: the nearest working point of the kind or any."""
     best = None
     for p in points:
         if p["kind"] in (kind, "any") and not p["broken"]:
@@ -78,7 +78,7 @@ def chest_check(points, kind, near):
     if not best:
         return (False, "no %s chest set" % kind)
     p = best[1]
-    return (True, "%s #%s unverified at %d,%d,%d" % (kind, p["id"], p["x"], p["y"], p["z"]))
+    return (True, "%s #%s not scanned at %d,%d,%d" % (kind, p["id"], p["x"], p["y"], p["z"]))
 
 
 def mining_setup(m, rows):
