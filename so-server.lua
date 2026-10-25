@@ -306,6 +306,98 @@ S.run = function()
     end
     return type(config) == "table" and config.enroll == true
   end
+  local updates = {}
+  local function installedRevision()
+    if type(fs.open) ~= "function" then return nil end
+    local h = fs.open(".so-revision", "r")
+    local value = h and h.readAll():match("^%s*(.-)%s*$")
+    if h then h.close() end
+    return type(value) == "string" and #value == 40 and not value:find("[^0-9a-f]") and value or nil
+  end
+  local runningRevision = installedRevision()
+  local function updateIdle(id)
+    local lease = SO.mods.lease
+    local row = lease and lease.peek(id)
+    if not row or row.open or row.probing or row.uncertain or row.lost then return false end
+    for _, name in ipairs({"mine", "lumber", "build", "drops"}) do
+      local mod = SO.mods[name]
+      if mod and (mod.assigned and mod.assigned(id) or mod.busy and mod.busy(id)) then return false end
+    end
+    return true
+  end
+  local function expireUpdate(row)
+    if row.untilAt and SO.now() >= row.untilAt and (row.state == "requested" or row.state == "awaiting reboot") then
+      row.state, row.text = "unconfirmed", "update timed out"
+    end
+    if row.key ~= pair.key(row.id) then row.state, row.capable = "unconfirmed", false end
+  end
+  SO.workerUpdate = function(id)
+    local row = updates[id]
+    if not row then return nil end
+    expireUpdate(row)
+    return {revision=row.target, running=row.revision, state=row.state, text=row.text, rid=row.rid}
+  end
+  SO.updateWorker = function(id)
+    local cfg, row, key = readConfig(), updates[id], pair.key(id)
+    if type(cfg) ~= "table" or cfg.panelUpdates ~= true then return nil, "updates disabled" end
+    if not row or not key or row.key ~= key or not row.capable then return nil, "update required" end
+    if not row.remote then return nil, "updates disabled" end
+    expireUpdate(row)
+    if row.state == "requested" or row.state == "awaiting reboot" then return nil, "update pending" end
+    if not runningRevision or not row.revision or runningRevision == row.revision then return nil, "invalid revision" end
+    if SO.now()-row.seen >= 45000 or not updateIdle(id) then return nil, "worker busy" end
+    local msg = proto.build(key, "worker.update", {revision=runningRevision})
+    local wire = proto.encode(msg)
+    if not wire then return nil, "update encode failed" end
+    row.rid, row.target, row.untilAt = msg.rid, runningRevision, SO.now()+120000
+    row.state, row.text = "requested", nil
+    local ok, result = pcall(rednet.send, id, wire, "so")
+    if not ok or result == false then row.state, row.text="unconfirmed", "send failed" return nil, "send failed" end
+    return msg.rid
+  end
+  local hello = builtin.hello
+  builtin.hello = function(msg, reply)
+    hello(msg, reply)
+    local body, row = msg.body, updates[msg.from]
+    if not row then
+      local count, oldest = 0, nil
+      for id, candidate in pairs(updates) do
+        count = count+1
+        expireUpdate(candidate)
+        if candidate.state ~= "requested" and candidate.state ~= "awaiting reboot"
+          and (not oldest or candidate.seen < updates[oldest].seen) then oldest=id end
+      end
+      if count >= 128 then if oldest then updates[oldest]=nil else return end end
+      row = {id=msg.from}
+      updates[msg.from] = row
+    elseif row.key ~= pair.key(msg.from) then
+      row.rid, row.target, row.untilAt, row.state, row.text = nil, nil, nil, nil, nil
+    end
+    row.key, row.seen = pair.key(msg.from), SO.now()
+    row.capable = (body.role == "turtle" or body.role == "worker")
+      and type(body.capabilities) == "table" and body.capabilities.pinnedUpdate == true
+    row.remote = body.remoteUpdates == true
+    row.revision = type(body.revision) == "string" and #body.revision == 40
+      and not body.revision:find("[^0-9a-f]") and body.revision or nil
+    expireUpdate(row)
+    if row.state == "awaiting reboot" and row.revision == row.target then row.state="complete" end
+    if row.capable and row.remote and updateIdle(msg.from) then
+      local wire = proto.encode(proto.build(row.key, "worker.status", {job="",reason="",idleRid=msg.rid}))
+      if wire then rednet.send(msg.from, wire, "so") end
+    end
+  end
+  local function updateReply(msg)
+    local row, body = updates[msg.from], msg.body
+    if not row or body.command ~= "worker.update" then return end
+    expireUpdate(row)
+    if row.state ~= "requested" or row.rid ~= msg.rid or row.key ~= pair.key(msg.from) then return end
+    if msg.t == "ack" and body.revision == row.target and body.state == "accepted" then
+      row.state = "awaiting reboot"
+    elseif msg.t == "err" and body.code == "update" and (body.revision == nil or body.revision == row.target) then
+      row.state, row.text = "refused", tostring(body.text or "update refused"):sub(1,128)
+    end
+  end
+  builtin.ack, builtin.err = updateReply, updateReply
   SO.enroll = {
     enabled = enrollEnabled,
     setEnabled = function(enabled)

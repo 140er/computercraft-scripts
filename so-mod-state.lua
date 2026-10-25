@@ -117,7 +117,7 @@ H.machine = function(row)
   if type(row.pose) == "table" then
     pose = { dim = row.pose.dim, x = row.pose.x, y = row.pose.y, z = row.pose.z, facing = row.pose.facing }
   end
-  return { id = row.id, role = row.role, label = row.label, fp = row.fp, seen = row.seen, fuel = row.fuel, pose = pose }
+  return { id = row.id, role = row.role, label = row.label, revision = row.revision, fp = row.fp, seen = row.seen, fuel = row.fuel, pose = pose }
 end
 
 H.builtin = function(name)
@@ -137,18 +137,14 @@ H.descend = function(root, rest)
     end
     cur = nxt
   end
-  if type(cur) == "table" then return H.copy(cur) end
-  return cur
+  return H.copy(cur)
 end
 
 H.tail = function(evs)
-  local out, start = {}, #evs - 49
-  if start < 1 then start = 1 end
-  local i = start
-  while i <= #evs do
+  local out = {}
+  for i = math.max(1, #evs - 49), #evs do
     local ev = evs[i]
     out[#out + 1] = { seq = ev.seq, at = ev.at, gameAt = ev.gameAt, kind = ev.kind, data = ev.data }
-    i = i + 1
   end
   return out
 end
@@ -161,11 +157,8 @@ H.fleet = function(S)
     if na and nb then return na < nb end
     return tostring(a) < tostring(b)
   end)
-  local out, i = {}, 1
-  while i <= #ids do
-    out[i] = H.machine(S.machines[ids[i]])
-    i = i + 1
-  end
+  local out = {}
+  for i, id in ipairs(ids) do out[i] = H.machine(S.machines[id]) end
   return out
 end
 
@@ -186,6 +179,7 @@ H.apply = function(S, ev)
   if ev.kind == "machine" and type(ev.data) == "table" and type(ev.data.id) == "number" then
     local row = H.ensure(S, ev.data.id)
     if ev.data.role ~= nil then row.role = ev.data.role end
+    if ev.data.revision ~= nil then row.revision = ev.data.revision end
     if type(ev.data.label) == "string" then row.label = ev.data.label end
     if ev.data.fp ~= nil then row.fp = ev.data.fp end
     if ev.data.fuel ~= nil then row.fuel = ev.data.fuel end
@@ -258,10 +252,8 @@ H.events = function()
 end
 
 do
-  local evs, i = H.events(), 1
-  while i <= #evs do
-    if evs[i].seq > S.seq then H.apply(S, evs[i]) end
-    i = i + 1
+  for _, ev in ipairs(H.events()) do
+    if ev.seq > S.seq then H.apply(S, ev) end
   end
 end
 
@@ -298,11 +290,7 @@ H.flush = function()
 end
 
 H.touch = function()
-  local i = 1
-  while i <= #S.subs do
-    S.subs[i].dirty = true
-    i = i + 1
-  end
+  for _, sub in ipairs(S.subs) do sub.dirty = true end
   H.flush()
 end
 
@@ -499,14 +487,17 @@ local function hello(msg)
     emit("pair.done",{id=msg.from,role=role,label=label,at=paired.at})
   end
   local row = S.machines[tostring(msg.from)]
+  local revision = type(body.revision) == "string" and #body.revision == 40
+    and not body.revision:find("[^0-9a-f]") and body.revision or false
   local oldFuel = row and (H.coalesce and row.eventFuel or row.fuel)
   local changed = row and fuel ~= nil and (type(fuel) ~= type(oldFuel)
     or type(fuel) == "number" and (math.abs(fuel - oldFuel) >= 100 or (fuel == 0) ~= (oldFuel == 0)))
+  local fp = H.coalesce and H.fp(msg.from) or nil
+  local structural = not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
+    or fp ~= nil and fp ~= row.fp or label ~= nil and label ~= row.label or revision ~= (row.revision or false)
   if H.coalesce then
-    local fp = H.fp(msg.from)
-    if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
-      or fp ~= nil and fp ~= row.fp or label ~= nil and label ~= row.label or changed then
-      emit("machine", { id=msg.from, role=role, label=label, fuel=fuel, seen=now, journal=journal, fp=fp })
+    if structural or changed then
+      emit("machine", { id=msg.from, role=role, label=label, fuel=fuel, seen=now, journal=journal, fp=fp, revision=revision })
     elseif row.seen ~= now or fuel ~= nil and row.fuel ~= fuel then
       row.seen, row.fuel = now, fuel or row.fuel
       S.rev = S.rev + 1
@@ -514,13 +505,12 @@ local function hello(msg)
     end
     return
   end
-  if row and H.disk().pressure and role == row.role and journal == row.journal
+  if row and not structural and H.disk().pressure and role == row.role and journal == row.journal
     and (label == nil or label == row.label) and (fuel == nil or fuel == row.fuel) then
     row.seen, row.fuel = now, fuel or row.fuel return
   end
-  if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
-    or label ~= nil and label ~= row.label or changed or now - (row.seen or 0) >= 60000 then
-    emit("machine", { id = msg.from, role = role, label = label, fuel = fuel, seen = now, journal = journal })
+  if structural or changed or now - (row.seen or 0) >= 60000 then
+    emit("machine", { id=msg.from, role=role, label=label, fuel=fuel, seen=now, journal=journal, revision=revision })
   end
 end
 
