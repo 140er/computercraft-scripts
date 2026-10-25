@@ -62,3 +62,31 @@ view map-39x19 39x19 all fit drop 3
 view map-29x12 29x12 -58 2x2 150 -366 cell 150 -366
 view map-15x10 15x10 all fit
 view schematic-map-XL 164x81 all fit
+ore-find 1 minecraft:overworld 155 -58 -367 0
+ore-find 2 minecraft:the_nether 154 64 -367 0
+ore-find 3 minecraft:overworld 156 -57 -367 0
+ore-find 4 minecraft:overworld 157 -59 -367 0
+ore-find 5 minecraft:overworld 158 -58 -367 599999
+ore-find 6 minecraft:overworld 159 -58 -367 600000
+ore-find 7 minecraft:overworld 153 -58 -366 -1
+ore-find 8 minecraft:overworld 160 -58 -373 0
+ore-find 9 minecraft:overworld 161 -58 -373 0
+ore-find 10 minecraft:overworld 162 -57 -373 0
+ore-find 11 minecraft:overworld 184 -58 -369 0
+ore-find 12 minecraft:overworld 185 -58 -369 0
+ore-find 13 minecraft:overworld 178 -58 -365 0
+ore-find 14 minecraft:overworld 120 -58 -350 0
+ore-find 15 minecraft:overworld 125 -58 -350 0
+ore-find 16 minecraft:overworld 155 -58 -367 10
+ore-find 17 minecraft:overworld 156 -58 -366 0
+ore-find 18 minecraft:overworld 110 64 -348 0
+ore-find 19 minecraft:overworld 101 65 -347 0
+ore-find 20 minecraft:overworld 117 64 -337 0
+ore-find 21 minecraft:overworld 5000 -58 5000 0
+ore-view map-ore-off 57x24 all fit off 0
+ore-view map-ore-all 57x24 all fit on 0
+ore-view map-ore-level 57x24 -58 1x1 158 -367 on 0
+ore-view map-ore-zoom 29x12 -58 2x2 150 -366 on 0
+ore-view map-ore-boundary 57x24 -58 1x1 158 -367 on 1
+ore-view map-ore-expired 57x24 -58 1x1 158 -367 on 600000
+ore-view map-ore-callout 57x24 -58 1x1 158 -367 on 0 turtle 6

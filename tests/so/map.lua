@@ -21,7 +21,7 @@ local function words(path)
   return out
 end
 local function loadScene()
-  local s = {dug={}, reserve={}, poses={}, drops={}, spots={}, views={}, jobs={}, leases={}}
+  local s = {dug={}, reserve={}, poses={}, drops={}, spots={}, views={}, jobs={}, leases={}, finds={}, oreViews={}}
   for _, a in ipairs(words("tests/ui/map-scene.txt")) do
     local n = {}
     for i = 2, #a do n[#n+1] = tonumber(a[i]) end
@@ -55,6 +55,21 @@ local function loadScene()
       -- builder ID X Y Z F FUEL AGO
       s.build.id, s.build.pose = a[2], {x=tonumber(a[3]), y=tonumber(a[4]), z=tonumber(a[5]), f=tonumber(a[6])}
       s.build.fuel, s.build.ago = tonumber(a[7]), tonumber(a[8])
+    elseif k == "ore-find" then
+      s.finds[#s.finds+1] = {seq=tonumber(a[2]), kind="mine.ore", gameAt=-tonumber(a[7]),
+        data={name="minecraft:diamond_ore",count=1,
+          pos={dim=a[3],x=tonumber(a[4]),y=tonumber(a[5]),z=tonumber(a[6])}}}
+    elseif k == "ore-view" then
+      local w, h = a[3]:match("(%d+)x(%d+)")
+      local v = {name=a[2],w=tonumber(w),h=tonumber(h),map={level=a[4]=="all" and "all" or tonumber(a[4]),fit=a[5]=="fit"}}
+      local rest = 6
+      if a[5] ~= "fit" then
+        local sx, sz = a[5]:match("(%d+)x(%d+)")
+        v.map.sx,v.map.sz,v.map.cx,v.map.cz,rest = tonumber(sx),tonumber(sz),tonumber(a[6]),tonumber(a[7]),8
+      end
+      v.map.oreFinds,v.elapsed = a[rest]=="on",tonumber(a[rest+1])
+      if a[rest+2] then v.map.pick={k=a[rest+2],id=a[rest+3]} end
+      s.oreViews[#s.oreViews+1]=v
     elseif k == "view" then
       -- view NAME WxH LEVEL fit|SXxSZ CX CZ [turtle ID | drop ID | server | shaft | cell X Z]
       local w, h = a[3]:match("(%d+)x(%d+)")
@@ -1861,6 +1876,60 @@ return function(test,equal)
     assert(#proto.ser(s.settle(164,81,session))<=15000,"builder frame over budget")
   end)
 
+
+  test("B4-UD ore drawing matches every fixture in the shared scene",function()
+    local fixtures = {
+      ["map-ore-off"]="tests/ui/fixtures/map-ore-off.txt", ["map-ore-all"]="tests/ui/fixtures/map-ore-all.txt",
+      ["map-ore-level"]="tests/ui/fixtures/map-ore-level.txt", ["map-ore-zoom"]="tests/ui/fixtures/map-ore-zoom.txt",
+      ["map-ore-boundary"]="tests/ui/fixtures/map-ore-boundary.txt", ["map-ore-expired"]="tests/ui/fixtures/map-ore-expired.txt",
+      ["map-ore-callout"]="tests/ui/fixtures/map-ore-callout.txt"}
+    for _, spec in ipairs(loadScene().oreViews) do
+      local s=setup()
+      local now=s.machine.env.SO.now()
+      s.machine.env.SO.now=function() return now+spec.elapsed end
+      local events=s.scene.finds
+      for _,ev in ipairs(events) do ev.gameAt=now+ev.gameAt end
+      s.machine.env.SO.mods.state.history={page=function(q)
+        if q.kind~="mine.ore" then return {entries={}} end
+        local entries={}
+        for _,ev in ipairs(events) do if ev.seq>q.from then entries[#entries+1]=ev end end
+        return {entries=entries}
+      end}
+      local M=mapState(s)
+      M.readFinds(now)
+      M.pruneFinds(now+spec.elapsed)
+      local scene=M.gather(now+spec.elapsed)
+      local v=M.view({map=spec.map})
+      v.mw,v.mh=spec.w,spec.h
+      for _=1,60 do M.prepare(v,scene) if v.ready then break end s.step() end
+      assert(v.ready,"ore fixture planes never loaded")
+      local C=U.canvas(spec.w,spec.h)
+      local taken=M.draw(C,v,scene,1,1,v.pick,nil,{},0,M.findCells(v,scene))
+      if v.pick then M.box(C,v,scene,1,1,v.pick,taken) end
+      local diff=R.diff(fixtures[spec.name],picture(C.frame(),spec.w,spec.h).picture())
+      equal(#diff,0,spec.name.."\n"..table.concat(diff,"\n"))
+    end
+  end)
+
+  test("B4-UD generator reproduces every committed ore fixture",function()
+    local started,pipe=pcall(io.popen,"pwd")
+    local root=started and pipe and pipe:read("*l")
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1,1)~="/" or not os.execute("python3 -V > /dev/null 2>&1") then
+      return dofile("tests/skips.lua").record("B4-UD ore fixture generator","needs a POSIX shell and python3")
+    end
+    local dir=os.tmpname()
+    os.remove(dir)
+    assert(os.execute("python3 -I '"..root.."/docs/ui/schematic/mapdraw.py' --fixtures '"..dir.."' > /dev/null"))
+    local mismatches={}
+    for _,spec in ipairs(loadScene().oreViews) do
+      if not os.execute("cmp -s '"..dir.."/"..spec.name..".txt' '"..root.."/tests/ui/fixtures/"..spec.name..".txt'") then
+        mismatches[#mismatches+1]=spec.name
+      end
+    end
+    assert(os.execute("rm -r '"..dir.."'"))
+    equal(mismatches,{})
+  end)
 
   test("B2-U map replaces a listed turtle's row with the builder's, like its twin",function()
     local started,pipe=pcall(io.popen,"pwd")

@@ -1,0 +1,37 @@
+29x12 Recent ore finds
+           3 wait            
+9---------►··················
+                    2        
+8------------------►·········
+                             
+7----------------------------
+              ·· **          
+6---------------------------*
+                             
+5----------------------------
+                        ··   
+4----------------------------
+00000000000111111000000000000
+83333333331b88888888888888888
+00000000000000000000d00000000
+8333333333333333333dbb8888888
+00000000000000000000000000000
+83333333333333333333333333333
+00000000000000330440000000000
+83333333333333333333333333334
+00000000000000000000000000000
+83333333333333333333333333333
+00000000000000000000000033000
+83333333333333333333333333333
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
