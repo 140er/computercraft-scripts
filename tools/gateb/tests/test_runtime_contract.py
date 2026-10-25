@@ -94,7 +94,7 @@ class ContractTests(unittest.TestCase):
         from checks.admission import admit
         with patch("checks.admission.os.getloadavg",return_value=(8,4,2)):
             with self.assertRaisesRegex(Blocked,"load1"):
-                admit()
+                admit(timeout=0)
 
     def test_drop_fixture_uses_stable_ids_and_checks_success(self):
         class Runtime:

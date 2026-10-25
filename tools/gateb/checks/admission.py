@@ -4,6 +4,7 @@ import fcntl
 from contextlib import contextmanager
 from pathlib import Path
 import re
+import time
 
 from .model import Blocked
 
@@ -28,10 +29,27 @@ def full_local_suite(locks, slots, command):
     return None
 
 
-def admit(proc=Path("/proc"), work=None):
-    load = os.getloadavg()[0]
-    if load >= 8:
-        raise Blocked(f"Native run refused: load1={load:.2f} must be below 8")
+def record_load_wait(ctx, seconds):
+    ctx.load_wait_seconds = getattr(ctx, "load_wait_seconds", 0) + seconds
+    ctx.record("load-wait.json", {"load_wait_seconds": round(ctx.load_wait_seconds, 3)})
+
+
+def admit(proc=Path("/proc"), work=None, *, timeout=300, on_wait=None):
+    start = time.monotonic()
+    waited = False
+    try:
+        while True:
+            load = os.getloadavg()[0]
+            if load < 8:
+                break
+            remaining = timeout - (time.monotonic() - start)
+            if remaining <= 0:
+                raise Blocked(f"Native run refused: load1={load:.2f} must be below 8")
+            waited = True
+            time.sleep(min(5, remaining))
+    finally:
+        if on_wait is not None:
+            on_wait(time.monotonic() - start if waited else 0)
     work = work or Path.home() / "work"
     slots = {}
     for name in ("test-suite.lock", "test-suite-local-2.lock"):

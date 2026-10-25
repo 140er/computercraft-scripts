@@ -6,7 +6,7 @@ import time
 
 from .lua_data import parse
 from .model import Blocked, values, lumber_workers
-from .admission import admit
+from .admission import admit, record_load_wait
 from .readiness import start_job
 
 HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local originalRun=shell.run
@@ -73,13 +73,15 @@ class Context:
         self.tick_rate, self.interval = tick_rate, interval
         self.output.mkdir(parents=True, exist_ok=True)
         self.evidence = []
+        self.load_wait_timeout = 300
+        self.load_wait_seconds = 0
 
     def request(self, op, **kwargs):
         return self.runtime.request(self.run, {"op": op, **kwargs}, timeout=30)
 
     def cli(self, *args, timeout=180):
         if args[0] in ("serve", "reset") or args[:2] == ("pool", "up") or (args[0] == "client" and args[-1] == "start"):
-            admit()
+            admit(timeout=self.load_wait_timeout, on_wait=lambda seconds: record_load_wait(self, seconds))
         command = ["python3", str(getattr(self, "runtime_dir", Path(__file__).resolve().parents[1]) / "world.py"), *map(str, args)]
         completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
         if completed.returncode:
