@@ -28,6 +28,7 @@ local function save()
 end
 local function emit(kind, data) call("state", "emit", kind, data) end
 local function owner(id) return "mine:" .. id end
+local workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
 local function skipped(cell)
   return cell and ((job.digFailures and job.digFailures[M.key(cell)] or 0) >= 3
     or job.skipped and job.skipped[M.key(cell)])
@@ -54,6 +55,25 @@ local function keepBranch(branch)
   job.unfinished = job.unfinished or {}
   for _, old in ipairs(job.unfinished) do if old == branch then return end end
   job.unfinished[#job.unfinished+1] = branch
+end
+local function removeParked(id, row)
+  local status = call("lease", "status", id)
+  if not row.parkConfirmed or row.recover or not status or status.open or status.lost or status.uncertain then return end
+  if M.inLane(job,row.pose) then row.error="turtle in shared lane; resume to clear access" return end
+  local cells, p = mod("cells"), row.pose
+  if not cells or not cells.handoff or not cells.releaseOwner or not cells.list then row.error="cells unavailable" return end
+  local ok, err = cells.handoff(owner(id),"gps:"..id,p.x,p.y,p.z,p.dim)
+  if ok then ok,err=cells.releaseOwner(owner(id)) end
+  if not ok or #cells.list(owner(id),1)>0 then row.error=err or "reservation cleanup pending" return end
+  local unfinished=SO.store.copy(job.unfinished)
+  if row.counted ~= row.branch then keepBranch(row.branch or row.rebuild) end
+  if row.returning then keepBranch(row.returning.branch) end
+  job.turtles[tostring(id)]=nil
+  if not save() then job.turtles[tostring(id)],job.unfinished=row,unfinished return end
+  S.pending[id],S.dugFacts[id]=nil,nil
+  for _,peer in pairs(job.turtles) do
+    if peer.state=="done" and job.running and #(job.unfinished or {})>0 then peer.state="mining" end
+  end
 end
 local function returnJunction(row)
   local route = row.route or M.route(job,row.branch)
@@ -108,9 +128,9 @@ local function reservePose(id, row)
 end
 local function park(id, row, recover)
   if recover or row.state ~= "wait lane" then row.laneWait = nil end
-  if not recover and row.parkUntil and SO.now() < row.parkUntil - 60000 then return end
+  if not recover and (not row.paused or row.parkConfirmed) and row.parkUntil and SO.now() < row.parkUntil - 60000 then return end
   local lid, err = call("lease", "send", id, P.park.steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose })
-  if lid then S.pending[id] = { kind = recover and "recover" or "park" } row.parkUntil = SO.now() + P.park.ms
+  if lid then S.pending[id] = { kind = recover and "recover" or row.paused and "workerPark" or "park" } row.parkUntil = SO.now() + P.park.ms
   else row.error = err end
 end
 local function scan(row, vein)
@@ -345,6 +365,7 @@ local function report(_, id, results, lease)
   local action, interrupted = S.pending[id], row.inflight
   S.pending[id] = nil
   if not results or not lease.report or not lease.report.pose then
+    row.parkConfirmed=nil
     row.state, row.error, row.recover = "lost", job.dim ~= "minecraft:overworld" and "remote silent; unloaded?" or "lease expired or missing pose", true row.laneWait=nil save() return
   end
   row.inflight = nil
@@ -406,7 +427,8 @@ local function report(_, id, results, lease)
       end
       cursor = P.replay(cursor, action.steps or {}, results)
       if row.lane and M.inLane(job,cursor) then row.lane.entered=true end
-      if action.kind == "recover" then row.recover, row.error = false, nil row.state = job.running and "mining" or "stopped"
+      if action.kind == "workerPark" then row.parkConfirmed=true row.state="parked"
+      elseif action.kind == "recover" then row.recover, row.error = false, nil row.state = job.running and "mining" or "stopped"
       elseif action.kind == "inspect" or action.kind == "scan" then
         local result = results[#results]
         S.known[M.key(action.cell)] = result.ok and result.data or false
@@ -501,7 +523,7 @@ local function report(_, id, results, lease)
   local limit,workers,lane=4,0,false
   for _,peer in pairs(job.turtles) do workers=workers+1 lane=lane or peer.lane~=nil end
   if lane and workers>1 then limit=2 end
-  if action and action.kind~="park" and action.kind~="recover" and (not row.trip or row.trip.shared==false) and job.running and S.burst.n<limit
+  if action and action.kind~="park" and action.kind~="workerPark" and action.kind~="recover" and (not row.trip or row.trip.shared==false) and job.running and S.burst.n<limit
       and (not S.handoffAt or now-S.handoffAt>50) then plan(id,row) end
 end
 local function send(id, row, action)
@@ -617,12 +639,18 @@ plan = function(id,row)
     row.laneWait=nil
     return
   end
-  if status.lost then row.state, row.error, row.recover = "lost", "worker beacon", true row.laneWait=nil end
+  if status.lost then row.parkConfirmed=nil row.state, row.error, row.recover = "lost", "worker beacon", true row.laneWait=nil end
   if status.open then return end
   if status.lost or row.recover then
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
+  if row.paused then
+    row.state=row.parkConfirmed and "parked" or "parking"
+    if row.removeRequested and row.parkConfirmed then removeParked(id,row)
+    else reservePose(id,row) park(id,row,false) end
+    return
+  end
   if row.stopRoute or not job.running and row.route then clearRoute(row) save() end
   if type(mod("lease").ensureTool) == "function" then
     local equipped, reason = call("lease", "ensureTool", id, "pickaxe")
@@ -1497,7 +1525,27 @@ local function command(event)
     if cleared == false then S.error = clearErr return end
     park(id,job.turtles[tostring(id)],true)
     return
-  elseif cmd=="remove" and num(2) then
+  elseif workerPark and (cmd=="park" or cmd=="resume" or cmd=="remove") and #a==2 and num(2) then
+    local id=num(2)
+    local row=job.turtles[tostring(id)]
+    if not row then S.error="unknown turtle" return end
+    if row.forgotten then S.error="device forgotten; re-pair and re-add turtle" return end
+    if cmd=="resume" then
+      local p=row.pose
+      local cells=mod("cells")
+      if cells and cells.owner and cells.owner(p.x,p.y,p.z,p.dim)=="gps:"..id then
+        local ok,err=cells.handoff("gps:"..id,owner(id),p.x,p.y,p.z,p.dim)
+        if not ok then S.error=err return end
+      end
+      row.paused,row.removeRequested,row.parkConfirmed,row.parkUntil=nil,nil,nil,nil
+      row.state,row.error=job.running and "mining" or "stopped",nil
+    else
+      if not row.paused then row.parkConfirmed,row.parkUntil=nil,nil end
+      row.paused=true
+      if cmd=="remove" then row.removeRequested=true end
+      row.state=row.parkConfirmed and "parked" or "parking"
+    end
+  elseif not workerPark and cmd=="remove" and num(2) then
     local row = job.turtles[tostring(num(2))]
     if row and M.inLane(job,row.pose) then S.error="turtle in shared lane; wait for off-lane pose" return end
     local status=call("lease","status",num(2))
@@ -1696,7 +1744,7 @@ return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostr
     for _,row in pairs(job.turtles) do
       -- Rows saved before counted existed were counted when they finished.
       if row.state=="done" and row.counted==nil then row.counted=row.branch end
-      if not row.forgotten then row.recover=true row.state="recovering" end
+      if not row.forgotten then row.parkConfirmed=nil row.parkUntil=nil row.recover=true row.state="recovering" end
     end
   end
   for id,row in pairs(job.turtles) do

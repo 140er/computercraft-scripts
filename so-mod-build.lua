@@ -2,6 +2,7 @@ local P = dofile("so-plan.lua")
 local U = dofile("so-ui.lua")
 local M = dofile("so-mine-plan.lua")
 local S = { recover = true, published = false, safe = {} }
+S.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
 local shapes = { floor = true, platform = true, wall = true, walls = true, box = true }
 local dimensions = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 }
 local function whole(n)
@@ -85,6 +86,20 @@ local function alert(text, blocked)
   end
 end
 local function owner() return "build:" .. j.turtle.id end
+local function removeParked()
+  local cells,p=module("cells"),j.turtle.pose
+  if not cells.handoff or not cells.releaseOwner or not cells.list then alert("cells unavailable") return end
+  local ok,err=cells.handoff(owner(),"gps:"..j.turtle.id,p.x,p.y,p.z,p.dim)
+  if ok then ok,err=cells.releaseOwner(owner()) end
+  if not ok or #cells.list(owner(),1)>0 then alert(err or "reservation cleanup pending") return end
+  local row,service,intent,inv,fuel=j.turtle,j.service,j.intent,j.inv,j.fuel
+  j.turtle,j.service,j.intent,j.inv,j.fuel,j.running=nil,nil,nil,{},nil,false
+  if not save() then
+    j.turtle,j.service,j.intent,j.inv,j.fuel=row,service,intent,inv,fuel
+    return
+  end
+  S.pending,S.recover=nil,true
+end
 local function trim()
   local cells = module("cells")
   if not cells.list or not cells.release then return end
@@ -226,7 +241,8 @@ local function report(id, turtleId, results, lease)
   if not j.turtle or j.turtle.forgotten or turtleId ~= j.turtle.id or not pending or pending.id ~= id then return end
   S.pending = nil
   if not results or not lease.report or not lease.report.pose then
-    S.recover = true
+    S.recover, j.turtle.parkConfirmed = true, nil
+    if j.turtle.paused then j.turtle.state="lost" end
     alert("lost lease", "lost")
     return
   end
@@ -240,7 +256,10 @@ local function report(id, turtleId, results, lease)
   if facts.fuel ~= nil then j.fuel = facts.fuel end
   local action, last = pending.action, results[#results]
   j.intent = nil
-  if action == "recover" then
+  if action == "workerPark" then
+    j.turtle.parkConfirmed=true
+    if j.turtle.paused then j.turtle.state="parked" end
+  elseif action == "recover" then
     S.recover, j.blocked, j.alert, j.phase = false, nil, nil, "check"
     if j.service then j.service.stage = "travel" end
   elseif action == "fuel" then
@@ -305,6 +324,25 @@ local function input(ev)
   if text == "status" then return end
   local w = {}
   for word in text:gmatch("%S+") do w[#w+1]=word end
+  if S.workerPark and (w[1]=="park" or w[1]=="resume" or w[1]=="remove") and #w==2 then
+    local row=j.turtle
+    if not row or tonumber(w[2])~=row.id then alert("unknown turtle") return end
+    if row.forgotten then alert("device forgotten; re-pair and re-add turtle") return end
+    if w[1]=="resume" then
+      local cells,p=module("cells"),row.pose
+      if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)=="gps:"..row.id then
+        local ok,err=cells.handoff("gps:"..row.id,owner(),p.x,p.y,p.z,p.dim)
+        if not ok then alert(err) return end
+      end
+      row.paused,row.removeRequested,row.parkConfirmed,row.state=nil,nil,nil,nil
+    else
+      if not row.paused then row.parkConfirmed=nil end
+      row.paused=true
+      row.state=row.parkConfirmed and "parked" or "parking"
+      if w[1]=="remove" then row.removeRequested=true end
+    end
+    save() return
+  end
   if w[1] == "stop" then j.running=false save() return end
   if w[1] == "start" then
     local state = module("state")
@@ -371,10 +409,22 @@ local function input(ev)
       S.pending=nil
       j.running=false
     end
+    if S.workerPark and lease.claimProbe then
+      local ok,err=lease.claimProbe(id,"build:"..id,pose)
+      if not ok then alert(err) return end
+    end
     j.turtle={id=id,pose=pose,anchor=SO.store.copy(pose)}
     j.home=SO.store.copy(pose)
     j.inv,j.fuel={},nil
     S.recover=true
+    if S.workerPark then
+      j.blocked,j.alert=nil,nil
+      if save() and lease.clearProbe then
+        local ok,err=lease.clearProbe(id)
+        if not ok then alert(err) end
+      end
+      return
+    end
   else alert("invalid command") return end
   j.blocked,j.alert=nil,nil
   save()
@@ -441,9 +491,21 @@ local function tick()
   local other=assigned(j.turtle.id)
   if other then j.running=false alert("turtle assigned to " .. other) return end
   local stat=lease.status(j.turtle.id)
-  if stat.uncertain then alert("pose uncertain; re-add turtle","pose uncertain") return end
+  if stat.uncertain then j.turtle.parkConfirmed=nil alert("pose uncertain; re-add turtle","pose uncertain") return end
   if S.pending or stat.open then return end
-  if S.recover or stat.lost then send({{op="inspectDown"}},"recover",true) return end
+  if S.recover or stat.lost then
+    j.turtle.parkConfirmed=nil
+    if j.turtle.paused then j.turtle.state="parking" end
+    send({{op="inspectDown"}},"recover",true)
+    return
+  end
+  if S.workerPark and j.turtle.paused then
+    if j.turtle.removeRequested and j.turtle.parkConfirmed then removeParked()
+    elseif not j.turtle.parkConfirmed or not S.parkAt or SO.now()-S.parkAt>=540000 then
+      if send({{op="inspectDown"}},"workerPark",true) then S.parkAt=SO.now() end
+    end
+    return
+  end
   if j.blocked == "material" and j.retryAt and SO.now() >= j.retryAt then
     j.blocked=nil
   end

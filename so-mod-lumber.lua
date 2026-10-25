@@ -1,6 +1,7 @@
 local P = dofile("so-plan.lua")
 local L = dofile("so-lumber-plan.lua")
 local S = { wired = false, callback = false }
+S.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
 
 S.possible = function(previous, flight)
   local out, seen = {}, {}
@@ -34,7 +35,7 @@ if S.job.turtle then
 end
 for _, row in pairs(S.job.turtles) do
   if row.inflight then row.uncertain = S.possible(row.uncertain, row.inflight) end
-  row.recover, row.pending, row.motion = true, nil, nil
+  row.recover, row.pending, row.motion, row.parkConfirmed = true, nil, nil, nil
 end
 S.job.visited = S.job.visited or {}
 S.job.candidates = S.job.candidates or {}
@@ -227,6 +228,18 @@ S.release = function()
   return true
 end
 
+S.removeParked = function()
+  local row, cells = S.row, S.module("cells")
+  if row.service and row.service.lane then S.alert("turtle at chest; resume to clear access") return end
+  if not cells.handoff or not cells.releaseOwner or not cells.list then S.alert("cells unavailable") return end
+  local id, p = row.turtle.id, row.turtle.pose
+  local ok, err = cells.handoff(S.owner(),"gps:"..id,p.x,p.y,p.z,p.dim)
+  if ok then ok,err=S.release() end
+  if not ok or #cells.list(S.owner(),1)>0 then S.alert(err or "reservation cleanup pending") return end
+  S.job.turtles[tostring(id)]=nil
+  if not S.save() then S.job.turtles[tostring(id)]=row return end
+  S.row=nil
+end
 S.cellKey = function(p) return p.x .. "," .. p.y .. "," .. p.z end
 S.occupied = function(p)
   if p.y <= S.job.ground or (S.job.obstacles or {})[S.cellKey(p)] then return true end
@@ -642,6 +655,7 @@ S.report = function(id, turtleId, results, lease)
   if not pending or pending.id ~= id then return end
   S.row.pending = nil
   if not results then
+    j.parkConfirmed=nil
     j.uncertain = S.possible(j.uncertain, pending)
     S.row.recover, j.motion = true, nil
     j.blocked = "lost"
@@ -657,7 +671,7 @@ S.report = function(id, turtleId, results, lease)
     end
     if j.turtle.frame then j.turtle.pose = P.toWorld(j.turtle.frame, report.pose) end
   else
-    S.row.recover = true
+    S.row.recover, j.parkConfirmed = true, nil
     j.uncertain = S.possible(j.uncertain, pending)
     S.suspendService()
     S.alert("missing pose")
@@ -715,7 +729,9 @@ S.report = function(id, turtleId, results, lease)
     S.save()
     return
   end
-  if action == "recover" then
+  if action == "park" and j.paused then
+    j.parkConfirmed=true
+  elseif action == "recover" then
     if j.delivery then
       if not report.inv then S.alert("missing inventory") S.save() return end
       local after = S.count(function(name) return name:match("_log$") ~= nil end)
@@ -1114,7 +1130,24 @@ S.input = function(ev)
     j.running, j.blocked, j.noSaplings, j.alert, j.failures = true, nil, false, nil, nil
     if type(state.get)=="function" and state.get("lumber.alert") then S.emit("lumber.alert",false) end
     for _, row in pairs(j.turtles) do
-      row.blocked, row.noSaplings, row.alert, row.failures, row.recover, row.paused = nil, false, nil, nil, true, nil
+      row.blocked, row.noSaplings, row.alert, row.failures, row.recover, row.paused = nil, false, nil, nil, true, S.workerPark and row.paused or nil
+    end
+  elseif S.workerPark and (words[1]=="park" or words[1]=="resume" or words[1]=="remove") and #words==2 then
+    local id=integer(2)
+    local row=id and j.turtles[tostring(id)]
+    if not row then S.alert("unknown turtle") return end
+    if row.turtle.forgotten then S.alert("device forgotten; re-pair and re-add turtle") return end
+    if words[1]=="resume" then
+      local cells,p=S.module("cells"),row.turtle.pose
+      if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)=="gps:"..id then
+        local ok,err=cells.handoff("gps:"..id,"lumber:"..id,p.x,p.y,p.z,p.dim)
+        if not ok then S.alert(err) return end
+      end
+      row.paused,row.removeRequested,row.parkConfirmed,row.idlePark=nil,nil,nil,nil
+    else
+      if not row.paused then row.parkConfirmed,row.idlePark=nil,nil end
+      row.paused=true
+      if words[1]=="remove" then row.removeRequested=true end
     end
   elseif words[1] == "park" and #words == 2 then
     local id = integer(2)
@@ -1222,7 +1255,7 @@ S.legacyRender = function(w)
     if type(row.fuel) == "number" then fuel = math.min(fuel or row.fuel, row.fuel) end
     if not alert and row.alert then alert = "#" .. row.turtle.id .. " " .. row.alert end
     if row.blocked then state = row.blocked end
-    local label = row.blocked or (row.paused and (row.idlePark and "parked" or "parking")) or row.wait
+    local label = row.blocked or (row.paused and ((S.workerPark and row.parkConfirmed or not S.workerPark and row.idlePark) and "parked" or "parking")) or row.wait
       or (row.recover and "recovering") or (j.running and (row.service and row.service.kind or row.phase) or "stopped")
     workers[#workers + 1] = { "#" .. row.turtle.id .. " " .. tostring(label) .. " F" .. tostring(row.fuel or "?"), row.blocked ~= nil }
   end
@@ -1266,7 +1299,7 @@ A.gather = function()
   for _, row in ipairs(S.rows()) do
     local id, p = row.turtle.id, row.turtle.pose or row.turtle.anchor or {}
     local status = type(lease.status) == "function" and lease.status(id) or {}
-    local word = status.lost and "lost" or row.blocked or (row.paused and (row.idlePark and "parked" or "parking")) or row.wait
+    local word = status.lost and "lost" or row.blocked or (row.paused and ((S.workerPark and row.parkConfirmed or not S.workerPark and row.idlePark) and "parked" or "parking")) or row.wait
       or (j.running and (row.service and row.service.kind or A.phases[row.phase] or "working") or "idle")
     m.turtles[#m.turtles + 1] = { id = id, facing = p.facing, x = p.x, y = p.y, z = p.z, state = word, tone = S.ui and S.ui.tone(word) }
     for _, item in ipairs(row.inv or {}) do if L.isSapling(item.name) then m.saplings = m.saplings + item.count end end
@@ -1612,7 +1645,7 @@ S.tickRow = function(row, now)
     return
   end
   if status.lost then
-    j.recover = true j.blocked = "lost"
+    j.recover, j.parkConfirmed = true, nil j.blocked = "lost"
     if not j.pending and not status.open then S.suspendService() end
   end
   if j.pending or status.open then return end
@@ -1620,6 +1653,11 @@ S.tickRow = function(row, now)
     S.suspendService()
     if not j.turtle.frame and not j.turtle.anchor then S.alert("waiting for reported pose") return end
     S.park(true)
+    return
+  end
+  if S.workerPark and j.paused then
+    if j.removeRequested and j.parkConfirmed then S.removeParked()
+    elseif not j.parkConfirmed or not j.parkAt or now-j.parkAt>=540000 then S.park() end
     return
   end
   if S.job.running and not j.paused and j.blocked == "fuel" and j.fuelRetry and now >= j.fuelRetry then
@@ -1707,7 +1745,7 @@ S.mapView = function()
   local turtles = {}
   for id, row in pairs(j.turtles) do
     turtles[id] = { id=row.turtle.id, pose=SO.store.copy(row.turtle.pose), phase=row.phase,
-      state=row.blocked or (row.paused and "parked") or row.wait or (j.running and "lumber" or "idle") }
+      state=row.blocked or (row.paused and (row.parkConfirmed and "parked" or "parking")) or row.wait or (j.running and "lumber" or "idle") }
   end
   return {dim=j.dim,area=SO.store.copy(j.area),ground=j.ground,saplings=SO.store.copy(j.saplings),spots=spots,
     running=j.running,grow=grow,turtles=turtles}
