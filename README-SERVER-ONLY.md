@@ -1013,8 +1013,8 @@ markers remains a follow-up.
 An idle worker stays paired after its completed lease report is acknowledged.
 Recovery then requires a full lease duration without authenticated server
 contact. Work leases backtrack after silence; park leases stay put and beacon.
-Remote workers keep their stationary recovery rule. A reused acknowledged
-lease ID returns `expired` and runs no steps.
+Remote workers keep their stationary recovery rule. Reusing the worker's last acknowledged lease ID returns `expired` for every
+requested step and runs nothing.
 
 Set `displayAck=true` in `so-server.cfg` to measure display freshness from
 successful frame drawing. It defaults off. Updated displays become stale after
