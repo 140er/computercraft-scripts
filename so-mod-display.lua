@@ -1006,10 +1006,17 @@ D.statusFrame = function(session, w, h, now, pocket)
   for k, v in pairs(model) do copy[k] = v end
   copy.name = pocket and "FLEET" or nil
   local frame = U.status(copy, w, pocket and w == 26 and 20 or h)
-  -- Big walls with many rows can pass the 16 KB frame limit; redraw them with fewer rows.
-  if w * h > 4000 and #SO.proto.ser(D.fit(frame, w, h)) > D.budget then
-    copy.tight = true
-    frame = U.status(copy, w, h)
+  -- Big walls with many rows can pass the 16 KB frame limit. The thumbnail's map hit goes first,
+  -- then they redraw with fewer rows.
+  local function over() return w * h > 4000 and #SO.proto.ser(D.fit(frame, w, h)) > D.budget end
+  if over() then
+    local kept = {}
+    for _, b in ipairs(frame.buttons) do if b.id ~= "map" then kept[#kept + 1] = b end end
+    frame.buttons = kept
+    if over() then
+      copy.tight = true
+      frame = U.status(copy, w, h)
+    end
   end
   return frame
 end
@@ -1103,6 +1110,7 @@ D.handle = function(role, session, event, now)
       elseif event.id == "alert-prev" then session.alertList = session.alertList - 1 end
       return
     elseif event.id == "disk" and D.screens.disk then session.visit = "disk"; return
+    elseif role == "status" and event.id == "map" and D.screens.map then session.visit = "map"; return
     elseif (role == "status" or not screen) and event.id == "alerts" and U then
       session.alertList = 0
       return
@@ -1143,6 +1151,7 @@ D.gatherTurtles = function()
     local status = lease and type(lease.status)=="function" and lease.status(tonumber(id)) or {}
     row.lease,row.uncertain = status.open,status.uncertain
     row.seen = row.seen or status.seen
+    row.workerPark = D.workerPark
   end
   D.details = out
 end
@@ -1181,15 +1190,17 @@ D.turtleInput = function(event,w,h)
   end
   if id == "turtle-back" then session.turtle=nil
   elseif id == "turtle-cancel" then selected.draft=nil
-  elseif id == "turtle-park" then command(row.role == "lumber" and ("park "..selected.id) or "stop")
+  elseif id == "turtle-park" then command((D.workerPark or row.role == "lumber") and ("park "..selected.id) or "stop")
+  elseif id == "turtle-resume" then command("resume "..selected.id)
+  elseif id == "pose-step" then selected.step = selected.step ~= 10 and 10 or nil
   elseif id == "turtle-remove" then
     if fire then command("remove "..selected.id) end
   elseif id == "turtle-add" and row.uncertain then
-    selected.draft=Turtle.draft(row.pose or row.anchor)
+    selected.draft,selected.step=Turtle.draft(row.pose or row.anchor),nil
   elseif selected.draft then
     local axis,delta=id:match("^pose:(%a+):(%-?%d+)$")
     if axis and selected.draft[axis] then
-      selected.draft[axis]=selected.draft[axis]+tonumber(delta)
+      selected.draft[axis]=selected.draft[axis]+tonumber(delta)*(axis~="facing" and selected.step or 1)
       if axis=="facing" then selected.draft.facing=selected.draft.facing%4 end
     elseif key == "add" and fire then
       local p=selected.draft
@@ -1489,6 +1500,8 @@ end
 
 D.load = function()
   for i = 1, #D.order do D.known[D.order[i]] = true end
+  -- The job modules read the same flag once at load; the detail page offers their park commands.
+  D.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do

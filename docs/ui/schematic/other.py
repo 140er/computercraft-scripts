@@ -191,7 +191,8 @@ def confirm_chip(sel, key, label, bid, kind):
 
 def turtle(w, h, title, sel=None, row=None, now=None):
     """U.turtle.render: the state word in the header, the error flag, leaders, progress, then the job's
-    chips with BACK on the last row. With a draft it is the pose editor."""
+    chips with BACK on the last row. With a draft it is the pose editor, with a step chip from 36 cells.
+    With row workerPark the chips park, resume and remove this worker; RESUME replaces PARK once parked."""
     cv = Canvas(w, h, title)
     sel = sel or dict(id=SCENE["detail"]["id"])
     row = detail_row() if row is None else row
@@ -209,8 +210,11 @@ def turtle(w, h, title, sel=None, row=None, now=None):
             chip(cv, w - 15, ry, "-", "pose:%s:-1" % axis)
             cv.put(w - 12 + (9 - len(value)) // 2, ry, value, "0")
             chip(cv, w - 3, ry, "+", "pose:%s:1" % axis)
-        control_rows(cv, [confirm_chip(sel, "add", "RE-ADD", "turtle-save", "primary")],
-                     ("BACK", "turtle-cancel", "plain"))
+        items = [confirm_chip(sel, "add", "RE-ADD", "turtle-save", "primary")]
+        if w >= 36:
+            ten = sel.get("step") == 10
+            items.append(("step 10" if ten else "step 1", "pose-step", "on" if ten else "plain"))
+        control_rows(cv, items, ("BACK", "turtle-cancel", "plain"))
         return cv
     uncertain = row.get("uncertain")
     state = "pose ?" if uncertain else row.get("state") or "unassigned"
@@ -220,9 +224,12 @@ def turtle(w, h, title, sel=None, row=None, now=None):
     bar(cv, name, (), None, state, fg)
     role, items = row.get("role"), []
     assigned = role in ("mining", "lumber")
-    if assigned:
-        items.append(("PARK ALL" if role == "mining" else "PARK", "turtle-park", "plain"))
-    if role == "mining":
+    park = row.get("workerPark")
+    if assigned and park and row.get("state") == "parked":
+        items.append(("RESUME", "turtle-resume", "primary"))
+    elif assigned:
+        items.append(("PARK ALL" if role == "mining" and not park else "PARK", "turtle-park", "plain"))
+    if role == "mining" or assigned and park:
         items.append(confirm_chip(sel, "remove", "REMOVE", "turtle-remove", "stop"))
     if assigned and uncertain:
         items.append(("RE-ADD", "turtle-add", "primary"))
@@ -261,6 +268,14 @@ def turtle(w, h, title, sel=None, row=None, now=None):
 
 def _turtle(w, h, title):
     return lambda: turtle(w, h, title)
+
+
+def _parked(w, h, title):
+    def make():
+        row = detail_row()
+        row["workerPark"], row["state"] = True, "parked"
+        return turtle(w, h, title, None, row)
+    return make
 
 
 def _pose(w, h, title):
@@ -707,6 +722,9 @@ FIXTURES = [
     ("turtlepose-P", _pose(26, 20, "Pose editor for an uncertain turtle at 26x20")),
     ("turtlepose-S", _pose(29, 12, "Pose editor for an uncertain turtle at 29x12")),
 ]
+# tests/ui/w2screens.lua checks these against the generator.
+FIXTURES += [("turtlepose-M", _pose(57, 24, "Pose editor for an uncertain turtle, room monitor 57x24")),
+             ("turtlepark-P", _parked(26, 20, "Parked turtle detail with worker park at 26x20"))]
 
 
 if __name__ == "__main__":

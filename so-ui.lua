@@ -572,7 +572,9 @@ U.st.wall = function(C, m)
   local rx, rw, sy = 60, w - 60, 3
   if m.thumb then
     local th = math.min(h - 12, tight and 26 or 30)
-    pcall(m.thumb, C, rx, 3, math.min(rw, tight and 40 or 48), th)
+    local tw = math.min(rw, tight and 40 or 48)
+    -- A tap on the thumbnail opens the map as a page of the status role.
+    if pcall(m.thumb, C, rx, 3, tw, th) then C.hit("map", rx, 3, tw, th) end
     sy = 3 + th + 1
   end
   local ls = m.displays
@@ -796,7 +798,9 @@ T.draft = function(p)
 end
 -- Turtle details in route A (docs/ui/schematic/other.py turtle): the state word in the header, an
 -- error flag, leaders, branch or spot progress, then the job's chips with BACK on the last row, where
--- D.turtleInput finds it even when composing fails.
+-- D.turtleInput finds it even when composing fails. From 36 cells the pose editor adds a step chip
+-- that switches the x, y and z chips between 1 and 10. With row.workerPark the job chips park,
+-- resume and remove this worker alone; RESUME replaces PARK once it is parked.
 T.render = function(w,h,selection,row,now)
   local c = U.canvas(w,h)
   row = row or {}
@@ -814,8 +818,9 @@ T.render = function(w,h,selection,row,now)
       c.put(w - 12 + math.floor((9 - #value) / 2), ry, value, '0')
       c.chip(w - 3, ry, '+', 'pose:'..axis..':1')
     end
-    U.controlRows(c, {U.confirmChip(selection, 'add', 'RE-ADD', 'turtle-save', 'primary')},
-      {'BACK', 'turtle-cancel', 'plain'})
+    local items = {U.confirmChip(selection, 'add', 'RE-ADD', 'turtle-save', 'primary')}
+    if w >= 36 then items[2] = {selection.step == 10 and 'step 10' or 'step 1', 'pose-step', selection.step == 10 and 'on' or 'plain'} end
+    U.controlRows(c, items, {'BACK', 'turtle-cancel', 'plain'})
     return c.frame()
   end
   local state = row.uncertain and 'pose ?' or tostring(row.state or 'unassigned')
@@ -824,8 +829,11 @@ T.render = function(w,h,selection,row,now)
   c.bar(name, nil, nil, state, fg)
   local items, role = {}, row.role
   local assigned = role == 'mining' or role == 'lumber'
-  if assigned then items[#items+1] = {role == 'mining' and 'PARK ALL' or 'PARK', 'turtle-park', 'plain'} end
-  if role == 'mining' then
+  if assigned and row.workerPark and row.state == 'parked' then items[#items+1] = {'RESUME', 'turtle-resume', 'primary'}
+  elseif assigned then
+    items[#items+1] = {role == 'mining' and not row.workerPark and 'PARK ALL' or 'PARK', 'turtle-park', 'plain'}
+  end
+  if role == 'mining' or assigned and row.workerPark then
     items[#items+1] = U.confirmChip(selection, 'remove', 'REMOVE', 'turtle-remove', 'stop')
   end
   if assigned and row.uncertain then items[#items+1] = {'RE-ADD', 'turtle-add', 'primary'} end
