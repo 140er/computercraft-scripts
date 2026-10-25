@@ -86,17 +86,27 @@ def park_round(ctx, names, label):
 
 def fingerprint(ctx, name):
     marker = ctx.request("files", computer=ctx.computer(name), path=".so-revision").get("content", "").strip()
-    return {**ctx.integrity(name), "revision": marker, "journal": ctx.read_store(name, "so-journal")}
+    config = ctx.lua(name, '''local cfg=dofile('/so-store.lua').readConfig('so-worker.cfg')
+      return cfg or false''')
+    return {**ctx.integrity(name), "revision": marker, "journal": ctx.read_store(name, "so-journal"), "config": config}
 
 
-def unchanged(before, after):
-    # A refusal may save only the API cooldown in the role config.
-    return all(before.get(k) == after.get(k) for k in ("files", "pairing", "revision", "journal"))
+def unchanged(before, after, budget=False):
+    configs = []
+    for snapshot in (before, after):
+        if not isinstance(snapshot.get("config"), dict):
+            return False
+        config = dict(snapshot["config"])
+        if budget:
+            config.pop("updateApiRetryAt", None)
+        configs.append(config)
+    return configs[0] == configs[1] and all(before.get(k) == after.get(k) for k in ("files", "pairing", "revision", "journal"))
 
 
-def refusal(ctx, name, previous, budget=False):
+def refusal(ctx, name, target, budget=False):
     before = fingerprint(ctx, name)
-    start = len(trace(ctx, name).get("events", []))
+    original = trace(ctx, name)
+    start, boot = len(original.get("events", [])), original.get("boots", 0)
     if budget:
         remaining = getattr(ctx, "c16_fake_remaining", 0)
         if type(remaining) is not int or not 0 <= remaining < 3:
@@ -105,31 +115,41 @@ def refusal(ctx, name, previous, budget=False):
         dispatch(ctx, [name])
     else:
         ident = ctx.computer(name)
-        # Equal ancestry must reach the worker. The public server API refuses it
-        # locally, so use the server's real authenticated transport for this probe.
+        # The public server API proposes only its own revision. Send the host's
+        # verified outside commit through the real authenticated transport.
         ctx.lua("server", f'''local id={ident};local key=assert(SO.pair.key(id))
-          local m=SO.proto.build(key,'worker.update',{{revision={json.dumps(previous)}}})
+          local m=SO.proto.build(key,'worker.update',{{revision={json.dumps(target)}}})
           return rednet.send(id,SO.proto.encode(m),'so')''')
     kind = "budget" if budget else "ancestry"
     def refused():
         events = trace(ctx, name).get("events", [])[start:]
-        if any(e["kind"] == ("reboot" if budget else "err") for e in events):
+        if any(e["kind"] == "reboot" for e in events):
             return events
         return None
     events = ctx.wait(refused, 60) or []
-    if budget:
-        ctx.wait(lambda: trace(ctx, name).get("boots", 0) >= 2, 45)
+    def booted():
+        current = trace(ctx, name)
+        later = current.get("events", [])[start:]
+        return later if current.get("boots", 0) > boot and any(e["kind"] == "hello" and e.get("boot", 0) > boot
+            and e.get("revision") == before["revision"] for e in later) else None
+    recovered = ctx.wait(booted, 45)
+    events = recovered or events
     after = fingerprint(ctx, name)
-    terminal = next((e["terminal"] for e in events if e["kind"] == "reboot"), None) if budget else ctx.terminal(name)
+    terminal = next((e["terminal"] for e in events if e["kind"] == "reboot"), None)
     text = " ".join(line.get("text", "") for line in (terminal or {}).get("lines", []))
     if budget:
         refused_ok = any(e["kind"] == "fake_budget" for e in events) and "Update API refused" in text
         refused_ok &= not any(e["kind"] == "api" for e in events)
     else:
-        refused_ok = any(e["kind"] == "err" and e.get("text") == "invalid revision" for e in events)
-        refused_ok &= "invalid revision" in text and not any(e["kind"] in ("handoff", "reboot", "api") for e in events)
-    ctx.record(f"C16-{kind}-refusal.json", {"before": before, "after": after, "events": events, "terminal": terminal})
-    return bool(refused_ok and unchanged(before, after))
+        compare = f"https://api.github.com/repos/140er/computercraft-scripts/compare/{target}..."
+        refused_ok = target != before["revision"] and any(e["kind"] == "ack" and e.get("revision") == target
+            and e.get("state") == "accepted" for e in events)
+        refused_ok &= any(e["kind"] == "handoff" and e.get("revision") == target
+            and e.get("running") == before["revision"] for e in events)
+        refused_ok &= any(e["kind"] == "api" and e.get("url", "").startswith(compare) for e in events)
+        refused_ok &= "Pinnedrevisionancestryrefused" in "".join(text.split())
+    ctx.record(f"C16-{kind}-refusal.json", {"target": target, "before": before, "after": after, "events": events, "terminal": terminal})
+    return bool(refused_ok and recovered and unchanged(before, after, budget))
 
 
 def updated(ctx, name, previous, before):
@@ -146,16 +166,17 @@ def updated(ctx, name, previous, before):
             rebooted = event["boot"]
         elif event["kind"] == "hello" and rebooted is not None and event["boot"] > rebooted and event.get("revision") == ctx.commit:
             ordered = True
-    exact = bool(after["files"]) and all(hashlib.sha256(update_fixture.git("show", f"{ctx.commit}:{path}")).hexdigest() == digest
-                                        for path, digest in after["files"].items())
+    expected = {path: hashlib.sha256(content).hexdigest() for path, content in update_fixture.worker_files(ctx.commit).items()}
+    exact = bool(expected) and after["files"] == expected
     hello = any(e["kind"] == "hello" and e.get("revision") == ctx.commit for e in events)
     ack = any(e["kind"] == "ack" and e.get("revision") == ctx.commit and e.get("state") == "accepted" for e in events)
     handoff = any(e["kind"] == "handoff" and e.get("revision") == ctx.commit and e.get("running") == previous for e in events)
     api = [e for e in events if e["kind"] == "api"]
-    ctx.record(f"C16-{name}-update.json", {"before": before, "after": after, "events": events, "exact": exact})
+    ctx.record(f"C16-{name}-update.json", {"before": before, "after": after, "events": events, "expected_files": expected, "exact": exact})
     return bool(ordered and ack and handoff and hello and exact and after["revision"] == ctx.commit
                 and len(api) == 4 and after["pairing"] == before["fingerprint"]["pairing"]
-                and after["journal"] == before["fingerprint"]["journal"])
+                and after["journal"] == before["fingerprint"]["journal"]
+                and after["config"] == before["fingerprint"]["config"])
 
 
 def run(ctx):
@@ -164,6 +185,7 @@ def run(ctx):
         if ctx.tick_rate != 20:
             raise Blocked("C16 requires 20 TPS")
         previous = update_fixture.baseline(ctx.commit)
+        outside = update_fixture.outside_revision(ctx)
         names = update_fixture.prepare(ctx, previous)
         if len(names) < 10:
             raise Blocked("C16 requires at least ten native turtle workers in one world")
@@ -175,7 +197,9 @@ def run(ctx):
         # deadline. Allow that deadline and the next 30-second hello to pass so
         # the real idle guard can confirm unassignment before the update probes.
         ctx.sleep(46)
-        ancestry = refusal(ctx, names[0], previous)
+        ancestry = refusal(ctx, names[0], outside)
+        if not ctx.wait(lambda: idle(status(ctx, names), len(names)), 90):
+            raise Blocked("C16 worker did not recover after the ancestry probe")
         budget = refusal(ctx, names[0], previous, budget=True)
         # Clear only the test's saved cooldown and HTTP injection. A fresh server
         # boot clears the in-memory awaiting-reboot request from the refused update.

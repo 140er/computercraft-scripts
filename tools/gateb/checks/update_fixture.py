@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import secrets
 import subprocess
+import tempfile
 
 from .model import Blocked
 
@@ -27,11 +28,42 @@ def baseline(target):
     raise Blocked("C16 needs a strictly older server-only ancestor with pinned worker updates")
 
 
+def outside_revision(ctx):
+    tip = git("rev-parse", "origin/server-only^{commit}").decode().strip()
+    refs = git("for-each-ref", "--sort=-committerdate", "--format=%(objectname) %(refname)",
+               "refs/remotes/origin/").decode().splitlines()
+    for ref in refs:
+        sha, name = ref.split(" ", 1)
+        result = subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", sha, tip], capture_output=True)
+        if result.returncode not in (0, 1):
+            raise Blocked("C16 cannot verify the ancestry probe's commit")
+        if result.returncode == 1:
+            ctx.record("C16-outside-ancestry.json", {"revision": sha, "ref": name, "server_only_tip": tip,
+                       "method": "git merge-base --is-ancestor", "exit_code": result.returncode})
+            return sha
+    raise Blocked("C16 needs a real remote commit outside server-only ancestry")
+
+
+def worker_files(revision):
+    from world import installer_manifest
+    with tempfile.TemporaryDirectory(prefix="gateb-c16-") as temp:
+        source = Path(temp)
+        (source / "install.lua").write_bytes(git("show", revision + ":install.lua"))
+        paths = installer_manifest(source, "worker")
+    tree = {}
+    for entry in git("ls-tree", "-r", "-z", revision).split(b"\0"):
+        if entry:
+            metadata, path = entry.split(b"\t", 1)
+            tree[path.decode()] = metadata.split()[:2]
+    if any(tree.get(path) not in ([b"100644", b"blob"], [b"100755", b"blob"]) for path in paths):
+        raise Blocked("C16 target tree lacks a regular file required by the worker role")
+    return {path: git("show", revision + ":" + path) for path in paths}
+
+
 def prepare(ctx, previous):
     # Use the same manifest parser and generation writer as the native runtime.
-    from world import atomic, installer_manifest
+    from world import atomic
     from fixtures import store, lua
-    import tempfile
 
     if not ctx.run.startswith("driver-"):
         raise Blocked("C16 provisioning requires an owned driver world")
@@ -41,11 +73,8 @@ def prepare(ctx, previous):
     for info in manifest["computers"].values():
         if info["role"] == "worker":
             ctx.power(info["name"], "off")
-    with tempfile.TemporaryDirectory(prefix="gateb-c16-") as temp:
-        source = Path(temp)
-        (source / "install.lua").write_bytes(git("show", previous + ":install.lua"))
-        files = installer_manifest(source, "worker")
-        contents = {path: git("show", previous + ":" + path) for path in files}
+    contents = worker_files(previous)
+    files = list(contents)
     server_id = str(ctx.computer("server"))
     keys = {}
     commands = []

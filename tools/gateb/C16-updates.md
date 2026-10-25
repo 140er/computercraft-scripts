@@ -16,7 +16,9 @@ of the shared quota can still make the real update attempts fail.
 The ten requests use `SO.updateWorker` in one server invocation. Each worker
 must acknowledge, hand off to its installed updater, call native `os.reboot`
 and send a hello with the target revision on a later boot. The server must
-confirm completion. Every installed manifest file must match the target bytes.
+confirm completion. The complete installed path set must match the worker role
+manifest read independently from the target commit and its Git tree. Every
+file must match the target bytes.
 Each worker must make exactly four real API calls. The successful update uses
 real GitHub ref, compare, tree and raw-file responses.
 
@@ -25,16 +27,23 @@ returns 403 with `x-ratelimit-remaining` set by `--c16-fake-remaining`, default 
 and `Retry-After: 60`. Allowed values are 0, 1 and 2, below the three calls still
 needed after the first response. The injected request never reaches GitHub.
 The installed updater must refuse, display `Update API refused` on the worker
-terminal and preserve its installed files, revision, pairing and journal.
-The saved cooldown is allowed to change. C16 removes the fake response and
+terminal and preserve its installed files, revision, pairing, journal and
+recovered configuration. Only `updateApiRetryAt` may change in this probe.
+C16 removes the fake response and
 clears that test cooldown before the real batch, then reboots the server to
 clear the previous in-memory pending request.
 
-The ancestry probe sends an authenticated equal-revision request from the
-real server. The worker must reject it without an installer handoff or reboot,
-show `invalid revision` on its terminal and preserve the same files and state.
-Equal revision covers the requirement to refuse a target that is not strictly
-newer. This probe does not claim to test a divergent commit.
+The host selects a real commit from remote refs and verifies with
+`git merge-base --is-ancestor` that it is outside server-only ancestry. The
+ancestry probe sends an authenticated request for that SHA from the real
+server. It requires worker acceptance, installer handoff, a real GitHub
+comparison for that SHA and `Pinned revision ancestry refused` on the worker
+terminal before reboot. Files, revision, pairing, journal and the complete
+recovered configuration must remain unchanged. The worker must then send a
+hello with its old revision on a later boot. An early worker refusal cannot
+pass. Missing remote history or a suitable outside commit produces Blocked.
+This probe consumes real API calls before the quota check for the ten-worker
+batch; the remaining quota must still cover all 40 batch calls.
 
 Pairing keys are generated only for these private fixtures and never enter
 evidence. Hashes verify that the keys survive updates. Harmless park leases

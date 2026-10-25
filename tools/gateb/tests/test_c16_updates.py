@@ -16,7 +16,7 @@ import run
 from checks import c16, update_fixture
 from checks.model import Blocked
 
-OLD, TARGET = "a" * 40, "b" * 40
+OLD, TARGET, OUTSIDE = "a" * 40, "b" * 40, "c" * 40
 NAMES = [f"c16-{i}" for i in range(1, 11)]
 
 
@@ -30,7 +30,8 @@ def context():
 
 def fingerprint(revision=OLD):
     return {"files": {"worker.lua": hashlib.sha256(b"source").hexdigest()},
-            "pairing": {"so-keys": "hash"}, "revision": revision, "journal": {"id": "100-1"}}
+            "pairing": {"so-keys": "hash"}, "revision": revision, "journal": {"id": "100-1"},
+            "config": {"remoteUpdates": True, "settingsSeq": 7, "autoToolSwap": False}}
 
 
 def events():
@@ -105,11 +106,11 @@ def test_success_needs_ack_handoff_native_reboot_new_hello_and_four_calls(missin
         observed = [e for e in observed if e["kind"] != missing]
     with patch.object(c16, "fingerprint", return_value=fingerprint(TARGET)), \
          patch.object(c16, "trace", return_value={"events": observed}), \
-         patch.object(update_fixture, "git", return_value=b"source"):
+         patch.object(update_fixture, "worker_files", return_value={"worker.lua": b"source"}):
         assert c16.updated(ctx, NAMES[0], OLD, {"fingerprint": fingerprint(), "events": 0}) == (missing is None)
 
 
-@pytest.mark.parametrize("mutation", ["revision", "pairing", "files", "journal"])
+@pytest.mark.parametrize("mutation", ["revision", "pairing", "files", "journal", "config"])
 def test_refusals_require_files_pairing_revision_and_journal_unchanged(mutation):
     before = fingerprint()
     after = copy.deepcopy(before)
@@ -121,17 +122,19 @@ def test_refusals_require_files_pairing_revision_and_journal_unchanged(mutation)
 @pytest.mark.parametrize("passed", [False, True])
 def test_actual_refusal_observations_with_mocked_ctx(budget, passed):
     ctx = context()
-    terminal = {"lines": [{"text": "Update API refused" if budget else "invalid revision"}]}
-    observed = ([{"kind": "fake_budget", "remaining": 0}, {"kind": "reboot", "terminal": terminal}]
-                if budget else [{"kind": "err", "text": "invalid revision"}])
-    ctx.terminal.return_value = terminal if passed else {"lines": []}
-    if budget and not passed:
-        observed[1]["terminal"] = {"lines": []}
+    terminal = {"lines": [{"text": ("Update API refused" if budget else "Pinned revision ancestry refused") if passed else "Installed worker"}]}
+    observed = ([{"kind": "fake_budget", "remaining": 0}] if budget else [
+        {"kind": "ack", "revision": OUTSIDE, "state": "accepted"},
+        {"kind": "handoff", "revision": OUTSIDE, "running": OLD},
+        {"kind": "api", "url": f"https://api.github.com/repos/140er/computercraft-scripts/compare/{OUTSIDE}...{TARGET}"}])
+    observed += [{"kind": "reboot", "terminal": terminal}, {"kind": "hello", "boot": 2, "revision": OLD}]
     with patch.object(c16, "fingerprint", return_value=fingerprint()), \
          patch.object(c16, "dispatch"), \
-         patch.object(c16, "trace", side_effect=[{"events": []}, {"events": observed}, {"boots": 2}] if budget
-                      else [{"events": []}, {"events": observed}]):
-        assert c16.refusal(ctx, NAMES[0], OLD, budget) == passed
+         patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1}, {"events": observed}, {"boots": 2, "events": observed}]):
+        assert c16.refusal(ctx, NAMES[0], OUTSIDE, budget) == passed
+    if not budget:
+        assert OUTSIDE in ctx.lua.call_args.args[1]
+        assert OLD not in ctx.lua.call_args.args[1]
 
 
 def test_budget_probe_rejects_non_exhausting_fake_quota():
@@ -148,6 +151,7 @@ def test_complete_run_and_each_failure_with_mocked_ctx(criterion):
     sent = {"span_game_ms": 0, "workers": {str(i): {"rid": str(i)} for i in range(100, 110)}}
     with patch.object(c16, "rate_limit", return_value={"remaining": 60}) as quota, \
          patch.object(update_fixture, "baseline", return_value=OLD), \
+         patch.object(update_fixture, "outside_revision", return_value=OUTSIDE), \
          patch.object(update_fixture, "prepare", return_value=NAMES), \
          patch.object(c16, "status", return_value=rows()), \
          patch.object(c16, "park_round", side_effect=[True, criterion != "paired_lease_recovery"]), \
@@ -174,6 +178,7 @@ def test_second_quota_admission_blocks_batch():
     ctx = context()
     with patch.object(c16, "rate_limit", side_effect=[{"remaining": 40}, {"remaining": 39}, {"remaining": 39}]), \
          patch.object(update_fixture, "baseline", return_value=OLD), \
+         patch.object(update_fixture, "outside_revision", return_value=OUTSIDE), \
          patch.object(update_fixture, "prepare", return_value=NAMES), \
          patch.object(c16, "status", return_value=rows()), patch.object(c16, "park_round", return_value=True), \
          patch.object(c16, "refusal", return_value=True), patch.object(c16, "dispatch") as dispatch:
@@ -263,6 +268,8 @@ def test_provisions_ten_actual_worker_disks_and_native_blocks(tmp_path):
     ctx.lua.return_value = True
     installer = b'local ROLES={common={"install.lua","so-proto.lua"},worker={program="worker.lua","worker.lua"}}'
     def source(*args):
+        if args[0] == 'ls-tree':
+            return b'\0'.join(b'100644 blob ' + b'd' * 40 + b'\t' + name for name in (b'install.lua', b'so-proto.lua', b'worker.lua'))
         assert args[0] == 'show' and args[1].startswith(OLD + ':')
         return installer if args[1].endswith(':install.lua') else b'real ancestor bytes'
     with patch.object(update_fixture, 'git', side_effect=source):
@@ -310,3 +317,133 @@ def test_low_admission_records_before_after_without_fixture_work():
             c16.run(ctx)
     prepare.assert_not_called()
     assert [call.args[1] for call in quota.call_args_list] == ['before', 'after']
+
+
+def ancestry_events(*, skipped=False, early=False):
+    if early:
+        return [{"kind": "err", "text": "invalid revision"}]
+    terminal = {"lines": [{"text": "Installed worker" if skipped else "Pinned revision ancestry refused"}]}
+    observed = [{"kind": "ack", "revision": OUTSIDE, "state": "accepted"},
+                {"kind": "handoff", "revision": OUTSIDE, "running": OLD}]
+    if not skipped:
+        observed.append({"kind": "api", "url": f"https://api.github.com/repos/140er/computercraft-scripts/compare/{OUTSIDE}...{TARGET}"})
+    return observed + [{"kind": "reboot", "terminal": terminal},
+                       {"kind": "hello", "boot": 2, "revision": OLD}]
+
+
+@pytest.mark.parametrize("broken", [None, "skipped_installer_ancestry", "early_worker_refusal"])
+def test_installer_that_skips_ancestry_validation_fails_c16(broken):
+    ctx = context()
+    observed = ancestry_events(skipped=broken == "skipped_installer_ancestry", early=broken == "early_worker_refusal")
+    with patch.object(c16, "fingerprint", return_value=fingerprint()), \
+         patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1},
+                      {"events": observed}, {"boots": 2, "events": observed}]):
+        ancestry = c16.refusal(ctx, NAMES[0], OUTSIDE)
+    data = {"worker_count": 10, "tick_rate": 20, **dict.fromkeys(c16.CRITERIA, True)}
+    data["ancestry_refused_unchanged"] = ancestry
+    assert c16.evaluate(data).status == ("pass" if broken is None else "fail")
+    assert OUTSIDE in ctx.lua.call_args.args[1]
+
+
+@pytest.mark.parametrize("budget", [False, True])
+@pytest.mark.parametrize("field,value", [("settingsSeq", 8), ("autoToolSwap", True), ("remoteUpdates", False)])
+def test_refusal_rejects_changed_recovered_config(budget, field, value):
+    ctx = context()
+    before = fingerprint()
+    after = copy.deepcopy(before)
+    after["config"][field] = value
+    observed = ancestry_events()
+    if budget:
+        observed = [{"kind": "fake_budget", "remaining": 0},
+                    {"kind": "reboot", "terminal": {"lines": [{"text": "Update API refused"}]}},
+                    {"kind": "hello", "boot": 2, "revision": OLD}]
+    with patch.object(c16, "fingerprint", side_effect=[before, after]), patch.object(c16, "dispatch"), \
+         patch.object(c16, "trace", side_effect=[{"events": [], "boots": 1},
+                      {"events": observed}, {"boots": 2, "events": observed}]):
+        assert not c16.refusal(ctx, NAMES[0], OUTSIDE, budget)
+
+
+def test_only_budget_probe_can_change_only_saved_cooldown():
+    before = fingerprint()
+    after = copy.deepcopy(before)
+    after["config"]["updateApiRetryAt"] = 1234567890
+    assert c16.unchanged(before, after, budget=True)
+    assert not c16.unchanged(before, after)
+    assert "updateApiRetryAt" in after["config"]
+    after["config"]["autoToolSwap"] = True
+    assert not c16.unchanged(before, after, budget=True)
+
+
+def test_fingerprint_reads_recovered_config():
+    ctx = context()
+    expected = fingerprint()
+    ctx.request.return_value = {"content": OLD}
+    ctx.integrity.return_value = {"files": expected["files"], "pairing": expected["pairing"]}
+    ctx.read_store.return_value = expected["journal"]
+    ctx.lua.return_value = expected["config"]
+    assert c16.fingerprint(ctx, NAMES[0]) == expected
+    assert "readConfig('so-worker.cfg')" in ctx.lua.call_args.args[1]
+
+
+@pytest.mark.parametrize("bad_manifest", [None, "missing", "extra", "changed_bytes"])
+def test_complete_target_manifest_required_even_when_worker_omits_missing_file(bad_manifest):
+    ctx = context()
+    after = fingerprint(TARGET)
+    after["files"]["update.lua"] = hashlib.sha256(b"updater").hexdigest()
+    if bad_manifest == "missing":
+        # The defective updater deletes update.lua and omits it from .so-files.
+        del after["files"]["update.lua"]
+    elif bad_manifest == "extra":
+        after["files"]["unexpected.lua"] = hashlib.sha256(b"extra").hexdigest()
+    elif bad_manifest == "changed_bytes":
+        after["files"]["update.lua"] = hashlib.sha256(b"wrong updater").hexdigest()
+    with patch.object(c16, "fingerprint", return_value=after), \
+         patch.object(c16, "trace", return_value={"events": events()}), \
+         patch.object(update_fixture, "worker_files", return_value={"worker.lua": b"source", "update.lua": b"updater"}) as manifest:
+        assert c16.updated(ctx, NAMES[0], OLD, {"fingerprint": fingerprint(), "events": 0}) == (bad_manifest is None)
+    manifest.assert_called_once_with(TARGET)
+
+
+@pytest.mark.parametrize("missing_tree_file", [False, True])
+def test_expected_worker_manifest_comes_from_target_installer_and_tree(missing_tree_file):
+    installer = b'local ROLES={common={"install.lua","update.lua"},worker={program="worker.lua","worker.lua"}}'
+    selected = {"install.lua": installer, "update.lua": b"updater", "worker.lua": b"worker"}
+    def git(*args):
+        if args[0] == "ls-tree":
+            assert args == ("ls-tree", "-r", "-z", TARGET)
+            paths = ["install.lua", "worker.lua"] if missing_tree_file else list(selected)
+            return b"\0".join(b"100644 blob " + b"d" * 40 + b"\t" + p.encode() for p in [*paths, "display.lua"])
+        assert args[0] == "show" and args[1].startswith(TARGET + ":")
+        return selected[args[1].split(":", 1)[1]]
+    with patch.object(update_fixture, "git", side_effect=git):
+        if missing_tree_file:
+            with pytest.raises(Blocked, match="target tree lacks"):
+                update_fixture.worker_files(TARGET)
+        else:
+            assert update_fixture.worker_files(TARGET) == selected
+
+
+@pytest.mark.skipif(not shutil.which("git"), reason="Git unavailable")
+def test_probe_selects_real_remote_commit_verified_outside_server_only(tmp_path):
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(tmp_path), "-c", "user.name=C16 test",
+                                       "-c", "user.email=c16@example.invalid", "-c", "commit.gpgsign=false", *args], stderr=subprocess.DEVNULL).decode().strip()
+    git("init", "--initial-branch=fixture")
+    git("commit", "--allow-empty", "-m", "shared base")
+    common = git("rev-parse", "HEAD")
+    git("commit", "--allow-empty", "-m", "server-only commit")
+    tip = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/origin/server-only", tip)
+    git("checkout", "--detach", common)
+    git("commit", "--allow-empty", "-m", "outside commit")
+    outside = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/origin/fixture-outside", outside)
+    ctx = context()
+    with patch.object(update_fixture, "ROOT", tmp_path):
+        assert update_fixture.outside_revision(ctx) == outside
+        proof = ctx.record.call_args.args[1]
+        assert proof["exit_code"] == 1 and proof["server_only_tip"] == tip
+        assert proof["ref"] == "refs/remotes/origin/fixture-outside"
+        git("update-ref", "-d", "refs/remotes/origin/fixture-outside")
+        with pytest.raises(Blocked, match="outside server-only ancestry"):
+            update_fixture.outside_revision(ctx)
