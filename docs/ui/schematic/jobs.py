@@ -799,25 +799,64 @@ def lumber(m, w, h, setup=False, title=""):
 
 # ================================================================ drop points
 
-def drops_model(selected=None, editing=False, testing=False, edit=False, confirm=False):
+FILTERS = [("ALL", None, "ALL"), ("WORLD", 0, "OVW"), ("NETHER", -1, "NTH"), ("END", 1, "END")]
+
+
+def drop_choose(points, kind, pos, sink):
+    """so-mod-drops' choose: the nearest working point of the kind, else of kind any, else HOLD
+    with the nearest broken point or the reason."""
+    want = anyp = broken = None
+    off = False
+    for p in points:
+        if p["room"] and not sink:
+            off = off or (p["dim"] == pos["dim"] and p["kind"] == kind)
+        elif p["dim"] == pos["dim"] and p["kind"] in (kind, "any"):
+            key = ((p["x"] - pos["x"]) ** 2 + (p["y"] - pos["y"]) ** 2 + (p["z"] - pos["z"]) ** 2, p["id"])
+            if p["broken"]:
+                broken = min(broken, (key, p), key=lambda t: t[0]) if broken else (key, p)
+            elif p["kind"] == kind:
+                want = min(want, (key, p), key=lambda t: t[0]) if want else (key, p)
+            if not p["broken"] and p["kind"] == "any":
+                anyp = min(anyp, (key, p), key=lambda t: t[0]) if anyp else (key, p)
+    point = (want or (anyp if kind != "any" else None) or (None, None))[1]
+    if point:
+        return dict(text="%d %s %s" % (point["n"], point["kind"], where(point)), short="%d %s" % (point["n"], where(point)))
+    if broken:
+        return dict(hold="%d broken" % broken[1]["n"])
+    return dict(hold="%s room chests off" % kind if off else "no %s chest set" % kind)
+
+
+def drops_model(selected=None, editing=False, testing=False, edit=False, confirm=False, dim=None, nether=(),
+                turtle=None, pose=None, pick=None):
     """What so-mod-drops' gather builds: the points in list order, the selection, the plan's context,
-    the unassigned turtles and the chests their scans found."""
+    the unassigned turtles and the chests their scans found. The list page keeps only the points in
+    the dimension filter, with their numbers; a chosen turtle on the setup page brings PREVIEW."""
     points = []
     verified = {int(x[0]) for x in EXTRA.get("verified", [])}
     room = {int(x[0]) for x in EXTRA.get("roompoint", [])}
     for d in S["drops"]:
         kind = "storage" if d["kind"] == "saplings" else d["kind"]
-        points.append(dict(n=d["id"], id="0_%d_%d_%d_front_%s" % (d["x"], d["y"], d["z"], kind), dim=0, kind=kind,
+        points.append(dict(n=d["id"], id="0_%d_%d_%d_front_%s" % (d["x"], d["y"], d["z"], kind),
+                           dim=-1 if d["id"] in nether else 0, kind=kind,
                            x=d["x"], y=d["y"], z=d["z"], side="front", broken=d["broken"],
                            verified=d["id"] in verified, room=d["id"] in room))
+    every, dims = points, len({p["dim"] for p in points}) > 1 or dim is not None
+    shown = [p for p in points if dim is None or p["dim"] == dim]
     if selected is None:
-        selected = next((p["id"] for p in points if p["broken"]), points[0]["id"] if points else None)
+        selected = next((p["id"] for p in shown if p["broken"]), shown[0]["id"] if shown else None)
+    if dim is not None and not editing and not testing and not edit:
+        points = shown
     g, a = S["g"], S["area"]
     sel = next((p for p in points if p["id"] == selected), None)
     draft = dict(dim=0, x=126, y=64, z=-337, side="front", kind="ore")
     if edit and sel:
         draft = dict(dim=sel["dim"], x=sel["x"], y=sel["y"], z=sel["z"], side=sel["side"], kind=sel["kind"])
+    preview = None
+    if turtle is not None and testing:
+        pick = pick or (sel["kind"] if sel else "ore")
+        preview = dict(id=turtle, kind=pick, **drop_choose(every, pick, pose, False))
     return dict(points=points, selected=selected, page=1, editing=editing or edit, testing=testing, message=None,
+                dim=dim, dims=dims, turtle=turtle, preview=preview,
                 edit=sel["n"] if edit and sel else None, confirm="remove:" + selected if confirm and sel else None,
                 roomSink=False, turtles=[int(a) for a, _ in EXTRA.get("candidate", [])], start=0, compass=None, task=None, failed=None,
                 found=[dict(x=int(x), y=int(y), z=int(z), side=sd) for x, y, z, sd in EXTRA.get("found", [])],
@@ -936,7 +975,19 @@ def drops_list(cv, m):
     right, roomy = str(len(pts)), w >= 30
     if pages > 1:
         right = ("    %d/%d    " if roomy else " %d/%d ") % (page, pages)
-    bar(cv, "DROP POINTS" if roomy else "DROPS", [], None, right, "8")
+    # The dimension filter shows once points span two dimensions, or while it is set. Narrow screens
+    # shorten the title, then the labels, then drop the title, sized for the longest label so the
+    # chip never vanishes when tapped on.
+    title = "DROP POINTS" if roomy else "DROPS"
+    if m["dims"]:
+        for title, short, longest in ((title, False, 6), ("DROPS", False, 6), ("DROPS", True, 3), ("", True, 3)):
+            if (2 if title == "" else len(title) + 3) + longest + 1 <= w - len(right) - 2:
+                break
+        bar(cv, title, [], None, right, "8")
+        label = next((s if short else f for f, d, s in FILTERS if d == m["dim"]))
+        chip(cv, 2 if title == "" else len(title) + 3, 1, label, "dims", "on" if m["dim"] is not None else "plain")
+    else:
+        bar(cv, title, [], None, right, "8")
     if pages > 1:
         chip(cv, w - len(right), 1, "◄", "prev", "plain", 3 if roomy else 1)
         chip(cv, w - (3 if roomy else 1), 1, "►", "next", "plain", 3 if roomy else 1)
@@ -1089,6 +1140,18 @@ def drops_setup(cv, m):
                 break
     cv.put(8, 3, text[:max(0, w - 9)], ("e" if sel["broken"] else "0") if sel else "8")
     y = 5
+    pv = m["preview"]
+    if not m["compass"] and pv and y + 1 < stop:
+        # A chosen turtle is TEST's turtle, and PREVIEW shows the chest it would use for the kind.
+        section(cv, 2, y, w - 2, "PREVIEW #%d" % pv["id"])
+        x = chip(cv, 2, y + 1, pv["kind"], "preview-kind", "plain") + 1
+        if pv.get("hold"):
+            cv.put(x, y + 1, "HOLD", "e")
+            cv.put(x + 5, y + 1, pv["hold"][:max(0, w - x - 5)], "8")
+        else:
+            text = pv["text"] if len(pv["text"]) < w - x else pv.get("short") or pv["text"]
+            cv.put(x, y + 1, text[:max(0, w - x)], "0")
+        y += 2
     if m["compass"]:
         drops_facing(cv, m, y, w)
         items = []
@@ -1116,8 +1179,12 @@ def drops_setup(cv, m):
             chip(cv, w - 5, y, "add", "candidate:%d" % n, "plain")
         elif n is not None:
             busy = m["task"] == n
-            cv.put(2, y, "•", ("e" if m["failed"] else "1") if busy else "d")
-            cv.put(4, y, "#%d" % n, "0")
+            bg = "7" if m["turtle"] == n else None
+            if bg:
+                cv.fill(1, y, w - 7, 1, bg)
+            cv.put(2, y, "•", ("e" if m["failed"] else "1") if busy else "d", bg)
+            cv.put(4, y, "#%d" % n, "0", bg)
+            cv.hit("turtle:%d" % n, 1, y, w - 10, 1)
             if busy:
                 chip(cv, w - 9, y, "release", "release", "stop")
             else:
@@ -1154,6 +1221,18 @@ def _lumber(w, h, title, setup=False):
 
 def _drops(w, h, title, editing=False, testing=False):
     return lambda: drops(drops_model(editing=editing, testing=testing), w, h, title)
+
+
+def dropsdim(w, h, title):
+    """Point 3 in the nether, the filter on NETHER: only point 3 is listed, still as 3."""
+    return lambda: drops(drops_model(dim=-1, nether=(3,)), w, h, title)
+
+
+def dropspreview(w, h, title, kind=None):
+    """Chest setup with turtle #12 chosen at 118,64,-336: PREVIEW for the selected point's kind
+    (junk, whose only chest is broken), or for the kind picked."""
+    pose = dict(dim=0, x=118, y=64, z=-336)
+    return lambda: drops(drops_model(testing=True, turtle=12, pose=pose, pick=kind), w, h, title)
 
 
 def dropsel(w, h, title, edit=False, confirm=False):
@@ -1199,4 +1278,10 @@ FIXTURES += [
     ("dropsedit-P", dropsel(26, 20, "Edit drop point 2 at 26x20", edit=True)),
     ("dropsremove-P", dropsel(26, 20, "REMOVE 2 armed at 26x20", confirm=True)),
     ("dropsremove-XS", dropsel(15, 10, "REMOVE 2 armed, smallest monitor", confirm=True)),
+]
+# tests/so/drop-editor.lua checks these against so-mod-drops.lua.
+FIXTURES += [
+    ("dropsdim-P", dropsdim(26, 20, "NETHER filter at 26x20")),
+    ("dropspreview-M", dropspreview(57, 24, "Chest setup, PREVIEW for #12, room monitor 57x24")),
+    ("dropspreview-P", dropspreview(26, 20, "Chest setup, PREVIEW for #12 with wood at 26x20", kind="wood")),
 ]
