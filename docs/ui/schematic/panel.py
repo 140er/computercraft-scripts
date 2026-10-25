@@ -241,7 +241,8 @@ def code_fit(w, h):
     return dict(dw=dw, dh=dh, gap=gap) if dh >= 5 and dw >= 3 else None
 
 
-def pair(m, w, h, title, code=None, left=0, enroll=None):
+def pair(m, w, h, title, code=None, left=0, enroll=None, refused=None):
+    """refused is a refused EXTEND's reason, drawn after ENROLL once the ENROLL page has closed."""
     cv = Canvas(w, h, title)
     header(cv, w, h)
     fit = code_fit(w, h)
@@ -251,7 +252,10 @@ def pair(m, w, h, title, code=None, left=0, enroll=None):
         g["ty"] = 3 + fit["dh"] + (1 if 4 + fit["dh"] < h - 2 else 0)
     if w < 19:
         g["list"], g["new"] = h - 4, h - 2
-    return PK.pair(m, w, h, code, left, enroll=enroll, g=g, cv=cv)
+    cv = PK.pair(m, w, h, code, left, enroll=enroll, g=g, cv=cv)
+    if refused:
+        cv.put(20, g["list"], refused[:max(0, w - 20)], "e")
+    return cv
 
 
 def age(seen):
@@ -392,6 +396,8 @@ FIXTURES = [
     ("panelcode-S", lambda: pair(ST.model(), 29, 12, "Panel PAIR 29x12 with a code", **code())),
     ("panelcode-M", lambda: pair(ST.model(), 57, 24, "Panel PAIR 57x24 with a code, enroll open",
                                  enroll=True, **code())),
+    ("panelrefused-S", lambda: pair(ST.model(), 29, 12, "Panel PAIR 29x12, EXTEND refused as the window closed",
+                                    enroll=True, refused="closed")),
     ("paired-P", lambda: paired(26, 20, "Pocket PAIRED, keys only", machines=False, tabs=False)),
     ("paired-S", lambda: paired(29, 12, "Panel PAIRED 29x12, keys only", machines=False)),
     ("paired-M", lambda: paired(57, 24, "Panel PAIRED 57x24, FORGET armed on #4", confirm=SC["confirm"])),

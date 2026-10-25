@@ -870,6 +870,8 @@ P.pairPage = function(c, session, state, w, h, g)
     local enroll = SO.enroll.view(session.id)
     if P.trusted(session) and (not enroll or enroll.token) then c.chip(x,g.list,"ENROLL","enroll","primary")
     else P.dead(c,x,g.list,"ENROLL",8) end
+    -- A refused EXTEND that closed the ENROLL page keeps its reason here until the next enroll tap.
+    if state.extendFailed then c.put(x+9,g.list,state.extendFailed:sub(1,math.max(0,w-x-9)),"e") end
     return
   end
   if not SO.enroll then c.chip(2,g.list,"PAIRED","paired","plain",w-2);return end
