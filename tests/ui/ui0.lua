@@ -150,7 +150,8 @@ return function(test, equal)
     c.onFrame({ body = { rows = {}, palette = palette, scale = 0.5 } })
     equal(state.scale, 0.5)
     equal(#state.sends, before + 1)
-    equal(state.sends[#state.sends], { t = "hello", body = { w = 57, h = 23, fullH = 24, keyboard = false, label = "screen" } })
+    equal(state.sends[#state.sends], { t = "hello", body = { w = 57, h = 23, fullH = 24, keyboard = false, label = "screen",
+      capabilities = { frameAck = 1 } } })
     for i = 0, 15 do equal(out.palette[2 ^ i], { palette[i] }) end
     local loop = coroutine.create(c.loop)
     assert(coroutine.resume(loop))

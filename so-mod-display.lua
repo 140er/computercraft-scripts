@@ -439,12 +439,12 @@ D.sendFrame = function(id, now, force)
   if slot then session.revSent = slot.rev end
 end
 
--- With displayAck every frame is fitted before signing, in an envelope at its largest rid and mac
+-- With displayAck every frame is fitted before signing, in an envelope at its largest rid, at and mac
 -- holding the largest challenge, so the challenge it then carries (or none) never sheds anything.
 -- False when even one row and no buttons do not fit.
 D.room = function(body, challenge)
   local pad = D.reserve.token
-  local probe = { v = 1, t = "view.frame", rid = pad, from = D.self() or 0, at = os.epoch("utc"), mac = pad, body = body }
+  local probe = { v = 1, t = "view.frame", rid = pad, from = D.self() or 0, at = 9999999999999, mac = pad, body = body }
   body.ack = D.reserve
   while not SO.proto.encode(probe) do
     if #body.rows > 1 then body.rows[#body.rows] = nil
