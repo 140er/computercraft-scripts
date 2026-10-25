@@ -88,6 +88,12 @@ end
 
 -- B-P: the panel controls of the merged backend rows, on the scene's paired keys (tests/ui/panel-scene.txt).
 local REV,OLD=string.rep('a',40),string.rep('b',40)
+-- Literal paths, so part runs declare every fixture they read.
+local BP={['panelbuild-M']='tests/ui/fixtures/panelbuild-M.txt',['panelenroll-S']='tests/ui/fixtures/panelenroll-S.txt',
+  ['panelenrolloff-S']='tests/ui/fixtures/panelenrolloff-S.txt',['pairedupdate-M']='tests/ui/fixtures/pairedupdate-M.txt',
+  ['pairedimpact-P']='tests/ui/fixtures/pairedimpact-P.txt',['pairedimpact-M']='tests/ui/fixtures/pairedimpact-M.txt',
+  ['worker-P']='tests/ui/fixtures/worker-P.txt',['worker-S']='tests/ui/fixtures/worker-S.txt',
+  ['workerbusy-S']='tests/ui/fixtures/workerbusy-S.txt'}
 local function bp(o)
   o=o or {}
   local e={now=50000000,switches={},updates={},forgot={},sent={},enabled=o.enabled~=false,keys={},status=o.status or {}}
@@ -146,7 +152,7 @@ local function bp(o)
     if o.pocket then screens.pocket.input(event) else screens.panel.input(event) end
   end
   e.match=function(name)
-    local fixture=R.load('tests/ui/fixtures/'..name..'.txt')
+    local fixture=R.load(BP[name])
     local diff=R.diff(fixture,capture(e.draw(),fixture.w,fixture.h))
     assert(#diff==0,name..'\n'..table.concat(diff,'\n'))
   end
@@ -619,7 +625,7 @@ return function(test,equal)
       alert={key='build:fuel',severity=2,text='out of fuel'}} end}
     s.d.handlers.hello({from=21,body={w=57,h=24}})
     assert(s.d.assign(21,'panel'))
-    local fixture=R.load('tests/ui/fixtures/panelbuild-M.txt')
+    local fixture=R.load(BP['panelbuild-M'])
     local diff=R.diff(fixture,S.capture(s.view(21),57,24))
     assert(#diff==0,table.concat(diff,'\n'))
     s.env.SO.mods.build={facts=function() error('broken') end}
@@ -727,10 +733,7 @@ return function(test,equal)
     os.remove(dir)
     assert(os.execute("mkdir -p '"..dir.."'"))
     assert(os.execute("python3 -I '"..root.."/docs/ui/schematic/screens.py' --fixtures '"..dir.."' > /dev/null"))
-    for _,name in ipairs({'panelbuild-M','panelenroll-S','panelenrolloff-S','pairedupdate-M','pairedimpact-P',
-        'pairedimpact-M','worker-P','worker-S','workerbusy-S'}) do
-      equal(read(dir..'/'..name..'.txt'),read('tests/ui/fixtures/'..name..'.txt'))
-    end
+    for name,path in pairs(BP) do equal(read(dir..'/'..name..'.txt'),read(path),name) end
     assert(os.execute("rm -r '"..dir.."'"))
   end)
 end
