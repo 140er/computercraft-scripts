@@ -1,0 +1,61 @@
+26x20 Turtle inventory at 26x20
+ INVENTORY #2  ----- 6/16 
+                          
+ 01 diamond ·········· 14 
+                          
+ 02 cobblestone ······ 64 
+                          
+ 03 empty                 
+                          
+ 04 empty                 
+                          
+ 05 andesite_alloy ··· 32 
+                          
+ 06 empty                 
+                          
+ 07 empty                 
+                          
+ 08 empty                 
+                          
+                          
+  ◄   ►  1/2        BACK  
+000000000000000ccccc000000
+00000000000000000000000000
+088000000000cccccccccc0000
+00000000000000000000000000
+0880000000000000cccccc0000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+0880000000000000000ccc0000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08880000088800000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777f777fffffffffff777777f

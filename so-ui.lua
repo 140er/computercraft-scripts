@@ -737,8 +737,9 @@ end
 -- error flag, leaders, branch or spot progress, then the job's chips with BACK on the last row, where
 -- D.turtleInput finds it even when composing fails. From 36 cells the pose editor adds a step chip
 -- that switches the x, y and z chips between 1 and 10. With row.workerPark the job chips park,
--- resume and remove this worker alone; RESUME replaces PARK once it is parked.
-T.render = function(w,h,selection,row,now)
+-- resume and remove this worker alone; RESUME replaces PARK once it is parked. With an inventory model
+-- (turtleInventory) the inventory leader reads it and opens the inventory page.
+T.render = function(w,h,selection,row,now,inv)
   local c = U.canvas(w,h)
   row = row or {}
   local gap, lw, name = h >= 16 and 1 or 0, math.min(w - 2, 36), 'TURTLE #'..selection.id
@@ -779,15 +780,19 @@ T.render = function(w,h,selection,row,now)
   local retry = row.retry and ('retry '..math.max(0, math.ceil((row.retry - now) / 1000))..'s') or ''
   -- The countdown leads on its own row, so a long error cannot push it out.
   if row.error or retry ~= '' then
-    y = y + U.flagLines(c, 2, y, w - 2, row.error or '', retry, retry ~= '' and 3 or 2, true) + gap
+    local n = retry ~= '' and 3 or 2
+    -- With an inventory model the flag leaves rows for three leaders, so inventory stays reachable.
+    if inv then n = math.max(1, math.min(n, bottom - y + 1 - gap - 3 - (row.total and 1 + gap or 0))) end
+    y = y + U.flagLines(c, 2, y, w - 2, row.error or '', retry, n, true) + gap
   end
   local slots, count = 0, 0
-  for _,item in pairs(row.inv or {}) do slots = slots + 1 count = count + (item.count or 0) end
+  for _,item in pairs(inv and inv.slots or row.inv or {}) do slots = slots + 1 count = count + (item.count or 0) end
   local fuel = row.fuel
   local facts = {
     {'pose', row.uncertain and '?' or T.pose(row.pose), row.uncertain and 'e'},
     {'fuel', tostring(fuel or '-'), type(fuel) == 'number' and fuel < 64 and '1'},
-    {'inventory', slots..'/16 '..U.g.dot..' '..count},
+    {'inventory', inv and not inv.known and 'unknown' or slots..'/16 '..U.g.dot..' '..count,
+      inv and (not inv.known or inv.stale) and '1'},
     {'lease', tostring(row.lease or '-')},
     {'step', tostring(row.step or '-')},
     {'ore', tostring(row.ore or 0)},
@@ -798,6 +803,7 @@ T.render = function(w,h,selection,row,now)
     local f = facts[i]
     c.leader(2, y + i - 1, lw, f[1], f[2], f[3] or (f[2] == '-' and '8' or '0'))
   end
+  if inv and shown >= 3 then c.hit('turtle-inventory', 2, y + 2, lw, 1, 'inventory') end
   if row.total then
     local py = y + shown + gap
     local label = role == 'lumber' and 'spots' or 'b'..(tonumber(row.branch) and row.branch + 1 or '-')
@@ -809,6 +815,61 @@ T.render = function(w,h,selection,row,now)
       c.progress(x, py, math.max(1, math.min(12, w - 1 - x - #frac)), row.done, row.total)
     end
   end
+  return c.frame()
+end
+-- The inventory page (turtleInventory; docs/ui/schematic/other.py inventory). model is { id, known, stale,
+-- at?, slots = { [slot] = { name, count } } } from authenticated hellos. The state word (unknown, stale and
+-- its age, or occupied/16) sits in the header beside the title when it fits, else on the first body row.
+-- Slots take two rows each from a 16-row body below 36 cells, one row otherwise; all sixteen show when
+-- they fit. Labels drop the namespace unless two items share the rest of the id.
+T.inventoryLayout = function(w,h,selection,model,now)
+  local L = {gap = h >= 16 and 1 or 0, name = 'INVENTORY #'..model.id, fg = '1'}
+  if not model.known then L.word = 'unknown'
+  elseif model.stale then L.word = 'stale '..U.age(math.max(0, now - (model.at or now)))
+  else
+    local n = 0
+    for slot = 1, 16 do if model.slots[slot] then n = n + 1 end end
+    L.word, L.fg = n..'/16', '0'
+  end
+  L.header = #L.name + #L.word + 5 <= w
+  L.top = 2 + L.gap + (L.header and 0 or 1)
+  local body = math.max(1, h - 1 - L.gap - L.top + 1)
+  if body >= 32 then L.step, L.per = 2, 16
+  elseif w >= 36 and body >= 16 then L.step, L.per = 1, 16
+  elseif L.gap == 1 then L.step, L.per = 2, math.max(1, math.floor(body / 2))
+  else L.step, L.per = 1, body end
+  L.pages = model.known and math.ceil(16 / L.per) or 1
+  L.page = math.max(1, math.min(L.pages, tonumber(selection.inventoryPage) or 1))
+  return L
+end
+T.inventory = function(w,h,selection,model,now)
+  local c, L = U.canvas(w,h), T.inventoryLayout(w,h,selection,model,now)
+  c.bar(L.name, nil, nil, L.header and L.word or '', L.fg)
+  if not L.header then c.put(2, L.top - 1, L.word, L.fg) end
+  if model.known then
+    local seen = {}
+    for _,item in pairs(model.slots) do
+      local short = item.name:match(':(.+)$') or item.name
+      seen[short] = (seen[short] == nil or seen[short] == item.name) and item.name or true
+    end
+    local first = (L.page - 1) * L.per
+    for i = 1, math.min(L.per, 16 - first) do
+      local slot, y = first + i, L.top + (i - 1) * L.step
+      local item = model.slots[slot]
+      c.put(2, y, string.format('%02d', slot), '8')
+      if item then
+        local short = item.name:match(':(.+)$') or item.name
+        c.leader(5, y, w - 5, seen[short] == true and item.name or short, tostring(item.count), '0', '0')
+      else c.put(5, y, 'empty', '8') end
+    end
+  end
+  if L.pages > 1 then
+    local x = c.chip(2, h, U.g.left, 'inventory-prev', L.page > 1 and 'plain' or 'muted') + 1
+    x = c.chip(x, h, U.g.right, 'inventory-next', L.page < L.pages and 'plain' or 'muted') + 1
+    local note = L.page..'/'..L.pages
+    if x + #note < w - 6 then c.put(x, h, note, '8') end
+  end
+  c.chip(w - 6, h, 'BACK', 'inventory-back')
   return c.frame()
 end
 U.turtle = T

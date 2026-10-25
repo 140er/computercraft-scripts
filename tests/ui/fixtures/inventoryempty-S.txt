@@ -1,0 +1,37 @@
+29x12 Known empty turtle inventory at 29x12
+ INVENTORY #2  -------- 0/16 
+ 01 empty                    
+ 02 empty                    
+ 03 empty                    
+ 04 empty                    
+ 05 empty                    
+ 06 empty                    
+ 07 empty                    
+ 08 empty                    
+ 09 empty                    
+ 10 empty                    
+  ◄   ►  1/2           BACK  
+000000000000000cccccccc000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08808888800000000000000000000
+08880000088800000000000000000
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777f777ffffffffffffff777777f

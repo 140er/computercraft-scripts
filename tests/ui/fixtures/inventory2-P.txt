@@ -1,0 +1,61 @@
+26x20 Turtle inventory page 2 at 26x20
+ INVENTORY #2  ----- 6/16 
+                          
+ 09 minecraft:stone ·· 12 
+                          
+ 10 chisel:stone ······ 3 
+                          
+ 11 empty                 
+                          
+ 12 empty                 
+                          
+ 13 empty                 
+                          
+ 14 empty                 
+                          
+ 15 empty                 
+                          
+ 16 torch ············· 1 
+                          
+                          
+  ◄   ►  2/2        BACK  
+000000000000000ccccc000000
+00000000000000000000000000
+08800000000000000000cc0000
+00000000000000000000000000
+08800000000000000cccccc000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+08808888800000000000000000
+00000000000000000000000000
+0880000000ccccccccccccc000
+00000000000000000000000000
+00000000000000000000000000
+00000888088800000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777f777fffffffffff777777f

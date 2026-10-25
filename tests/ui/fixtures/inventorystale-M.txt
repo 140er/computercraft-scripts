@@ -1,0 +1,73 @@
+57x24 Stale turtle inventory, room monitor 57x24
+ INVENTORY #2  -------------------------------- stale 3m 
+                                                         
+ 01 diamond ········································· 14 
+ 02 cobblestone ····································· 64 
+ 03 empty                                                
+ 04 empty                                                
+ 05 andesite_alloy ·································· 32 
+ 06 empty                                                
+ 07 empty                                                
+ 08 empty                                                
+ 09 minecraft:stone ································· 12 
+ 10 chisel:stone ····································· 3 
+ 11 empty                                                
+ 12 empty                                                
+ 13 empty                                                
+ 14 empty                                                
+ 15 empty                                                
+ 16 torch ············································ 1 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                   BACK  
+000000000000000cccccccccccccccccccccccccccccccc0111111110
+000000000000000000000000000000000000000000000000000000000
+088000000000ccccccccccccccccccccccccccccccccccccccccc0000
+0880000000000000ccccccccccccccccccccccccccccccccccccc0000
+088088888000000000000000000000000000000000000000000000000
+088088888000000000000000000000000000000000000000000000000
+0880000000000000000cccccccccccccccccccccccccccccccccc0000
+088088888000000000000000000000000000000000000000000000000
+088088888000000000000000000000000000000000000000000000000
+088088888000000000000000000000000000000000000000000000000
+08800000000000000000ccccccccccccccccccccccccccccccccc0000
+08800000000000000ccccccccccccccccccccccccccccccccccccc000
+088088888000000000000000000000000000000000000000000000000
+088088888000000000000000000000000000000000000000000000000
+088088888000000000000000000000000000000000000000000000000
+088088888000000000000000000000000000000000000000000000000
+088088888000000000000000000000000000000000000000000000000
+0880000000cccccccccccccccccccccccccccccccccccccccccccc000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffff777777f

@@ -17,6 +17,8 @@ local D = {
   sessions = {},
   pictures = {},
   details = {},
+  -- turtleInventory: the last valid hello inventory per paired turtle id, in memory only.
+  inv = {},
   alertVersions = {},
   alertSequence = 0,
   modelRev = 0,
@@ -311,7 +313,10 @@ D.compose = function(role, w, h, session, revSent)
   end
   if picture then
   elseif Turtle and session and session.turtle then
-    picture = Turtle.render(w, contentH, session.turtle, D.details[session.turtle.id], D.now())
+    local selected = session.turtle
+    local inv = D.invOn and D.invModel(selected.id, D.now()) or nil
+    if inv and selected.page == "inventory" then picture = Turtle.inventory(w, contentH, selected, inv, D.now())
+    else picture = Turtle.render(w, contentH, selected, D.details[selected.id], D.now(), inv) end
   elseif visit then
     local ok, got = pcall(visit.render, w, contentH, session)
     if ok and type(got) == "table" then picture = D.closable(got, w) end
@@ -1056,6 +1061,7 @@ D.hello = function(msg)
   if type(body) ~= "table" then return end
   local session = D.sessions[msg.from]
   local display = body.role == nil or body.role == "display"
+  if D.invOn and body.role == "turtle" then D.observe(msg.from, body) end
   if session and not display then
     session.isDisplay = false
     if session.panel then session.panel.confirm, session.panel.drawn = nil, nil end
@@ -1075,6 +1081,45 @@ D.hello = function(msg)
     session.ack = session.ack or { started = D.now(), pending = {} }
   else session.ack = nil end
   if session.sub then D.sendFrame(msg.from, D.now(), true) end
+end
+
+-- turtleInventory. An authenticated turtle hello is the only sample: a dense array of at most 16
+-- { slot, name, count } rows with distinct slots 1..16, namespaced ids of at most 128 bytes and counts
+-- 1..64, else the whole sample is rejected. A hello naming another valid journal id drops the cached
+-- sample first; one without a valid journal id or inventory leaves the cache and its time alone.
+D.invSample = function(inv)
+  local function whole(n, hi) return type(n) == "number" and n % 1 == 0 and n >= 1 and n <= hi end
+  if type(inv) ~= "table" then return nil end
+  local n, slots = 0, {}
+  for k in pairs(inv) do
+    if not whole(k, 16) then return nil end
+    n = n + 1
+  end
+  for i = 1, n do
+    local row, keys = inv[i], 0
+    if type(row) ~= "table" then return nil end
+    for _ in pairs(row) do keys = keys + 1 end
+    local name = row.name
+    if keys ~= 3 or not whole(row.slot, 16) or slots[row.slot] or not whole(row.count, 64)
+      or type(name) ~= "string" or #name > 128 or not name:match("^[%l%d_%-%.]+:[%l%d_%-%./]+$") then return nil end
+    slots[row.slot] = { name = name, count = row.count }
+  end
+  return slots
+end
+D.observe = function(id, body)
+  local key, journal = tostring(id), type(body.journal) == "table" and body.journal.id or nil
+  -- A hello without a valid journal id is no sample and leaves the cache alone.
+  if type(journal) ~= "string" or #journal < 1 or #journal > 64 then return end
+  local old = D.inv[key]
+  if old and old.journal ~= journal then D.inv[key] = nil end
+  local slots = D.invSample(body.inv)
+  if slots then D.inv[key] = { known = true, at = D.now(), journal = journal, slots = slots } end
+end
+-- The pure render model: unknown without a sample, stale 120 s after it.
+D.invModel = function(id, now)
+  local sample = D.inv[tostring(id)]
+  if not sample then return { id = id, known = false, stale = false, slots = {} } end
+  return { id = id, known = true, stale = now - sample.at > 120000, at = sample.at, slots = sample.slots }
 end
 
 D.subscribe = function(msg)
@@ -1264,7 +1309,7 @@ D.turtleInput = function(event,w,h)
   local target = id:match("^turtle:(%d+)$")
   if not selected and not target then return false end
   if selected and event.x >= 1 and event.x <= w and event.y == h then
-    if id == "turtle-back" and not selected.draft then session.turtle=nil return true end
+    if id == "turtle-back" and not selected.draft and selected.page ~= "inventory" then session.turtle=nil return true end
     if id == "turtle-cancel" and selected.draft then selected.draft,selected.confirm=nil,nil return true end
   end
   if selected and selected.draft then selected.draft=Turtle.draft(selected.draft) end
@@ -1276,6 +1321,19 @@ D.turtleInput = function(event,w,h)
     if b.id == id and event.x >= b.x and event.x < b.x+b.w and event.y >= b.y and event.y < b.y+(b.h or 1) then drawn=true break end
   end
   if not drawn then return true end
+  -- The inventory page only moves between pages of this session: no command and nothing saved.
+  if id == "turtle-inventory" or id:match("^inventory%-") then
+    U.confirm(selected, nil, D.now())
+    if id == "turtle-inventory" then selected.page,selected.inventoryPage = "inventory",1
+    elseif id == "inventory-back" then selected.page,selected.inventoryPage = nil,nil
+    else
+      local banner = D.retirement(w)
+      local L = Turtle.inventoryLayout(w, math.max(1, h - (banner and #banner.rows or 0)), selected,
+        D.invModel(selected.id, D.now()), D.now())
+      selected.inventoryPage = math.max(1, math.min(L.pages, L.page + (id == "inventory-next" and 1 or -1)))
+    end
+    return true
+  end
   if target then
     D.gatherTurtles()
     if D.details[target] then session.turtle={id=target} end
@@ -1622,6 +1680,8 @@ D.load = function()
   D.workerPark = cfg.workerPark == true
   -- displayAck (default off): capable displays acknowledge drawn frames and go stale 10 s after the last.
   D.ackOn = cfg.displayAck == true
+  -- turtleInventory (default off): turtle details open an inventory page from hello samples.
+  D.invOn = cfg.turtleInventory == true
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
@@ -1671,6 +1731,7 @@ return {
   forget = function(id)
     if D.sessions[id] then D.snoozes.clear(D.sessions[id]) end
     D.sessions[id] = nil
+    D.inv[tostring(id)] = nil
   end,
   tick = D.tick,
   screen = D.register,
