@@ -13,6 +13,7 @@ local function setupFixture(oldSave)
   if oldSave then s.job.ores = nil end
   local mods = {}
   local env = setmetatable({SO={mods=mods,now=function() return s.now end,store={copy=copy,
+    read=function(path) return copy(s.saved[path]) end,
     store=function(path, valid)
       local value = path == "so-data/mine/job" and s.job or copy(s.saved[path])
       if value and valid then assert(valid(value)) end

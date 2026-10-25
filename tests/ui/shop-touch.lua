@@ -11,6 +11,11 @@ T.setup = function()
     end,broadcast=function() end},
     SO={now=function() return s.now end,mods={display={screen=function(_,render,input) s.render,s.input=render,input end}}},
   },{__index=_G})
+  local values = {}
+  env.SO.store = {copy=dofile("so-store.lua").copy,read=function() return nil end,
+    store=function(path)
+      return {value=values[path],save=function(value) values[path]=env.SO.store.copy(value) return true end}
+    end}
   s.mod=assert(loadfile("so-mod-shop.lua","t",env))()
   s.mod.tick(s.now)
   return s
@@ -182,9 +187,10 @@ T.run = function(test,equal)
     s.input({id="item:minecraft:iron_ingot",session=session})
     local function order() s.input({id="order:16:minecraft:iron_ingot",session=session}) end
     order()
-    s.mod.listen.roomsorter(91,{rid=1,"Delivered 16"})
+    local rid=s.sends[#s.sends].body.rid
+    s.mod.listen.roomsorter(91,{rid=rid,"Delivered 16"})
     assert(T.text(s.render(29,12,session)):find("\7 16 sent",1,true))
-    s.mod.listen.roomsorter(90,{rid=1,"Not in storage."})
+    s.mod.listen.roomsorter(90,{rid=rid,"Not in storage."})
     assert(T.text(s.render(29,12,session)):find("\7 16 failed",1,true))
     order()
     assert(T.text(s.render(29,12,session)):find("\7 16 sent",1,true))

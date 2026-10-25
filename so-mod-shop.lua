@@ -40,8 +40,22 @@ S.request = function(kind, name, count, view, reservedRid)
     if view then view.order = "Order: failed, storage room not found" end
     return nil, "storage room missing"
   end
-  S.rid = reservedRid or S.rid + 1
-  local rid = S.rid
+  local entry
+  if kind == "order" and not reservedRid then
+    local why
+    entry, why = S.ordinaryOutput()
+    if why then
+      if view then view.order,view.orderDetail="Order: failed",why end
+      return nil, why
+    end
+  end
+  local rid, why = reservedRid, nil
+  if not rid then rid, why = S.allocate() end
+  if not rid then return nil, why end
+  if entry then
+    entry.requestRid, entry.state, entry.sentAt = rid, "ordering", SO.now()
+    if not S.outputSave() then return nil, "output save failed" end
+  end
   local pending = { kind = kind, sender = S.turtle, at = SO.now(), view = view }
   S.pending[rid] = pending
   if kind == "order" then
@@ -59,7 +73,8 @@ S.request = function(kind, name, count, view, reservedRid)
       view.order, view.orderDetail, view.orderRid = "Order: sent " .. count, nil, rid
     end
   end
-  local ok = rednet.send(S.turtle, { cmd = kind, text = name, n = count, rid = rid }, "roomsorter")
+  local ok = rednet.send(S.turtle, { cmd = kind, text = name, n = count, rid = rid,
+    outputToken=entry and entry.token }, "roomsorter")
   if ok == false then
     S.pending[rid] = nil
     if kind == "order" then
@@ -157,6 +172,10 @@ S.fuelClear = function()
   return ok, err
 end
 S.fuelAvailable = function(point, orderRid)
+  local row=S.output and S.output.outputs[S.fuelKey(point)]
+  if row and row.kind=="fuel" and S.integer(orderRid,1,2^53-2) and row.requestRid==orderRid and row.state~="released" then
+    if not S.outputReconciled(row.ownerId) then return false end
+  end
   local waiting = S.fuel.waiting
   if orderRid ~= nil and (waiting and waiting.rid ~= orderRid or not waiting and orderRid ~= false) then return end
   local expected = S.fuel.waiting and S.fuel.waiting.point or S.fuel.output
@@ -184,12 +203,25 @@ S.fuelEmpty = function(point)
   end
   if not nextPolicy.cooldowns[key] and count >= 64 then S.fuelAlert("cooldown ledger full",point) return true end
   nextPolicy.cooldowns[key] = now + 600000
-  nextPolicy.serial = S.rid + 1
+  local entry, why = S.ordinaryOutput(point, "fuel")
+  if why then S.fuelAlert(why,point) return true end
+  local allocated = S.allocate()
+  if not allocated then S.fuelAlert("output save failed",point) return true end
+  if entry then
+    entry.requestRid, entry.state, entry.sentAt = allocated, "ordering", now
+    if not S.outputSave() then return true end
+  end
+  nextPolicy.serial = allocated
   nextPolicy.waiting = {at=now,point=SO.store.copy(point),rid=nextPolicy.serial,sender=S.turtle}
   nextPolicy.alert = nil
   -- Save before sending so a power cut cannot repeat the order.
   if not S.fuelSave(nextPolicy) then return true end
-  local rid, err = S.request("order", name, 64, nil, nextPolicy.serial)
+  local rid, err
+  if entry then
+    S.pending[allocated] = {kind="order",sender=S.turtle,at=now}
+    local sent = rednet.send(S.turtle,{cmd="order",text=name,n=64,rid=allocated,outputToken=entry.token},"roomsorter")
+    if sent ~= false then rid=allocated else err="send failed" end
+  else rid, err = S.request("order", name, 64, nil, nextPolicy.serial) end
   if not rid then S.fuelAlert(err,point,true) end
   return true
 end
@@ -197,6 +229,261 @@ S.fuelAlerts = function()
   if S.fuelSaveError then return {{reason="save failed",text=S.fuelSaveError}} end
   if S.fuel.auto and S.fuel.alert then return {SO.store.copy(S.fuel.alert)} end
   return {}
+end
+
+
+-- Output ownership outlives the delivery flags and every logical order wait.
+S.outputValid = function(v)
+  if type(v) ~= "table" or v.v ~= 1 or not S.integer(v.highWater,0,2^53-2) or type(v.outputs) ~= "table" then return false end
+  local n = 0
+  for key, row in pairs(v.outputs) do
+    n = n+1
+    if n > 64 or type(key) ~= "string" or type(row) ~= "table" or not S.fuelPointOk(row.point)
+      or key ~= S.fuelKey(row.point) or not S.integer(row.roomId,0,2^53-2)
+      or type(row.token) ~= "string" or #row.token < 1 or #row.token > 128
+      or type(row.ownerId) ~= "string" or not ({delivery=true,fuel=true,ordinary=true})[row.kind]
+      or row.sentAt~=nil and not S.integer(row.sentAt,0,2^53-2)
+      or row.pollAt~=nil and not S.integer(row.pollAt,0,2^53-2)
+      or row.controlRid~=nil and not S.integer(row.controlRid,1,v.highWater)
+      or row.reconciled~=nil and type(row.reconciled)~="boolean"
+      or row.retired~=nil and type(row.retired)~="boolean"
+      or row.claimed~=nil and type(row.claimed)~="boolean"
+      or row.releaseIntent~=nil and type(row.releaseIntent)~="boolean"
+      or row.roomReleased~=nil and type(row.roomReleased)~="boolean"
+      or row.createdAt~=nil and not S.integer(row.createdAt,0,2^53-2)
+      or not ({claiming=true,claimed=true,ordering=true,quarantined=true,settled=true,releasing=true,released=true})[row.state]
+      or row.requestRid ~= nil and not S.integer(row.requestRid,1,v.highWater)
+      or row.barrier ~= nil and not S.integer(row.barrier,0,2^53-2) then return false end
+  end
+  return true
+end
+S.deliverySeedValid = function(v)
+  if type(v)~="table" or v.v~=1 or not S.integer(v.serial,0,2^53-2) then return false end
+  for _,key in ipairs({"active","last"}) do
+    local row=v[key]
+    if row~=nil and (type(row)~="table" or row.orderRid~=nil and not S.integer(row.orderRid,1,2^53-2)) then return false end
+  end
+  return true
+end
+S.outputInit = function()
+  if S.output then return not S.outputFault end
+  S.output = {v=1,highWater=math.max(math.floor(SO.now()),S.fuel.serial or 0),outputs={}}
+  if not SO.store or not SO.store.store then S.outputFault=true return false end
+  local path = "so-data/shop-output"
+  local ok, box = pcall(function()
+    local newest, rejected = 0,0
+    for _,file in ipairs({path,path..".tmp",path..".bak"}) do
+      if fs and fs.exists and fs.exists(file) then
+        local t, bytes = SO.store.read(file)
+        if type(t) ~= "table" or not S.integer(t.generation,1,2^53-2) then error("invalid output generation") end
+        if t.schema == 1 and S.outputValid(t.value) and type(bytes)=="string" and #bytes<=65536 then newest=math.max(newest,t.generation)
+        else rejected=math.max(rejected,t.generation) end
+      end
+    end
+    assert(rejected==0 or rejected<newest,"invalid output generation")
+    return SO.store.store(path,S.outputValid,65536)
+  end)
+  if not ok then S.outputFault=true return false end
+  if box.value and not S.outputValid(box.value) then S.outputFault=true return false end
+  S.outputBox=box
+  S.output=box.value or S.output
+  -- Delivery ids may predate this allocator's first generation.
+  local okDelivery, delivery = pcall(function()
+    local newest,rejected=0,0
+    for _,file in ipairs({"so-data/build/delivery","so-data/build/delivery.tmp","so-data/build/delivery.bak"}) do
+      if fs and fs.exists and fs.exists(file) then
+        local v,bytes=SO.store.read(file)
+        assert(type(v)=="table" and S.integer(v.generation,1,2^53-2),"invalid delivery generation")
+        if v.schema==1 and S.deliverySeedValid(v.value) and type(bytes)=="string" and #bytes<=65536 then newest=math.max(newest,v.generation)
+        else rejected=math.max(rejected,v.generation) end
+      end
+    end
+    assert(rejected==0 or rejected<newest,"invalid delivery generation")
+    return SO.store.store("so-data/build/delivery",S.deliverySeedValid,65536)
+  end)
+  if not okDelivery then S.outputFault=true return false end
+  local saved = delivery.value
+  S.output.highWater=math.max(S.output.highWater,S.fuel.serial or 0,
+    saved and saved.active and saved.active.orderRid or 0,saved and saved.last and saved.last.orderRid or 0)
+  for _,row in pairs(S.output.outputs) do
+    if row.state~="released" then row.state,row.reconciled="quarantined",false end
+  end
+  return S.outputSave()
+end
+S.outputSave = function()
+  if S.outputFault or not S.outputBox then return false end
+  if not S.outputBox.save(S.output) then S.outputSaveError=true return false end
+  S.outputSaveError=nil
+  return true
+end
+S.allocate = function()
+  if not S.outputInit() then return nil,"output save failed" end
+  local n=math.max(S.output.highWater,math.floor(SO.now()),S.fuel.serial or 0)+1
+  if not S.integer(n,1,2^53-2) then return nil,"request ids exhausted" end
+  S.output.highWater=n
+  if not S.outputSave() then return nil,"output save failed" end
+  S.rid=n
+  return n
+end
+S.outputSend = function(row,cmd)
+  local rid,why=S.allocate()
+  if not rid then return nil,why end
+  row.controlRid,row.controlCmd=rid,cmd
+  if cmd=="output.claim" then row.state="claiming" end
+  if cmd=="output.release" then row.state,row.releaseIntent="releasing",true end
+  if not S.outputSave() then return nil,"output save failed" end
+  S.pending[rid]={kind="output",sender=row.roomId,key=S.fuelKey(row.point),at=SO.now(),cmd=cmd}
+  local requestRid=row.requestRid
+  if cmd=="output.status" and row.releaseIntent then requestRid=nil end
+  rednet.send(row.roomId,{cmd=cmd,rid=rid,outputToken=row.token,output={
+    dim=({[0]="minecraft:overworld",[-1]="minecraft:the_nether",[1]="minecraft:the_end"})[row.point.dim] or row.point.dim,
+    x=row.point.x,y=row.point.y,z=row.point.z},requestRid=requestRid,barrier=row.barrier},"roomsorter")
+  row.pollAt=SO.now()
+  return rid
+end
+S.outputClaim = function(ownerId,point,kind)
+  if not S.fuelPointOk(point) or type(ownerId)~="string" or #ownerId>128
+    or not ({delivery=true,fuel=true,ordinary=true})[kind] then return nil,"invalid output" end
+  if not S.outputInit() then return nil,"output save failed" end
+  local key=S.fuelKey(point)
+  local row=S.output.outputs[key]
+  if row and row.state~="released" then
+    if row.ownerId~=ownerId or row.kind~=kind then return nil,"output quarantined" end
+    return SO.store.copy(row)
+  end
+  if not S.turtle then return nil,"storage room missing" end
+  local n=0 for _ in pairs(S.output.outputs) do n=n+1 end
+  if not row and n>=64 then return nil,"output ledger full" end
+  local rid,why=S.allocate()
+  if not rid then return nil,why end
+  row={point=SO.store.copy(point),roomId=S.turtle,token="so-"..tostring(os.getComputerID()).."-"..string.format("%.0f",rid),
+    kind=kind,ownerId=ownerId,state="claiming",createdAt=SO.now(),reconciled=false}
+  S.output.outputs[key]=row
+  if not S.outputSave() then return nil,"output save failed" end
+  S.outputSend(row,"output.claim")
+  return SO.store.copy(row)
+end
+S.outputStatus = function(ownerId)
+  if not S.outputInit() then return nil,"output save failed" end
+  for _,row in pairs(S.output.outputs) do
+    if row.ownerId==ownerId and row.state~="released" then return SO.store.copy(row) end
+  end
+end
+S.outputReconciled = function(ownerId)
+  if not S.outputInit() then return false end
+  for _,row in pairs(S.output.outputs) do
+    if row.ownerId==ownerId and row.state~="released" then
+      row.reconciled=true
+      if not S.outputSave() then return false end
+      if row.roomReleased then row.state="released" return S.outputSave() end
+      if row.state=="settled" then S.outputSend(row,"output.release") end
+      return true
+    end
+  end
+  return true
+end
+S.ordinaryOutput = function(point,kind)
+  if not S.outputInit() then return nil,"output save failed" end
+  local cfg=SO.store.read("so-server.cfg") or {}
+  local pinned=point or S.fuel.output
+  local chosen=cfg.storageDeliveryOutput
+  local drops=SO.mods.drops
+  for _,p in ipairs(drops and drops.list and drops.list() or {}) do
+    if p.id==chosen then pinned=p break end
+  end
+  local row=pinned and S.output.outputs[S.fuelKey(pinned)]
+  -- A room has one physical output. A retired enrollment still requires claims.
+  for _,other in pairs(S.output.outputs) do
+    if other.roomId==S.turtle then
+      if other.state~="released" then row=other break end
+      row=row or other
+    end
+  end
+  if not row then
+    if pinned and chosen and cfg.storageDeliveries==true then
+      local claimed,why=S.outputClaim((kind or "ordinary")..":"..S.fuelKey(pinned),pinned,kind or "ordinary")
+      return nil,why or (claimed and "output claim pending") or "output quarantined"
+    end
+    return nil
+  end
+  if row.state=="released" then
+    local claimed,why=S.outputClaim((kind or "ordinary")..":"..S.fuelKey(row.point),row.point,kind or "ordinary")
+    return nil,why or (claimed and "output claim pending") or "output quarantined"
+  end
+  local expected=(kind or "ordinary")..":"..S.fuelKey(row.point)
+  if row.ownerId~=expected or row.state~="claimed" or row.requestRid then return nil,"output quarantined" end
+  return row
+end
+S.deliveryReady = function(item,n)
+  if not S.itemId(item) or not S.integer(n,1,64) then return false,"invalid delivery" end
+  if not S.turtle then return false,"storage room missing" end
+  if not S.heardAt or SO.now()-S.heardAt>=30000 then return false,"stock stale" end
+  if not S.stacks[item] then return false,"stack unknown" end
+  if n>S.stacks[item] then return false,"bad count" end
+  if (S.totals[item] or 0)<n then return false,"stock below "..n end
+  return true
+end
+S.deliveryOrder = function(jobId,item,n,point)
+  if type(jobId)~="string" or not S.fuelPointOk(point) then return nil,"invalid delivery" end
+  if not S.outputInit() then return nil,"output save failed" end
+  if not S.itemId(item) or not S.integer(n,1,64) then return nil,"invalid delivery" end
+  local build=SO.mods.build
+  if not build or not build.deliveryItem or not build.deliveryItem(item) then return nil,"tools refused" end
+  local ready,reason=S.deliveryReady(item,n)
+  if not ready then return nil,reason end
+  local row=S.output.outputs[S.fuelKey(point)]
+  if not row or row.kind~="delivery" or row.ownerId~=jobId or row.state~="claimed" or row.requestRid
+    or row.roomId~=S.turtle then return nil,"room support missing or output quarantined" end
+  local rid,why=S.allocate()
+  if not rid then return nil,why end
+  row.requestRid,row.sentAt,row.state=rid,SO.now(),"ordering"
+  if not S.outputSave() then return nil,"output save failed" end
+  S.pending[rid]={kind="delivery",sender=row.roomId,key=S.fuelKey(point),at=row.sentAt}
+  rednet.send(row.roomId,{cmd="get",text=item,n=n,rid=rid,outputToken=row.token},"roomsorter")
+  return rid
+end
+S.deliveryOrderStatus = function(jobId) return S.outputStatus(jobId) end
+S.outputReply = function(sender,message,pending)
+  local row=S.output.outputs[pending.key]
+  if not row or row.roomId~=sender or message.v~=1 or message.outputToken~=row.token
+    or not S.integer(message.barrier,0,2^53-2) then return end
+  if pending.kind=="delivery" then
+    -- An acceptance is not a settlement receipt.
+    return
+  end
+  if pending.cmd=="output.status" and row.releaseIntent and row.requestRid~=nil
+    and message.state=="settled" and message.requestRid==nil then
+    row.roomReleased,row.barrier=true,message.barrier
+    row.state=row.reconciled and "released" or "settled"
+    S.pending[message.rid]=nil S.outputSave() return
+  end
+  if message.requestRid~=row.requestRid then return end
+  S.pending[message.rid]=nil
+  if pending.cmd=="output.release" and message.state=="released" then row.state="released"
+  elseif message.state=="claimed" and not row.requestRid then row.state,row.claimed="claimed",true
+  elseif message.state=="settled" and S.integer(message.barrier,0,2^53-2) then
+    row.state,row.barrier="settled",message.barrier
+  else row.state="quarantined" end
+  row.error=message.error
+  S.outputSave()
+end
+S.outputTick = function(now)
+  if not S.outputInit() then return end
+  for _,row in pairs(S.output.outputs) do
+    if row.state=="claiming" and now-(row.createdAt or 0)>=15000 then
+      row.state,row.error="quarantined","room support missing or claim unconfirmed"
+      if not S.outputSave() then return end
+    end
+    if row.requestRid and row.sentAt and now-row.sentAt>=120000 and not row.retired then
+      S.pending[row.requestRid]=nil
+      row.retired,row.error=true,"order timed out"
+      if row.state~="settled" and row.state~="released" then row.state="quarantined" end
+      if not S.outputSave() then return end
+    end
+    if row.state~="released" and (not row.pollAt or now-row.pollAt>=10000) then
+      S.outputSend(row,row.state=="settled" and row.reconciled and "output.release" or "output.status")
+    end
+  end
 end
 
 S.savedBoxes, S.watchKeys = {}, {}
@@ -695,7 +982,15 @@ S.reply = function(sender, message)
   if type(message) ~= "table" then return end
   local pending = S.pending[message.rid]
   if pending and pending.sender ~= sender then pending = nil end
+  if pending and (pending.kind=="output" or pending.kind=="delivery") then
+    S.outputReply(sender,message,pending) return
+  end
   local waiting = S.fuel.waiting
+  if waiting and SO.now()-waiting.at>=120000 then
+    S.fuelAlert("fuel order timed out",waiting.point,true)
+    if message.rid==waiting.rid and sender==waiting.sender then return end
+    waiting=nil
+  end
   local fuelReply = waiting and waiting.rid == message.rid and waiting.sender == sender
   if not pending and not fuelReply then return end
   if pending and pending.kind == "stock" then
@@ -1478,8 +1773,9 @@ S.input = function(event)
 end
 
 S.tick = function(now)
+  S.outputTick(now)
   S.watchAlerts(false)
-  if S.fuel.auto and S.fuel.waiting and now - S.fuel.waiting.at >= 120000 then
+  if S.fuel.waiting and now - S.fuel.waiting.at >= 120000 then
     S.fuelAlert("fuel order timed out", S.fuel.waiting.point, true)
   end
   local display = SO.mods.display
@@ -1528,6 +1824,12 @@ return {
   listen = { roomsorter = S.reply, roomsorter_stock = S.broadcast, dns = S.dns },
   tick = S.tick,
   order = S.order,
+  outputClaim = S.outputClaim,
+  outputStatus = S.outputStatus,
+  outputReconciled = S.outputReconciled,
+  deliveryOrder = S.deliveryOrder,
+  deliveryReady = S.deliveryReady,
+  deliveryOrderStatus = S.deliveryOrderStatus,
   matches = S.matches,
   best = S.best,
   lows = S.lows,

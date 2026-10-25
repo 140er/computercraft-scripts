@@ -15,7 +15,7 @@ local function fixture()
     local box = open(path, ...)
     local save = box.save
     box.save = function(value)
-      if s.failSave then return false,"disk full" end
+      if s.failSave or s.failPath==path then return false,"disk full" end
       return save(value)
     end
     return box
@@ -40,6 +40,21 @@ local function fixture()
   assert(s.drops.add(output))
   s.stock = function(totals) s.shop.listen.roomsorter_stock(9,{totals=totals or {["minecraft:charcoal"]=128,["minecraft:coal"]=256}}) end
   s.enable = function() assert(s.shop.fuelConfig(nil,"output"));assert(s.shop.fuelConfig(true)) end
+  s.control = function(cmd,state,extra)
+    local request
+    for i=#sends,1,-1 do if sends[i].body.cmd==cmd then request=sends[i].body break end end
+    assert(request,"missing "..cmd)
+    local reply={v=1,rid=request.rid,outputToken=request.outputToken,requestRid=request.requestRid,state=state,barrier=7}
+    for k,v in pairs(extra or {}) do reply[k]=v end
+    s.shop.listen.roomsorter(9,reply)
+    return request
+  end
+  s.claimFuel = function()
+    s.stock() s.enable()
+    local row=assert(s.shop.outputClaim("fuel:0/0/1/0",output,"fuel"))
+    s.control("output.claim","claimed")
+    return row
+  end
   s.orders = function()
     local rows={}
     for _,send in ipairs(sends) do if send.body.cmd=="order" then rows[#rows+1]=send.body end end
@@ -206,7 +221,7 @@ return function(test,equal)
   test("only a saved confirmed failure permits the next fuel order",function()
     local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
     local order=s.orders()[1]
-    s.net.time=600000 s.stock() s.failSave=true
+    s.net.time=100000 s.stock() s.failSave=true
     s.shop.listen.roomsorter(9,{"Not enough charcoal",rid=order.rid})
     assert(s.shop.fuelConfig().waiting)
     s.shop.fuelEmpty(output) equal(#s.orders(),1)
@@ -214,7 +229,7 @@ return function(test,equal)
     s.shop.listen.roomsorter(9,{"Not enough charcoal",rid=order.rid})
     equal(s.shop.fuelConfig().waiting,nil)
     assert(s.shop.fuelAlerts()[1].reason:find("order refused",1,true))
-    s.restart() s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),2)
+    s.restart() s.net.time=600000 s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),2)
   end)
   test("room fuel distinguishes missing storage stale stock low stock and save failure",function()
     local s=fixture() s.enable()
@@ -496,5 +511,103 @@ return function(test,equal)
       if restart then equal(policy.shop.fuelConfig().waiting.rid,policy.orders()[2].rid) end
     end)
   end
+
+  test("managed fuel retains UB-5 timeout cooldown and serial equality across polling and restart",function()
+    local s=fixture() s.claimFuel() s.shop.fuelEmpty(output)
+    local rid=s.orders()[1].rid
+    equal(s.shop.fuelConfig().waiting.rid,rid) equal(s.shop.fuelConfig().serial,rid)
+    s.net.time=11000 s.shop.tick(s.net.time)
+    equal(s.shop.fuelConfig().serial,rid)
+    s.shop.listen.roomsorter(9,{"Getting 64 coal",rid=rid})
+    s.net.time=120000 s.shop.tick(s.net.time)
+    equal(s.shop.fuelConfig().waiting,nil) equal(s.shop.fuelAlerts()[1].reason,"fuel order timed out")
+    assert(s.shop.fuelClear()) assert(s.shop.fuelConfig(false)) s.restart()
+    assert(s.shop.fuelConfig(true)) s.net.time=600000 s.stock() s.shop.fuelEmpty(output)
+    equal(#s.orders(),1) equal(s.shop.fuelConfig().serial,rid)
+    s.shop.listen.roomsorter(9,{"Delivered 64 coal",rid=rid})
+    equal(#s.orders(),1) assert(s.shop.outputStatus("fuel:0/0/1/0"))
+  end)
+  test("managed fuel settlement and cargo proof are both required after the cooldown",function()
+    local s=fixture() s.claimFuel() s.shop.fuelEmpty(output)
+    local rid=s.orders()[1].rid
+    s.net.time=600000 s.shop.tick(s.net.time)
+    s.control("output.status","settled")
+    s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),1)
+    equal(s.shop.outputStatus("fuel:0/0/1/0").state,"settled")
+    s.shop.fuelAvailable(output,rid)
+    s.control("output.release","released")
+    s.shop.fuelEmpty(output) equal(#s.orders(),1)
+    s.control("output.claim","claimed")
+    s.shop.fuelEmpty(output) equal(#s.orders(),2)
+    assert(s.orders()[2].rid>rid)
+    equal(s.shop.fuelConfig().waiting.rid,s.shop.fuelConfig().serial)
+  end)
+  test("managed fuel cargo proof cannot release a still queued room request",function()
+    local s=fixture() s.claimFuel() s.shop.fuelEmpty(output)
+    local rid=s.orders()[1].rid
+    s.shop.fuelAvailable(output,rid)
+    s.net.time=600000 s.shop.tick(s.net.time) s.control("output.status","busy")
+    s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),1)
+    for _,send in ipairs(s.sends) do assert(send.body.cmd~="output.release") end
+  end)
+  test("a cut between output intent and fuel policy saves sends no speculative retry",function()
+    local s=fixture() s.claimFuel() s.failPath="so-data/fuel-policy"
+    s.shop.fuelEmpty(output) equal(#s.orders(),0)
+    local row=s.shop.outputStatus("fuel:0/0/1/0") assert(row.requestRid)
+    s.failPath=nil s.restart() s.stock() s.shop.fuelEmpty(output)
+    equal(#s.orders(),0) equal(s.shop.fuelConfig().waiting,nil)
+    equal(s.shop.outputStatus("fuel:0/0/1/0").state,"quarantined")
+  end)
+  test("all room sends share the durable allocator without changing a waiting fuel serial",function()
+    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+    local rid=s.orders()[1].rid
+    s.net.time=10000 s.shop.tick(s.net.time)
+    assert(s.sends[#s.sends].body.rid>rid)
+    equal(s.shop.fuelConfig().serial,rid) equal(s.shop.fuelConfig().waiting.rid,rid)
+    local last=s.sends[#s.sends].body.rid
+    s.restart() s.stock() assert(s.shop.order("coal",1))
+    assert(s.orders()[#s.orders()].rid>last)
+    equal(s.shop.fuelConfig().waiting.rid,s.shop.fuelConfig().serial)
+  end)
+  test("corrupt or future output generations refuse every order and stock send",function()
+    for _,bytes in ipairs({"corrupt",H.encode({schema=1,generation=999,value={v=2,highWater=0,outputs={}}})}) do
+      local s=fixture() s.stock() s.shop.order("coal",1)
+      s.m.files["so-data/shop-output.tmp"]=bytes
+      local count=#s.sends s.restart() s.stock()
+      equal(s.shop.order("coal",1),nil) equal(#s.sends,count)
+    end
+  end)
+  test("quarantine on one physical output leaves an unenrolled room output independent",function()
+    local s=fixture() s.claimFuel() s.shop.fuelEmpty(output)
+    local other={id="other-room",dim=0,x=10,y=1,z=0,side="down",kind="fuel"}
+    assert(s.drops.add(other)) assert(s.shop.fuelConfig(nil,"other-room"))
+    s.net.time=600000 s.shop.tick(s.net.time)
+    s.shop.listen.roomsorter_stock(10,{totals={["minecraft:coal"]=128}})
+    s.shop.fuelEmpty(other)
+    equal(#s.orders(),2) equal(s.sends[#s.sends].id,10)
+    assert(s.shop.outputStatus("fuel:0/0/1/0"))
+  end)
+
+  test("fuel replies at the two minute boundary retire the rid before the next tick",function()
+    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+    local rid=s.orders()[1].rid
+    s.net.time=120000
+    s.shop.listen.roomsorter(9,{"Delivered 64 coal",rid=rid})
+    equal(s.shop.fuelConfig().waiting,nil)
+    equal(s.shop.fuelAlerts()[1].reason,"fuel order timed out")
+    equal(#s.orders(),1)
+  end)
+
+  test("disabling fuel auto preserves the two minute retirement and managed quarantine",function()
+    local s=fixture() s.claimFuel() s.shop.fuelEmpty(output)
+    local rid=s.orders()[1].rid
+    assert(s.shop.fuelConfig(false)) s.net.time=120000 s.shop.tick(s.net.time)
+    equal(s.shop.fuelConfig().waiting,nil)
+    equal(s.shop.fuelConfig().alert.reason,"fuel order timed out")
+    equal(s.shop.fuelConfig().serial,rid)
+    assert(s.shop.outputStatus("fuel:0/0/1/0"))
+    s.restart() assert(s.shop.fuelConfig(true)) s.net.time=600000 s.stock() s.shop.fuelEmpty(output)
+    equal(#s.orders(),1)
+  end)
 
 end

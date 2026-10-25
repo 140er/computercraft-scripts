@@ -28,7 +28,11 @@ local function setup()
   local env = setmetatable({}, {__index=_G})
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end}, {__index=os})
   env.SO = { now = function() return env.os.epoch("utc") end,mods={},pair={key=function() return string.rep('01',32) end},
-    store={store=function() return {value=s.saved,save=function(v) s.saved=v return true end} end}}
+    store={copy=dofile("so-store.lua").copy,read=function() return nil end,store=function(path)
+      s.storeValues=s.storeValues or {}
+      if path=="so-display" then return {value=s.saved,save=function(v) s.saved=v return true end} end
+      return {value=s.storeValues[path],save=function(v) s.storeValues[path]=env.SO.store.copy(v) return true end}
+    end}}
   env.SO.proto = assert(loadfile('so-proto.lua','t',env))()
   env.rednet = {send=function() end}
   local d = assert(loadfile('so-mod-display.lua','t',env))()

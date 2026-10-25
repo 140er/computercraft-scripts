@@ -39,7 +39,7 @@ end
 local function setup(legacy)
   local s = { now = 1000, sends = {}, session = { id = 2 }, events = {}, values = {} }
   local env = setmetatable({
-    fs = { exists = function() return not legacy end },
+    fs = { exists = function(path) return path == "so-ui.lua" and not legacy end },
     os = { epoch = function() return 72840000 end },
     rednet = {
       send = function(id, body)
@@ -52,6 +52,11 @@ local function setup(legacy)
       screen = function(_, render, input) s.render, s.input = render, input end,
     } } },
   }, { __index = _G })
+  local values = {}
+  env.SO.store = {copy=dofile("so-store.lua").copy,read=function() return nil end,
+    store=function(path)
+      return {value=values[path],save=function(value) values[path]=env.SO.store.copy(value) return true end}
+    end}
   env.SO.mods.state = {
     get = function(key) return s.values[key] end,
     emit = function(kind, data)
@@ -386,7 +391,7 @@ return function(test, equal)
     equal({s.shop.setWatch("minecraft:iron_ingot",true,0)},{false,"off"})
     local session={id=7,keyboard=true,pocket={page="shop",search="iron"}}
     for _,b in ipairs(s.frame(session).buttons) do assert(not b.id:match("^saved:")) end
-    for path in pairs(s.machine.files) do assert(not path:match("so%-data/shop%-"),path) end
+    for path in pairs(s.machine.files) do assert(not path:match("so%-data/shop%-") or path=="so-data/shop-output" or path=="so-data/shop-output.bak" or path=="so-data/shop-output.tmp",path) end
     equal(#s.events,0)
   end)
 
@@ -880,7 +885,7 @@ return function(test, equal)
     for _,role in ipairs({"pocket","shop"}) do
       for _,b in ipairs(s.frame(a,role).buttons) do assert(not b.id:match("^saved2:")) end
     end
-    for name in pairs(s.machine.files) do assert(not name:match("so%-data/shop%-")) end
+    for name in pairs(s.machine.files) do assert(not name:match("so%-data/shop%-") or name=="so-data/shop-output" or name=="so-data/shop-output.bak" or name=="so-data/shop-output.tmp") end
     s.config(true)
     local button,id
     id="saved2:pin:0:"..item
