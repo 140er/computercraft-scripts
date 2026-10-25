@@ -311,7 +311,8 @@ def enroll(w, h, title, tabs=None, failed=False):
         PK.tabs(cv, "pair", tabs)
     e = SC["enroll"]
     secs = -(-e["left"] // 1000)
-    section(cv, 2, 3, w - 2, "ENROLL", "%d:%02d" % (secs // 60, secs % 60), "0")
+    section(cv, 2, 3, w - 11, "ENROLL", "%d:%02d" % (secs // 60, secs % 60), "0")
+    chip(cv, w - 8, 3, "EXTEND", "enroll-extend")
     token, y = e["token"], 4
     if len(token) <= w - 2:
         cv.put(2, 4, token, "0")

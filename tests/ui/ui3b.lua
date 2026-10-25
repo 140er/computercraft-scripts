@@ -422,6 +422,52 @@ return function(test,equal)
       equal(frame.role,'panel')
     end
   end)
+  -- U5-P: the panel's EXTEND chip goes through the paired display's drawn-input path.
+  local function enrollPanel(refuse)
+    local e={now=1000000,exp=1000000+594000,calls={}}
+    local env=setmetatable({},{__index=_G})
+    env.os=setmetatable({epoch=function() return 0 end},{__index=os})
+    local screens={}
+    env.SO={now=function() return e.now end,proto=assert(loadfile('so-proto.lua','t',env))(),
+      mods={state={get=function() end},display={screen=function(role,render,input) if render then screens[role]={render=render,input=input} end end}},
+      pair={key=function() return 'key' end,pending=function() end,list=function() return {} end},pairCode=function() end,
+      enroll={view=function(owner)
+        if not e.exp then return nil end
+        return {owner=7,left=e.exp-e.now,joined=0,cap=20,rows={},token=owner==7 and '1-K7QP-3MXA-9WTD-HR2E' or nil}
+      end,open=function() return true end,close=function() e.exp=nil end,decide=function() return true end,
+      extend=function(owner)
+        e.calls[#e.calls+1]=owner
+        if refuse then return nil,refuse end
+        e.exp=e.now+600000;return true
+      end}}
+    local p=assert(loadfile('so-mod-panel.lua','t',env))();p.tick(0)
+    local session={id=7,isDisplay=true,w=29,panel={page='enroll',search=''}}
+    e.draw=function() return screens.panel.render(29,12,session) end
+    e.tap=function(id,from)
+      local f=e.draw();local b
+      for _,x in ipairs(f.buttons) do if x.id==id then b=x end end
+      assert(b,'missing '..id)
+      screens.panel.input({session=session,from=from or 7,id=id,x=b.x,y=b.y})
+    end
+    return e
+  end
+  test('UI3b EXTEND on the panel ENROLL page calls enrollExtend once and moves the drawn window end',function()
+    local e=enrollPanel()
+    assert(e.draw().rows[3].text:find('9:54',1,true))
+    e.now=e.now+120000
+    assert(e.draw().rows[3].text:find('7:54',1,true))
+    e.tap('enroll-extend')
+    equal(e.calls,{7})
+    local row=e.draw().rows[3].text
+    assert(row:find('10:00',1,true),row)
+    e.tap('enroll-extend',8);equal(e.calls,{7})
+  end)
+  test('UI3b a refused EXTEND shows its reason in place of the window end',function()
+    local e=enrollPanel('off')
+    e.tap('enroll-extend');equal(e.calls,{7})
+    local row=e.draw().rows[3].text
+    assert(row:find('off',1,true) and not row:find('9:54',1,true),row)
+  end)
   test('UI3b panel installs only on the server',function()
     local f=assert(io.open('install.lua'));local source=f:read('*a');f:close()
     local roles=assert(load('return '..source:match('local ROLES = (.-)\nlocal BASE'),'roles','t',{}))()
