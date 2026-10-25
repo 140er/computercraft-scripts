@@ -73,7 +73,7 @@ local j = box.value or { dim="minecraft:overworld", cursor=1, running=false, pha
 j.fuel=normalizeFuel(j.fuel)
 if j.blueprint then
   S.targets=expand(j.blueprint)
-  if S.targets and #S.targets>0 and j.cursor>#S.targets then j.running,j.complete,j.blocked,j.alert=false,true,nil,nil end
+  if S.targets and #S.targets>0 and j.cursor>#S.targets then j.running,j.complete,j.blocked,j.alert,j.legacyHold=false,true,nil,nil,nil end
 end
 if not j.placement and j.intent and j.intent.action=="place" then
   j.placement={cursor=j.cursor,material=j.material}
@@ -98,6 +98,7 @@ local causes = {
 local aliases = { ["pose uncertain"]="pose_uncertain", ["device forgotten"]="device_forgotten",
   cells="reservation", lane="reservation", fuelStock="fuel" }
 j.blocked = aliases[j.blocked] or j.blocked
+if j.blocked=="hold" then j.legacyHold=j.legacyHold or j.alert or "legacy hold; review BUILD" end
 local function feedback(text) S.feedback, S.feedbackUntil = tostring(text), SO.now()+5000 end
 local function publish()
   local state=module("state")
@@ -162,6 +163,15 @@ local function lane(p)
     turtles={{branch=math.max(0,(mine.branches or 0)-1)}}}
   return M.inLane(job,p)
 end
+local sendCauses = {
+  ["DISK events pending"]="save", ["pose uncertain"]="pose_uncertain", pose="pose_uncertain",
+  lost="lost", send="lost", busy="assignment_conflict", ["no key"]="device_forgotten",
+  ["update remote worker"]="worker_safety", ["invalid dimension"]="dimension_mismatch",
+  ["remote dimensions disabled"]="dimension_mismatch",
+  ["worker dimension mismatch; set so-worker.cfg"]="dimension_mismatch",
+  ["Nether bedrock boundary"]="dimension_mismatch", ["End void or height boundary"]="dimension_mismatch",
+  id="path", owner="path", steps="path", opts="path", ms="path", size="path",
+}
 local function send(steps, action, recover)
   local lease, cells = module("lease"), module("cells")
   if S.pending or not lease.send or lease.status(j.turtle.id).open then return false end
@@ -199,8 +209,9 @@ local function send(steps, action, recover)
   if not id then
     j.intent = nil
     if action=="place" then j.placement=nil end
-    if err == "lost" then S.recover = true end
-    alert("lease " .. tostring(err), err == "lost" and "lost" or "worker_safety")
+    local cause=sendCauses[err] or "path"
+    if cause == "lost" then S.recover = true end
+    alert("lease " .. tostring(err), cause)
     return false
   end
   S.pending = { id=id, action=action, steps=steps, pose=start }
@@ -378,14 +389,15 @@ local function report(id, turtleId, results, lease)
     if j.turtle.paused then j.turtle.state="parked" end
   elseif action == "recover" then
     S.recover, j.phase = false, "check"
-    if j.blocked ~= "hold" then j.blocked, j.alert = nil, nil end
+    if j.legacyHold then j.blocked,j.alert="hold",j.legacyHold
+    elseif not (j.retryAt and (j.blocked=="material" or j.blocked=="fuel")) then j.blocked,j.alert=nil,nil end
     if j.service then j.service.stage = "travel" end
     if j.placement and not reconcile(last) then S.recover=true end
   elseif action == "fuel" then
     local target=S.targets and S.targets[j.cursor]
     local required=S.fuelTrips and target and fuelNeed(target) or 1
     if j.fuel == "unlimited" or type(j.fuel) == "number" and j.fuel >= (required or 1) then
-      j.blocked, j.alert = nil, nil
+      j.blocked, j.alert, j.retryAt = nil, nil, nil
     else alert("out of fuel", "fuel") end
   elseif action == "check" then
     if j.placement then reconcile(last)
@@ -403,7 +415,9 @@ local function report(id, turtleId, results, lease)
     local drops = module("drops")
     if drops.note then drops.note(j.service.point.id,last.ok and last.data and last.data.name or nil) end
   elseif action == "refuel" then
-    if last.ok and (j.fuel=="unlimited" or type(j.fuel)=="number" and j.fuel>=1) then
+    local target=S.targets and S.targets[j.cursor]
+    local required=S.fuelTrips and target and fuelNeed(target) or 1
+    if last.ok and (j.fuel=="unlimited" or type(j.fuel)=="number" and j.fuel>=(required or 1)) then
       if j.service and j.service.kind=="fuel" then j.service=nil end
       j.blocked,j.alert,j.retryAt=nil,nil,nil
     elseif last.ok then
@@ -513,7 +527,7 @@ local function input(ev)
       end
       return
     end
-    j.running,j.blocked,j.alert,j.phase=true,nil,nil,"check"
+    j.running,j.blocked,j.alert,j.phase,j.legacyHold=true,nil,nil,"check",nil
     save()
     return
   end
@@ -605,7 +619,7 @@ local function render(w,h,session)
   session=session or S.view
   local C=U.canvas(w,h)
   local gap,lw=h>=16 and 1 or 0,math.min(w-2,40)
-  local state=j.blocked or (j.complete and "COMPLETE" or j.running and "running" or "stopped")
+  local state=j.legacyHold and "hold" or j.blocked or (j.complete and "COMPLETE" or j.running and "running" or "stopped")
   local tone=U.tone(state)
   if j.blocked and tone~="e" then tone="1" end
   local shape=({platform="floor",wall="walls"})[j.shape] or j.shape or "floor"
@@ -615,7 +629,7 @@ local function render(w,h,session)
   local stuff=j.material and (j.material:gsub("^minecraft:",""))
   U.roleBar(C,"BUILD",{"job","setup"},{"job","setup"},session.buildSetup and 2 or 1)
   local y=2+gap
-  local message=S.feedback and SO.now()<S.feedbackUntil and S.feedback or j.alert
+  local message=S.feedback and SO.now()<S.feedbackUntil and S.feedback or j.alert or j.legacyHold
   if message then y=y+U.flagLines(C,2,y,w-2,message,nil,2)+gap end
   if session.buildSetup then
     local cx=w>=36 and 13 or 11
@@ -684,6 +698,7 @@ local function tick()
     send({{op="inspectDown"}},"recover",true)
     return
   end
+  if j.legacyHold then return end
   if S.workerPark and j.turtle.paused then
     if j.turtle.removeRequested and j.turtle.parkConfirmed then removeParked()
     elseif not j.turtle.parkConfirmed or not S.parkAt or SO.now()-S.parkAt>=540000 then
@@ -695,11 +710,10 @@ local function tick()
     j.running=false alert("builder fuel trips disabled", "fuel") return
   end
   if j.service and j.service.kind=="fuel" and j.fuel=="unlimited" then
-    j.service=nil save()
+    j.service,j.blocked,j.alert,j.retryAt=nil,nil,nil,nil save()
   end
-  if (j.blocked == "material" or j.blocked == "fuel") and j.retryAt and SO.now() >= j.retryAt then
-    j.blocked=nil
-  end
+  local retrying = j.retryAt and SO.now()>=j.retryAt and j.service
+    and (j.blocked=="material" and j.service.kind=="storage" or j.blocked=="fuel" and j.service.kind=="fuel")
   if S.fuelTrips and j.running and (not j.blocked or j.blocked=="fuel") and type(j.fuel)=="number" then
     local target=S.targets and S.targets[j.cursor]
     local need,err,cause
@@ -718,7 +732,7 @@ local function tick()
     send({{op="inspectDown"}},"fuel")
     return
   end
-  if not j.running or j.blocked then return end
+  if not j.running or j.blocked and not retrying then return end
   S.targets=S.targets or expand(j.blueprint)
   local target=S.targets and S.targets[j.cursor]
   if not target then j.running,j.complete,j.blocked,j.alert=false,true,nil,nil save() return end
@@ -768,7 +782,7 @@ local function facts()
   local row = j.turtle
   local stat = row and module("lease").peek and module("lease").peek(row.id) or {}
   local out = {dim=j.dim, running=j.running==true, done=done, total=total,
-    state=not j.blueprint and "idle" or complete and "complete" or j.blocked and "held"
+    state=not j.blueprint and "idle" or complete and "complete" or (j.blocked or j.legacyHold) and "held"
       or (S.recover or stat.lost or stat.uncertain) and row and not row.forgotten and "recovering"
       or j.running and "running" or "stopped"}
   if j.blueprint then

@@ -134,6 +134,11 @@ local function fixture(config)
     end
     return q
   end
+  f.expire=function()
+    local q=assert(queued,"no queued lease") queued=nil
+    f.lost=true
+    callback(q.id,q.turtleId,nil,{status="expired"})
+  end
   f.restart=function(quiet) queued=nil boot(quiet) end
   f.configure=function(shape,x,y,z)
     f.input("area 0 0 0 " .. (x-1) .. " " .. (y-1) .. " " .. (z-1))
@@ -144,7 +149,9 @@ local function fixture(config)
       f.tick() if queued then f.report() end
       local j=f.job()
       if j and not j.running and not j.blocked then return end
-      if j and j.blocked then error(j.alert) end
+      local retry=j and j.retryAt and f.now>=j.retryAt and j.service
+        and (j.blocked=="material" and j.service.kind=="storage" or j.blocked=="fuel" and j.service.kind=="fuel")
+      if j and j.blocked and not retry then error(j.alert) end
     end
     error("builder did not finish")
   end

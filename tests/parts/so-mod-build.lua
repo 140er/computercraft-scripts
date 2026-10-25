@@ -632,4 +632,129 @@ return function(test,equal)
     end)
   end
 
+
+  for _,restart in ipairs({false,true}) do
+    test("B2-B legacy operator hold survives expired recovery and a successful probe"..(restart and " across another restart" or ""),function()
+      local f=fixture() f.configure("floor",1,1,1)
+      f.saved.blocked,f.saved.alert,f.saved.running="hold","operator review required",true
+      f.restart()
+      equal(f.queued().opts.recover,true)
+      equal(f.queued().steps,{{op="inspectDown",park=true}})
+      f.expire()
+      equal(f.job().blocked,"lost") equal(f.job().legacyHold,"operator review required")
+      if restart then f.restart() else f.tick() end
+      equal(f.queued().opts.recover,true)
+      equal(f.queued().steps,{{op="inspectDown",park=true}})
+      f.lost=false f.report()
+      equal(f.job().blocked,"hold") equal(f.job().alert,"operator review required")
+      equal(f.mod().facts().state,"held") equal(f.mod().facts().alert,nil)
+      local calls=#f.calls
+      for _=1,100 do f.tick() end
+      equal(#f.calls,calls) equal(f.count(),0)
+      f.input("typo") equal(f.job().legacyHold,"operator review required")
+      f.input("stop") f.input("material dirt") equal(f.job().blocked,nil)
+      equal(f.job().legacyHold,"operator review required") equal(f.mod().facts().state,"held")
+      f.tick() equal(#f.calls,calls)
+      local chest=f.chest f.chest=nil f.input("start")
+      equal(f.job().legacyHold,"operator review required") f.chest=chest
+      f.input("start") equal(f.job().legacyHold,nil) equal(f.job().blocked,nil)
+      f.tick() assert(f.queued()) equal(f.queued().opts.recover,false)
+    end)
+  end
+  for _,kind in ipairs({"material","fuel"}) do
+    test("B2-B unresolved "..kind.." NEEDS stays active through pending inspection transfer and confirmed resolution",function()
+      local f=fixture({builderFuelTrips=kind=="fuel"})
+      if kind=="fuel" then
+        f.fuel=3
+        f.fuelChest={id="fuel",kind="fuel",dim=0,x=-2,y=3,z=0,side="down"}
+        f.world["-2,3,0"]={name="minecraft:chest",item="minecraft:coal",stock=0}
+      else f.world["-3,0,0"].stock=0 end
+      f.configure("floor",1,1,1) ready(f) f.input("start")
+      for _=1,200 do
+        step(f)
+        if f.job().blocked==kind and f.job().retryAt then break end
+      end
+      equal(f.job().blocked,kind) assert(f.job().retryAt)
+      local health=assert(loadfile("so-mod-health.lua","t",f.env))()
+      local function held()
+        local facts=f.mod().facts()
+        equal(facts.alert.key,"build:"..kind)
+        local rows=health.attention({now=f.now,disk={},build=facts})
+        equal(#rows,1) equal(rows[1].key,"build:"..kind)
+      end
+      held()
+      local calls=#f.calls
+      f.tick() equal(#f.calls,calls) held()
+      f.now=f.job().retryAt f.tick()
+      equal(f.job().intent.action,"supplyCheck") held()
+      f.now=f.now+6000 f.tick() held()
+      f.report() held()
+      f.tick() equal(f.job().intent.action,"take") held()
+      f.now=f.now+6000 f.tick() held()
+      f.report() held()
+      local chest=kind=="fuel" and f.world["-2,3,0"] or f.world["-3,0,0"]
+      chest.stock=64
+      f.now=f.job().retryAt f.tick() held() f.report() held()
+      f.tick() equal(f.job().intent.action,"take") held()
+      f.report()
+      if kind=="fuel" then
+        held() f.tick() equal(f.job().intent.action,"refuel") held()
+        f.now=f.now+6000 f.tick() held() f.report()
+      end
+      equal(f.mod().facts().alert,nil) equal(f.job().blocked,nil) equal(f.job().retryAt,nil)
+      f.run() equal(f.count(),1)
+    end)
+  end
+  local refusals={
+    {"DISK events pending","save"},{"pose uncertain","pose_uncertain"},{"pose","pose_uncertain"},
+    {"lost","lost"},{"send","lost"},{"busy","assignment_conflict"},{"no key","device_forgotten"},
+    {"update remote worker","worker_safety"},{"invalid dimension","dimension_mismatch"},
+    {"remote dimensions disabled","dimension_mismatch"},
+    {"worker dimension mismatch; set so-worker.cfg","dimension_mismatch"},
+    {"Nether bedrock boundary","dimension_mismatch"},{"End void or height boundary","dimension_mismatch"},
+    {"id","path"},{"owner","path"},{"steps","path"},{"opts","path"},
+    {"ms","path"},{"size","path"},{"unrecognized refusal","path"},
+  }
+  for _,case in ipairs(refusals) do
+    test("B2-B lease refusal "..case[1].." has cause "..case[2],function()
+      local f=fixture() f.configure("floor",1,1,1) ready(f) f.input("start")
+      f.sendError=case[1] f.tick()
+      equal(f.queued(),nil) equal(f.mod().facts().alert.key,"build:"..case[2])
+      equal(f.job().alert,"lease "..case[1]) equal(f.job().intent,nil) equal(f.count(),0)
+    end)
+  end
+  test("B2-B real lease disk refusal exposes the save cause without requesting a worker update",function()
+    local f=dofile("tests/so/build-world-fixture.lua")()
+    f.configure("floor",1,1,1)
+    f.server.env.SO.mods.state.canWork=function() return false end
+    f.command("start")
+    for _=1,20 do f.advance(0.1) if f.job().blocked then break end end
+    equal(f.job().alert,"lease DISK events pending")
+    equal(f.server.env.SO.mods.build.facts().alert.key,"build:save") equal(f.places,0)
+  end)
+
+
+  test("B2-B partial fuel refill retains NEEDS until confirmed fuel covers the planned trip",function()
+    local f=fixture({builderFuelTrips=true}) f.fuel=3
+    f.fuelChest={id="fuel",kind="fuel",dim=0,x=-2,y=3,z=0,side="down"}
+    local chest={name="minecraft:chest",item="minecraft:coal",stock=0}
+    f.world["-2,3,0"]=chest
+    f.configure("floor",1,1,1) f.input("area 100 0 0 100 0 0") ready(f) f.input("start")
+    for _=1,100 do step(f) if f.job().retryAt then break end end
+    equal(f.job().blocked,"fuel") assert(f.job().retryAt)
+    chest.stock=1 f.now=f.job().retryAt
+    for _,action in ipairs({"supplyCheck","take","refuel"}) do
+      f.tick() equal(f.job().intent.action,action)
+      equal(f.mod().facts().alert.key,"build:fuel") f.report()
+    end
+    equal(f.job().fuel,83) equal(f.mod().facts().alert.key,"build:fuel")
+    chest.stock=64
+    for _,action in ipairs({"take","refuel"}) do
+      f.tick() equal(f.job().intent.action,action)
+      equal(f.mod().facts().alert.key,"build:fuel") f.report()
+    end
+    equal(f.job().blocked,nil) equal(f.mod().facts().alert,nil)
+    assert(f.job().fuel>200) equal(f.job().retryAt,nil)
+  end)
+
 end
