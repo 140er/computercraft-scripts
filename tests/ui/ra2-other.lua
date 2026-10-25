@@ -262,7 +262,7 @@ return function(test, equal)
       local b = ids(frame)
       for _, id in ipairs({ 'health', 'attention', 'events', 'alerts', 'errors' }) do assert(b[id], id) end
       -- The pager shows only beside a second page.
-      local paged = out.picture().text[case[3]]:find('\17', 1, true) ~= nil
+      local paged = out.picture().text[case[3]]:find(R.char(17), 1, true) ~= nil
       assert((b.prev ~= nil) == paged and (b.next ~= nil) == paged, 'pager ' .. case[1])
     end
   end)
