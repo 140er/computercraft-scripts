@@ -15,21 +15,64 @@ local A = {
   dimensions = { [0] = "minecraft:overworld", [-1] = "minecraft:the_nether", [1] = "minecraft:the_end" },
 }
 
+-- so-data/ar is the four layer booleans, or with arFollowups the v2 record
+-- {v=2, turtles, leases, drops, alerts, dim?, focus={kind,id?}} (docs/server-only/PROTOCOL.md).
+A.layerIds = { turtles = true, leases = true, drops = true, alerts = true }
+A.dimIds = { world = "minecraft:overworld", nether = "minecraft:the_nether", ["end"] = "minecraft:the_end" }
+A.dimNames = { ["minecraft:overworld"] = "world", ["minecraft:the_nether"] = "nether", ["minecraft:the_end"] = "end" }
+A.validFocus = function(f)
+  if type(f) ~= "table" then return false end
+  for k in pairs(f) do if k ~= "kind" and k ~= "id" then return false end end
+  if f.kind == "all" then return f.id == nil end
+  if f.kind == "turtle" then
+    return type(f.id) == "number" and f.id >= 1 and f.id <= 2147483647 and f.id % 1 == 0
+  end
+  return f.kind == "drop" and type(f.id) == "string" and #f.id <= 128 and f.id:match("^[%w_%-]+$") ~= nil
+end
 A.valid = function(value)
   if type(value) ~= "table" then return false end
   for _, layer in ipairs(A.order) do if type(value[layer]) ~= "boolean" then return false end end
-  return true
+  if value.v == nil then return true end
+  if value.v ~= 2 then return false end
+  for k in pairs(value) do
+    if not (A.layerIds[k] or k == "v" or k == "dim" or k == "focus") then return false end
+  end
+  return (value.dim == nil or A.dimNames[value.dim] ~= nil) and A.validFocus(value.focus)
 end
-A.box = SO.store.store("so-data/ar", A.valid)
-if A.box.value then A.layers = SO.store.copy(A.box.value) end
+A.box = SO.store.store("so-data/ar", A.valid, 4096)
 A.config = SO.store.read("so-server.cfg") or {}
-A.dim = A.config.arDim or A.config.pos and A.config.pos.dim or "minecraft:overworld"
+A.follow = A.config.arFollowups == true
+A.remote = A.follow and A.config.remoteDimensions == true
+A.norm = function(dim) return A.dimensions[dim] or dim or "minecraft:overworld" end
+A.baseDim = A.norm(A.config.arDim or A.config.pos and A.config.pos.dim)
 if type(A.config.arLabelScale)=="number" then
   A.labelScale=math.max(0.5,math.min(0.7,A.config.arLabelScale))
   A.labelGap=math.max(A.labelGap,A.labelScale*0.5)
 end
-A.sameDim = function(dim)
-  return (A.dimensions[dim] or dim or "minecraft:overworld") == (A.dimensions[A.dim] or A.dim)
+A.sameDim = function(dim) return A.norm(dim) == A.dim end
+-- The saved dimension and focus apply only with the flags on; otherwise they stay in the file unused.
+A.apply = function(settings)
+  A.settings, A.layers = settings, {}
+  for _, layer in ipairs(A.order) do A.layers[layer] = settings[layer] end
+  local v2 = settings.v == 2
+  A.dim = A.remote and v2 and settings.dim or A.baseDim
+  A.focus = A.follow and v2 and SO.store.copy(settings.focus) or { kind = "all" }
+  A.frameAt = nil
+  for _, controller in ipairs(A.controllers) do controller.sig = nil end
+end
+A.apply(A.box.value and SO.store.copy(A.box.value) or SO.store.copy(A.layers))
+-- A failed save keeps the previous settings and scene.
+A.commit = function(settings)
+  if not A.box.save(settings) then return false end
+  A.apply(settings)
+  return true
+end
+-- The current settings as a v2 record; a legacy file migrates here, keeping every layer choice.
+A.v2 = function()
+  local s = A.settings
+  local out = { v = 2, dim = s.v == 2 and s.dim or nil, focus = s.v == 2 and SO.store.copy(s.focus) or { kind = "all" } }
+  for _, layer in ipairs(A.order) do out[layer] = s[layer] end
+  return out
 end
 A.call = function(name, method, ...)
   local mod = SO.mods[name]
@@ -46,19 +89,70 @@ A.legacyRender = function()
   end
   return picture
 end
+-- Workers from the state machines and the lumber farm's saved turtles.
+A.machines = function()
+  local machines = SO.store.copy(A.call("state", "get", "machines") or {})
+  local lumber = A.call("lumber", "mapView") or {}
+  for id, worker in pairs(lumber.turtles or {}) do
+    id = tostring(id)
+    local machine = machines[id] or machines[tonumber(id)] or {}
+    machine.role, machine.pose, machine.state = "worker", worker.pose, worker.state
+    if machine.pose and machine.pose.dim == nil then machine.pose.dim = lumber.dim end
+    machines[tonumber(id)], machines[id] = nil, machine
+  end
+  return machines
+end
+-- Focus targets in the drawn dimension: ALL, then turtles by id, then drops in DROP POINTS order.
+A.targets = function(machines)
+  local list, turtles = { { id = "ar-all", text = "ALL", kind = "all" } }, {}
+  for id, m in pairs(machines or A.machines()) do
+    local n = tonumber(id)
+    if (m.role == nil or m.role == "worker" or m.role == "turtle") and m.pose and A.sameDim(m.pose.dim)
+      and A.validFocus({ kind = "turtle", id = n }) then turtles[#turtles + 1] = n end
+  end
+  table.sort(turtles)
+  for _, n in ipairs(turtles) do
+    list[#list + 1] = { id = "ar-turtle:" .. n, text = "turtle #" .. n, kind = "turtle", key = n }
+  end
+  for _, p in ipairs(A.call("drops", "list") or {}) do
+    if A.sameDim(p.dim) and A.validFocus({ kind = "drop", id = p.id }) then
+      list[#list + 1] = { id = "ar-drop:" .. p.id, text = "drop #" .. (p.n or p.id), kind = "drop", key = p.id, n = p.n }
+    end
+  end
+  return list
+end
+A.find = function(focus, list)
+  for _, t in ipairs(list or A.targets()) do if t.kind == focus.kind and t.key == focus.id then return t end end
+end
 A.gather = function()
   local count = 0
   for _ in pairs(A.controllers) do count = count + 1 end
-  return { count = count, layers = SO.store.copy(A.layers), alert = A.shown and SO.store.copy(A.shown) }
+  local model = { count = count, layers = SO.store.copy(A.layers), alert = A.shown and SO.store.copy(A.shown) }
+  if A.follow then
+    local list, f = A.targets(), A.focus
+    local t = f.kind ~= "all" and A.find(f, list)
+    model.follow = { focus = f.kind == "all" and "all" or not t and "missing"
+      or t.kind == "turtle" and "#" .. t.key or "drop #" .. (t.n or t.key), missing = f.kind ~= "all" and not t,
+      dims = A.remote and A.dimNames[A.dim] or nil }
+    if A.picker then
+      for _, item in ipairs(list) do item.on = item.kind == f.kind and (f.kind == "all" or item.key == f.id) end
+      model.picker = { page = A.picker.page, items = list }
+    end
+  end
+  return model
 end
--- Route A (docs/ui/SCHEMATIC-SPEC.md section 26); docs/ui/schematic/ar.py is the twin.
--- Each layer is a leader row with its state word; a tap anywhere on the row toggles it.
--- The goggles' alert sits under the layers where it fits, and a tap steps to the next alert.
-A.layout = function(model, w, h)
-  local C = U.canvas(w, h)
+A.bar = function(C, model, w)
   local right = model.count .. (model.count == 1 and " controller" or " controllers")
   if #right + 14 > w then right = tostring(model.count) end
   C.bar("AR GOGGLES", {}, nil, right)
+end
+-- Route A (docs/ui/SCHEMATIC-SPEC.md section 26); docs/ui/schematic/ar.py is the twin.
+-- Each layer is a leader row with its state word; a tap anywhere on the row toggles it.
+-- With arFollowups, the focus row and the dimension words follow the layers.
+-- The goggles' alert sits under them where it fits, and a tap steps to the next alert.
+A.layout = function(model, w, h)
+  local C = U.canvas(w, h)
+  A.bar(C, model, w)
   local on = 0
   for _, layer in ipairs(A.order) do if model.layers[layer] then on = on + 1 end end
   local lw, step, y = math.min(w - 2, 55), h >= 16 and 2 or 1, 2
@@ -73,7 +167,22 @@ A.layout = function(model, w, h)
     C.put(lw - #word + 1, ry, word, state and "d" or "8")
     C.hit(layer, 1, ry, w, 1, layer)
   end
-  local alert, ay = model.alert, y + #A.order * step
+  local alert, ay, f = model.alert, y + #A.order * step, model.follow
+  if f and ay <= h then
+    C.leader(2, ay, lw, "focus", "[" .. f.focus .. "]", "8")
+    C.put(lw - #f.focus + 1, ay, f.focus, f.missing and "e" or "0")
+    C.hit("ar-focus", 1, ay, w, 1, "focus")
+    ay = ay + step
+  end
+  if f and f.dims and ay <= h then
+    local x, words = 2, w >= 20 and { "WORLD", "NETHER", "END" } or { "OVER", "NETH", "END" }
+    for i, key in ipairs({ "world", "nether", "end" }) do
+      C.put(x, ay, words[i], key == f.dims and "d" or "8")
+      C.hit("ar-dim:" .. key, x, ay, #words[i], 1, words[i])
+      x = x + #words[i] + (w >= 20 and 2 or 1)
+    end
+    ay = ay + step
+  end
   if alert and ay + 1 <= h then
     C.section(2, ay, lw, "ALERTS", alert.i .. "/" .. alert.n)
     C.put(2, ay + 1, "!", "e")
@@ -82,21 +191,73 @@ A.layout = function(model, w, h)
   end
   return C.frame()
 end
+-- FOCUS: ALL and the targets one per row, the current one green; BACK, and MORE with more pages.
+A.pickLayout = function(model, w, h)
+  local C = U.canvas(w, h)
+  A.bar(C, model, w)
+  local p, lw, step, y = model.picker, math.min(w - 2, 55), h >= 16 and 2 or 1, 2
+  if h >= 7 then y = 3 + step end
+  local per = math.max(1, math.floor((h - step - y) / step) + 1)
+  local pages = math.max(1, math.ceil(#p.items / per))
+  local page = (p.page - 1) % pages + 1
+  if h >= 7 then C.section(2, 3, lw, "FOCUS", pages > 1 and page .. "/" .. pages or "") end
+  for i = 1, per do
+    local item, ry = p.items[(page - 1) * per + i], y + (i - 1) * step
+    if item then
+      C.put(2, ry, item.text:sub(1, lw), item.on and "d" or "0")
+      C.hit(item.id, 1, ry, w, 1, item.text)
+    end
+  end
+  C.put(2, h, "BACK", "0")
+  C.hit("ar-back", 1, h, 6, 1, "BACK")
+  if pages > 1 then
+    C.put(w - 4, h, "MORE", "0")
+    C.hit("ar-more", w - 5, h, 6, 1, "MORE")
+  end
+  return C.frame()
+end
 A.render = function(w,h)
   if not U then return A.legacyRender() end
-  return A.layout(A.gather(),w or 57,h or 24)
+  local model = A.gather()
+  return (model.picker and A.pickLayout or A.layout)(model, w or 57, h or 24)
 end
+-- Only the four layer rows and the checked follow-up controls reach a save; v, dim and focus
+-- are never toggles.
 A.input = function(event)
-  if event and event.id == "alert:next" then
+  local id = event and event.id
+  if id == "alert:next" then
     local list, at = A.active or {}, 0
     for i, row in ipairs(list) do if row.key == (A.shown and A.shown.key) then at = i end end
     if #list > 0 then A.pick, A.frameAt = list[at % #list + 1].key, nil end
     return
   end
-  if not event or A.layers[event.id] == nil then return end
-  local nextLayers = SO.store.copy(A.layers)
-  nextLayers[event.id] = not nextLayers[event.id]
-  if A.box.save(nextLayers) then A.layers = nextLayers end
+  if type(id) ~= "string" then return end
+  if A.layerIds[id] then
+    local nextLayers = A.follow and A.v2() or SO.store.copy(A.settings)
+    nextLayers[id] = not nextLayers[id]
+    A.commit(nextLayers)
+    return
+  end
+  if not A.follow then return end
+  local dim, focus = id:match("^ar%-dim:(%a+)$"), nil
+  if id == "ar-focus" then A.picker = { page = 1 }
+  elseif id == "ar-back" then A.picker = nil
+  elseif id == "ar-more" then if A.picker then A.picker.page = A.picker.page + 1 end
+  elseif dim then
+    if not (A.remote and A.dimIds[dim]) then return end
+    local nextSettings = A.v2()
+    -- A new dimension resets focus to ALL in the same save.
+    nextSettings.dim, nextSettings.focus = A.dimIds[dim], { kind = "all" }
+    if A.commit(nextSettings) then A.picker = nil end
+  elseif id == "ar-all" then focus = { kind = "all" }
+  elseif id:match("^ar%-turtle:%d+$") then focus = { kind = "turtle", id = tonumber(id:sub(11)) }
+  elseif id:match("^ar%-drop:") then focus = { kind = "drop", id = id:sub(9) }
+  end
+  -- The target must still be valid and in the drawn dimension when it is saved.
+  if not focus or not A.validFocus(focus) or focus.kind ~= "all" and not A.find(focus) then return end
+  local nextSettings = A.v2()
+  nextSettings.focus = focus
+  if A.commit(nextSettings) then A.picker = nil end
 end
 A.turtle = function(machine, status, now, inRange)
   local state = tostring(machine.state or "idle"):lower():gsub("_", " ")
@@ -145,19 +306,21 @@ A.scene = function(now)
     line(id, color, bx, y + c.half, bz, tx, y, tz)
     line(id .. ":1", color, bx, y - c.half, bz, tx, y, tz)
   end
-  local machines = SO.store.copy(A.call("state", "get", "machines") or {})
-  local lumber = A.call("lumber", "mapView") or {}
-  for id, worker in pairs(lumber.turtles or {}) do
-    id = tostring(id)
-    local machine = machines[id] or machines[tonumber(id)] or {}
-    machine.role, machine.pose, machine.state = "worker", worker.pose, worker.state
-    if machine.pose and machine.pose.dim == nil then machine.pose.dim = lumber.dim end
-    machines[tonumber(id)], machines[id] = nil, machine
+  local machines = A.machines()
+  -- A focused turtle keeps its box, trail and every reservation of its exact id; a focused drop
+  -- keeps its point. A target gone from this dimension draws nothing until ALL is chosen.
+  local only = A.focus.kind ~= "all" and A.focus
+  A.missing = only and not A.find(only, A.targets(machines))
+  local prefixes = only and { "mine:", "lumber:", "build:", "setup:", "gps:" } or { "mine:", "lumber:" }
+  local function shown(id)
+    return not only or only.kind == "turtle" and not A.missing and tonumber(id) == only.id
   end
   local leases, merged = {}, {}
   if A.layers.leases then
     local owners = {}
-    for id in pairs(machines) do owners["mine:" .. id], owners["lumber:" .. id] = true, true end
+    for id in pairs(machines) do
+      if shown(id) then for _, prefix in ipairs(prefixes) do owners[prefix .. id] = true end end
+    end
     for owner in pairs(owners) do
       local bounds
       for _, cell in ipairs(A.call("cells", "list", owner, math.huge) or {}) do
@@ -182,14 +345,15 @@ A.scene = function(now)
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
       turtleCount = turtleCount + 1
       if status.lost then lostCount = lostCount + 1 end
-      if A.layers.turtles and p and A.sameDim(p.dim) then
+      if A.layers.turtles and p and A.sameDim(p.dim) and shown(id) then
         local key = "turtle:" .. id
         label(key, color, p, machine.label or ("#" .. id), "turtle", "turtle")
         local d = A.dirs[p.facing or p.f or 0]
         -- One outline per turtle: blue while it holds just its own cell, white when ok, the state
         -- colour for trouble (coral, amber, stale grey); the label always carries the state colour.
         local edge = (color == A.green or color == A.teal) and A.white or color
-        for _, owner in ipairs({ "mine:" .. id, "lumber:" .. id }) do
+        for _, prefix in ipairs(prefixes) do
+          local owner = prefix .. id
           local b = leases[owner]
           if b and b[1] == p.x and b[2] == p.y and b[3] == p.z and b[4] == p.x + 1 and b[5] == p.y + 1 and b[6] == p.z + 1 then
             merged[owner] = true
@@ -204,7 +368,7 @@ A.scene = function(now)
   end
   local mine = A.call("mine", "mapView") or {}
   if A.layers.turtles and A.sameDim(mine.dim) then
-    for _, trail in ipairs(mine.trails or {}) do
+    for _, trail in ipairs(mine.trails or {}) do if shown(trail.id) then
       local a,b = trail.points[1],trail.points[2]
       local color = 0x507886A3
       if trail.state~="done" then
@@ -215,9 +379,9 @@ A.scene = function(now)
         if status.uncertain then color=A.red end
       end
       line("trail:"..trail.id, color, a.x+0.5,a.y+0.25,a.z+0.5,b.x+0.5,b.y+0.25,b.z+0.5)
-    end
+    end end
   end
-  if A.layers.leases and mine.preview and A.sameDim(mine.dim) then
+  if A.layers.leases and mine.preview and A.sameDim(mine.dim) and not only then
     local a,b = mine.preview[1],mine.preview[2]
     line("preview:branch", A.blue, a.x+0.5,a.y+0.5,a.z+0.5,b.x+0.5,b.y+0.5,b.z+0.5)
   end
@@ -234,7 +398,9 @@ A.scene = function(now)
   for _,p in ipairs(drops) do if p.broken and not p.disabled and A.sameDim(p.dim) then broken=broken+1 end end
   if A.layers.drops then
     for _, p in ipairs(drops) do
-      if A.sameDim(p.dim) then
+      -- Broken chests keep their warning under any focus.
+      if A.sameDim(p.dim) and (not only or p.broken and not p.disabled
+        or only.kind == "drop" and not A.missing and p.id == only.id) then
         -- A room point that room sinks switch off draws grey and never gets a beam.
         local bad = p.broken and not p.disabled
         local key, color = "drop:" .. p.id, p.disabled and A.grey or bad and A.red or A.white
