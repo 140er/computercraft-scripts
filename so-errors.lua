@@ -34,6 +34,20 @@ M.open = function(store, now)
   return {
     record=record, flush=flush,
     entries=function() return store.copy(entries) end,
+    summary=function()
+      local groups, out = {}, {}
+      for _, entry in ipairs(entries) do
+        local group = groups[entry.text]
+        if not group then
+          group = {text=entry.text,count=0,first=entry.at,last=entry.at}
+          groups[entry.text] = group
+          out[#out+1] = group
+        end
+        group.count = group.count + 1
+        group.last = entry.at
+      end
+      return out
+    end,
     status=function()
       local bytes = 0
       for _, suffix in ipairs({"", ".tmp", ".bak"}) do

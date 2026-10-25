@@ -151,6 +151,15 @@ H.keep = function(S)
   S.all = kept
 end
 
+H.range = function(S, n, ev)
+  local range = S.ranges[n]
+  if not range then
+    range = {oldestSeq=ev.seq,oldestAt=ev.at}
+    S.ranges[n] = range
+  end
+  range.newestSeq, range.newestAt = ev.seq, ev.at
+end
+
 H.rotate = function(S)
   local n = S.last + 1
   if n >= 1000000 then return false, "segment" end
@@ -218,6 +227,7 @@ H.append = function(S, ev)
   S.seq = ev.seq
   S.estimate = estimate
   S.all[#S.all + 1] = ev
+  H.range(S, S.last, ev)
   return true
 end
 
@@ -256,6 +266,7 @@ H.checkpoint = function(S, payload)
   H.pruneSnaps(n)
   while S.first < retain do
     S.sizes[S.first] = nil
+    S.ranges[S.first] = nil
     H.wipe(H.segPath(S.first))
     S.first = S.first + 1
   end
@@ -271,6 +282,7 @@ H.take = function(S, n, box)
     if type(ev) == "table" and type(ev.seq) == "number" and type(ev.kind) == "string" then
       if type(ev.seg) ~= "number" then ev.seg = n end
       S.all[#S.all + 1] = ev
+      H.range(S, n, ev)
       if ev.seq > S.seq then S.seq = ev.seq end
       H.breathe(#S.all)
     end
@@ -318,6 +330,11 @@ H.load = function(S)
       if n < first then
         -- Count files pinned for fallback without replaying their older events.
         S.sizes[n] = box and box.bytes or H.liveBytes(path)
+        for _, ev in ipairs(box and box.value.events or {}) do
+          if type(ev) == "table" and type(ev.seq) == "number" and type(ev.kind) == "string" then
+            H.range(S, n, ev)
+          end
+        end
       elseif box then
         H.take(S, n, box)
         S.box = box
@@ -330,7 +347,7 @@ end
 
 M.open = function(store)
   local S = {
-    store = store, seq = 0, first = 1, last = 0, all = {}, sizes = {},
+    store = store, seq = 0, first = 1, last = 0, all = {}, sizes = {}, ranges = {},
     snapN = 0, cur = nil, box = nil, snap = nil,
   }
   H.load(S)
@@ -343,8 +360,16 @@ M.open = function(store)
     checkpoint = function(payload) return H.checkpoint(S, payload) end,
     rawBytes = function() return H.raw(S) end,
     status = function()
+      local oldest, newest
+      for n = S.first, S.last do
+        if S.ranges[n] then
+          oldest, newest = oldest or S.ranges[n], S.ranges[n]
+        end
+      end
       return { available=true, seq=S.seq, segments=math.max(0,S.last-S.first+1), bytes=H.raw(S),
-        snapshot=S.snapN, snapshotAt=S.snap and S.snap.gameAt, due=H.due(S) }
+        snapshot=S.snapN, snapshotAt=S.snap and S.snap.gameAt, due=H.due(S),
+        oldestSeq=oldest and oldest.oldestSeq, oldestAt=oldest and oldest.oldestAt,
+        newestSeq=newest and newest.newestSeq, newestAt=newest and newest.newestAt }
     end,
   }
 end
