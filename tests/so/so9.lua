@@ -84,6 +84,7 @@ return function(test, equal, read)
     e.turtle = role == "worker" and {} or nil
     e.pocket = role == "display" and {} or nil
     e.keys = { up = 1, down = 2, enter = 3 }
+    e.colors = { white = 1, gray = 128, black = 32768 }
     e.os.pullEvent = function() return "key", e.keys.enter end
     e.gps = { locate = function(timeout) equal(timeout, 2); return 1, 2, 3 end }
     e.read = function() return "" end
@@ -606,15 +607,172 @@ return function(test, equal, read)
   test("SO9 role picker supports arrows clicks and monitor default touch", function()
     for _, mode in ipairs({ "arrows", "click", "monitor", "touch" }) do
       local m = machine("server")
-      local events = mode == "arrows" and { { "key", 2 }, { "key", 3 } } or { { "mouse_click", 1, 2, 4 } }
+      local events = mode == "arrows" and { { "key", 2 }, { "key", 3 } } or { { "mouse_click", 1, 2, 12 } }
       if mode == "monitor" or mode == "touch" then
         m.env.peripheral.find = function() return m.env.term end
         m.env.peripheral.getName = function() return "left" end
-        events = mode == "monitor" and { { "key", 3 } } or { { "monitor_touch", "left", 1, 4 } }
+        events = mode == "monitor" and { { "key", 3 } } or { { "monitor_touch", "left", 2, 12 } }
       end
       m.env.os.pullEvent = function() return table.unpack(table.remove(events, 1)) end
       m.run()
       equal(m.files[".so-role"], "display")
+    end
+  end)
+  -- A cell grid term of a fixed size that fails on any write outside it.
+  local function pickRole(w, h, events, monitor)
+    local m = machine("server")
+    local grid, frames, cx, cy, bg = {}, {}, 1, 1, nil
+    local out = {
+      getSize = function() return w, h end,
+      isColor = function() return true end,
+      setTextColor = function() end,
+      setBackgroundColor = function(c) bg = c end,
+      setCursorPos = function(x, y) cx, cy = x, y end,
+      getCursorPos = function() return cx, cy end,
+      clear = function()
+        for y = 1, h do
+          grid[y] = {}
+          for x = 1, w do grid[y][x] = { " ", bg } end
+        end
+      end,
+      write = function(text)
+        for i = 1, #text do
+          assert(cx >= 1 and cx <= w and cy >= 1 and cy <= h, "write outside " .. w .. "x" .. h .. " at " .. cx .. "," .. cy)
+          grid[cy][cx] = { text:sub(i, i), bg }
+          cx = cx + 1
+        end
+      end,
+    }
+    m.env.term = out
+    if monitor then
+      m.env.peripheral.find = function(kind) if kind == "monitor" then return out end end
+      m.env.peripheral.getName = function() return "left" end
+    end
+    local queue = {}
+    for i, ev in ipairs(events) do queue[i] = ev end
+    m.env.os.pullEvent = function()
+      local frame = {}
+      for y = 1, h do frame[y] = {} for x = 1, w do frame[y][x] = grid[y][x] end end
+      frames[#frames + 1] = frame
+      local ev = assert(table.remove(queue, 1), "chooser did not return")
+      return table.unpack(ev)
+    end
+    m.run()
+    return m.files[".so-role"], #queue, frames
+  end
+  -- Reads button boxes back from a frame: runs of rows with non-black cells.
+  local function boxes(frame, w, h)
+    local black, found = 32768, {}
+    for y = 1, h do
+      local x1, x2
+      for x = 1, w do
+        if frame[y][x][2] ~= black then x1 = x1 or x; x2 = x end
+      end
+      if x1 then
+        for x = x1, x2 do assert(frame[y][x][2] ~= black, "gap in button row " .. y) end
+        local last = found[#found]
+        if last and last.y2 == y - 1 then
+          equal(last.x1, x1); equal(last.x2, x2)
+          last.y2 = y
+        else found[#found + 1] = { x1 = x1, x2 = x2, y1 = y, y2 = y } end
+      end
+    end
+    for _, b in ipairs(found) do
+      local text = {}
+      for y = b.y1, b.y2 do
+        for x = b.x1, b.x2 do text[#text + 1] = frame[y][x][1] end
+      end
+      b.text = table.concat(text)
+    end
+    return found
+  end
+  local sizes = { { 26, 20 }, { 29, 12 } }
+  local function touch(monitor, x, y)
+    if monitor then return { "monitor_touch", "left", x, y } end
+    return { "mouse_click", 1, x, y }
+  end
+  test("SO9 role buttons draw within bounds at 26x20 and 29x12", function()
+    for _, size in ipairs(sizes) do
+      local w, h = size[1], size[2]
+      local role, left, frames = pickRole(w, h, { { "key", 3 } })
+      equal(role, "server"); equal(left, 0)
+      local found = boxes(frames[1], w, h)
+      equal(#found, 2)
+      assert(found[1].text:find("> SERVER <", 1, true), found[1].text)
+      assert(found[2].text:find("DISPLAY", 1, true), found[2].text)
+      for _, b in ipairs(found) do
+        assert(b.x1 >= 1 and b.x2 <= w and b.y1 >= 1 and b.y2 <= h)
+        equal(b.y2 - b.y1 + 1, 3)
+      end
+      assert(found[1].y2 < found[2].y1)
+    end
+  end)
+  test("SO9 a touch anywhere inside each role button selects it", function()
+    for _, size in ipairs(sizes) do
+      local w, h = size[1], size[2]
+      for _, monitor in ipairs({ false, true }) do
+        local found = boxes(select(3, pickRole(w, h, { { "key", 3 } }, monitor))[1], w, h)
+        for i, b in ipairs(found) do
+          for _, at in ipairs({ { b.x1, b.y1 }, { b.x2, b.y1 }, { b.x1, b.y2 }, { b.x2, b.y2 },
+            { math.floor((b.x1 + b.x2) / 2), math.floor((b.y1 + b.y2) / 2) } }) do
+            local role, left = pickRole(w, h, { touch(monitor, at[1], at[2]) }, monitor)
+            equal(role, ({ "server", "display" })[i], w .. "x" .. h .. " " .. at[1] .. "," .. at[2])
+            equal(left, 0)
+          end
+        end
+      end
+    end
+  end)
+  test("SO9 touches outside the role buttons are ignored", function()
+    for _, size in ipairs(sizes) do
+      local w, h = size[1], size[2]
+      for _, monitor in ipairs({ false, true }) do
+        local found = boxes(select(3, pickRole(w, h, { { "key", 3 } }, monitor))[1], w, h)
+        local events = {}
+        for y = 0, h + 1 do
+          for x = 0, w + 1 do
+            local inside = false
+            for _, b in ipairs(found) do
+              if x >= b.x1 and x <= b.x2 and y >= b.y1 and y <= b.y2 then inside = true end
+            end
+            if not inside then events[#events + 1] = touch(monitor, x, y) end
+          end
+        end
+        -- The ring of cells around each box is part of the sweep above.
+        for _, b in ipairs(found) do
+          for _, at in ipairs({ { b.x1 - 1, b.y1 }, { b.x2 + 1, b.y2 }, { b.x1, b.y1 - 1 }, { b.x2, b.y2 + 1 } }) do
+            local hit = false
+            for _, ev in ipairs(events) do if ev[3] == at[1] and ev[4] == at[2] then hit = true end end
+            assert(hit, "border cell " .. at[1] .. "," .. at[2] .. " not swept")
+          end
+        end
+        if monitor then
+          local b = found[1]
+          events[#events + 1] = { "monitor_touch", "right", b.x1, b.y1 }
+          events[#events + 1] = { "mouse_click", 1, b.x1, b.y1 }
+        else
+          events[#events + 1] = { "monitor_touch", "left", found[1].x1, found[1].y1 }
+        end
+        events[#events + 1] = { "key", 3 }
+        local role, left = pickRole(w, h, events, monitor)
+        equal(role, monitor and "display" or "server")
+        equal(left, 0)
+      end
+    end
+  end)
+  test("SO9 arrow keys move the role highlight and Enter picks it", function()
+    for _, size in ipairs(sizes) do
+      local w, h = size[1], size[2]
+      local role, left, frames = pickRole(w, h, { { "key", 2 }, { "key", 1 }, { "key", 2 }, { "key", 3 } })
+      equal(role, "display"); equal(left, 0)
+      equal(#frames, 4)
+      for i, want in ipairs({ "> SERVER <", "> DISPLAY <", "> SERVER <", "> DISPLAY <" }) do
+        local found = boxes(frames[i], w, h)
+        local text = found[1].text .. found[2].text
+        assert(text:find(want, 1, true), want)
+        local _, count = text:gsub("> ", "")
+        equal(count, 1)
+      end
     end
   end)
   test("SO9 reset needs yes and preserves only installer and ROM", function()
