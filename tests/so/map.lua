@@ -208,7 +208,7 @@ end
 
 local function trailSetup(two)
   local s = setup()
-  s.mine, s.lumber, s.scene.drops = {}, {}, {}
+  s.mine, s.lumber, s.scene.drops = {turtles={["8"]={state="idle"}}}, {}, {}
   local m = s.machine
   m.files["so-server.cfg"] = H.encode({remoteDimensions=true})
   m.install({"so-log.lua", "so-mod-state.lua"})
@@ -216,6 +216,7 @@ local function trailSetup(two)
   m.env.SO.mods.state = state
   state.emit("machine", {id=8, role="worker", pose={x=0,y=64,z=0,facing=1}})
   if two then
+    s.mine.turtles["9"] = {state="idle"}
     state.emit("machine", {id=9, role="worker", pose={x=5,y=64,z=2,facing=0}})
     s.scene.drops = {{id=1,kind="ore",dim=0,x=-5,y=64,z=0}}
   end
@@ -232,7 +233,155 @@ local function trailSetup(two)
   return s, state
 end
 
+local function mapState(s)
+  for i = 1, 20 do
+    local name, value = debug.getupvalue(s.map.tick,i)
+    if name == "M" then return value end
+  end
+  error("map state missing")
+end
+
 return function(test,equal)
+  for _, role in ipairs({"mine","lumber"}) do
+    test("map evicts parked and removed "..role.." trails while the registry keeps the worker", function()
+      local s, state = trailSetup()
+      s.mine, s.lumber = {turtles={}}, {turtles={}}
+      local row = {id=8,pose={x=0,y=64,z=0,facing=1},state=role == "mine" and "mining" or "lumber"}
+      s[role].turtles["8"] = row
+      s.pose(8,-5,64,-3)
+      s.pose(8,0,64,0)
+      local session = {map={fit=false,sx=1,sz=1,cx=0,cz=0,level=64}}
+      local function dot()
+        return cell(picture(s.screen.render(26,20,session),26,20),session.map,-5,-3)[1]
+      end
+      s.settle(26,20,session) s.step()
+      equal(dot(),U.g.dot)
+      for _, word in ipairs({"parking","parked"}) do
+        row.state = word
+        local calls = #s.pageCalls
+        s.step()
+        equal(dot()," ",word.." evicts the trail")
+        equal(next(mapState(s).trails),nil)
+        equal(#s.pageCalls,calls,word.." skips history refresh")
+      end
+      row.state = role == "mine" and "mining" or "lumber"
+      s.step() equal(dot(),U.g.dot,"resuming refreshes the trail")
+      s[role].turtles["8"] = nil
+      local calls = #s.pageCalls
+      s.step()
+      assert(state.get("machines")["8"],"REMOVE keeps the registry row")
+      equal(dot()," ","removing the assignment evicts the trail")
+      equal(next(mapState(s).trails),nil)
+      equal(#s.pageCalls,calls,"removed workers skip history refresh")
+      s.reloadMap() s.screen.render(26,20,session) s.step()
+      equal(dot()," ","a map restart does not revive removed trails")
+      equal(#s.pageCalls,calls)
+    end)
+  end
+
+  for _, role in ipairs({"mine","lumber"}) do
+    test("map reads saved "..role.." park and remove flags beneath a lost or blocked label", function()
+      local s = trailSetup()
+      s.mine, s.lumber = {turtles={}}, {turtles={}}
+      s[role].turtles["8"] = {id=8,pose={x=0,y=64,z=0},state=role == "mine" and "lost" or "fuel"}
+      local m, session = s.machine, {map={fit=false,sx=1,sz=1,cx=0,cz=0,level=64}}
+      m.files["so-server.cfg"] = H.encode({workerPark=true})
+      local box = m.env.SO.store.store("so-data/"..role.."/job",function(v) return type(v)=="table" end)
+      local job = {turtles={["8"]={}}}
+      assert(box.save(job))
+      s.pose(8,-5,64,-3) s.pose(8,0,64,0)
+      s.reloadMap() s.screen.render(26,20,session) s.step()
+      local function dot()
+        return cell(picture(s.screen.render(26,20,session),26,20),session.map,-5,-3)[1]
+      end
+      equal(dot(),U.g.dot)
+      for _, flag in ipairs({"paused","removeRequested"}) do
+        job.turtles["8"][flag] = true
+        assert(box.save(job))
+        local calls, files = #s.pageCalls, m.env.SO.store.copy(m.files)
+        s.step()
+        equal(dot()," ",flag.." evicts a trail despite its status label")
+        equal(next(mapState(s).trails),nil)
+        equal(#s.pageCalls,calls,flag.." skips refresh")
+        equal(m.files,files,"map generation recovery must not write")
+        job.turtles["8"][flag] = nil
+        assert(box.save(job)) s.step()
+        equal(dot(),U.g.dot,"clearing saved flags restores eligibility")
+      end
+    end)
+  end
+
+  test("map trail cache stays within 32 workers and 640 poses as worker ids accumulate", function()
+    local s = trailSetup()
+    s.mine.turtles = {}
+    for id = 1, 96 do s.mine.turtles[tostring(id)] = {state="mining",pose={x=0,y=64,z=0}} end
+    s.machine.env.SO.now = function() return 100000 end
+    s.machine.env.SO.mods.state.history.page = function(q)
+      s.pageCalls[#s.pageCalls+1] = q
+      local entries = {}
+      for i = 1, 20 do entries[i] = {seq=q.id*20+i,data={id=q.id,x=i,y=64,z=-3}} end
+      return {entries=entries}
+    end
+    s.screen.render(26,20,{})
+    local M, largest = mapState(s), 0
+    for _ = 1, 192 do
+      s.step()
+      local workers, poses = 0, 0
+      for _, trail in pairs(M.trails) do workers, poses = workers+1, poses+#trail.poses end
+      largest = math.max(largest,workers)
+      assert(workers <= 32 and poses <= 640,"global trail cache exceeded its bound")
+    end
+    equal(largest,32)
+    equal(#s.pageCalls,192,"one page per tick even beyond the cache cap")
+  end)
+
+  test("map trims the oldest of 180 trail cells at 164x81 and zoom 64 without latching zoom", function()
+    local s = trailSetup()
+    s.mine.turtles = {}
+    for id = 1, 9 do
+      local pose = {x=(id-5)*1200,y=64,z=(id-5)*500,facing=1}
+      s.mine.turtles[tostring(id)] = {state="mining",pose=pose}
+      for i = 1, 20 do
+        local n = (id-1)*20+i
+        s.pose(id,((n*17)%158-79)*64+1,64,((n-1)%60-30)*64+1)
+      end
+    end
+    local function manual() return {map={fit=false,sx=64,sz=64,cx=0,cz=0,level=64}} end
+    local baseline, fitted = manual(), {}
+    local base = s.settle(164,81,baseline)
+    s.settle(164,81,fitted)
+    local zoom = {fitted.map.sx,fitted.map.sz,fitted.map.extra or 0}
+    local proto = s.machine.env.SO.proto
+    assert(#proto.ser(base) < 15000,"base frame must fit without trails")
+    for _ = 1, 9 do s.step() end
+    s.machine.env.SO.proto = nil
+    local raw = s.screen.render(164,81,manual())
+    s.machine.env.SO.proto = proto
+    assert(#proto.ser(raw) > 15000,"180 untrimmed trail cells must overflow")
+    local session = manual()
+    local frame = s.screen.render(164,81,session)
+    assert(#proto.ser(frame) <= 15000,"trails exceeded the 15000-byte budget")
+    assert(proto.encode(proto.build(string.rep("a",64),"view.frame",frame)),"trimmed frame must encode")
+    equal({session.map.sx,session.map.sz,session.map.extra or 0},{64,64,0})
+    local M, out, before = mapState(s), picture(frame,164,81), picture(base,164,81)
+    local drawn, dropped = 0, false
+    for _, c in ipairs(M.trailCells(session.map,M.scene)) do
+      local x, y = session.map.L.mx+c.cx, session.map.L.my+c.cy
+      if before.cells[y][x][1] == " " then
+        if out.cells[y][x][1] == U.g.dot then
+          assert(not dropped,"an older trail cell survived a newer dropped cell")
+          drawn = drawn+1
+        else dropped = true end
+      end
+    end
+    assert(drawn > 0 and dropped,"keep fitting trail cells and drop old cells")
+    local fitFrame = s.screen.render(164,81,fitted)
+    equal({fitted.map.sx,fitted.map.sz,fitted.map.extra or 0},zoom,"trails must not latch FIT zoom")
+    assert(#proto.ser(fitFrame) <= 15000)
+    print("map trail overflow: base "..#proto.ser(base)..", untrimmed "..#proto.ser(raw)
+      ..", trimmed "..#proto.ser(frame).." bytes; "..drawn.." visible dots")
+  end)
+
   test("map trail asserts every cell and stays under the worker glyph at 26x20", function()
     local s = trailSetup()
     for x = -5, -1 do s.pose(8,x,64,-3) end
@@ -500,7 +649,12 @@ return function(test,equal)
   end)
 
   test("map cold FIT in adversarial column order settles to warm-only FIT", function()
-    local warm = setup()
+    local function coldFixture()
+      local s = setup()
+      for x = 130, 178, 3 do for z = -372, -344, 3 do assert(s.cells.markDug(x,-58,z)) end end
+      return s
+    end
+    local warm = coldFixture()
     -- The thumbnail warms the same planes without choosing a wire-frame zoom.
     for _ = 1, 20 do warm.map.thumb(U.canvas(164,81),1,1,164,81) warm.step() end
     local reference = {}
@@ -508,7 +662,7 @@ return function(test,equal)
     assert(reference.map.ready,"reference must start with warm planes")
     local largest, partial = 0, 0
     for seed = 1, 20 do
-      local cold, random = setup(), seed
+      local cold, random = coldFixture(), seed
       local columns = cold.cells.dugColumns
       cold.cells.dugColumns = function(...)
         local result = columns(...)
