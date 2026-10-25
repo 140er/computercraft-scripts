@@ -46,6 +46,111 @@ local function controls(s, config)
 end
 
 return function(test, equal)
+  for _,kind in ipairs({"fuel suck","sapling place"}) do
+    test("lumber handles failed "..kind.." with protection enabled",function()
+      local P=dofile("so-plan.lua")
+      local plant=kind=="sapling place"
+      local s=setup(plant and "plantPlace" or "scan",1000,
+        plant and {{slot=1,name="minecraft:oak_sapling",count=1}} or {})
+      s.mods.lease.boundaries=function() return true end
+      s.mods.lease.assess=function(_,from,steps) return P.assess(from,steps) end
+      s.row.target={dim=s.job.dim,x=0,y=2,z=0,index=1}
+      s.job.spots["0,0"]={kind="minecraft:oak_log"}
+      if not plant then s.row.service={kind="fuel",stage="take",resume="scan",
+        point={id="fuel",dim=0,x=0,y=1,z=0,side="down"},back=copy(s.row.turtle.pose)} end
+      s.tick(1)
+      local q=assert(s.queued())
+      equal(q.steps[#q.steps].op,plant and "placeDown" or "suckDown")
+      s.report(false,{{ok=true},{ok=false,err=plant and "Cannot place block here" or "No items to take"}})
+      equal(s.row.recover,false)
+      if plant then
+        equal(s.row.target,nil) equal(s.row.phase,"scan") equal(s.job.spots["0,0"].plantedAt,nil)
+      else
+        equal(s.row.blocked,"fuel") assert(s.row.alert:find("empty",1,true),s.row.alert)
+      end
+    end)
+  end
+  test("lumber sapling planner refuses placement at a protected box edge",function()
+    local P=dofile("so-plan.lua")
+    local s=setup("plantPlace",1000,{{slot=1,name="minecraft:oak_sapling",count=1}})
+    s.mods.lease.boundaries=function() return true end
+    s.mods.lease.assess=function(_,from,steps)
+      return P.assess(from,steps,{admit=function(_,_,to) return to.y~=1,"protected" end})
+    end
+    s.row.target={dim=s.job.dim,x=0,y=2,z=0,index=1}
+    s.job.spots["0,0"]={kind="minecraft:oak_log"}
+    s.tick(1)
+    equal(s.queued(),nil) equal(s.row.blocked,"hold") equal(s.row.alert,"protected")
+  end)
+  for _, supply in ipairs({false,true}) do
+    for _,failure in ipairs({"move","turn"}) do
+      test("lumber "..(supply and "supply trip" or "work route").." holds after a failed "..failure.." boundary",function()
+        local P=dofile("so-plan.lua")
+        local s=setup(failure=="move" and "climb" or "scan")
+        local assessments=0
+        s.mods.lease.boundaries=function() return true end
+        s.mods.lease.assess=function(_,from,steps)
+          assessments=assessments+1
+          return P.assess(from,steps)
+        end
+        if supply then
+          s.row.service={kind="fuel",stage="travel",resume="scan",point={id="fuel",dim=0,x=5,y=1,z=4,side="down"},
+            back=copy(s.row.turtle.pose)}
+        else
+          s.row.target={dim=s.job.dim,x=0,y=2,z=0,index=1}
+          if failure=="turn" then s.row.tree=nil end
+        end
+        local failed=false
+        for n=1,30 do
+          s.tick(n)
+          local q=assert(s.queued(),"lumber did not dispatch a prefix")
+          equal(#q.steps,#P.boundary({steps=q.steps}).steps)
+          local op=q.steps[#q.steps].op
+          local inject=failure=="move" and P.moves[op] or failure=="turn" and P.turns[op]
+          local results={}
+          for i,step in ipairs(q.steps) do
+            results[i]={ok=not step.op:match("^inspect")}
+            if step.op=="inspectUp" and not supply then results[i]={ok=true,data={name="minecraft:oak_log",tags={["minecraft:logs"]=true}}} end
+          end
+          local before=copy(s.row.turtle.pose)
+          if inject then results[#results]={ok=false,err="blocked"} end
+          s.report(false,results)
+          if inject then
+            equal(s.queued(),nil,"failed boundary dispatched a remainder")
+            equal(s.row.turtle.pose,before)
+            equal(s.row.recover,true)
+            assert(s.row.uncertain and #s.row.uncertain>0,"failed boundary lost its possible cells")
+            s.tick(n+1)
+            equal(s.queued().steps[1].op,"inspectDown")
+            failed=true break
+          end
+        end
+        assert(failed,"lumber did not reach the injected boundary")
+        assert(assessments>0,"lumber skipped route assessment")
+      end)
+    end
+  end
+  test("lumber scan combines only acknowledged turn prefixes before using inspection results",function()
+    local P=dofile("so-plan.lua")
+    local s=setup("scan")
+    s.row.tree=nil s.row.target={dim=s.job.dim,x=0,y=2,z=0,index=1}
+    s.mods.lease.boundaries=function() return true end
+    s.mods.lease.assess=function(_,from,steps) return P.assess(from,steps) end
+    local before=copy(s.row.turtle.pose)
+    s.tick(1)
+    local prefixes=0
+    while s.queued() and prefixes<10 do
+      local q=s.queued()
+      prefixes=prefixes+1
+      equal(#q.steps,#P.boundary({steps=q.steps}).steps)
+      local results={}
+      for i,step in ipairs(q.steps) do results[i]={ok=not step.op:match("^inspect")} end
+      s.report(false,results)
+    end
+    equal(prefixes,5)
+    equal(s.row.turtle.pose,before)
+    equal(s.row.target,nil)
+  end)
   test('lumber SCAN is off by default and rejects the command without resetting a round', function()
     local s = scanner()
     s.input('scan')

@@ -26,6 +26,14 @@ local function fixture(config)
     get=function() return {pose=copy(pose)} end}
   mods.display={screen=function(_,r,i) render,input=r,i end}
   mods.lease={peek=function() return {uncertain=f.uncertain,lost=f.lost} end,status=function() return {open=queued and queued.id,uncertain=f.uncertain,lost=f.lost} end,
+    boundaries=function() return config.protectedAreas == true end,
+    assess=function(_,from,steps)
+      f.assessments=(f.assessments or 0)+1
+      return P.assess(from,steps,{admit=function(_,_,to)
+        local protected=f.protected and f.protected[key(to)]
+        return not (f.assessmentError or protected),protected and "protected" or f.assessmentError
+      end})
+    end,
     locate=function(id,dim,done)
       f.located={id=id,dim=dim}
       if f.deferLocate then f.locateDone=done else done(f.locateError and nil or copy(pose),f.locateError) end
@@ -99,7 +107,7 @@ local function fixture(config)
         local at={x=pose.x,y=pose.y-1,z=pose.z}
         assert(f.held[key(at)]=="build:"..q.turtleId,"placement was not reserved")
         local block=inv[selected]
-        result.ok=not f.world[key(at)] and block and block.count>0 or false
+        result.ok=not f.placeError and not f.world[key(at)] and block and block.count>0 or false
         if result.ok then
           f.world[key(at)]=block.name block.count=block.count-1
           f.placed[key(at)]=(f.placed[key(at)] or 0)+1
@@ -107,7 +115,7 @@ local function fixture(config)
       elseif step.op=="refuel" then
         local block=inv[selected]
         local value=block and P.fuelValue(block.name) or 0
-        result.ok=value>0
+        result.ok=value>0 and not f.refuelError
         if result.ok then
           local n=math.min(block.count,step.n or block.count)
           if f.fuel~="unlimited" then f.fuel=f.fuel+n*value end
@@ -122,7 +130,8 @@ local function fixture(config)
       else
         local nextPose=P.apply(pose,step.op)
         local move=step.op=="forward" or step.op=="up" or step.op=="down"
-        if move and (f.fuel==0 or f.moveError) then result.ok=false result.err=f.moveError or "Out of fuel"
+        if P.turns[step.op] and f.turnError then result.ok=false result.err=f.turnError
+        elseif move and (f.fuel==0 or f.moveError) then result.ok=false result.err=f.moveError or "Out of fuel"
         elseif f.world[key(nextPose)] and move then result.ok=false result.err="Movement obstructed"
         else pose=nextPose if move and f.consumeFuel and f.fuel~="unlimited" then f.fuel=f.fuel-1 end end
       end

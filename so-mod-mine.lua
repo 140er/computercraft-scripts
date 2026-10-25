@@ -146,7 +146,7 @@ end
 local function park(id, row, recover)
   if recover or row.state ~= "wait lane" then row.laneWait = nil end
   if not recover and (not row.paused or row.parkConfirmed) and row.parkUntil and SO.now() < row.parkUntil - 60000 then return end
-  local lid, err = call("lease", "send", id, P.park.steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose })
+  local lid, err = call("lease", "send", id, P.park.steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose, frame = row.frame })
   if lid then S.pending[id] = { kind = recover and "recover" or row.paused and "workerPark" or "park" } row.parkUntil = SO.now() + P.park.ms
   else row.error = err end
 end
@@ -385,6 +385,11 @@ local function report(_, id, results, lease)
     row.parkConfirmed=nil
     row.state, row.error, row.recover = "lost", job.dim ~= "minecraft:overworld" and "remote silent; unloaded?" or "lease expired or missing pose", true row.laneWait=nil save() return
   end
+  if action and action.boundary and (lease.report.uncertain or not row.frame
+    or not P.confirm(action.from,action.steps,results,P.toWorld(row.frame,lease.report.pose))) then
+    row.state, row.error, row.recover = "lost", "boundary unconfirmed; reservations held", true
+    save() return
+  end
   row.inflight = nil
   local facts = lease.report
   if not row.frame then row.frame = P.frame(row.anchor, facts.pose) end
@@ -573,6 +578,14 @@ local function send(id, row, action)
     if part.detour ~= nil then row.detour = part.detour or nil end
   end
   local proposed=action
+  local boundaries = call("lease", "boundaries")
+  if boundaries then
+    action.from = row.pose
+    action = P.boundary(action)
+    action.boundary = action.kind ~= "recover"
+    local check = call("lease", "assess", id, row.pose, action.steps, {owner="mine"})
+    if not check or not check.ok then row.state,row.error="hold",check and check.reason or "assessment unavailable" return false end
+  end
   action = P.rangeBatch(mod("lease"), id, action)
   if not action then
     row.state,row.error,row.blockedAction="range","outside proven radio range",proposed
@@ -592,7 +605,7 @@ local function send(id, row, action)
   end
   row.inflight = action
   if not save() then row.inflight = nil return false end
-  local lid, why = call("lease", "send", id, action.steps, { owner = "mine", pose = action.pose or row.pose, ms = 60000 })
+  local lid, why = call("lease", "send", id, action.steps, { owner = "mine", pose = action.pose or row.pose, frame = row.frame, ms = 60000 })
   if not lid then row.inflight = nil row.error = why return false end
   row.parkUntil = nil
   S.pending[id] = action return true

@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "cc45bc1c165fb258594202214450a59364a030fd3886b577c9e544a2df920fd2"
+local evidenceSourceHash = "b671f57fda6f30063947baea0a86612f404a4e0aca687372ae67724b38bd9472"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
@@ -77,6 +77,58 @@ end
 local origin = { dim = 0, x = 0, y = 0, z = 0 }
 local steps = { { op = "forward" }, { op = "up" } }
 return function(test, equal, read)
+  test("stationary boundary recovery reconciles an unexpected pose without publishing the intended pose",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    local stale=s.m.env.SO.store.copy(s.pose)
+    local record
+    s.lease.onReport("mine",function(_,_,_,lease) record=lease end)
+    assert(s.lease.send(2,{{op="forward"}},{owner="mine"}))
+    s.report(nil,{dim=stale.dim,x=4,y=0,z=0,facing=2})
+    equal(s.lease.status(2).boundaryHold,true)
+    assert(s.lease.send(2,{{op="inspectDown"}},{owner="mine",recover=true,pose=stale}))
+    s.report({{ok=false,err="No block to inspect"}})
+    equal(s.lease.status(2).boundaryHold,nil)
+    equal(record.pose,s.pose)
+    equal(s.lease.status(2).reconciled,true)
+  end)
+  test("lease safety rejects every remainder and requires acknowledged journal fences",function()
+    local F=dofile("tests/so/protected.lua")
+    for _,op in ipairs({"forward","back","up","down","turnLeft","turnRight"}) do
+      local s=F.setup()
+      local lid,why=s.lease.send(2,{{op=op},{op="dig"}},{owner="mine"})
+      equal(lid,nil) equal(why,"acknowledged boundary required") equal(#s.sent,0)
+      assert(s.lease.send(2,{{op=op}},{owner="mine",pose=s.m.env.dofile("so-plan.lua").apply(s.pose,op)}))
+      local batch=s.sent[1].body
+      equal(batch.journal,"j0") equal(batch.steps[1].park,true)
+      s.report({{ok=false,err="blocked"}})
+      equal(s.lease.status(2).boundaryHold,true)
+      equal(s.lease.send(2,{{op="dig"}},{owner="mine"}),nil)
+      equal(s.lease.send(2,{{op="suck"}},{owner="mine",recover=true}),nil)
+      assert(s.lease.send(2,{{op="inspectDown"}},{owner="mine",recover=true}))
+      s.report({{ok=false,err="No block to inspect"}})
+      equal(s.lease.status(2).boundaryHold,nil)
+    end
+  end)
+  test("lease protection assesses the proven start instead of the caller final pose",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    assert(s.cells.protect({s.box("target",1,1)}))
+    local lid,why=s.lease.send(2,{{op="forward"}},{owner="mine",pose={dim="minecraft:overworld",x=2,y=0,z=0,facing=1}})
+    equal(lid,nil) equal(why,"protected") equal(#s.sent,0)
+    assert(s.cells.protect({}))
+    lid,why=s.lease.send(2,{{op="forward"}},{owner="mine",pose={dim="minecraft:overworld",x=2,y=0,z=0,facing=1}})
+    equal(lid,nil) equal(why,"expected pose mismatch")
+    s.hello(s.pose,{parkBatch=true})
+    lid,why=s.lease.send(2,{{op="turnRight"}},{owner="mine"})
+    equal(lid,nil) equal(why,"boundary needs certain fenced worker")
+  end)
+  test("GPS facing probes hold without a proven frame while protected movement is enabled",function()
+    local s=dofile("tests/so/protected.lua").setup()
+    s.lease.handlers.hello({from=3,body={role="turtle",fuel=100,gps={dim="minecraft:overworld",x=0,y=0,z=0},
+      journal={id="probe",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true,setupFence=true}}})
+    local reason
+    s.lease.locate(3,"minecraft:overworld",function(_,why) reason=why end)
+    equal(reason,"facing unknown; use explicit add") equal(#s.sent,0)
+  end)
   test("lease formal evidence matches the current source bytes", function()
     local s = setup(origin)
     local proto = s.server.env.SO.proto

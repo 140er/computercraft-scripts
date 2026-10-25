@@ -132,6 +132,121 @@ function P.chunk(steps, n)
   return first, rest
 end
 
+P.moves = { forward = true, back = true, up = true, down = true }
+P.turns = { turnLeft = true, turnRight = true }
+P.digs = { dig = "forward", digUp = "up", digDown = "down" }
+P.writes = { dig="forward", digUp="up", digDown="down", place="forward", placeUp="up", placeDown="down",
+  drop="forward", dropUp="up", dropDown="down" }
+
+function P.target(pose, op)
+  if P.moves[op] then return P.apply(pose,op) end
+  if P.writes[op] then
+    local x,y,z = P.ahead(pose,P.writes[op])
+    return {dim=pose.dim,x=x,y=y,z=z}
+  end
+end
+
+local function partPrefix(part, from, n)
+  local out = copy(part)
+  out.steps = P.chunk(part.steps,n)
+  out.from = from or part.from
+  if out.from then
+    local at = out.from
+    if #out.steps < #part.steps then out.cells = {at} end
+    for _, step in ipairs(out.steps) do
+      local target = P.target(at,step.op)
+      if target and #out.steps < #part.steps then out.cells[#out.cells+1] = target end
+      at = P.apply(at,step.op)
+    end
+    out.pose = at
+  end
+  return out
+end
+
+function P.membership(p, boxes)
+  local found = {}
+  for _, box in ipairs(boxes) do
+    if p.dim == box.dim and p.x >= box.x1 and p.x <= box.x2 and p.y >= box.y1 and p.y <= box.y2
+      and p.z >= box.z1 and p.z <= box.z2 then found[box.id] = true end
+  end
+  return found
+end
+
+function P.samePose(a, b)
+  return a and b and a.dim == b.dim and a.x == b.x and a.y == b.y and a.z == b.z
+    and facing(a) == facing(b)
+end
+
+function P.boundary(action)
+  local out, at, n = copy(action), action.from, #action.steps
+  for i, step in ipairs(action.steps) do
+    if P.moves[step.op] or P.turns[step.op] then n = i break end
+  end
+  out.steps, out.rest = P.chunk(action.steps, n)
+  out.cells, out.actions = {}, action.actions and {} or nil
+  for _, step in ipairs(out.steps) do
+    if at then
+      local target = P.target(at,step.op)
+      if target then out.cells[#out.cells+1] = target end
+      at = P.apply(at, step.op)
+    end
+  end
+  if n == #action.steps and action.cells then out.cells = action.cells end
+  if at then out.pose = at end
+  local cursor = action.from
+  for _, part in ipairs(action.actions or {}) do
+    if (part.first or 1) > n then break end
+    local p = partPrefix(part,cursor,n - (part.first or 1) + 1)
+    out.actions[#out.actions + 1] = p
+    cursor = p.pose
+  end
+  return out
+end
+
+function P.confirm(from, steps, results, actual)
+  if not results or #results ~= #steps or not actual then return false end
+  local at = from
+  for i, step in ipairs(steps) do
+    local result = results[i]
+    if not result or (P.moves[step.op] or P.turns[step.op]) and not result.ok then return false end
+    at = P.apply(at, step.op)
+  end
+  return P.samePose(at, actual)
+end
+
+function P.assess(from, steps, checks)
+  checks = checks or {}
+  if type(from) ~= "table" or type(from.dim) ~= "string" or type(from.x) ~= "number"
+    or type(from.y) ~= "number" or type(from.z) ~= "number" or type(from.facing) ~= "number"
+    or from.facing % 1 ~= 0 or from.facing < 0 or from.facing > 3 then
+    return { ok = false, reason = "pose unknown" }
+  end
+  for _, axis in ipairs({"x","y","z"}) do
+    local n = from[axis]
+    if n ~= n or math.abs(n) >= 2^53 or n % 1 ~= 0 then return {ok=false,reason="pose unknown"} end
+  end
+  local at = copy(from)
+  for i, step in ipairs(steps) do
+    local to, target = P.apply(at, step.op), P.target(at,step.op)
+    if target then
+      local ok, reason, holder = true
+      if checks.admit then ok, reason, holder = checks.admit(at, step.op, target) end
+      if not ok then return { ok=false, first=i, reason=reason, cell=copy(target), holder=holder, limit=checks.limit } end
+      if P.moves[step.op] and checks.clear and checks.clear(target) ~= true then
+        return { ok=false, first=i, reason="unknown", cell=copy(target), limit=checks.limit }
+      end
+      if checks.range then
+        local allowed, distance, limit = checks.range(target)
+        if not allowed then
+          return { ok=false, first=i, reason="range", cell=copy(target), distance=distance, limit=limit or checks.limit }
+        end
+      end
+    end
+    at = to
+  end
+  return { ok=true, limit=checks.limit }
+end
+
 function P.inRange(lease, id, cells)
   if type(lease) ~= "table" or type(lease.inRange) ~= "function" then return true end
   for _, cell in ipairs(cells) do
@@ -142,13 +257,20 @@ end
 
 function P.rangeBatch(lease, id, action)
   if P.inRange(lease, id, action.cells or {}) then return action end
-  local out = { kind = "batch", steps = {}, cells = {}, actions = {} }
+  local out = copy(action)
+  out.kind = action.kind or "batch"
+  out.steps, out.cells, out.actions = {}, {}, {}
+  local at = action.from
   for _, part in ipairs(action.actions or {}) do
-    if not P.inRange(lease, id, part.cells or {}) then break end
-    out.actions[#out.actions + 1] = part
-    for _, step in ipairs(part.steps) do out.steps[#out.steps + 1] = step end
-    for _, cell in ipairs(part.cells or {}) do out.cells[#out.cells + 1] = cell end
-    out.pose = part.pose
+    local remaining = #action.steps - #out.steps
+    if remaining <= 0 then break end
+    local prefix = partPrefix(part,at,remaining)
+    if not P.inRange(lease, id, prefix.cells or {}) then break end
+    prefix.first = #out.steps+1
+    out.actions[#out.actions + 1] = prefix
+    for _, step in ipairs(prefix.steps) do out.steps[#out.steps + 1] = step end
+    for _, cell in ipairs(prefix.cells or {}) do out.cells[#out.cells + 1] = cell end
+    out.pose, at = prefix.pose, prefix.pose
   end
   if #out.steps > 0 then return out end
 end

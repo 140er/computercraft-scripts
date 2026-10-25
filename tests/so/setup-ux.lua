@@ -3,10 +3,11 @@ local F=dofile("tests/so/worker-fixture.lua")
 local modules={"so-plan.lua","so-ui.lua","so-log.lua","so-mod-state.lua","so-mod-lease.lua",
   "so-mod-cells.lua","so-mod-display.lua","so-mod-drops.lua","so-mod-mine.lua","so-mine-plan.lua",
   "so-mod-lumber.lua","so-lumber-plan.lua","so-mod-panel.lua"}
-local function setup(enabled)
+local function setup(enabled, protected)
   local a=F.setup({id=2,modem=true,turtle=true,capacity=1000000,facing=1},modules)
   a.t.files["so-worker.cfg"]=H.encode({dim="minecraft:overworld"})
-  a.s.files["so-server.cfg"]=H.encode({setupMovement=enabled,pos={dim="minecraft:overworld",x=40,y=64,z=10}})
+  a.s.files["so-server.cfg"]=H.encode({setupMovement=enabled,protectedAreas=protected,pos={dim="minecraft:overworld",x=40,y=64,z=10}})
+  if protected then a.n.kill(a.s) a.s=a.n.boot(a.s) a.n.flush() end
   a.n.advance(3)
   a.t.env.gps={locate=function() return a.t.pos.x+40,a.t.pos.y+64,a.t.pos.z+10 end}
   local function hello(fuel)
@@ -40,6 +41,63 @@ local function text(frame)
   return table.concat(rows,"\n")
 end
 return function(test,equal)
+  test("protected setup acknowledges a complete visit and can reuse its occupied GPS cell",function()
+    local a=setup(true,true)
+    assert(a.s.env.SO.mods.drops.add({id="ore",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+    a.n.world["3,-1,0"]="minecraft:chest"
+    a.ui.input({text="test ore"})
+    press(a.ui,29,12,"facing:1",{})
+    a.n.advance(5) F.check(a)
+    assert(a.s.env.SO.mods.drops.list()[1].verified)
+    local before=#F.sent(a.s,"lease.batch")
+    a.hello()
+    a.ui.input({text="test ore"})
+    a.n.advance(5) F.check(a)
+    assert(#F.sent(a.s,"lease.batch")>before,"occupied GPS cell blocked a new visit")
+    equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
+    equal({a.t.pos.x,a.t.pos.y,a.t.pos.z},{0,0,0})
+  end)
+  for _,failure in ipairs({"move","turn"}) do
+    test("protected setup "..failure.." failure sends no remainder and keeps the route",function()
+      local a=setup(true,true)
+      local session={}
+      local failed=false
+      local op=failure=="move" and "forward" or "turnRight"
+      a.t.env.turtle[op]=function() failed=true return false,"blocked" end
+      if failure=="move" then
+        assert(a.s.env.SO.mods.drops.add({id="ore",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+        a.ui.input({text="test ore"})
+      else
+        press(a.ui,29,12,"testing",session)
+        press(a.ui,29,12,"scan:2",session)
+      end
+      press(a.ui,29,12,"facing:1",session)
+      a.n.advance(5) F.check(a)
+      assert(failed,"setup did not reach the injected boundary")
+      local sent=F.sent(a.s,"lease.batch")
+      local count=#sent
+      a.n.advance(5) F.check(a)
+      equal(#F.sent(a.s,"lease.batch"),count)
+      for _,q in ipairs(sent) do
+        equal(#q.body.steps,1)
+        assert(q.body.journal and q.body.steps[1].park)
+      end
+      assert(#a.s.env.SO.mods.cells.list("setup:2",100)>0,"failed setup released its route")
+      equal({a.t.pos.x,a.t.pos.y,a.t.pos.z},{0,0,0})
+    end)
+  end
+  test("protected setup assesses its entire test route before reserving or sending",function()
+    local a=setup(true,true)
+    local cells=a.s.env.SO.mods.cells
+    assert(cells.protect({{id="build",dim="minecraft:overworld",x1=41,x2=42,y1=64,y2=64,z1=10,z2=10}}))
+    assert(a.s.env.SO.mods.drops.add({id="ore",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+    a.ui.input({text="test ore"})
+    press(a.ui,29,12,"facing:1",{})
+    a.n.advance(3) F.check(a)
+    equal(#F.sent(a.s,"lease.batch"),0)
+    equal(cells.list("setup:2",100),{})
+    assert(text(a.ui.render(29,12)):find("protected",1,true))
+  end)
   for _,size in ipairs({{26,20},{29,12}}) do
     local w,h=size[1],size[2]
     test("setup scans adjacent chests through drawn controls at "..w.."x"..h,function()
