@@ -311,6 +311,13 @@ switch with `PANEL` and `GLANCE`. Any other new display shows `UNASSIGNED`
 with its id in big digits. The server's own monitor shows status; assign it
 another role with the server's own id. Roles survive restarts.
 
+The panel PAIR page has an ENROLL ON/OFF switch. With `panelUpdates=true`, stale
+paired turtles offer UPDATE where space allows; worker opt-in is still required.
+FORGET confirmation shows its job impact. With `workerSettings=true`, tap a
+turtle row for confirmed dimension and tool-swap settings. Changes stay pending
+until a matched acknowledgement or newer hello. The panel also shows a read-only
+BUILD block when the build module is available.
+
 ## Map
 
 Assign the `map` role to a display. The map fits the configured mine, farm, drops and turtles on
@@ -324,6 +331,9 @@ with their id beside them when it fits. Busy turtles are green, idle turtles
 amber, lost or out-of-range turtles coral, and finished turtles blue.
 Chest letters include `O` for ore, `F` for fuel, `W` for wood and `S` for
 saplings. The farm outline is green. Broken drop points are coral.
+A builder appears only at its confirmed pose in this dimension. Unknown poses
+hide its marker. Its blueprint outline remains and contributes to FIT bounds.
+Held builders show their hold and placement progress.
 
 The bottom button cycles `MINE`, `SURFACE` and `ALL`. Mine selects the job's
 bottom y level. Surface selects the server's y level, or the farm ground when
@@ -704,6 +714,13 @@ A fresh turtle shows `UNPAIRED` on row 4 until it saves a pairing key. After
 pairing, that row shows the server contact age or current job status. A failed
 first-boot pairing shows `Pair failed: <reason>` below `Code:`.
 
+With default-off `shopSaved=true`, shop, panel and pocket displays share saved
+lists and up to four pinned exact item IDs. LISTS opens without ordering.
+Each list holds up to 32 items; there are at most 16 lists. Counts must fit the
+known stack size. ORDER rechecks the saved revision and fresh stock, and each
+drawn control sends once. Stale edits refuse with `changed`. An empty panel or
+pocket search shows the first pin. Turning the flag off retains the saved files.
+
 ### Replacing the server computer
 
 Set `repairServer=true` in each display's `so-display.cfg`. It defaults off.
@@ -828,7 +845,11 @@ skip the attempt. The server attempts at most one note per tick.
 the end. Equal endpoints mute all day; invalid values mute sound and report an
 error. Existing reminders wait five game minutes after quiet ends. A new issue
 first seen when quiet ends can sound immediately. Sound settings refresh each
-tick. `pocketTone` defaults off; pocket playback remains a separate follow-up.
+tick. Set `pocketTone=true` for one note on a speaker pocket when a new stop-level
+takeover opens. It defaults off and follows `soundQuiet`. The tone waits up to
+ten game seconds for its matching health key. Standing alerts after restart
+stay silent. A missing, busy or failing speaker skips the note. A tone lost in
+transit is not resent.
 
 A lost turtle's NEEDS row shows silence age and its last known world position.
 Tap it for BACK, SNOOZE and OPEN. SNOOZE hides that turtle's lost row on all
@@ -838,6 +859,13 @@ ERRORS rows open the complete message with wrapping, paging and BACK.
 `PREV`, `NEXT` and `BACK` work on pockets and compact monitors.
 Recent errors save at most once per 30 game seconds; a power loss can lose
 records still waiting to save.
+
+CLEAR opens a ten-game-second CONFIRM or CANCEL choice on that display. A new
+error requires a fresh confirmation. Leaving ERRORS or restarting cancels it.
+A successful clear saves an empty log and resets all ERRORS detail selections.
+Standing alerts, event history and reservations remain. A failed save keeps the
+visible rows and shows its cause. After a reported save failure, restart can
+recover the old ring or a newer verified empty temporary generation.
 
 AR shows up to four broken-chest beams above the normal label budget. Its third
 HUD tile shows BROKEN while a chest in the server dimension needs attention.
@@ -991,9 +1019,30 @@ and requires an unpaired client. Any `so-keys`, `.tmp` or `.bak` generation
 refuses token installation and server selection. The installer preserves unrelated
 client config fields. A token replaces an existing saved server selection with
 its server id. A pinned installer that lacks option support refuses the install.
-The current display client still uses code
-pairing; staging a token does not enroll it.
+An unpaired pocket or wall display attempts enrollment once at boot and shows
+`Enroll <fingerprint> <state>` while waiting for approval. A paused `off`
+attempt resumes after local token entry or an installer rerun. Pasting at the
+computer terminal or pocket screen starts another attempt; monitor taps never
+enroll, resume or repair. Failed enrollment leaves code pairing available.
+`so-display.cfg.server` selects an unpaired join. Saved keys govern paired boots;
+use REPAIR to change a keyed server.
 
+
+## Lease recovery after restart
+
+The server saves open leases before sending and restores them before dispatch.
+It reconciles the acknowledged prefix with saved job receipts. It never retries
+movement after restart. A failed radio send keeps the lease open; without an
+accepted report, recovery waits until after its deadline plus ten game seconds.
+Restored and expired work then needs a stationary journal fence. Reservations
+stay held. This recovery runs even with feature flags off. Workers without both
+`setupFence` and `parkBatch` need an update before they can resume.
+
+Corrupt main or backup lease files block dispatch. An invalid uncommitted
+`leases.tmp` is discarded. Forget deletes the lease record but retains possibly
+occupied reservations; re-pair and explicitly re-add the turtle to recover it.
+Interrupted setup visits keep their route and need new approval. Lease
+persistence has no opt-out and does not promise exactly-once callback effects.
 
 ## Builder holds and idle workers
 
