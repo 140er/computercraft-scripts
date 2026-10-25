@@ -158,6 +158,16 @@ file is named before its HTTP request. Successful `install update` and `install 
 the installed role program. Missing or invalid revision metadata appears as `unknown`. A
 failed update or rollback starts no role program.
 
+Run `install <full-sha>` for a fresh install or `install update <full-sha>` for
+an update to a full lowercase 40-character commit. All files come from that
+commit even if the branch moves. The installer verifies that the commit belongs
+to `server-only` history. It checks space before
+bootstrap downloads and again for the complete role plan. Ordinary downloads
+retry a failed file up to three times; explicit-SHA installs and updates try it once.
+Run `install check` to compare the installed revision with the branch without
+changing files. Failed branch lookup reports an error. Rerunning the server
+installer updates its position and keeps other settings, including `enroll`.
+
 Run `install update` to download the saved role again. `update` calls the same
 installer. Updates preserve pairing keys, the worker journal, drop points,
 display settings, server position and `so-data/`. All downloads must return
@@ -429,12 +439,28 @@ errors. BACK returns to the same page. Mining rows show branch progress bars;
 lumber shows planted spots against known spots. The pocket header has MAP and
 MORE, with paging and PANEL in one footer row.
 
-PARK ALL stops the mining job after its current batches. Lumber PARK parks the
-selected turtle after its current batch; the other turtles continue. Lumber
-`start` resumes parked turtles. Mining REMOVE needs two taps within five seconds
-and follows the same lease checks as the command. Lumber `remove <id>` remains
-available through text commands. An uncertain
-pose appears as POSE ?. RE-ADD opens a coordinate and facing editor; confirm the
+PARK ALL stops mining after its current batches. Lumber PARK pauses the selected
+worker. Mining REMOVE needs two taps within five seconds. Lumber removal uses
+text commands.
+
+Set `workerPark=true` in `so-server.cfg` and restart to enable per-worker
+`park <id>`, `resume <id>` and `remove <id>` on mining, lumber and build screens.
+The flag defaults off. PARK finishes the current batch, shows `parking`, then
+shows `parked` after a stationary report. Other workers continue. RESUME cancels
+that pause or pending removal. START keeps these pauses while the flag is on.
+
+REMOVE waits for a confirmed park and reservation cleanup before deleting the
+job row. Lost or uncertain workers keep their rows and reservations until
+recovery and a fresh park report. There is no force path. Mining waits outside
+its shared shaft and spine; lumber waits outside its held chest-access lane.
+Resume to clear the lane, then remove again. Cleanup keeps the occupied cell
+reserved as `gps:<id>`. Adding the worker to a job reclaims it. Unfinished mining
+branches return to the queue. Removing the builder stops its job.
+Turning the flag off and restarting clears and logs these pauses and pending
+removals. Assignments remain and resume after recovery. With the flag off,
+lumber START resumes legacy PARK pauses.
+
+An uncertain pose appears as POSE ?. RE-ADD opens a coordinate and facing editor; confirm the
 worker's actual position there, then press RE-ADD twice to submit it.
 
 ## Lumber
@@ -468,8 +494,9 @@ with a named `saplings #<id> unreachable` alert.
 
 `add` adds a paired worker with an axe and retains the others. `add <id>` uses
 the same GPS fix and facing probe as mining. Stop before
-changing assignments. `remove` removes the selected worker once its lease and
-park report finish. Retry when requested. A turtle at a chest returns before
+changing assignments. With `workerPark=true`, `remove` queues the confirmed
+park and cleanup described above. Failed cleanup retains the row for retry.
+A turtle at a chest returns before
 it can be removed. Each worker recovers its own journal pose after restart.
 Workers claim separate scan positions and trees, so one lost turtle does not
 stop the others. They queue for shared chests and keep access reserved until
@@ -569,6 +596,30 @@ restores the client screen, so a false prompt does not require a reset.
 A fresh turtle shows `UNPAIRED` on row 4 until it saves a pairing key. After
 pairing, that row shows the server contact age or current job status. A failed
 first-boot pairing shows `Pair failed: <reason>` below `Code:`.
+
+### Replacing the server computer
+
+Set `repairServer=true` in each display's `so-display.cfg`. It defaults off.
+While the keyed display is not live, press `r` at its own keyboard or click the
+top row on its own screen. Choose CHANGE SERVER, confirm the candidate id and
+type the new server's six-digit code from P. Wall taps only show the saved id.
+Cancel, failed proof, timeout or failed key save keep the old key. Two minutes
+without input also resumes the old server. During `Pairing...`, wait for the
+exchange to finish; CANCEL is unavailable. Success saves only the proven server.
+
+### Managed room output recovery
+
+Set `managedOutput=true` in the room turtle's `room.cfg` to enable managed
+outputs. It defaults off. A claim binds one server and the room's output and
+admits one tagged request. This does not enable managed requests in the server's
+legacy shop adapter. A settlement receipt, rather than an empty chest, proves
+that queued work, crafts and carried cargo cannot emit for that request.
+
+Saved output state starts quarantined after reboot. On the room turtle, run
+`output reconcile` to cancel pending work, return cargo to storage, return home
+and save a settlement barrier. Full storage, unresolved cargo or failed saves
+keep quarantine. The network cannot run this command. Turning the flag off
+retains the interlock and recovery state and refuses new claims and orders.
 
 ### Fuel auto-order
 
@@ -730,6 +781,9 @@ turtle:
 wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/server-only/install.lua 12-K7QP-3MXA-9WTD-HR2E
 ```
 
+On an unkeyed turtle that already has the installer, run `install <token>`
+with the token from the server's PAIR page, then approve it on the panel.
+
 If the turtle still shows `Code:` after the install, paste or type the token
 there and press Enter. Each turtle then appears on the panel as a row with its
 id, `TURTLE` and a four-character fingerprint. While approval is pending, the
@@ -750,6 +804,10 @@ without changing its token or approval cap. A server restart closes the window.
 
 The installer can stage tokens for workers, pockets and wall displays with
 `install <token> [sha] [--server <id>]`. Selection must match the token's server
-and requires an unpaired client. The current display client still uses code
+and requires an unpaired client. Any `so-keys`, `.tmp` or `.bak` generation
+refuses token installation and server selection. The installer preserves unrelated
+client config fields. A token replaces an existing saved server selection with
+its server id. A pinned installer that lacks option support refuses the install.
+The current display client still uses code
 pairing; staging a token does not enroll it.
 

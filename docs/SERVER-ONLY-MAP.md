@@ -144,7 +144,9 @@ and listeners use `listener(sender, message)`.
   Dimension helpers are `dimensions`, `dimension(name)`, `dimensionError(dim, config)`
   and `heightError(dim, y)`. They validate vanilla aliases, remote opt-in and
   movement bounds. See [remote dimensions](server-only/PROTOCOL.md#remote-dimensions).
-  `chestCheck` returns `{ok,text}` without writes. `missing` returns unmet text in order.
+  `chestCheck` returns `{ok,text}` without writes. A configured usable chest
+  without visit verification reads `not scanned`; a verified one reads
+  `verified by visit`. Both remain usable. `missing` returns unmet text in order.
   `rangeBatch` returns the longest prefix within range of complete `action.actions`,
   rebuilding its steps, cells and final pose. It returns the original action when
   all cells fit, or nil when no complete action fits. Atomic actions stay whole.
@@ -247,13 +249,15 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-state.lua](../so-mod-state.lua), `state`, folds events into registry,
   jobs and views. Calls are `emit(kind, data)`, `get(path)`, `job(data)`,
   `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`, `canStart()`, `disk()`, `canWork()`,
-  `history.page(q)`, `diagnostics()` and `tick(now)`. `view` is a callable table.
+  `history.page(q)`, `history.kinds()`, `diagnostics()` and `tick(now)`. `view` is a callable table.
   `view.sub` returns a subscription with `stop()`. Query fields are `name`
   and `notify` for views, and `from`, `count` or `limit` for history.
   `reverse=true` reads newest first with an exclusive `before` cursor. `kind`
   filters exact kinds and `alerts=true` filters `.alert` events. Optional numeric
   `id` selects table data with a matching `data.id` and combines with the other
-  filters. Cursor lookup
+  filters. Optional `text` searches kind and selected data fields as a plain,
+  case-insensitive substring, using its first 32 bytes. The wire adapter omits it.
+  `history.kinds()` returns sorted distinct retained kinds, at most 64. Cursor lookup
   uses binary search. `diagnostics()` returns the event log status.
   `canStart()` reads current disk use. Mining and lumber `start` refuse at 80%
   or more, or while event writes are pending or failed. Reasons name the largest
@@ -307,6 +311,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `peek(id)` returns a copied status for an existing row or nil, without creating
   workers. AR and map use it. `inRange` also reads without creating rows and uses
   range 16 for an unknown worker. `status(id)` retains its row-creation behavior.
+  Both status calls include copied optional `last={status,ok,at}`. Valid reports
+  record `reported` and all-step success; expiry records `expired` and false.
+  `at` is game time. Rejected reports leave it unchanged. It lasts until the next
+  result or restart.
   `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
   all leases with `pose uncertain`, including recovery parks.
   `dugProtection(protect)` supplies bounds for open leases. It refuses retirement
@@ -361,11 +369,15 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The map's read-only calls are `dugVersion()`, `dugColumns(dim, sx1, sz1, sx2,
   sz2, max)`, `dugBits(dim, sx, sy, sz, memoryOnly)` and `reserved(dim, max)`.
   They never load, touch or save a section. A section-column index built at
-  boot answers `dugColumns`; `reserved` caches its list until reservations change.
+  boot answers `dugColumns`. `reserved(dim, max)` caches each dimension separately.
+  Its list and version stay stable until reservations or the limit change.
+  The default limit is 4096. `holder(dim, x1, z1, x2, z2, y1?, y2?)` searches
+  all reservations in an inclusive box and returns a copied `{who,x,y,z}`.
+  It selects the lowest y, then x, then z, without loading dug sections.
   See [cells](server-only/PROTOCOL.md#cells).
 - [so-mod-drops.lua](../so-mod-drops.lua), `drops`, owns drop points and inspect
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
-  `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()`, `roomMark(id, on)`,
+  `remove(id)`, `edit(id, point)`, `fix(id)`, `note(id, blockName)`, `list()`, `roomMark(id, on)`,
   `roomSink(on)` and `tick(now)`.
   `list` copies every `{ id, dim, x, y, z, side, kind, broken, room?, disabled? }` point.
   Optional `room=true` marks ore/wood input points. `roomSink` defaults off;
@@ -381,8 +393,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The route A list selects the first broken point by default, or the first
   point when none are broken. Row taps and chest taps on the room monitor's plan
   select FIX and REMOVE targets. ADD opens the draft editor, starting at the
-  selection until the draft is edited. Page, selection and editor are per display;
-  the draft is shared. The editor's BACK returns to the list. Long lists page in
+  selection until the draft is edited. Page, selection, editor and draft are per display.
+  After five minutes without input, the draft is discarded unsaved and the display
+  returns to the list. REMOVE takes two taps within five seconds; the first shows
+  CONFIRM. EDIT changes a usable point in place and keeps its id. Strikes and visit
+  verification survive only when dimension, coordinates and side stay unchanged.
+  The editor's BACK returns to the list. Long lists page in
   the header.
   The editor also offers `FROM #N` to copy the chest cell from a fresh, proven
   turtle pose; DOWN selects the block below the turtle. A `setup` tab holds the
@@ -431,6 +447,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Input includes sender ID `from`. Sessions retain the client ID as `id` and hello `keyboard == true` as `keyboard`.
   Monitor clients send false; older clients omit it and get touch controls.
   Kit-free callbacks receive that ID instead of the session and the full height.
+  Status frames are composed only when the model or display state changes.
+  The four-second heartbeat repeats the last frame. Takeover SNOOZE suppresses
+  automatic takeovers on that display for five minutes, in memory only. Alerts
+  raised meanwhile count as seen; alert counts stay unchanged. After restart,
+  the newest standing alert takes over once on each display.
+  `snoozer(span)` exports the shared in-memory `set`, `on` and `clear` helper.
+  Every status drop row opens the drop list with that point selected.
+  The broken-drop flag opens the first broken point.
   Render signatures and revisions are isolated by role, size and session. Status also
   isolates paging and alert takeover state per display session. Panel frames also
   isolate revisions per session. With the kit, a roleless 26x20 display gets
@@ -458,8 +482,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   rendering reads that cache. Detail actions validate their drawn coordinates.
   PARK ALL sends mining's `stop`; lumber PARK sends `park <id>` for the selected
   worker, leaving the other workers running.
-  Mining REMOVE sends `remove <id>` after two taps within five seconds. Lumber has
-  no remove command. Uncertain workers show POSE ? and a coordinate editor; RE-ADD
+  Mining REMOVE sends `remove <id>` after two taps within five seconds.
+  Lumber removal uses typed commands. Uncertain workers show POSE ? and a
+  coordinate editor; RE-ADD
   requires two taps after editing and forwards the existing `add` command.
 - [so-mod-map.lua](../so-mod-map.lua), `map`, registers the top-down screen
   from `tick(now)`. No wire handlers. Tick gathers `mine.mapView()`,
@@ -475,14 +500,25 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   are shared by all displays and the `thumb` and `crop` exports, read at most 16
   sections per tick, and rechecked with at most 64 memory-only probes per tick after
   the dug serial changes. An unchanged view returns its cached frame. A frame over
-  15000 bytes draws one zoom step out. Exports `thumb(C, x, y, w, h)` (status wall)
+  15000 bytes draws one zoom step out only after visible dug planes have loaded.
+  FIT waits for loaded terrain before zooming out to meet the frame budget. Held-cell callouts
+  name the owner role and show silence after a minute or when the holder is lost,
+  if contact time is known. Turtle callouts show the last batch result and age.
+  Geometrically range-blocked Overworld turtles show measured distance and limit.
+  Level arrows clamp to -64..319, 1..126 and 1..255 for Overworld, Nether and End.
+  Selected-cell and shaft ownership queries search beyond the display-list cap.
+  Exports `thumb(C, x, y, w, h)` (status wall)
   and `crop(C, x, y, w, h, focus)` (alert). The map is its own role with no BACK.
   `docs/ui/schematic/mapdraw.py` and `mapscreen.py` are its Python twins; the
   `view` lines in `tests/ui/map-scene.txt` feed both them and `tests/so/map.lua`.
   See [map](server-only/PROTOCOL.md#map).
 - [so-mod-health.lua](../so-mod-health.lua), `health`, registers `health`,
   `attention`, `alerts`, `events` and `errors`. `count()` returns the attention
-  count. Fuel failures link to mining SETUP. Lumber shows its saved alert
+  count. EVENTS and ALERTS show page numbers from page 2, with LATEST to return
+  to page 1 and keep filters. Page 1 has per-display HOLD and LIVE. EVENTS offers
+  a retained-kind picker and typed text search. A row opens event facts; BACK
+  restores its list page.
+  Fuel failures link to mining SETUP. Lumber shows its saved alert
   cause before its blocked state. `attention(facts)` returns severity-sorted rows
   with `key`, `text`, `target` and optional input `actions`. Gathered facts are
   `now`, `disk`, `points`, `jobs`, `machines`, `leases`, `retirement`, `pairing`
@@ -643,7 +679,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   through the shared lane. Branch claims and counted completions survive restart. Ore
   filters default to all ores. `ores` accepts spaces around commas. `remove` refuses
   a reported pose in the shared shaft or bottom spine. Off-lane removal can retire a
-  stationary recovery or park lease through `lease.cancelPark`, releasing its reservations.
+  stationary recovery or park lease through `lease.cancelPark` when `workerPark`
+  is off. The enabled contract below requires a fresh stationary report.
   Unfinished branch claims, including return-trip claims, are reassigned before
   allocating a new branch, without increasing `nextBranch` again. Stale
   lane waiters lose their place when they leave the queue. Completed routes
@@ -736,7 +773,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   the text command path. Every turtle appears with its phase and fuel. Three
   The route A screen draws the farm plan, its facts and every turtle with its
   phase and fuel; START and STOP use the text command path. `park <id>` saves a
-  per-worker pause; `start` resumes paused workers. The setup tab lists the
+  per-worker pause; `start` resumes legacy pauses when `workerPark` is off.
+  With the flag on, START preserves per-worker pauses. The setup tab lists the
   configuration; tabs belong to the display session. Missing grow timers show `-`.
   Logs are Amsterdam daily delivered totals from `daily.today()`, with a stale
   tile when missing. Calls without a size retain
@@ -849,6 +887,42 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   use that full height; while typing, the line covers their bottom row. Kit-free
   frames retain the input row. Wall displays
   also echo input on the terminal.
+  `so-display.cfg.repairServer` enables terminal REPAIR after a server replacement.
+  Like `retryInput`, it defaults off. Public wall taps cannot change the server.
+
+## Managed room outputs
+
+`roomsorter.lua` keeps legacy behavior until `room.cfg.managedOutput=true` or
+an output-state generation exists. The flag defaults off. Managed outputs bind
+one server and physical output, save claims and increasing request ids, and admit
+one tagged get or order per claim. Settlement receipts prove that queues, crafts
+and cargo can no longer emit for that request. An empty chest is insufficient.
+Reboots quarantine saved output state. Run `output reconcile` locally on the room
+turtle to return cargo and save a new settlement barrier. Disabling the flag
+retains recovery and the interlock but refuses new claims and orders. This room
+protocol does not enable managed-output requests in the legacy shop adapter.
+See [managed room outputs](server-only/PROTOCOL.md#managed-room-outputs).
+
+## Per-worker park and removal
+
+`so-server.cfg.workerPark=true` enables `park <id>`, `resume <id>` and
+`remove <id>` on mining, lumber and build screens. It defaults off and is read
+at startup. A pause finishes the current batch, then needs a stationary report
+before `parkConfirmed` permits removal. `removeRequested` survives restart;
+confirmation does not. Recovery and a fresh report must complete first.
+Resume clears the selected pause and pending removal. START keeps these pauses.
+
+Removal waits for no open lease, lost status or uncertain pose. Cleanup transfers
+the occupied cell from the job owner to `gps:<id>`, releases other job reservations
+and saves row deletion. Failed cleanup or saves retain the row for retry. Recovery
+reclaims a transferred GPS cell if deletion failed. Mining refuses removal in its
+shared shaft or spine and returns unfinished branches to the queue. Lumber waits
+until its chest-access lane is clear. Builder removal stops its single-worker job.
+Adding a worker reclaims its standing reservation. No force removal exists.
+
+With the flag off, startup clears and logs these saved pauses and removals.
+Assignments remain and resume after recovery. Lumber's `parkRequested` separates
+these pauses from legacy PARK and START behavior.
 
 ## Installer roles and files
 
@@ -879,6 +953,14 @@ file is named before its HTTP request. Successful `install update` and `install 
 the installed role program. Missing or invalid revision metadata appears as `unknown`. A
 failed update or rollback starts no role program.
 
+Run `install <full-sha>` or `install update <full-sha>` to select a full lowercase
+40-character commit in `server-only` history. Files stay pinned if the branch moves.
+Current installs
+check space for the bootstrap, then the pinned installer's complete role plan.
+Ordinary downloads try a failed file up to three times. Explicit-SHA
+installs and updates use one attempt per file. `install check` compares the installed revision
+to the branch without writing files and reports an error if lookup fails.
+
 Updates fetch and execute the new installer first, so its role list applies in
 that update. The branch API resolves one commit SHA for every download. If it
 fails, the installer tries GitHub's read-only Git refs endpoint, then the saved
@@ -901,11 +983,13 @@ refuses without fallback. `--server` accepts one nonnegative integer and must
 match the token's server when both are supplied. Any key-file generation refuses
 a token or selected-server install. Selection merges `server` into
 `so-worker.cfg` or `so-display.cfg` through the installer transaction and keeps
-unrelated fields. Missing selection preserves config. These options stage client
+unrelated fields. A token updates an existing saved server selection to the token's
+server. Without a token or selection, config stays unchanged. These options stage client
 data; consumption depends on the installed client. The current display client
 still uses code pairing. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
-then the role program. A fresh server install writes `so-server.cfg` as the
-plain table `{ pos = { dim = string, x = number, y = number, z = number } }`.
+then the role program. A fresh server install merges
+`pos = { dim = string, x = number, y = number, z = number }` into `so-server.cfg`.
+Rerunning it preserves unrelated settings, including `enroll`.
 The installer uses GPS or integer manual coordinates. X and Z are bounded to
 +/-30000000, Y to -2048..2048. The dimension menu accepts only the three vanilla
 namespaced IDs or their numeric aliases 0, -1 and 1. Enter chooses the overworld.
