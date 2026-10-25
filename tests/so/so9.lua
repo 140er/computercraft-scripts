@@ -1,6 +1,13 @@
 local H = dofile("tests/so/harness.lua")
 return function(test, equal, read)
   local source = read("install.lua")
+  local hashSource = assert(source:match("(local function digest.-)local function validPath"))
+  local hash = assert(load(hashSource .. "return digest"))()
+  local hashes = {}
+  local function blob(value)
+    if not hashes[value] then hashes[value] = hash("blob " .. #value .. "\0" .. value,true) end
+    return hashes[value]
+  end
   local prefix = source:match("^(.-)local BASE =")
   local roles = prefix and assert(load(prefix .. "return ROLES"))()
   local function files(role)
@@ -13,14 +20,22 @@ return function(test, equal, read)
   local function machine(role, cap)
     local m = H.new().machine({ id = 99, capacity = cap or 16000000 })
     local e, disk, dirs = m.env, {}, { [""] = true }
+    m.kind = role
     m.files, m.dirs, m.calls, m.runs = disk, dirs, 0, {}
     m.urls, m.remote, m.sha = {}, {}, string.rep("a", 40)
     local function norm(p) return p:gsub("^/+", ""):gsub("/+$", "") end
     e.fs = {
       getDir = function(p) return p:match("^(.*)/[^/]*$") or "" end,
       getCapacity = function() return m.capacity end,
+      getFreeSpace = function(p)
+        if m.free then return m.free end
+        if p:match("^/?disk") then return m.kitCapacity or 16000000 end
+        local used = 0
+        for path,bytes in pairs(disk) do if not path:match("^disk/") then used = used+math.max(500,#bytes) end end
+        return m.capacity-used
+      end,
       isReadOnly = function() return false end,
-      getDrive = function() return "hdd" end,
+      getDrive = function(p) return p:match("^/?disk") and "left" or "hdd" end,
       exists = function(p) p = norm(p); return disk[p] ~= nil or dirs[p] == true end,
       makeDir = function(p)
         p = norm(p)
@@ -72,7 +87,7 @@ return function(test, equal, read)
           return { write = function(s)
             disk[p] = disk[p] .. s
             local used = 0
-            for _, bytes in pairs(disk) do used = used + math.max(500, #bytes) end
+            for path, bytes in pairs(disk) do if not path:match("^disk/") then used = used + math.max(500, #bytes) end end
             m.peak = math.max(m.peak or 0, used)
             assert(used <= m.capacity, "disk limit exceeded")
           end, close = function() end }
@@ -90,6 +105,7 @@ return function(test, equal, read)
     e.read = function() return "" end
     e.shell = { run = function(...) m.runs[#m.runs + 1] = { ... }; return true end }
     e.textutils.unserializeJSON = function(body)
+      if body == "tree-json" then return m.tree end
       if body ~= "branch-json" then error("bad JSON") end
       return { commit = { sha = m.sha } }
     end
@@ -100,6 +116,24 @@ return function(test, equal, read)
         if m.apiFail then return nil, "API unavailable" end
         return { getResponseCode = function() return m.apiStatus or 200 end,
           readAll = function() return m.apiBody or "branch-json" end, close = function() end }
+      end
+      if url:find("/git/trees/",1,true) then
+        if m.treeFail then return nil,"metadata unavailable" end
+        local remoteSource = m.remote["install.lua"] or source
+        local roleSource = remoteSource:match("^(.-)local BASE =") or assert(source:match("^(.-)local BASE ="))
+        local remoteRoles = assert(load(roleSource .. "return ROLES"))()
+        local list,seen = {{path="lib/ccryptolib",type="tree",mode="040000",sha=string.rep("f",40)}},{}
+        for _,group in ipairs({remoteRoles.common,remoteRoles.worker or {},remoteRoles.display or {},remoteRoles.server or {}}) do
+          for _,path in ipairs(group) do
+            if not seen[path] then
+              local value = m.remote[path] or read(path)
+              list[#list+1] = {path=path,type="blob",mode="100644",size=#value,sha=blob(value)}
+              seen[path] = true
+            end
+          end
+        end
+        m.tree = m.treeOverride or {tree=list}
+        return {getResponseCode=function() return 200 end,readAll=function() return "tree-json" end,close=function() end}
       end
       if url == "https://github.com/140er/computercraft-scripts.git/info/refs?service=git-upload-pack" then
         if not m.gitBody then return nil, "Git refs unavailable" end
@@ -153,14 +187,46 @@ return function(test, equal, read)
   end
   local function snapshot(m)
     local out = {}
-    for p, s in pairs(m.files) do out[p] = s end
+    for p, s in pairs(m.files) do if not p:match("^%.so%-download/") then out[p] = s end end
     return out
   end
   local function unchanged(m, before)
     for p, s in pairs(before) do equal(m.files[p], s, p) end
-    for p, s in pairs(m.files) do equal(before[p], s, p) end
+    for p, s in pairs(m.files) do if not p:match("^%.so%-download/") then equal(before[p], s, p) end end
     equal(m.env.fs.exists("/.so-new"), false)
     equal(m.env.fs.exists("/.so-old"), false)
+  end
+  local function clone(template)
+    local m = machine(template.kind,template.capacity)
+    for path,value in pairs(template.files) do m.files[path] = value end
+    for path,value in pairs(template.dirs) do m.dirs[path] = value end
+    return m
+  end
+  local function staged(setup, fresh)
+    local template = setup()
+    local before = snapshot(template)
+    local move = template.env.fs.move
+    template.env.fs.move = function(a,b)
+      if a == "/.so-new/manifest" then coroutine.yield("staged") end
+      return move(a,b)
+    end
+    local co = coroutine.create(function() if fresh then template.run() else template.run("update") end end)
+    local ok,err = coroutine.resume(co)
+    assert(ok,err)
+    equal(coroutine.status(co),"suspended")
+    template.files["startup/so-install-recover.lua"] = nil
+    local entries = template.env.textutils.unserialize(template.files[".so-new/manifest"])
+    return function()
+      local m = clone(template)
+      m.before = before
+      local run = m.run
+      local swap = assert(load(assert(source:match("^(.-)local function rollback")) .. "return swap","@install.lua","t",m.env))()
+      m.run = function(command,...)
+        if command == "update" or (fresh and command == nil) then return swap(entries) end
+        return run(command,...)
+      end
+      return m
+    end
   end
   test("SO9 enroll refuses every saved key file before downloading or writing a token", function()
     local token = "1-ABCD-EFGH-JKLM-NPQR"
@@ -304,9 +370,9 @@ return function(test, equal, read)
         if updating then m.run("update", sha) else m.run(sha) end
         equal(m.files[".so-revision"], sha)
         equal(m.files["worker.lua"], read("worker.lua"))
-        equal(#m.urls, #files("worker"))
+        equal(#m.urls, #files("worker") + 1)
         for _, url in ipairs(m.urls) do
-          assert(url:find("/" .. sha .. "/", 1, true), url)
+          if url:find("raw.githubusercontent.com",1,true) then assert(url:find("/" .. sha .. "/",1,true),url) end
         end
         equal(m.runs, { { "/worker.lua" } })
       end
@@ -337,7 +403,7 @@ return function(test, equal, read)
     m.onRaw = function() m.sha = string.rep("c", 40) end
     m.run("update")
     local counts = {}
-    for i = 2, #m.urls do
+    for i = 3, #m.urls do
       local path = assert(m.urls[i]:match("/" .. string.rep("a", 40) .. "/(.*)$"))
       counts[path] = (counts[path] or 0) + 1
     end
@@ -461,7 +527,7 @@ return function(test, equal, read)
     equal(m.calls, 0)
     equal(m.log[1], "so-server: need 16000000 bytes, this disk has 1000000.")
     equal(m.log[2], "Set computer_space_limit in computercraft-server.toml to at least 16000000, then restart the world.")
-    equal(next(m.files), nil)
+    equal(next(snapshot(m)), nil)
   end)
   test("SO9 fifth download failure leaves every old file unchanged", function()
     local m = installed("worker")
@@ -485,9 +551,10 @@ return function(test, equal, read)
   end)
   test("SO9 interrupted swaps recover every move for every role", function()
     for _, role in ipairs({ "worker", "display", "server" }) do
+      local setup = staged(function() return installed(role) end)
       for stop = 1, (#files(role) + 2) * 2 + 1 do
-        local m = installed(role)
-        local before, count = snapshot(m), 0
+        local m = setup()
+        local before, count = m.before, 0
         local move = m.env.fs.move
         m.env.fs.move = function(a, b)
           move(a, b)
@@ -508,8 +575,9 @@ return function(test, equal, read)
     end
   end)
   test("SO9 interrupted fresh install removes newly introduced files", function()
+    local setup = staged(function() return machine("server") end,true)
     for stop = 1, #files("server") + 4 do
-      local m = machine("server")
+      local m = setup()
       local move, count = m.env.fs.move, 0
       m.env.fs.move = function(a, b)
         move(a, b)
@@ -521,7 +589,7 @@ return function(test, equal, read)
       equal(coroutine.status(co), "suspended")
       m.env.fs.move = move
       m.run("recover")
-      equal(next(m.files), nil)
+      equal(next(snapshot(m)), nil)
       equal(m.env.fs.exists("/.so-new"), false)
       equal(m.env.fs.exists("/.so-old"), false)
     end
@@ -661,11 +729,11 @@ return function(test, equal, read)
       if type(ev) == "function" then return ev(function() failWrite = true end) end
       return table.unpack(ev)
     end
+    local choose = assert(load(assert(source:match("^(.-)local function position")) .. "return choose","@install.lua","t",m.env))()
     if not aborts then
-      m.run()
-      return m.files[".so-role"], #queue, frames
+      return choose(), #queue, frames
     end
-    local ok, err = pcall(m.run)
+    local ok, err = pcall(choose)
     assert(not ok, "picker did not fail")
     return err, { bg = bg, fg = fg, x = cx, y = cy, grid = grid }
   end
@@ -891,9 +959,9 @@ return function(test, equal, read)
     equal(m.files[".so-role"], "worker")
     equal(m.files[".so-revision"], m.sha)
     equal(m.urls[1], "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only")
-    equal(m.urls[2], "https://raw.githubusercontent.com/140er/computercraft-scripts/" .. m.sha .. "/install.lua")
-    for i = 2, #m.urls do
-      assert(m.urls[i]:find("/" .. m.sha .. "/", 1, true), m.urls[i])
+    equal(m.urls[3], "https://raw.githubusercontent.com/140er/computercraft-scripts/" .. m.sha .. "/install.lua")
+    for _,url in ipairs(m.urls) do
+      if url:find("raw.githubusercontent.com",1,true) then assert(url:find("/" .. m.sha .. "/",1,true)) end
     end
     equal(m.files["worker.lua"], read("worker.lua"))
   end)
@@ -929,7 +997,9 @@ return function(test, equal, read)
     m.failFrom = 3
     m.run("update")
     unchanged(m, before)
-    for i = 2, #m.urls do assert(m.urls[i]:find("/" .. m.sha .. "/", 1, true)) end
+    for _,url in ipairs(m.urls) do
+      if url:find("raw.githubusercontent.com",1,true) then assert(url:find("/" .. m.sha .. "/",1,true)) end
+    end
   end)
   test("SO9 a branch advance cannot change the commit during an update", function()
     local m = installed("worker")
@@ -937,7 +1007,9 @@ return function(test, equal, read)
     m.onRaw = function() m.sha = string.rep("c", 40) end
     m.run("update")
     equal(m.files[".so-revision"], sha)
-    for i = 2, #m.urls do assert(m.urls[i]:find("/" .. sha .. "/", 1, true)) end
+    for _,url in ipairs(m.urls) do
+      if url:find("raw.githubusercontent.com",1,true) then assert(url:find("/" .. sha .. "/",1,true)) end
+    end
   end)
   test("SO9 invalid installer and invalid cached commit leave installed files unchanged", function()
     for _, mode in ipairs({ "empty", "syntax", "incompatible", "cache" }) do
@@ -964,6 +1036,7 @@ return function(test, equal, read)
         m.files[".so-revision"] = string.rep("b", 40)
         return m
       end
+      setup = staged(setup)
       local probe, count = setup(), 0
       local move = probe.env.fs.move
       probe.env.fs.move = function(a, b)
@@ -975,7 +1048,7 @@ return function(test, equal, read)
       equal(probe.files["retired-util.lua"], nil)
       for stop = 1, count do
         local m = setup()
-        local before, moves = snapshot(m), 0
+        local before, moves = m.before, 0
         local native = m.env.fs.move
         m.env.fs.move = function(a, b)
           native(a, b)
@@ -1146,13 +1219,14 @@ return function(test, equal, read)
   test("SO9 every rollback filesystem step recovers to a complete bootable release", function()
     for _, role in ipairs({ "worker", "display", "server" }) do
       local stop, total = 1, nil
+      local template = installed(role)
+      template.files[".so-revision"] = string.rep("b",40)
+      template.files["startup.lua"] = 'if shell.run("/install.lua", "recover") then shell.run("/' .. roles[role].program .. '") end'
+      local previous = snapshot(template)
+      template.run("update")
+      local current = snapshot(template)
       repeat
-        local m = installed(role)
-        m.files[".so-revision"] = string.rep("b", 40)
-        m.files["startup.lua"] = 'if shell.run("/install.lua", "recover") then shell.run("/' .. roles[role].program .. '") end'
-        local previous = snapshot(m)
-        m.run("update")
-        local current = snapshot(m)
+        local m = clone(template)
         local count, originals = 0, {}
         local function step()
           count = count + 1
@@ -1239,6 +1313,271 @@ return function(test, equal, read)
     m.run()
     local pos = m.env.textutils.unserialize(m.files["so-server.cfg"]).pos
     equal(pos, { x = -30000000, y = -2048, z = 30000000, dim = "minecraft:the_end" })
+  end)
+  test("SO9 embedded digests match SHA256 and git hash-object known answers", function()
+    equal(hash("abc"),"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    equal(hash(""),"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+    equal(hash("abc",true),"a9993e364706816aba3e25717850c26c9cd0d89d")
+    equal(blob(""),"e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
+    equal(blob(read("update.lua")),"25a9a73386b529607bece57adad6a5d52115065c")
+  end)
+  local function kitMachine(role, existing)
+    local exporter = installed(role)
+    local writes,open = {},exporter.env.fs.open
+    exporter.env.fs.open = function(path,mode)
+      if mode == "w" then writes[#writes+1] = path end
+      return open(path,mode)
+    end
+    exporter.run("kit","disk",role,exporter.sha)
+    equal(writes[#writes],"disk/so-kit/manifest")
+    local m = existing and installed(role) or machine(role)
+    for path,value in pairs(exporter.files) do
+      if path:match("^disk/") then m.files[path] = value end
+    end
+    m.env.http = nil
+    return m
+  end
+  test("SO9 floppy kit with HTTP off installs and verifies the exact role files", function()
+    for _,role in ipairs({"worker","display","server"}) do
+      for _,existing in ipairs({false,true}) do
+        local m = kitMachine(role,existing)
+        local before = snapshot(m)
+        m.run("offline","disk")
+        for _,path in ipairs(files(role)) do equal(m.files[path],read(path),path) end
+        equal(m.files[".so-role"],role)
+        equal(m.files[".so-revision"],m.sha)
+        equal(m.calls,0)
+        equal(#m.urls,0)
+        equal(m.runs,{{"/" .. roles[role].program}})
+        if existing then
+          for _,path in ipairs({"so-keys","so-data/mine/job","so-server.cfg"}) do equal(m.files[path],before[path]) end
+        end
+        local manifest = m.env.textutils.unserialize(m.files["disk/so-kit/manifest"])
+        equal(#manifest.files,#files(role))
+        for _,v in ipairs(manifest.files) do
+          equal(v.bytes,#read(v.path))
+          equal(v.sha256,hash(read(v.path)))
+          equal(v.blob,blob(read(v.path)))
+        end
+      end
+    end
+  end)
+  test("SO9 tampered partial unsafe or mismatched floppy kits write nothing", function()
+    local template = kitMachine("worker")
+    for _,mode in ipairs({"bytes","missing","partial","duplicate","traversal","runtime","role","size","sha256","blob","syntax","mount"}) do
+      local m = clone(template)
+      m.env.http = nil
+      local manifest = m.env.textutils.unserialize(m.files["disk/so-kit/manifest"])
+      local entry = manifest.files[#manifest.files]
+      if mode == "bytes" then m.files["disk/so-kit/code/" .. entry.path] = read(entry.path) .. " "
+      elseif mode == "missing" then m.files["disk/so-kit/code/" .. entry.path] = nil
+      elseif mode == "partial" then table.remove(manifest.files)
+      elseif mode == "duplicate" then manifest.files[#manifest.files+1] = manifest.files[1]
+      elseif mode == "traversal" then entry.path = "lib/../../so-keys"
+      elseif mode == "runtime" then entry.path = "so-server.cfg"
+      elseif mode == "role" then manifest.role = "common"
+      elseif mode == "size" then entry.bytes = entry.bytes+1
+      elseif mode == "sha256" then entry.sha256 = string.rep("0",64)
+      elseif mode == "blob" then entry.blob = string.rep("0",40)
+      elseif mode == "syntax" then
+        local value = "not Lua !"
+        entry.bytes,entry.sha256,entry.blob = #value,hash(value),blob(value)
+        m.files["disk/so-kit/code/" .. entry.path] = value
+      elseif mode == "mount" then
+        local drive = m.env.fs.getDrive
+        m.env.fs.getDrive = function(path)
+          if path == "disk/so-kit/code/" .. entry.path then return "right" end
+          return drive(path)
+        end
+      end
+      m.files["disk/so-kit/manifest"] = m.env.textutils.serialize(manifest)
+      local before = snapshot(m)
+      for _,name in ipairs({"delete","move","makeDir"}) do m.env.fs[name] = function() error("Unexpected kit write") end end
+      local open = m.env.fs.open
+      m.env.fs.open = function(path,mode) equal(mode,"r"); return open(path,mode) end
+      local ok,err = pcall(m.run,"offline","disk")
+      equal(ok,false,mode)
+      assert(not tostring(err):find("Unexpected kit write",1,true),tostring(err))
+      equal(m.files,before)
+      equal(#m.urls,0)
+    end
+  end)
+  test("SO9 kit export refuses undersized media and never copies installed secrets", function()
+    local m = installed("worker")
+    m.kitCapacity = 1000
+    local before = snapshot(m)
+    equal(pcall(m.run,"kit","disk","worker",m.sha),false)
+    unchanged(m,before)
+    m.kitCapacity = 16000000
+    m.run("kit","disk","worker",m.sha)
+    for path in pairs(m.files) do
+      if path:match("^disk/") then
+        assert(path == "disk/so-kit/manifest" or path:match("^disk/so%-kit/code/"),path)
+        assert(not path:find("so-keys",1,true) and not path:find("so-data",1,true) and not path:find("so-enroll",1,true),path)
+      end
+    end
+    equal(m.files["disk/so-kit/code/worker.lua"],read("worker.lua"))
+  end)
+  test("SO9 stage one short space refuses before every download and leaves files untouched", function()
+    local m = installed("worker")
+    m.files[".so-prev/keep"] = "retained release"
+    m.free = 1000
+    local before = snapshot(m)
+    m.run("update")
+    unchanged(m,before)
+    equal(m.calls,0)
+    assert(table.concat(m.log):find("Space required ",1,true))
+    assert(table.concat(m.log):find("free 1000 bytes",1,true))
+    assert(table.concat(m.log):find("Not enough free space",1,true))
+  end)
+  test("SO9 one MB client admits its role when the metadata superset exceeds the disk", function()
+    for _,role in ipairs({"worker","display"}) do
+      local m = installed(role)
+      local json = m.env.textutils.unserializeJSON
+      m.env.textutils.unserializeJSON = function(body)
+        local result = json(body)
+        if body == "tree-json" then
+          result.tree[#result.tree+1] = {path="unused.lua",type="blob",mode="100644",size=1700000,sha=string.rep("b",40)}
+        end
+        return result
+      end
+      m.run("update")
+      equal(m.files[".so-revision"],m.sha)
+      equal(m.files["unused.lua"],nil)
+      equal(m.calls,#files(role))
+      assert(m.peak < 1000000)
+    end
+  end)
+  test("SO9 stage two short space keeps the pinned bootstrap and downloads no role code", function()
+    local m = installed("worker")
+    m.free = 160000
+    m.files[".so-prev/keep"] = "retained release"
+    local before = snapshot(m)
+    m.run("update")
+    unchanged(m,before)
+    equal(m.calls,1)
+    assert(m.files[".so-download/code/install.lua"])
+    local index = m.env.textutils.unserialize(m.files[".so-download/index"])
+    equal(index.commit,m.sha)
+    equal(index.files[1].blob,blob(source))
+    equal(index.files[1].sha256,hash(source))
+    equal(m.files[".so-new/install.lua"],nil)
+    m.free = nil
+    m.sha = string.rep("c",40)
+    m.run("update","--resume")
+    equal(m.files[".so-revision"],string.rep("a",40))
+    equal(m.calls,#files("worker"))
+    equal(m.env.fs.exists("/.so-download"),false)
+  end)
+  test("SO9 missing size metadata and altered HTTP blobs never swap installed files", function()
+    for _,mode in ipairs({"metadata","truncated","size","blob"}) do
+      local m = installed("worker")
+      if mode == "metadata" then m.treeFail = true
+      elseif mode == "truncated" then m.treeOverride = {truncated=true,tree={}}
+      elseif mode == "size" then m.badPath,m.badBody = "worker.lua",read("worker.lua") .. " "
+      else
+        m.badPath = "worker.lua"
+        m.badBody = read("worker.lua"):gsub("local","LOCAL",1)
+      end
+      local before = snapshot(m)
+      m.run("update")
+      unchanged(m,before)
+      equal(#m.runs,0)
+      if mode == "metadata" or mode == "truncated" then equal(m.calls,0) end
+    end
+  end)
+  test("SO9 explicit resume rehashes cached bytes and refuses cross commit or corrupt caches", function()
+    for _,mode in ipairs({"sha256","blob","bytes","commit","metadata"}) do
+      local m = installed("worker")
+      m.free = 160000
+      m.run("update")
+      local index = m.env.textutils.unserialize(assert(m.files[".so-download/index"]))
+      if mode == "sha256" then index.files[1].sha256 = string.rep("0",64)
+      elseif mode == "blob" then index.files[1].blob = string.rep("0",40)
+      elseif mode == "bytes" then m.files[".so-download/code/install.lua"] = source .. " "
+      elseif mode == "commit" then index.commit = string.rep("c",40)
+      else index.manifestDigest = string.rep("0",64) end
+      m.files[".so-download/index"] = m.env.textutils.serialize(index)
+      m.free = nil
+      local before,calls = snapshot(m),m.calls
+      m.run("update",m.sha,"--resume")
+      unchanged(m,before)
+      equal(m.calls,calls)
+      equal(#m.runs,0)
+    end
+  end)
+  test("SO9 interrupted download resumes only complete reverified files at the same SHA", function()
+    local m = installed("worker")
+    local move = m.env.fs.move
+    m.env.fs.move = function(a,b)
+      move(a,b)
+      if b == "/.so-download/code/worker.lua" then coroutine.yield("power cut") end
+    end
+    local co = coroutine.create(function() m.run("update") end)
+    local ok,err = coroutine.resume(co)
+    assert(ok,err)
+    equal(coroutine.status(co),"suspended")
+    m.env.fs.move = move
+    m.run("recover")
+    assert(m.files[".so-download/index"])
+    local calls = m.calls
+    m.sha = string.rep("c",40)
+    m.run("update","--resume")
+    equal(m.files[".so-revision"],string.rep("a",40))
+    equal(m.calls,calls+1)
+    equal(m.files["worker.lua"],read("worker.lua"))
+  end)
+  test("SO9 stage two uses the pinned installer role list and new dependency sizes", function()
+    local m = installed("worker")
+    m.remote["install.lua"] = source:gsub('"so%-store%.lua",','"so-store.lua", "lib/large.lua",')
+    m.remote["lib/large.lua"] = "--" .. string.rep("x",1000000)
+    local before = snapshot(m)
+    m.run("update")
+    unchanged(m,before)
+    equal(m.calls,1)
+    equal(m.files[".so-download/code/install.lua"],m.remote["install.lua"])
+    assert(table.concat(m.log):find("Not enough free space",1,true))
+  end)
+  test("SO9 a normal retry discards the old cache instead of silently resuming it", function()
+    local m = installed("worker")
+    m.free = 160000
+    m.run("update")
+    local previous = m.sha
+    m.free,m.sha = nil,string.rep("c",40)
+    m.run("update")
+    equal(m.files[".so-revision"],m.sha)
+    assert(m.sha ~= previous)
+    equal(m.calls,#files("worker")+1)
+  end)
+  test("SO9 cache index publication survives power loss between its two renames", function()
+    local m = installed("worker")
+    local move = m.env.fs.move
+    m.env.fs.move = function(a,b)
+      move(a,b)
+      if b == "/.so-download/index.bak" then coroutine.yield("power cut") end
+    end
+    local co = coroutine.create(function() m.run("update") end)
+    local ok,err = coroutine.resume(co)
+    assert(ok,err)
+    equal(coroutine.status(co),"suspended")
+    equal(m.files[".so-download/index"],nil)
+    assert(m.files[".so-download/index.bak"])
+    m.env.fs.move = move
+    m.sha = string.rep("c",40)
+    m.run("recover")
+    m.run("update","--resume")
+    equal(m.files[".so-revision"],string.rep("a",40))
+    equal(m.files["worker.lua"],read("worker.lua"))
+  end)
+  test("SO9 rollback short space refuses before staging and keeps the previous release", function()
+    local m = installed("worker")
+    m.run("update")
+    m.free = 1000
+    local before = snapshot(m)
+    local ok,err = pcall(m.run,"rollback")
+    equal(ok,false)
+    assert(tostring(err):find("Not enough free space",1,true))
+    unchanged(m,before)
   end)
 
 end
