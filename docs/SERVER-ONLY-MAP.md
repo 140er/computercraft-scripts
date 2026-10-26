@@ -671,7 +671,21 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   A failing policy read hides it. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
-  Monitor panels drop quick search and quantities and show only the job blocks.
+  Monitor panels omit quick search and quantities on the main page.
+  With `storageDeliveries=true`, monitor and keyboard panels add SHOP on the
+  last row. It opens an item list with quantity chips and a `to` row.
+  `chest-prev` and `chest-next` select enabled, unbroken `storage` points other
+  than `storageDeliveryOutput`. The display session pins the id, dimension,
+  coordinates and side; a moved or missing point disables delivery chips.
+  `deliver:<n|stack|all>:<chest>:<token>:<item>` consumes one drawn attempt token
+  and rechecks the paired display, exact item, stock, pinned chest and stack cap
+  before calling `build.deliveryRequest` with requester `display:<id>`.
+  ORDERED means requested; DELIVERED requires a confirmed full deposit and may
+  precede return home. HELD offers `deliver-retry:<id>` through `build.deliveryRetry`.
+  REFUSED and PARTIAL are terminal; NOT SENT is a synchronous admission refusal.
+  Status shows the session's active delivery, otherwise the unreleased output
+  holder, otherwise its own result. BUSY names other output holders. Held outputs
+  disable new deliveries. Turning the flag off closes the panel SHOP page.
   ALERTS lists lost leases by lowest id first, then state alerts wrapped to two
   rows. The turtles row's N lost button opens this list; PAIR offers NEW CODE. The panel pages are route A
   (twin `docs/ui/schematic/panel.py`, SCHEMATIC-SPEC section 22): job blocks with
@@ -688,6 +702,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lumber.facts()` when present, else the status model, else the state the
   panel's 120x18 probe reads; it forwards `mining:start|stop` and
   `lumber:start|stop` once. SHOP lists as many `shop.matches` items as fit;
+  with deliveries enabled, its `to` row starts at room output for ordinary
+  orders and cycles through the same pinned chests as panel SHOP. Choosing a
+  chest uses the delivery chips and statuses above. With room output selected,
   `pick:<item>` selects, `clear` empties the search, and `order:<1|16|64|stack|all>:<item>`
   under the shown item calls `shop.order(item, count, view)` once while that item
   still matches the search. ALL has no target at zero stock. Tapping the last
@@ -745,6 +762,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   deliveries are enabled or an output remains enrolled. Stock ids stay in memory.
   Default-off shops with no enrolled output create no `so-data/shop-*` files;
   legacy polling and orders do not depend on delivery state in that mode.
+  `deliveryView()` returns `{enabled,output,outputs,fault?}` for panel and pocket
+  SHOP. `enabled` reads the live `storageDeliveries` flag; `output` is the configured
+  `storageDeliveryOutput`. Unreleased rows contain `{kind,ownerId,state,error}`.
+  Unreadable output state sets `fault`. With the flag off and no saved output
+  state, the call reads and saves no output ledger.
   `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point, orderRid?)`,
   `fuelClear()` and `fuelAlerts()` run the fuel policy. Fuel auto-order defaults off in `so-data/fuel-policy`.
   Bind the room output as a fuel point in mining SETUP. Empty reports share a
@@ -1131,6 +1153,13 @@ after two game minutes but keep output quarantine until room settlement and
 worker cargo/lease reconciliation. Flag disable and fuel alert clearing retain
 that quarantine. Restart holds reserved or dispatched delivery work and never
 replays uncertain transfers; an interrupted unadmitted claim is refused.
+After the 15000-game-ms claim wait, a reconciled, never-claimed row with no
+`requestRid` releases locally only if its room has never sent a valid v=1 output
+reply. Ordinary unadmitted claims reconcile after 120000 game ms. Local release
+clears pending requests for that output; late replies are ignored. Saved
+`answeredRooms` records receipt history by room ID, seeded from existing claim
+evidence. Known answering rooms keep their token and recover by polling after
+lost replies, including across restart. The same guards apply with deliveries off.
 See [managed room outputs](server-only/PROTOCOL.md#managed-room-outputs).
 
 ## Per-worker park and removal
@@ -1404,8 +1433,9 @@ Do not save inside tight loops.
 - `so-drops` holds drop points, failure counts and the default-off room-sink flag.
 - `so-data/fuel-policy` holds the default-off fuel auto flag, bound output,
   up to 64 saved cooldowns, waiting delivery and its failure alert.
-- `so-data/shop-output` holds the versioned request-id high-water mark and up
-  to 64 physical output owners. `so-data/build/delivery` holds one active
+- `so-data/shop-output` holds the versioned request-id high-water mark, room-ID
+  receipt history in `answeredRooms` and up to 64 physical output owners.
+  `so-data/build/delivery` holds one active
   delivery and one last result. Each generation is at most 65536 bytes.
   Back them up with fuel policy, leases and the durable game clock. Corrupt or
   future state blocks managed use; enrolled quarantine survives flag disable.
@@ -1930,11 +1960,18 @@ its existing access. Saved intents reconcile consumption before another burn.
 The return holds for ordinary fuel. See [ONCE and species](server-only/PROTOCOL.md#lumber-once-and-species)
 and [log fuel](server-only/PROTOCOL.md#lumber-emergency-log-fuel).
 
-Mining `orecoordinates on|off` defaults off and adds proven positions to confirmed
-`mine.ore` events. Map `ore finds on|off` defaults off per session. Its memory-only
+Mining `orecoordinates on|off` defaults off in `so-data/mine/job` and adds proven
+positions to confirmed `mine.ore` events. Map text commands `ore finds on` and
+`ore finds off` set `session.map.oreFinds`, default false for each display. There
+is no drawn ore toggle chip. The callback accepts `map-ore`, but display input
+still requires a drawn control. The setting clears on restart. Its memory-only
 256-find ring reads at most 50 history entries per active tick. Markers expire at
-ten game minutes, stay in their dimension and level, and do not affect FIT,
-movement or reservations. See [recent finds](server-only/PROTOCOL.md#recent-ore-finds).
+ten game minutes and draw yellow `*` cells in their dimension at the exact level
+or ALL. Reservations suppress finds in the same map cell at the selected level.
+Workers, labels, outlines, branch numbers and callouts draw above finds. Arrival
+and expiry invalidate cached frames, including expiry during render. Finds do not
+affect FIT, movement or reservations. Empty history leaves controls and frames
+unchanged. See [recent finds](server-only/PROTOCOL.md#recent-ore-finds).
 
 ## Gate B slots and photos
 

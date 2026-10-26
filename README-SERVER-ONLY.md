@@ -671,14 +671,29 @@ Getting or Crafting keeps the order pending. Without acknowledgment, orders
 fail after two game minutes. Acknowledged orders wait ten game minutes from
 dispatch, then fail with "no delivery". Refusals show failed. The server never
 retries orders automatically.
+
 Panel SHOP orders one stack or less of an exact item from the Storage Room.
-Keyboard panels show quick search, stock, last order and room reply; monitor
-panels show job blocks. Choose the shown item and a quantity, then order once.
-`Order: sent` means requested or accepted. `Order: delivered` means the room
-replied that it sent the items to its output chest. Panel SHOP has no
-delivery-chest selector or worker dispatch. Worker deliveries are off by
-default and use the builder or delivery API below. Pocket SHOP adds STACK and
-ALL; ALL orders available stock up to one stack and is disabled at zero stock.
+Choose a delivery chest, then tap a quantity chip to order. A free worker carries
+the order from the room output to that chest. ORDERED means requested. DELIVERED
+means the worker confirmed the deposit. Missing stock, fuel or workers prevents
+admission and shows NOT SENT. A full chest or uncertain transfer holds an
+admitted order for recovery. Deliveries are off by default.
+
+With `storageDeliveries=true`, monitor and keyboard panels get a SHOP chip on
+the main page. Open it, then use the arrows on the `to` row to pick an enabled,
+unbroken `storage` drop point other than `storageDeliveryOutput`. The choice
+belongs to that display session. A moved or missing chest disables ordering.
+Pocket SHOP has the same selector, starting at `room output` for ordinary orders.
+Configure `storageDeliveryOutput` and `storageDeliveryWorkers` as described below.
+HELD offers RETRY for recovery. REFUSED is final and means the claim failed
+before worker dispatch. PARTIAL is a final incomplete result. A held room output
+blocks new deliveries, including orders from other displays.
+
+Keyboard panels also keep quick search, stock, last order and room reply on the
+main page. There, `Order: sent` means requested or accepted. `Order: delivered`
+means the room replied that it sent the items to its output chest.
+Pocket SHOP adds STACK and ALL; ALL orders available stock up to one stack and
+is disabled at zero stock.
 With `storageDeliveries` on and `storageDeliveryOutput` set, the first panel or
 pocket order on an unenrolled output answers `output claim pending` while the
 ordinary claim starts.
@@ -778,6 +793,14 @@ reservations. After two game minutes from send, a delivery times out even if
 the room replied Getting. The output stays quarantined until room settlement
 and worker cargo and lease reconciliation. Disabling deliveries or clearing a
 fuel alert retains that quarantine.
+
+A never-claimed output can release locally once its claim is at least 15 game
+seconds old, cargo is reconciled and no item request was sent, but only if
+that room has never sent a valid v=1 output reply. An ordinary unadmitted claim
+waits two game minutes for reconciliation. The server saves receipt history by
+room ID across restarts. Rooms that have answered keep their claim fenced after
+a lost reply and recover by polling. This exception also clears leftover claims
+with deliveries off. It does not make a legacy room able to serve deliveries.
 
 For recovery, run `output reconcile` locally on the room turtle. The delivery
 API's `build.deliveryRetry(id)` first requests stationary GPS and inventory.
@@ -1220,8 +1243,10 @@ Assignments and route settings stay fixed until it finishes. Settle recall
 before downgrading.
 
 `orecoordinates on` enables proven positions on confirmed mining ore events.
-It defaults off. On MAP, `ore finds on` enables yellow asterisks for that display
-session; `ore finds off` hides them. Finds expire after ten game minutes.
+It defaults off and saves in `so-data/mine/job`. On MAP, `ore finds on` enables
+yellow asterisks for that display session; `ore finds off` hides them. Each
+display starts with finds off. These are text commands; no ore toggle chip is
+drawn. The display setting clears on restart. Finds expire at ten game minutes.
 They show only in their dimension and exact selected level, or ALL. They stay
 below workers, reservations and labels and never expand FIT or change travel.
 The bounded memory cache rebuilds from retained history after restart.
@@ -1230,7 +1255,9 @@ The bounded memory cache rebuilds from retained history after restart.
 
 BUILD's setup material chip opens a paged list of reported inventory items and
 summed counts. Selecting an item changes material without resetting completed
-progress. `no report` differs from an empty inventory. The job tab shows `need`
+progress. Stop the job before changing material. A refused pick keeps the picker
+open with the reason. BACK returns to setup. The pager appears only with multiple
+pages. `no report` differs from an empty inventory. The job tab shows `need`
 and `carried`; carried is `unknown` before the first inventory report.
 Below 24 columns only the job tab draws.
 
