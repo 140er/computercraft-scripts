@@ -528,6 +528,104 @@ return function(test,equal)
     s.shop.listen.roomsorter(9,{"Delivered 64 coal",rid=rid})
     equal(#s.orders(),1) assert(s.shop.outputStatus("fuel:0/0/1/0"))
   end)
+  test("silent unclaimed outputs require reconciliation and the full claim wait before release",function()
+    local s=fixture() s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true}) s.stock()
+    assert(s.shop.outputClaim("delivery-test",output,"delivery"))
+    s.net.time=14999 s.shop.tick(s.net.time)
+    assert(s.shop.outputAbandon("delivery-test"))
+    equal(s.shop.outputStatus("delivery-test").state,"claiming")
+    local shopState
+    for i=1,10 do
+      local name,value=debug.getupvalue(s.shop.listen.roomsorter,i)
+      if name=="S" then shopState=value break end
+    end
+    assert(shopState and next(shopState.pending))
+    s.net.time=15000 s.shop.tick(s.net.time)
+    equal(s.shop.outputStatus("delivery-test"),nil)
+    for _,pending in pairs(shopState.pending) do assert(not pending.key,"released output still pending") end
+    s.control("output.claim","claimed")
+    equal(s.shop.outputStatus("delivery-test"),nil)
+    s.restart() equal(s.shop.outputStatus("delivery-test"),nil) s.stock()
+
+    assert(s.shop.outputClaim("unreconciled",output,"delivery"))
+    s.net.time=135000 s.shop.tick(s.net.time)
+    equal(s.shop.outputStatus("unreconciled").state,"quarantined")
+  end)
+  test("ordinary claims on rooms without v1 receipts expire and permit a new token",function()
+    local s=fixture()
+    s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true,storageDeliveryOutput="output"}) s.stock()
+    local owner="ordinary:0/0/1/0"
+    equal({s.shop.order("coal",1)},{nil,"output claim pending"})
+    local old=assert(s.shop.outputStatus(owner))
+    s.net.time=15000 s.shop.tick(s.net.time)
+    equal(s.shop.outputStatus(owner).state,"quarantined")
+    s.net.time=119999 s.shop.tick(s.net.time)
+    assert(s.shop.outputStatus(owner))
+    s.net.time=120000 s.shop.tick(s.net.time)
+    equal(s.shop.outputStatus(owner),nil)
+    equal(s.m.env.SO.store.read("so-data/shop-output").value.answeredRooms,{})
+    s.stock()
+    equal({s.shop.order("coal",1)},{nil,"output claim pending"})
+    local nextRow=assert(s.shop.outputStatus(owner))
+    assert(nextRow.token~=old.token)
+    s.control("output.claim","claimed")
+    assert(s.shop.order("coal",1)) equal(#s.orders(),1)
+  end)
+  test("a room with v1 receipt history retains a silent claim and recovers its original token",function()
+    for _,restart in ipairs({false,true}) do
+      local s=fixture()
+      s.m.files["so-server.cfg"]=H.encode({storageDeliveries=true,storageDeliveryOutput="output"}) s.stock()
+      assert(s.shop.outputClaim("probe",output,"delivery"))
+      s.control("output.claim","settled") assert(s.shop.outputAbandon("probe"))
+      equal(s.m.env.SO.store.read("so-data/shop-output").value.answeredRooms,{["9"]=true})
+      local owner="ordinary:0/0/1/0"
+      equal({s.shop.order("coal",1)},{nil,"output claim pending"})
+      local token=s.shop.outputStatus(owner).token
+      if restart then s.restart() s.stock() end
+      s.net.time=120000 s.shop.tick(s.net.time)
+      local row=assert(s.shop.outputStatus(owner))
+      equal(row.state,"quarantined") equal(row.reconciled,true) equal(row.claimed,nil) equal(row.token,token)
+      equal(s.m.env.SO.store.read("so-data/shop-output").value.answeredRooms,{["9"]=true})
+      s.net.time=130000 s.shop.tick(s.net.time)
+      s.control("output.status","claimed")
+      row=assert(s.shop.outputStatus(owner)) equal(row.state,"claimed") equal(row.token,token)
+      s.stock() assert(s.shop.order("coal",1)) equal(#s.orders(),1)
+    end
+  end)
+  test("v1 receipt history is scoped to the room id and migrates old claim proof",function()
+    local s=fixture() s.claimFuel()
+    local saved=s.m.env.SO.store.read("so-data/shop-output")
+    saved.value.answeredRooms=nil saved.generation=saved.generation+1
+    s.m.files["so-data/shop-output"]=H.encode(saved)
+    s.restart()
+    equal(s.m.env.SO.store.read("so-data/shop-output").value.answeredRooms,{["9"]=true})
+    s.shop.listen.roomsorter_stock(10,{totals={["minecraft:coal"]=64}})
+    local other=s.m.env.SO.store.copy(output) other.x=1
+    assert(s.shop.outputClaim("other-room",other,"delivery"))
+    assert(s.shop.outputAbandon("other-room"))
+    s.net.time=15000 s.shop.tick(s.net.time)
+    equal(s.shop.outputStatus("other-room"),nil)
+    assert(s.shop.outputStatus("fuel:0/0/1/0"))
+  end)
+  test("reconciled outputs with claim proof or a request remain fenced",function()
+    for _,kind in ipairs({"claimed","requested","request without claim proof"}) do
+      local s=fixture() s.claimFuel()
+      if kind~="claimed" then s.shop.fuelEmpty(output) end
+      if kind=="request without claim proof" then
+        local saved=s.m.env.SO.store.read("so-data/shop-output")
+        saved.value.outputs["0/0/1/0"].claimed=nil
+        saved.generation=saved.generation+1
+        s.m.files["so-data/shop-output"]=H.encode(saved)
+        s.restart()
+      end
+      assert(s.shop.outputReconciled("fuel:0/0/1/0"))
+      s.net.time=600000 s.shop.tick(s.net.time)
+      local row=assert(s.shop.outputStatus("fuel:0/0/1/0"))
+      equal(row.state,kind=="claimed" and "claimed" or "quarantined")
+      if kind=="claimed" then equal(row.claimed,true) equal(row.requestRid,nil)
+      else assert(row.requestRid) end
+    end
+  end)
   test("managed fuel settlement and cargo proof are both required after the cooldown",function()
     local s=fixture() s.claimFuel() s.shop.fuelEmpty(output)
     local rid=s.orders()[1].rid
