@@ -822,8 +822,18 @@ Disabling deliveries or clearing a fuel alert cannot release it. With
 `storageDeliveries=true`, fuel retirement also runs while fuel auto is off.
 The existing 600000 ms physical-chest cooldown remains.
 
-`so-data/shop-output` stores `{v=1,highWater,outputs}` with at most 64 physical
-output owners. Generations are at most 65536 bytes. Delivery and output-control
+A reconciled row with no `requestRid` and no acknowledged claim releases locally
+after 15000 game ms from creation only if its room has never sent a valid v=1
+output reply. Ordinary unadmitted claims reconcile after 120000 game ms, so they
+release then. Local release clears pending requests for that output and room;
+late replies are ignored. Claimed or requested rows do not qualify.
+Receipt history belongs to the room ID and survives restart. A room that has
+answered keeps its token after a lost receipt and recovers by polling, without
+this timeout release. The same release guards apply to leftover rows with
+deliveries off.
+
+`so-data/shop-output` stores `{v=1,highWater,outputs,answeredRooms}` with at most
+64 physical output owners. Generations are at most 65536 bytes. Delivery and output-control
 sends save a fresh durable id before use. Shop and fuel orders persist ids while
 deliveries are enabled or an output is enrolled. Stock polls use memory ids
 and never change the fuel policy serial. With deliveries off and no enrolled
@@ -832,6 +842,9 @@ does not make legacy orders depend on delivery state. Delivery-state corruption
 does not stop legacy stock polling, orders or fuel in that mode. Corrupt or
 future enrolled output state blocks its reuse. Restart restores unresolved
 owners as quarantined and keeps polling for room proof.
+`answeredRooms` maps decimal room-ID strings to true after a valid v=1 output
+reply. Old ledgers without it remain valid; existing claim, barrier, refusal or
+release evidence seeds the room history when loaded.
 
 #### Worker deliveries
 
@@ -839,8 +852,9 @@ owners as quarantined and keeps polling for room proof.
 to an enabled room-output drop-point id and `storageDeliveryWorkers` to an array
 of eligible paired worker ids. The room needs receipt support and
 `room.cfg.managedOutput=true`. A legacy room cannot serve deliveries. The claim
-starts as `claiming`. After 15 game seconds without room support, the claim
-enters quarantine and the delivery becomes `refused` with `room support missing`.
+starts as `claiming`. After 15 game seconds without room support, the delivery
+becomes `refused`. The claim stays quarantined until room proof or the guarded
+local release above permits reuse.
 Builder empty-chest requests also need
 `builderMaterialOrders=true`. The builder uses its selected storage point and
 vacates its access cell to the configured builder home before dispatch.
@@ -2123,9 +2137,41 @@ on the last pocket JOBS row. Once configured, it shows off, on, waiting age,
 timed out or the alert reason. A failing read hides it.
 The job probe reads only the rendered header row.
 
-The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
-blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and
-`alert-next` wrapping pages. `pair` opens the PAIR page. Its `pair-code`
+With `storageDeliveries=true`, both keyboard and monitor panels add a SHOP chip
+on the main page's last row. The SHOP page lists items, quantity chips and a `to`
+row. `chest-prev` and `chest-next` cycle through enabled, unbroken `storage` drop
+points other than `storageDeliveryOutput`. The row shows the selected id and
+coordinates when space permits. The display session pins the point's dimension,
+coordinates, side and kind. A moved or missing point disables the order chips.
+BACK returns to the main page. Disabling deliveries closes this page.
+
+Pocket SHOP adds the same `to` row when deliveries are enabled. Its initial
+`room output` choice keeps ordinary `order:` requests. Selecting a chest uses
+the same delivery controls and status as the panel SHOP page.
+
+Delivery inputs are authenticated display `input` events with ids
+`deliver:<n|stack|all>:<chest>:<token>:<item>`. The token belongs to one item and
+chest in that display session and its first tap consumes it. The tap must come
+from the paired display's own drawn frame. Input rechecks the pinned point,
+exact item, stock and count up to one stack before calling
+`build.deliveryRequest({item,n,destination=<pinned point>,requester="display:<id>"})`.
+Configure `storageDeliveryOutput` and `storageDeliveryWorkers` for this path.
+No new wire handler is added.
+
+ORDERED means requested. DELIVERED requires the worker-confirmed full deposit;
+the worker may still be returning home. A nonterminal HELD result offers RETRY,
+whose `deliver-retry:<id>` input calls `build.deliveryRetry` once. REFUSED is a
+terminal claim failure before dispatch. PARTIAL is a terminal incomplete result.
+NOT SENT reports a synchronous admission refusal, including missing stock, fuel
+or workers. Status shows the session's active delivery, otherwise an unreleased
+output holder, otherwise its own result. Other holders show BUSY with kind and
+state. Held outputs disable new delivery chips. Recovery follows the
+[worker delivery contract](#worker-deliveries), including local room reconciliation
+and explicit retries; it never repeats the uncertain order.
+
+The pocket role does not use the panel screen. Monitor panels without a keyboard
+show job blocks in two columns on the main page. `alerts` opens the paged alert
+list, with `alert-prev` and `alert-next` wrapping pages. `pair` opens the PAIR page. Its `pair-code`
 button is NEW CODE. Only a paired display with a matching session ID can
 request it through authenticated `input`. The server-local `SO.pairCode(id)`
 returns `{ code, expires }` for that requester, or nil if another display or
@@ -2952,6 +2998,9 @@ Before inventory arrives, `carried` reads `unknown`.
 The setup `material-pick` chip opens a paged list of reported inventory names
 with summed counts. Selecting a row runs `material <name>` and preserves the
 placement cursor. `no report` and an empty inventory are distinct states.
+The current material has a marker. BACK returns to setup; the pager appears only
+with multiple pages. A running job refuses a pick with `stop before configuring`
+and leaves the picker open to show the reason.
 Below 24 columns, BUILD draws only the job tab and no tab controls.
 START requires usable storage, a paired certain pose, parkBatch and positive or
 unlimited fuel. Wait for the initial stationary recovery report; later fresh
@@ -3482,14 +3531,16 @@ Lumber `facts()` adds `cycleMode`, a copied `species` and optional `cycle={id,ph
 
 ### Recent ore finds
 
-Mining saves `oreCoordinates=false`. `orecoordinates on|off` changes it.
+Mining saves `oreCoordinates=false` in `so-data/mine/job`.
+`orecoordinates on|off` changes it.
 When enabled, a confirmed ore dig may add `pos={dim,x,y,z}` to
 `mine.ore {id,name,count}`. The saved dig cell must match world-transformed
 journal evidence, including interrupted-dig recovery. Without proof, the event
 keeps its count-only shape.
 
-Each map session defaults to `oreFinds=false`. Text commands `ore finds on`
-and `ore finds off` change only that session. The input callback accepts
+Each map session defaults to `session.map.oreFinds=false`. It clears on restart.
+Text commands `ore finds on` and `ore finds off` change only that session.
+The input callback accepts
 `map-ore`, but the Lua screen draws no button for it. Empty history leaves the
 screen and controls identical with either setting. Rendering prunes expired
 finds before reusing a cached frame. Up to 50 history entries per active
@@ -3498,8 +3549,10 @@ Restart rebuilds it from retained history. Accepted times are
 `(SO.now()-600000,SO.now()]`, using `gameAt` or legacy `at` when absent.
 Malformed positions, unknown dimensions and future times are rejected.
 Yellow asterisks show in their dimension at the exact selected level or ALL,
-below workers, reservations, labels and callouts. Arrival and expiry invalidate
-frames. Finds never expand FIT or select zoom. Under the 15000-byte frame budget,
+below workers, labels, outlines, branch numbers and callouts. Reservations at the
+selected level suppress finds in the same map text cell, including scaled cells.
+Arrival and expiry invalidate frames. Finds never expand FIT or select zoom.
+Under the 15000-byte frame budget,
 older finds drop before labels. Markers issue no movement or reservation changes.
 
 ### Lumber emergency log fuel
