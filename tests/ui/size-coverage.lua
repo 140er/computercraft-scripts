@@ -32,8 +32,14 @@ return function(test, equal)
     for _,path in ipairs(dependencies) do
       if path~='tests/evidence/ui-size-coverage.txt' then local file=assert(io.open(path,'rb')) file:close() end
     end
-    local python = package.config:byte(1)==92 and 'python' or 'python3'
-    local allowed,ok,why,code=pcall(os.execute,python..' tests/ui/size-coverage.py')
+    local windows=package.config:byte(1)==92
+    local python = windows and 'python' or 'python3'
+    local command=python..' tests/ui/size-coverage.py'
+    if windows then
+      command='set "PYTHONUTF8=1" && '..command
+      if arg and arg[-1] then command='set "SIZE_COVERAGE_LUA='..arg[-1]..'" && '..command end
+    end
+    local allowed,ok,why,code=pcall(os.execute,command)
     if not allowed then
       assert(tostring(ok):find('part tests cannot start host processes',1,true),ok)
       local _,failed=dofile('tests/ui/size-compare.lua')('tests/evidence/ui-size-coverage.txt')

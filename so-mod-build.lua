@@ -1,6 +1,7 @@
 local P = dofile("so-plan.lua")
 local U = dofile("so-ui.lua")
 local M = dofile("so-mine-plan.lua")
+local D = { workers={} }
 local S = { recover = true, published = false, safe = {} }
 local config = SO.store.read and SO.store.read("so-server.cfg") or {}
 S.workerPark = config.workerPark == true
@@ -179,7 +180,7 @@ local function returning()
   return j.completion and j.completion.phase=="returning"
 end
 local function storageTrip()
-  return config.alternateAxisOrders == true and j.service and j.service.kind=="storage"
+  return j.service and j.service.kind=="storage" and (config.alternateAxisOrders == true or j.service.deliveryVacate==true)
 end
 local function storageError(reason)
   return P.chestError("storage route",reason,j.service.point)
@@ -555,7 +556,22 @@ local function report(id, turtleId, results, lease)
   elseif action == "take" then
     if item() then j.service=nil j.phase="check" j.blocked=nil j.alert=nil j.retryAt=nil
     elseif last.ok and empty() then j.service.stage="take"
-    else j.service.stage="check" j.retryAt=SO.now()+10000 alert("out of material", "material") end
+    else
+      j.service.stage="check" j.retryAt=SO.now()+10000
+      if D.enabled(true) then
+        if not j.service.deliveryAttempted then
+          j.service.deliveryAttempted=true
+          -- The empty cycle is durable before a delivery can acquire the output.
+          if not save() then return end
+          j.service.deliveryVacate,j.service.stage=true,"deliveryVacate"
+          j.blocked,j.alert,j.retryAt=nil,nil,nil
+          save()
+          return
+        end
+        local status=j.service.deliveryId and D.status(j.service.deliveryId)
+        alert(status and status.text or j.service.deliveryError or "out of material","material")
+      else alert("out of material", "material") end
+    end
   elseif action == "move" then
     for _, result in ipairs(results) do
       if not result.ok then
@@ -568,6 +584,7 @@ local function report(id, turtleId, results, lease)
   if save() then trim() end
 end
 local function assigned(id)
+  if D.data and D.data.active and D.data.active.worker==id then return "delivery" end
   for _, name in ipairs({"mine","lumber"}) do
     local other=module(name)
     local view=other.mapView and other.mapView()
@@ -576,9 +593,562 @@ local function assigned(id)
     end
   end
 end
+D.enabled = function(builder)
+  local cfg=SO.store.read and SO.store.read("so-server.cfg") or {}
+  return cfg.storageDeliveries==true and (not builder or cfg.builderMaterialOrders==true)
+end
+D.item = function(id)
+  if type(id)~="string" or #id>128 or not id:match("^[a-z0-9_.-]+:[a-z0-9_./-]+$") then return false end
+  for _,suffix in ipairs({"_pickaxe","_axe","_shovel","_hoe","_sword"}) do
+    if id:sub(-#suffix)==suffix then return false end
+  end
+  return true
+end
+D.integer = function(n,lo,hi) return type(n)=="number" and n==n and n%1==0 and n>=lo and n<=hi end
+D.point = function(p)
+  return type(p)=="table" and type(p.id)=="string" and dimensions[p.dim]~=nil
+    and whole(p.x) and whole(p.y) and whole(p.z) and (p.side=="front" or p.side=="down")
+end
+D.inventory = function(inv)
+  if type(inv)~="table" then return nil end
+  local out,seen={},{}
+  for _,v in pairs(inv) do
+    if type(v)~="table" or not D.integer(v.slot,1,16) or seen[v.slot] or type(v.name)~="string"
+      or not D.integer(v.count,0,64) then return nil end
+    seen[v.slot]=true
+    if v.count>0 then out[#out+1]=SO.store.copy(v) end
+  end
+  return out
+end
+D.valid = function(v)
+  if type(v)~="table" or v.v~=1 or not D.integer(v.serial,0,2^53-2) then return false end
+  for _,a in ipairs({v.active or false,v.last or false}) do
+    if a and (type(a)~="table" or type(a.id)~="string" or type(a.requester)~="string"
+      or not D.integer(a.worker,0,2^53-2) or not D.item(a.item) or not D.integer(a.n,1,64)
+      or not D.point(a.source) or not D.point(a.destination) or not P.assess(a.home,{}).ok
+      or not P.assess(a.pose,{}).ok or not journalPose(a.journalPose) or type(a.journal)~="string"
+      or type(a.frame)~="table" or a.frame.dim~=a.pose.dim or not D.integer(a.frame.rot,0,3)
+      or not D.integer(a.frame.ox,-60000000,60000000) or not D.integer(a.frame.oy,-60000000,60000000)
+      or not D.integer(a.frame.oz,-60000000,60000000) or not D.inventory(a.inv)
+      or not P.assess(a.sourceAccess,{}).ok or not P.assess(a.destinationAccess,{}).ok
+      or type(a.trip)~="table" or #a.trip>1028
+      or not D.integer(a.createdAt,0,2^53-2) or a.deadline~=nil and not D.integer(a.deadline,0,2^53-2)
+      or not ({claim=true,routeDestination=true,verifyDestination=true,routeSource=true,probe=true,order=true,pickup=true,
+        returnUnexpected=true,routeDelivery=true,deposit=true,returnGate=true,routeHome=true,home=true,settle=true,recovery=true})[a.phase]
+      or not ({reserved=true,ordering=true,pickup=true,deliver=true,returning=true,["return"]=true,held=true,complete=true,refused=true})[a.stage]
+      or not D.integer(a.picked,0,64) or not D.integer(a.deposited,0,64)
+      or a.orderRid~=nil and not D.integer(a.orderRid,1,2^53-2)) then return false end
+  end
+  return true
+end
+D.init = function()
+  if D.data then return not D.fault end
+  D.data={v=1,serial=0}
+  local path="so-data/build/delivery"
+  local ok,store=pcall(function()
+    local newest,rejected=0,0
+    for _,file in ipairs({path,path..".tmp",path..".bak"}) do
+      if fs and fs.exists and fs.exists(file) then
+        local v,bytes=SO.store.read(file)
+        assert(type(v)=="table" and D.integer(v.generation,1,2^53-2),"invalid delivery generation")
+        if v.schema==1 and D.valid(v.value) and type(bytes)=="string" and #bytes<=65536 then newest=math.max(newest,v.generation)
+        else rejected=math.max(rejected,v.generation) end
+      end
+    end
+    assert(rejected==0 or rejected<newest,"invalid delivery generation")
+    return SO.store.store(path,D.valid,65536)
+  end)
+  if not ok then D.fault=true return false end
+  if store.value and not D.valid(store.value) then D.fault=true return false end
+  D.box,D.data=store,store.value or D.data
+  if D.data.active then
+    local a=D.data.active
+    if a.phase=="claim" and not a.reservationStarted and not a.orderRid and not a.intent then
+      if D.refuse("delivery claim interrupted") then return not D.fault end
+    end
+    a.resumePhase,a.phase=a.phase,"recovery"
+    a.stage,a.error="held","delivery restart; reconcile before resume"
+    a.intent=nil
+    D.save()
+  end
+  return not D.fault
+end
+D.save = function()
+  if D.fault or not D.box or not D.box.save(D.data) then D.fault=true return false end
+  return true
+end
+D.hold = function(reason)
+  local a=D.data.active
+  if a.stage~="held" then a.resumePhase=a.phase end
+  a.stage,a.error,a.intent="held",reason,nil
+  D.pending=nil
+  D.save()
+end
+D.refuse = function(reason)
+  local a=D.data.active
+  if not a or a.phase~="claim" or a.reservationStarted or a.orderRid or a.intent or D.pending then return false end
+  local lease,cells=module("lease"),module("cells")
+  if lease.status and lease.status(a.worker).open then return false end
+  local trip=SO.store.copy(a.trip)
+  trip[#trip+1],trip[#trip+2],trip[#trip+3]=a.source,a.destination,a.home
+  for _,p in ipairs(trip) do
+    if cells.owner and cells.owner(p.x,p.y,p.z,p.dim)=="build:"..a.worker then return false end
+  end
+  local shop=module("shop")
+  if shop.outputAbandon then shop.outputAbandon(a.id) end
+  if type(reason)=="string" and reason:find("room support missing",1,true) then reason="room support missing" end
+  a.stage,a.error="refused",reason or "room support missing"
+  D.data.last,D.data.active=a,nil
+  D.save()
+  return true
+end
+D.pointById = function(id)
+  for _,p in ipairs(module("drops").list and module("drops").list() or {}) do
+    if p.id==id and not p.broken and not p.disabled then
+      p=SO.store.copy(p) p.dim=({[0]="minecraft:overworld",[-1]="minecraft:the_nether",[1]="minecraft:the_end"})[p.dim] or p.dim
+      if D.point(p) then return p end
+    end
+  end
+end
+D.pinned = function(p)
+  local actual=D.pointById(p.id)
+  if not actual then return false end
+  for _,key in ipairs({"dim","x","y","z","side","kind"}) do if actual[key]~=p[key] then return false end end
+  return true
+end
+D.lane = function(p)
+  local mine=module("mine").mapView and module("mine").mapView()
+  if not mine or mine.dim~=p.dim or not mine.homeSet then return false end
+  return M.inLane({dim=mine.dim,home=mine.home,bottom=mine.bottom,mode=mine.mode,
+    turtles={{branch=math.max(0,(mine.branches or 0)-1)}}},p)
+end
+D.contact = function(op)
+  if op=="inspect" or op=="suck" then return "drop" end
+  if op=="inspectDown" or op=="suckDown" then return "dropDown" end
+  return op
+end
+D.assess = function(id,from,steps,clear)
+  local lease=module("lease")
+  if not lease.assess then return {ok=false,reason="safe movement unavailable"} end
+  local checked={}
+  for _,step in ipairs(steps) do checked[#checked+1]={op=D.contact(step.op)} end
+  local check=lease.assess(id,from,checked,{owner="build",who=(D.data and D.data.active and "build:" or "gps:")..id,clear=clear})
+  if not check.ok then return check end
+  local at=from
+  if D.lane(at) then return {ok=false,reason="mining lane"} end
+  for _,step in ipairs(steps) do
+    local target=P.target(at,D.contact(step.op))
+    if target and D.lane(target) then return {ok=false,reason="mining lane"} end
+    at=P.apply(at,step.op)
+    if D.lane(at) then return {ok=false,reason="mining lane"} end
+  end
+  return check
+end
+D.path = function(id,from,to)
+  if from.dim~=to.dim then return nil,"dimension mismatch" end
+  if math.abs(from.x-to.x)+math.abs(from.y-to.y)+math.abs(from.z-to.z)>256 then return nil,"delivery trip too long" end
+  local paths,why=P.rankPaths(from,to,{alternateAxisOrders=true},function(p,steps) return D.assess(id,p,steps,true) end)
+  return paths[1],why and why.reason or "no known-clear trip"
+end
+D.accesses = function(p,near)
+  local out={}
+  if p.side=="down" then
+    out[1]={dim=p.dim,x=p.x,y=p.y+1,z=p.z,facing=near.facing}
+  else
+    for f=0,3 do
+      out[#out+1]={dim=p.dim,x=p.x-({[0]=0,1,0,-1})[f],y=p.y,z=p.z-({[0]=-1,0,1,0})[f],facing=f}
+    end
+    table.sort(out,function(a,b)
+      local da=math.abs(a.x-near.x)+math.abs(a.z-near.z)
+      local db=math.abs(b.x-near.x)+math.abs(b.z-near.z)
+      return da<db or da==db and a.facing<b.facing
+    end)
+  end
+  return out
+end
+D.trip = function(worker,pose,source,destination)
+  local src,dst,trip,why
+  for _,a in ipairs(D.accesses(source,pose)) do
+    for _,b in ipairs(D.accesses(destination,a)) do
+      local paths,at,total={},pose,0
+      local good=true
+      -- Inspect the destination before probing the output.
+      for _,target in ipairs({b,a,b,pose}) do
+        local path,err=D.path(worker,at,target)
+        if not path then good=false why=err break end
+        for _,cell in ipairs(path.cells) do paths[#paths+1]=cell end
+        paths[#paths+1]=at
+        total=total+path.moves at=path.pose
+      end
+      local sourceCheck=D.assess(worker,a,{{op=source.side=="down" and "inspectDown" or "inspect"}},false)
+      local destCheck=D.assess(worker,b,{{op=destination.side=="down" and "inspectDown" or "inspect"}},false)
+      if good and sourceCheck.ok and destCheck.ok then src,dst,trip=a,b,paths why=total break end
+    end
+    if trip then break end
+  end
+  if not trip then return nil,why or "no known-clear trip" end
+  return {source=src,destination=dst,cells=trip,moves=why}
+end
+D.request = function(spec)
+  if not D.enabled() then return nil,"deliveries disabled" end
+  if not D.init() then return nil,"delivery save unavailable" end
+  if D.data.active then return nil,"delivery busy" end
+  if type(spec)~="table" or not D.item(spec.item) then return nil,"tools or invalid item refused" end
+  if spec.builderJob and not D.enabled(true) then return nil,"builder material orders disabled" end
+  local shop,lease=module("shop"),module("lease")
+  if not shop.outputClaim or not shop.deliveryOrder or not shop.deliveryReady then return nil,"room support missing" end
+  local source=D.pointById(config.storageDeliveryOutput)
+  local destination=D.pointById(type(spec.destination)=="table" and spec.destination.id or spec.destination)
+  if not source or not destination or destination.kind~="storage" then return nil,"delivery points missing" end
+  if type(spec.destination)=="table" then
+    for _,k in ipairs({"dim","x","y","z","side"}) do
+      local v=spec.destination[k]
+      if k=="dim" then v=({[0]="minecraft:overworld",[-1]="minecraft:the_nether",[1]="minecraft:the_end"})[v] or v end
+      if destination[k]~=v then return nil,"destination changed" end
+    end
+  end
+  if source.dim~=destination.dim or same(source,destination) then return nil,"distinct chests in one dimension required" end
+  local n=spec.n
+  local stack=shop.stack and shop.stack(spec.item)
+  if not D.integer(n,1,stack or 0) then return nil,"bad count" end
+  local fresh,stockError=shop.deliveryReady(spec.item,n)
+  if not fresh then return nil,stockError or "room support missing" end
+  local ids={}
+  for _,id in ipairs(type(config.storageDeliveryWorkers)=="table" and config.storageDeliveryWorkers or {}) do
+    if D.integer(id,0,2^53-2) then ids[#ids+1]=id end
+  end
+  table.sort(ids)
+  local worker,pose,stat,inv,src,dst,trip,why
+  for _,id in ipairs(ids) do
+    local other=assigned(id) or j.turtle and not j.turtle.forgotten and j.turtle.id==id
+    local drops=module("drops")
+    if drops.busy and drops.busy(id) then other=true end
+    local facts=D.workers[id]
+    local row=lease.status and lease.status(id)
+    local world=lease.world and lease.world(id,source.dim)
+    if not other and row and not row.open and not row.recovering and not row.uncertain and not row.lost
+      and row.parkBatch and row.setupFence and journalPose(row.pose) and type(row.journal)=="string"
+      and world and P.assess(world,{}).ok and facts and facts.journal==row.journal and SO.now()-facts.at<30000 then
+      local cargo=D.inventory(facts.inv)
+      if cargo and #cargo==0 then
+        local planned,err=D.trip(id,world,source,destination)
+        local fuel=normalizeFuel(row.fuel)
+        if planned and (fuel=="unlimited" or type(fuel)=="number" and fuel>=planned.moves+16) then
+          worker,pose,stat,inv=id,world,row,cargo
+          src,dst,trip=planned.source,planned.destination,planned.cells
+          break
+        end
+        why=err or "delivery needs fuel for return plus 16"
+      end
+    end
+  end
+  if not worker then return nil,why or "no certain idle empty worker" end
+  if lease.restartReady and not lease.restartReady() then return nil,"restart reconciliation pending" end
+  local fuel=normalizeFuel(stat.fuel)
+  if D.data.serial>=2^53-2 then return nil,"delivery ids exhausted" end
+  D.data.serial=D.data.serial+1
+  local a={id="delivery-"..string.format("%.0f",D.data.serial),requester=tostring(spec.requester or "builder"),builderJob=spec.builderJob,
+    worker=worker,item=spec.item,n=n,source=source,destination=destination,home=pose,pose=pose,
+    frame=P.frame(pose,stat.pose),journalPose=stat.pose,journal=stat.journal,inv=inv,fuel=fuel,
+    stage="reserved",phase="claim",createdAt=SO.now(),picked=0,deposited=0,sourceAccess=src,destinationAccess=dst,trip=trip}
+  D.data.active=a
+  if not D.save() then return nil,"delivery save unavailable" end
+  local claim,err=shop.outputClaim(a.id,source,"delivery")
+  if not claim then
+    if D.refuse(err) then return nil,err end
+    D.hold(err) return a.id
+  end
+  a.roomId,a.outputToken=claim.roomId,claim.token
+  D.save()
+  return a.id
+end
+D.reserve = function(a)
+  local cells=module("cells")
+  if not cells.reserveMany or not cells.owner or not cells.handoff then return false,"cells unavailable" end
+  a.reservationStarted=true
+  if not D.save() then return false,"delivery save unavailable" end
+  if cells.owner(a.pose.x,a.pose.y,a.pose.z,a.pose.dim)=="gps:"..a.worker then
+    if not cells.handoff("gps:"..a.worker,"build:"..a.worker,a.pose.x,a.pose.y,a.pose.z,a.pose.dim) then
+      return false,"standing reservation held"
+    end
+  end
+  local trip=SO.store.copy(a.trip)
+  trip[#trip+1],trip[#trip+2],trip[#trip+3]=a.source,a.destination,a.pose
+  if not cells.reserveMany("build:"..a.worker,trip) then return false,"delivery reservation refused" end
+  return true
+end
+D.send = function(steps,action,target,recover)
+  local a=D.data.active
+  local lease=module("lease")
+  local stat=lease.status(a.worker)
+  if D.pending or stat.open then return false end
+  if stat.uncertain or not stat.parkBatch or not stat.setupFence or not journalPose(stat.pose) or type(stat.journal)~="string" then
+    D.hold("delivery pose uncertain") return false
+  end
+  if not recover and (stat.lost or stat.journal~=a.journal or not P.samePose(a.pose,P.toWorld(a.frame,stat.pose))) then
+    D.hold("delivery journal changed") return false
+  end
+  steps=P.boundary({steps=steps}).steps steps[1].park=true
+  local check=D.assess(a.worker,a.pose,steps,not recover)
+  if not check.ok then D.hold(check.reason) return false end
+  local expected=a.pose
+  local cells=module("cells")
+  if not recover and (not cells.owner or cells.owner(a.pose.x,a.pose.y,a.pose.z,a.pose.dim)~="build:"..a.worker) then
+    D.hold("delivery reservation missing") return false
+  end
+  for _,step in ipairs(steps) do
+    local target=P.target(expected,D.contact(step.op))
+    if not recover and target and cells.owner(target.x,target.y,target.z,target.dim)~="build:"..a.worker then
+      D.hold("delivery reservation missing") return false
+    end
+    expected=P.apply(expected,step.op)
+  end
+  local intent={delivery=a.id,action=action,steps=steps,from=a.pose,expected=expected,journal=stat.journal,target=target}
+  a.intent=intent
+  if not D.save() then return false end
+  local id,err=lease.send(a.worker,steps,{owner="build",who="build:"..a.worker,pose=expected,frame=a.frame,journal=stat.journal,
+    recover=recover==true,clear=not recover,intent=intent,ms=15000})
+  if not id then D.hold("delivery lease "..tostring(err)) return false end
+  D.pending=id
+  return true
+end
+D.route = function(target,phase)
+  local a=D.data.active
+  if not D.pinned(a.source) or not D.pinned(a.destination) then D.hold("delivery point changed") return end
+  local path,why=D.path(a.worker,a.pose,target)
+  if not path then D.hold(why) return end
+  if #path.steps>0 then D.send(path.steps,"move") return end
+  if a.pose.facing~=target.facing then
+    D.send({{op=(target.facing-a.pose.facing)%4==3 and "turnLeft" or "turnRight"}},"move") return
+  end
+  a.phase,a.checked=phase,nil D.save()
+end
+D.check = function(target,action,point)
+  local a=D.data.active
+  if not a.checked or a.checked.action~=action then
+    D.send({{op="gps"}},"gps",{pose=target,action=action,point=point})
+  elseif a.checked.journal~=a.journal or SO.now()-(a.checked.at or 0)>10000 then D.hold("stale delivery fix")
+  elseif not a.checked.inspected then
+    D.send({{op=point.side=="down" and "inspectDown" or "inspect"}},"inspect",a.checked)
+  else
+    local slot,cargo
+    for _,v in ipairs(a.inv) do if not slot then slot,cargo=v.slot,v end end
+    if action=="verifyDestination" then a.phase,a.checked="routeSource",nil D.save() return end
+    if action=="home" then a.phase,a.checked="settle",nil D.save() return end
+    if action=="probe" or action=="pickup" then
+      local occupied={} for _,v in ipairs(a.inv) do occupied[v.slot]=true end
+      slot=nil for i=1,16 do if not occupied[i] then slot=i break end end
+      if not slot then D.hold("delivery inventory full") return end
+      D.send({{op="select",slot=slot},{op=point.side=="down" and "suckDown" or "suck",n=action=="probe" and 64 or a.n-a.picked}},action,a.checked)
+    else
+      if not cargo then D.hold("delivery cargo missing") return end
+      if not D.item(cargo.name) then D.hold("unexpected tool cargo; manual recovery") return end
+      D.send({{op="select",slot=slot},{op=point.side=="down" and "dropDown" or "drop",n=cargo.count}},action,a.checked)
+    end
+  end
+end
+D.report = function(id,worker,results,record)
+  if not D.init() then return false end
+  local a=D.data.active
+  local intent=record and record.intent or a and a.intent
+  if not a or a.worker~=worker or not intent or intent.delivery~=a.id then return false end
+  if a.receipt==id then return true end
+  if id~=D.pending and not (module("lease").outcome and record.intent) then return false end
+  D.pending=nil
+  local facts=record.report or {}
+  local actual=journalPose(facts.pose) and P.toWorld(a.frame,facts.pose)
+  local cargo=D.inventory(facts.inv)
+  if not results or facts.uncertain or type(facts.journal)~="string" or facts.journal==intent.journal
+    or not cargo or not actual or not P.confirm(intent.from,intent.steps,results,actual) then
+    D.hold("delivery boundary unconfirmed; reservations held") return true
+  end
+  local wasHeld=a.stage=="held"
+  local holdReason=a.error
+  local old=a.inv
+  a.pose,a.journalPose,a.journal,a.inv=actual,facts.pose,facts.journal,cargo
+  if facts.fuel~=nil then a.fuel=normalizeFuel(facts.fuel) end
+  a.intent=nil
+  local last=results[#results]
+  if intent.action=="gps" or intent.action=="recover" then
+    local expected=intent.target and intent.target.pose or a.pose
+    local fix=last.data
+    if not last.ok or type(fix)~="table" or fix.dim~=expected.dim or not same(fix,expected)
+      or not P.samePose(actual,expected) then D.hold("delivery GPS or facing mismatch") return true end
+    if intent.action=="recover" then
+      a.phase,a.stage,a.error=a.resumePhase or "routeSource","held","reconciled; explicit resume required"
+      a.recovered=true
+    else
+      a.checked=SO.store.copy(intent.target) a.checked.journal,a.checked.at=a.journal,SO.now()
+      if a.checked.action=="home" then a.phase,a.checked="settle",nil
+      elseif a.checked.action=="returnHome" then a.phase,a.checked="routeHome",nil end
+    end
+  elseif intent.action=="inspect" then
+    if not last.ok or not P.chestPresent(last) then D.hold("delivery chest missing") return true end
+    a.checked=SO.store.copy(intent.target) a.checked.journal,a.checked.inspected=a.journal,true
+  elseif intent.action=="probe" then
+    a.checked=nil
+    if #cargo>0 then a.phase="returnUnexpected" a.error="output not empty"
+    elseif a.recoveryOnly then a.phase,a.stage="routeHome","return"
+    else a.phase,a.stage="order","ordering" end
+  elseif intent.action=="pickup" then
+    a.checked=nil
+    local count=0
+    for _,v in ipairs(cargo) do
+      if v.name~=a.item then a.phase="returnUnexpected" a.error="unexpected delivery cargo" break end
+      count=count+v.count
+    end
+    if a.phase~="returnUnexpected" then
+      if count>a.n then D.hold("delivery count exceeds order") return true end
+      a.picked=count
+      if count==a.n then a.phase,a.stage,a.error="routeDelivery","deliver",nil
+      else a.error=count>0 and ("partial "..count.."/"..a.n) or nil a.pollAt=SO.now()+1000 end
+    end
+  elseif intent.action=="deposit" or intent.action=="returnUnexpected" then
+    a.checked=nil
+    local before,after=0,0
+    for _,v in ipairs(old) do before=before+v.count end
+    for _,v in ipairs(cargo) do after=after+v.count end
+    local decrease=before-after
+    if intent.action=="deposit" then
+      for _,v in ipairs(old) do if v.name~=a.item then D.hold("unexpected cargo before deposit") return true end end
+      for _,v in ipairs(cargo) do if v.name~=a.item then D.hold("unexpected cargo after deposit") return true end end
+    end
+    if not last.ok or decrease<=0 then D.hold("delivery chest full or transfer failed") return true end
+    if intent.action=="deposit" then
+      a.deposited=a.deposited+decrease
+      if #cargo==0 then a.phase,a.stage="returnGate","return" end
+    elseif #cargo==0 then D.hold(a.error or "output not empty") end
+  end
+  if intent.action~="recover" and (wasHeld or not D.enabled(a.builderJob~=nil)) then
+    D.hold(wasHeld and holdReason or "deliveries disabled; recovery required")
+  end
+  a.receipt=id
+  if not D.save() then return true end
+  return true
+end
+D.status = function(id)
+  if not D.init() then return {stage="held",error="delivery save unavailable"} end
+  for _,a in ipairs({D.data.active or false,D.data.last or false}) do
+    if a and a.id==id then
+      local row=SO.store.copy(a) row.trip,row.frame,row.inv=nil,nil,nil
+      row.terminal=D.data.last==a
+      row.text=a.error or a.orderRid and ("ordered "..a.n.." "..a.item:gsub("^minecraft:","")) or a.stage
+      if a.deposited==a.n then row.text="delivered "..a.n.." "..a.item:gsub("^minecraft:","") end
+      return row
+    end
+  end
+end
+D.retry = function(id)
+  if not D.init() or D.fault then return false,"delivery save unavailable" end
+  local a=D.data.active
+  if not a or a.id~=id or a.stage~="held" then return false,"delivery not held" end
+  if not D.enabled(a.builderJob~=nil) then return false,"deliveries disabled" end
+  local stat=module("lease").status(a.worker)
+  if stat.open or D.pending then return false,"delivery lease pending" end
+  if not a.recovered then
+    if not journalPose(stat.pose) then return false,"delivery pose uncertain" end
+    return D.send({{op="gps"}},"recover",{pose=P.toWorld(a.frame,stat.pose)},true)
+  end
+  if not module("shop").outputStatus then return false,"room support missing" end
+  local room=module("shop").outputStatus(a.id)
+  if not room or room.state~="settled" then return false,"room settlement required" end
+  if not room.claimed then return false,"room claim proof required" end
+  if not D.pinned(a.source) or not D.pinned(a.destination) then return false,"delivery point changed" end
+  local count=0
+  for _,v in ipairs(a.inv) do
+    if v.name~=a.item or not D.item(v.name) then return false,"cargo reconciliation required" end
+    count=count+v.count
+  end
+  if count>a.n-a.deposited then return false,"cargo reconciliation required" end
+  local goal=count>0 and a.destinationAccess or a.sourceAccess
+  local need=math.abs(a.pose.x-goal.x)+math.abs(a.pose.y-goal.y)+math.abs(a.pose.z-goal.z)
+    +math.abs(goal.x-a.home.x)+math.abs(goal.y-a.home.y)+math.abs(goal.z-a.home.z)+16
+  local fuel=normalizeFuel(stat.fuel)
+  if fuel~="unlimited" and (type(fuel)~="number" or fuel<need) then return false,"delivery needs fuel for return plus 16" end
+  local reserved,why=D.reserve(a)
+  if not reserved then return false,why end
+  a.checked,a.error,a.recovered=nil,nil,nil
+  a.recoveryOnly=true
+  if count>0 then a.phase,a.stage="routeDelivery","deliver"
+  else a.phase,a.stage,a.recoveryOnly="routeSource","reserved",true end
+  return D.save()
+end
+D.tick = function()
+  if not D.init() or D.fault then return end
+  local a=D.data.active
+  if not a then return end
+  local lease,shop=module("lease"),module("shop")
+  if not lease.status or not lease.send or not shop.outputStatus or not shop.outputReconciled then
+    if not D.refuse("delivery support missing") then D.hold("delivery support missing") end
+    return
+  end
+  local record=lease.outcome and lease.outcome(a.worker)
+  if record and record.owner=="build" and record.intent and record.intent.delivery==a.id then
+    D.report(record.id,a.worker,record.results,record)
+    if D.save() then lease.ackOutcome(record.id) end
+    return
+  end
+  local claim
+  if a.phase=="claim" then
+    claim=shop.outputStatus(a.id)
+    if not claim or claim.state~="claimed" and claim.state~="claiming" then
+      local why=claim and claim.error or "room support missing"
+      if not D.refuse(why) then D.hold(why) end
+      return
+    end
+  end
+  if not D.enabled(a.builderJob~=nil) then
+    if a.stage~="held" then D.hold("deliveries disabled; recovery required") end
+    return
+  end
+  if not a.recoveryOnly and a.orderRid and a.deadline and SO.now()>=a.deadline and a.picked<a.n and a.stage~="held" then
+    D.hold("order timed out") return
+  end
+  if a.stage=="held" or D.pending or lease.status(a.worker).open then return end
+  if not D.pinned(a.source) or not D.pinned(a.destination) then D.hold("delivery point changed") return end
+  if a.phase=="claim" then
+    if claim.state=="claimed" then
+      local reserved,why=D.reserve(a)
+      if not reserved then D.hold(why) return end
+      a.phase="routeDestination" D.save()
+    end
+  elseif a.phase=="routeDestination" then D.route(a.destinationAccess,"verifyDestination")
+  elseif a.phase=="verifyDestination" then D.check(a.destinationAccess,"verifyDestination",a.destination)
+  elseif a.phase=="routeSource" then D.route(a.sourceAccess,"probe")
+  elseif a.phase=="probe" then D.check(a.sourceAccess,"probe",a.source)
+  elseif a.phase=="order" then
+    a.intent={action="order"} if not D.save() then return end
+    local rid,why=shop.deliveryOrder(a.id,a.item,a.n,a.source)
+    if not rid then D.hold(why) return end
+    a.orderRid,a.deadline,a.intent,a.phase,a.stage=rid,SO.now()+120000,nil,"pickup","pickup"
+    D.save()
+  elseif a.phase=="pickup" then
+    if not a.pollAt or SO.now()>=a.pollAt then D.check(a.sourceAccess,"pickup",a.source) end
+  elseif a.phase=="returnUnexpected" then D.check(a.sourceAccess,"returnUnexpected",a.source)
+  elseif a.phase=="routeDelivery" then D.route(a.destinationAccess,"deposit")
+  elseif a.phase=="deposit" then D.check(a.destinationAccess,"deposit",a.destination)
+  elseif a.phase=="returnGate" then D.send({{op="gps"}},"gps",{pose=a.destinationAccess,action="returnHome"})
+  elseif a.phase=="routeHome" then D.route(a.home,"home")
+  elseif a.phase=="home" then D.send({{op="gps"}},"gps",{pose=a.home,action="home"})
+  elseif a.phase=="settle" then
+    if #a.inv>0 then D.hold("cargo reconciliation required") return end
+    if not shop.outputReconciled(a.id) then D.hold("output save failed") return end
+    local row=shop.outputStatus(a.id)
+    if row then return end
+    local cells=module("cells")
+    if not cells.handoff or not cells.releaseOwner then D.hold("reservation reconciliation unavailable") return end
+    if not cells.handoff("build:"..a.worker,"gps:"..a.worker,a.pose.x,a.pose.y,a.pose.z,a.pose.dim) then D.hold("standing reservation held") return end
+    if not cells.releaseOwner("build:"..a.worker) then D.hold("delivery reservations held") return end
+    if a.deposited==a.n then a.stage,a.error="complete",nil
+    else a.stage,a.error="held","delivery reconciled; request again explicitly" end
+    D.data.last,D.data.active=a,nil D.save()
+  end
+end
 local function capability(msg)
   local body=msg.body
   if type(body) == "table" then
+    local journal=type(body.journal)=="table" and body.journal.id or body.journal
+    D.workers[msg.from]={journal=journal,inv=SO.store.copy(body.inv),at=SO.now()}
     S.safe[msg.from]=type(body.capabilities) == "table" and body.capabilities.parkBatch == true
   end
 end
@@ -899,11 +1469,17 @@ S.reconcile = function(record)
   return true
 end
 S.report = function(id,turtleId,results,record)
+  if D.report(id,turtleId,results,record) then
+    local lease=module("lease")
+    if lease.ackOutcome and D.save() then lease.ackOutcome(id) end
+    return
+  end
   if not j.turtle or j.turtle.forgotten or j.turtle.id ~= turtleId then return end
   if module("lease").outcome then S.reconcile(record)
   else report(id,turtleId,results,record) end
 end
 local function tick()
+  D.tick()
   if j.complete and not j.announced and not save() then return end
   if S.pauseCleared then
     if not save() then return end
@@ -945,6 +1521,46 @@ local function tick()
     return
   end
   if lease.restartReady and not lease.restartReady() then return end
+  if j.service and j.service.stage=="deliveryVacate" then
+    if not j.running then return end
+    if not D.enabled(true) then alert("deliveries disabled; recovery required","material") return end
+    if not j.home or same(j.home,j.service.access) then alert("move builder home away from delivery chest","material") return end
+    if not route(j.home) then return end
+    j.service.deliveryVacate,j.service.stage=nil,"deliveryWait"
+    if not save() then return end
+    local shop=module("shop")
+    local n=shop.stack and shop.stack(j.material) or 64
+    local delivery,why=D.request({item=j.material,n=n,destination=j.service.point,requester="builder",builderJob=owner()})
+    j.service.deliveryId,j.service.deliveryError=delivery,why
+    if not delivery then
+      j.service.stage,j.service.deliveryDone="check",true
+      j.retryAt=SO.now()+10000
+    end
+    local status=delivery and D.status(delivery)
+    alert(status and status.text or why or "out of material","material")
+    save()
+    return
+  end
+  if j.service and j.service.stage=="deliveryWait" and not j.service.deliveryId then
+    j.service.stage,j.service.deliveryDone="check",true
+    j.retryAt=SO.now()+10000
+    alert(j.service.deliveryError or "delivery refused","material") save()
+  end
+  if j.service and j.service.deliveryId and not j.service.deliveryDone then
+    local status=D.status(j.service.deliveryId)
+    if status and status.stage=="complete" then
+      j.service.deliveryDone,j.service.stage=true,"travel"
+      j.blocked,j.alert,j.retryAt="material",nil,SO.now()
+      save()
+    elseif status and status.terminal then
+      j.service.deliveryDone,j.service.stage=true,"check"
+      j.retryAt=SO.now()+10000
+      alert(status.text,"material") save()
+    else
+      alert(status and status.text or "delivery status unavailable","material")
+      return
+    end
+  end
   if j.service and j.service.hold then return end
   if returning() then
     if not j.running or j.blocked then return end
@@ -994,7 +1610,9 @@ local function tick()
       if not route(service.access) then return end
       service.stage="check" save()
     end
-    if service.stage == "check" then send({{op=service.point.side=="down" and "inspectDown" or "inspect"}},"supplyCheck")
+    if service.stage == "check" then
+      if not route(service.access) then return end
+      send({{op=service.point.side=="down" and "inspectDown" or "inspect"}},"supplyCheck")
     elseif service.stage == "take" then
       local slot=empty()
       if not slot then alert("inventory full", "inventory_full") return end
@@ -1076,4 +1694,4 @@ local function mapView()
   end
   return {dim=f.dim,bounds=f.bounds,turtles=turtles}
 end
-return {name="build",forget=forget,assigned=function(id) return j.turtle and not j.turtle.forgotten and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,facts=facts,mapView=mapView,budget=budget,expand=expand,import=import,dugProtection=protect,turtleView=turtleView}
+return {name="build",forget=forget,assigned=function(id) return j.turtle and not j.turtle.forgotten and j.turtle.id == id or D.init() and D.data.active and D.data.active.worker==id or false end,deliveryRequest=D.request,deliveryStatus=D.status,deliveryRetry=D.retry,deliveryItem=D.item,handlers={hello=capability,["step.report"]=capability},tick=tick,facts=facts,mapView=mapView,budget=budget,expand=expand,import=import,dugProtection=protect,turtleView=turtleView}
