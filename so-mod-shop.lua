@@ -235,6 +235,11 @@ end
 -- Output ownership outlives the delivery flags and every logical order wait.
 S.outputValid = function(v)
   if type(v) ~= "table" or v.v ~= 1 or not S.integer(v.highWater,0,2^53-2) or type(v.outputs) ~= "table" then return false end
+  if v.answeredRooms~=nil and type(v.answeredRooms)~="table" then return false end
+  for id,answered in pairs(v.answeredRooms or {}) do
+    if type(id)~="string" or not S.integer(tonumber(id),0,2^53-2)
+      or id~=tostring(tonumber(id)) or answered~=true then return false end
+  end
   local n = 0
   for key, row in pairs(v.outputs) do
     n = n+1
@@ -289,6 +294,7 @@ S.outputInit = function()
   if box.value and not S.outputValid(box.value) then S.outputFault=true return false end
   S.outputBox=box
   S.output=box.value or S.output
+  S.output.answeredRooms=S.output.answeredRooms or {}
   -- Delivery ids may predate this allocator's first generation.
   local okDelivery, delivery = pcall(function()
     local newest,rejected=0,0
@@ -308,6 +314,9 @@ S.outputInit = function()
   S.output.highWater=math.max(S.output.highWater,S.fuel.serial or 0,
     saved and saved.active and saved.active.orderRid or 0,saved and saved.last and saved.last.orderRid or 0)
   for _,row in pairs(S.output.outputs) do
+    if row.claimed or row.barrier~=nil or row.claimDenied or row.roomReleased then
+      S.output.answeredRooms[tostring(row.roomId)]=true
+    end
     if row.state~="released" then row.state,row.reconciled="quarantined",row.abandoned==true and not row.requestRid end
   end
   return S.outputSave()
@@ -408,6 +417,13 @@ S.outputReconciled = function(ownerId)
   end
   return true
 end
+S.outputReleaseLocal = function(row)
+  row.state="released"
+  local key=S.fuelKey(row.point)
+  for rid,pending in pairs(S.pending) do
+    if pending.key==key and pending.sender==row.roomId then S.pending[rid]=nil end
+  end
+end
 S.outputAbandon = function(ownerId)
   if not S.outputNeeded() then return true end
   if not S.outputInit() then return false end
@@ -415,7 +431,7 @@ S.outputAbandon = function(ownerId)
     if row.ownerId==ownerId and row.state~="released" then
       if row.requestRid then return false end
       row.abandoned,row.reconciled=true,true
-      if row.claimDenied then row.state="released" end
+      if row.claimDenied then S.outputReleaseLocal(row) end
       return S.outputSave()
     end
   end
@@ -487,7 +503,13 @@ S.deliveryOrderStatus = function(jobId) return S.outputStatus(jobId) end
 S.outputReply = function(sender,message,pending)
   local row=S.output.outputs[pending.key]
   if not row or row.state=="released" or row.roomId~=sender or message.v~=1 or message.outputToken~=row.token
-    or not S.integer(message.barrier,0,2^53-2) then return end
+    or not S.integer(message.barrier,0,2^53-2)
+    or message.requestRid~=nil and not S.integer(message.requestRid,1,2^53-2)
+    or not ({claimed=true,busy=true,settled=true,released=true,refused=true,quarantined=true})[message.state] then return end
+  if not S.output.answeredRooms[tostring(sender)] then
+    S.output.answeredRooms[tostring(sender)]=true
+    if not S.outputSave() then return end
+  end
   if pending.kind=="delivery" then
     -- An acceptance is not a settlement receipt.
     return
@@ -502,11 +524,11 @@ S.outputReply = function(sender,message,pending)
   S.pending[message.rid]=nil
   if pending.cmd=="output.claim" and message.state~="claimed" then
     row.claimDenied=true
-    if row.abandoned then row.state="released" S.outputSave() return end
+    if row.abandoned then S.outputReleaseLocal(row) S.outputSave() return end
   end
   if pending.cmd=="output.release" and message.state=="released" then row.state="released"
   elseif row.abandoned and not row.requestRid and message.state=="refused"
-    and (message.error=="room support missing" or message.error=="output claim required") then row.state="released"
+    and (message.error=="room support missing" or message.error=="output claim required") then S.outputReleaseLocal(row)
   elseif message.state=="claimed" and not row.requestRid then row.state,row.claimed="claimed",true
   elseif message.state=="settled" and S.integer(message.barrier,0,2^53-2) then
     row.state,row.barrier="settled",message.barrier
@@ -536,8 +558,9 @@ S.outputTick = function(now)
       if not S.outputSave() then return end
     end
     if row.state~="released" and row.reconciled and not row.requestRid and row.claimed~=true
+      and not S.output.answeredRooms[tostring(row.roomId)]
       and now-(row.createdAt or 0)>=15000 then
-      row.state="released"
+      S.outputReleaseLocal(row)
       if not S.outputSave() then return end
     end
     if row.state~="released" and (not row.pollAt or now-row.pollAt>=10000) then
