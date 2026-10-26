@@ -838,11 +838,13 @@ owners as quarantined and keeps polling for room proof.
 `so-server.cfg.storageDeliveries` defaults to false. Set `storageDeliveryOutput`
 to an enabled room-output drop-point id and `storageDeliveryWorkers` to an array
 of eligible paired worker ids. The room needs receipt support and
-`room.cfg.managedOutput=true`. A legacy room cannot serve deliveries and reports
-`room support missing` at claim time. Builder empty-chest requests also need
+`room.cfg.managedOutput=true`. A legacy room cannot serve deliveries. The claim
+starts as `claiming`. After 15 game seconds without room support, the claim
+enters quarantine and the delivery becomes `refused` with `room support missing`.
+Builder empty-chest requests also need
 `builderMaterialOrders=true`. The builder uses its selected storage point and
 vacates its access cell to the configured builder home before dispatch.
-Missing or unsafe home access holds that request.
+Missing or unsafe home access holds the builder before it requests a delivery.
 
 `build.deliveryRequest({item,n,destination,requester,builderJob?})` returns a
 delivery id or `nil,reason`. `destination` is an enabled storage drop-point id,

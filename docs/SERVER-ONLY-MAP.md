@@ -835,7 +835,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `storageDeliveryWorkers`; builder requests also need `builderMaterialOrders`.
   Destination is an enabled storage point id or matching pinned geometry.
   Admission requires room receipts, fresh stock, a certain idle empty worker,
-  a known-clear trip and fuel for the return plus 16 moves. It refuses tool suffixes.
+  a known-clear trip and fuel for the round trip plus 16 moves. It refuses tool suffixes.
   GPS, facing and chest inspection fence each transfer. Completion requires
   an acknowledged deposit and return home. Unadmitted claim failures become
   terminal `refused` results and free the worker; uncertain work retains cargo

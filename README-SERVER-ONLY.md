@@ -679,6 +679,9 @@ replied that it sent the items to its output chest. Panel SHOP has no
 delivery-chest selector or worker dispatch. Worker deliveries are off by
 default and use the builder or delivery API below. Pocket SHOP adds STACK and
 ALL; ALL orders available stock up to one stack and is disabled at zero stock.
+With `storageDeliveries` on and `storageDeliveryOutput` set, the first panel or
+pocket order on an unenrolled output answers `output claim pending` while the
+ordinary claim starts.
 
 Stock older than 30 seconds shows `STALE STOCK`. After five minutes without
 stock, the server clears the list and discovers storage again. Rooms use the
