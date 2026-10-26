@@ -10,7 +10,8 @@ local PL = dofile('so-plan.lua')
 -- Literal paths, so part runs declare every fixture they read.
 local FIXTURE = {
   ['panelshopnav-M'] = 'tests/ui/fixtures/panelshopnav-M.txt', ['panelshop-M'] = 'tests/ui/fixtures/panelshop-M.txt',
-  ['panelshop-S'] = 'tests/ui/fixtures/panelshop-S.txt', ['panelshopnone-M'] = 'tests/ui/fixtures/panelshopnone-M.txt',
+  ['panelshop-S'] = 'tests/ui/fixtures/panelshop-S.txt', ['panelshop-XS'] = 'tests/ui/fixtures/panelshop-XS.txt',
+  ['panelshopkey-S'] = 'tests/ui/fixtures/panelshopkey-S.txt', ['panelshopnone-M'] = 'tests/ui/fixtures/panelshopnone-M.txt',
   ['panelshopordered-M'] = 'tests/ui/fixtures/panelshopordered-M.txt',
   ['panelshopheld-M'] = 'tests/ui/fixtures/panelshopheld-M.txt', ['panelshopbusy-L'] = 'tests/ui/fixtures/panelshopbusy-L.txt',
   ['pocket-shopdeliver-P'] = 'tests/ui/fixtures/pocket-shopdeliver-P.txt',
@@ -30,7 +31,7 @@ local STATUS = {
 -- Each size-coverage state: a picked chest, the session's own delivery and what holds the room output.
 local STATES = {
   scene = { chest = true }, none = {}, ordered = { chest = true, own = 'ordered', active = true },
-  held = { chest = true, own = 'held', active = true }, busy = { chest = true, busy = true },
+  held = { chest = true, own = 'held', active = true }, busy = { chest = true, busy = true }, keyboard = { chest = true },
   deliver = { chest = true, own = 'delivered' }, refused = { chest = true, own = 'refused' }, room = {} }
 
 -- The scene with deliveries on: the chest in the drop list, shop.deliveryView and a build stub that
@@ -82,16 +83,16 @@ local function text(frame)
 end
 
 -- The scene server with a display (or the scene's pocket, id 10) on the given role and state.
-local function sceneView(role, id, w, h, state)
+local function sceneView(role, id, w, h, state, keyboard)
   local s = S.new({ panel = true, shop = true, facts = true })
   local st = deliveries(s)
   s.env.SO.mods.health = role == 'panel' and { count = function() return 2 end } or nil
   s.panel.tick(0)
-  if w then s.d.handlers.hello({ from = id, body = { w = w, h = h, keyboard = false } }) end
+  if w then s.d.handlers.hello({ from = id, body = { w = w, h = h, keyboard = keyboard == true } }) end
   assert(s.d.assign(id, role))
   local session = s.D.sessions[id]
   if state then
-    if role == 'panel' then session.panel = { page = 'shop', search = '' } else session.pocket = { page = 'shop', search = s.sys.search } end
+    if role == 'panel' then session.panel = { page = 'shop', search = keyboard and s.sys.search or '' } else session.pocket = { page = 'shop', search = s.sys.search } end
     apply(st, state, role == 'panel' and session.panel or session.pocket)
   end
   return s, st, function() return s.view(id) end, session
@@ -257,10 +258,13 @@ return function(test, equal)
     local _, _, view = sceneView('panel', 21, 57, 24)
     match('panelshopnav-M', view())
     for _, case in ipairs({ { 'panelshop-M', 57, 24, 'scene' }, { 'panelshop-S', 29, 12, 'scene' }, { 'panelshopnone-M', 57, 24, 'none' },
-        { 'panelshopordered-M', 57, 24, 'ordered' }, { 'panelshopheld-M', 57, 24, 'held' }, { 'panelshopbusy-L', 39, 19, 'busy' } }) do
+        { 'panelshopordered-M', 57, 24, 'ordered' }, { 'panelshop-XS', 15, 10, 'ordered' }, { 'panelshopheld-M', 57, 24, 'held' }, { 'panelshopbusy-L', 39, 19, 'busy' } }) do
       local _, _, v = sceneView('panel', 22, case[2], case[3], case[4])
       match(case[1], v())
     end
+    local _, st, v, session = sceneView('panel', 23, 29, 12, 'deliver', true)
+    match('panelshopkey-S', v())
+    assert(st and session.keyboard)
     for _, case in ipairs({ { 'pocket-shopdeliver-P', 'deliver' }, { 'pocket-shoprefused-P', 'refused' }, { 'pocket-shoproom-P', 'room' } }) do
       local _, _, v = sceneView('pocket', 10, nil, nil, case[2])
       match(case[1], v())
@@ -279,6 +283,54 @@ return function(test, equal)
     session.panel.delivery = nil
     frame = view()
     assert(find(frame, 'deliver:16:workshop:') and not text(frame):find('BUSY', 1, true), text(frame))
+  end)
+
+  test('B5-U a 10-row panel and a 12-row keyboard panel fit the picked item, its chips, status and BACK', function()
+    for _, case in ipairs({ { 15, 10 }, { 57, 10 }, { 29, 11 }, { 57, 12, true }, { 29, 12, true }, { 26, 12, true } }) do
+      local _, _, view = sceneView('panel', 24, case[1], case[2], 'ordered', case[3])
+      local frame = view()
+      local item = case[3] and 'pick:minecraft:iron_ingot' or 'pick:minecraft:gold_ingot'
+      local name = case[1] .. 'x' .. case[2] .. (case[3] and ' keyboard' or '')
+      assert(find(frame, item) and find(frame, 'panel-back') and find(frame, 'next'), name .. '\n' .. text(frame))
+      assert(text(frame):find('ORDERED 16', 1, true), name .. '\n' .. text(frame))
+      -- Live chips once the output is free.
+      local s, st, v2 = sceneView('panel', 25, case[1], case[2], 'scene', case[3])
+      frame = v2()
+      local chip = find(frame, 'deliver:16:workshop:1:')
+      assert(chip and find(frame, 'deliver:stack:') and find(frame, 'deliver:all:'), name .. '\n' .. text(frame))
+      s.tap(25, chip.id)
+      equal(#st.requests, 1, name)
+      -- Every item of the list is reachable by paging, one page at a time.
+      local seen = {}
+      for _ = 1, 12 do
+        for _, b in ipairs(v2().buttons) do if b.id:match('^pick:') then seen[b.id] = true end end
+        s.tap(25, 'next')
+      end
+      local n = 0 for _ in pairs(seen) do n = n + 1 end
+      equal(n, case[3] and 8 or 9, name .. ' reachable items')
+    end
+  end)
+
+  test('B5-U a refused tap during another display\'s delivery still shows that delivery and its RETRY', function()
+    local f = engine()
+    f.full = true
+    local a, b = picked(f, 20), picked(f, 21)
+    local chip = find(b.frame(), 'deliver:16:materials:')
+    a.tap('deliver:16:materials:')
+    local id = a.session.panel.delivery.id
+    -- b taps the chip it drew before a's request: the engine refuses it.
+    f.screens.panel.input({ id = chip.id, x = chip.x, y = chip.y, from = 21, session = b.session })
+    equal(b.session.panel.delivery.id, nil)
+    equal(b.session.panel.delivery.why, 'delivery busy')
+    local frame = b.frame()
+    assert(text(frame):find('ORDERED 16 STONE', 1, true) and not text(frame):find('NOT SENT', 1, true), text(frame))
+    f.untilStage(id, function(st) return st.stage == 'held' end)
+    frame = b.frame()
+    assert(text(frame):find('HELD 16 STONE', 1, true) and find(frame, 'deliver-retry:' .. id), text(frame))
+    local retries, retry = 0, f.build.deliveryRetry
+    f.build.deliveryRetry = function(...) retries = retries + 1 return retry(...) end
+    b.tap('deliver-retry:' .. id, frame)
+    equal(retries, 1)
   end)
 
   test('B5-U schematic generator reproduces the delivery fixtures', function()

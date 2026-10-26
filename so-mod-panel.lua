@@ -1165,11 +1165,11 @@ P.deliveryWord = function(st)
   return "ORDERED","1",st.stage
 end
 -- The status rows in delivery mode: the session's own request while it runs, else what holds the room
--- output, else the own request's result. Returns the line, its colour, the detail and a RETRY id.
+-- output, else the own request's result (or why it was not sent). Returns the line, its colour, the
+-- detail and a RETRY id.
 P.deliveryLine = function(state, width)
   local d = state.delivery
-  if d and not d.id then return P.cutLine("NOT SENT "..tostring(d.n or "").." ",d.label or "",width),"e",d.why end
-  local own,busy = d and P.deliveryStatus(d.id),P.busy()
+  local own,busy = d and d.id and P.deliveryStatus(d.id),P.busy()
   -- The own request's output row, still settling after a final result, is not another holder.
   if busy and own and busy.row and busy.row.ownerId == d.id then busy = nil end
   local st = own and not own.terminal and own or busy and busy.st and not busy.st.terminal and busy.st or nil
@@ -1177,6 +1177,7 @@ P.deliveryLine = function(state, width)
     return ("BUSY "..(busy.row and busy.row.kind.." "..busy.row.state or busy.text)):sub(1,width),"1",
       busy.detail or busy.row.error
   end
+  if not st and d and not d.id then return P.cutLine("NOT SENT "..tostring(d.n or "").." ",d.label or "",width),"e",d.why end
   st = st or own
   if not st then return d and P.cutLine("ENDED "..tostring(d.n or "").." ",d.label or "",width),"8" end
   local word,fg,detail,retry = P.deliveryWord(st)
@@ -1190,15 +1191,16 @@ P.cutLine = function(head, label, width)
   return (head..label):sub(1,width)
 end
 
--- The SHOP status rows at y and y+1 in delivery mode; RETRY ends the first row for a held delivery.
-P.deliveryRows = function(c, state, y, w)
+-- The SHOP status rows at y and y+1 (y only when single) in delivery mode; RETRY ends the first row
+-- for a held delivery.
+P.deliveryRows = function(c, state, y, w, single)
   local text,fg,detail,retry = P.deliveryLine(state,w-2)
   if retry then text = P.deliveryLine(state,w-10) end
   state.retryId = retry
   if text then c.put(2,y,text,fg) end
   if retry then P.act(c,y,"RETRY","deliver-retry:"..retry,"0") end
   detail = state.retryWhy or detail
-  if detail then c.put(2,y+1,tostring(detail):sub(1,w-2),state.retryWhy and "e" or "8") end
+  if detail and not single then c.put(2,y+1,tostring(detail):sub(1,w-2),state.retryWhy and "e" or "8") end
 end
 
 -- A delivery tap from a paired display's own frame: the token must be the drawn one, and the chest,
@@ -1241,11 +1243,20 @@ P.retryInput = function(state, id, event, panel)
   state.retryWhy = not done and tostring(err or "retry refused") or nil
 end
 
+-- U.pager's note and chips seven columns further left, beside the panel's BACK; the note goes when
+-- it would pass column 2.
+P.shopPager = function(c, y, note, back, forward)
+  c.chip(c.w-14,y,U.g.left,"prev",back and "plain" or "muted")
+  c.chip(c.w-10,y,U.g.right,"next",forward and "plain" or "muted")
+  if c.w-15-#note >= 2 then c.put(c.w-15-#note,y,note,"8") end
+end
+
 -- Search, the all/low/empty chips, then one page of matches with the shown item's order chips under it
 -- (1, 16 and 64, or the typed quantity, then STACK and ALL; none for an empty item), a pager on row h-2
 -- when they do not fit, the last order on row h-1 and the shop's reply on row h. With deliveries on a
 -- "to" row picks the chest; with a chest the chips deliver there and the last rows show the delivery.
--- panel is the panel's SHOP page: deliveries only, the rows above BACK on row h.
+-- panel is the panel's SHOP page: deliveries only, the status rows above BACK and the pager left of
+-- BACK on row h. Below 12 rows its status is one line, so an item and its chips fit beside them.
 P.shopPage = function(c, state, keyboard, w, h, session, panel)
   local shop = SO.mods.shop
   if not P.screens.shop or not shop or type(shop.matches) ~= "function" or type(shop.order) ~= "function" then
@@ -1280,6 +1291,8 @@ P.shopPage = function(c, state, keyboard, w, h, session, panel)
     y,deliver = y+rows,panel or state.chest ~= nil
   end
   local room,last = P.room(shop),panel and h-1 or h
+  -- The panel's status line; its detail row follows from 12 rows.
+  local line = panel and (h < 12 and h-1 or h-2)
   if not room.found then c.flag(2,y,w-2,"storage room not found") end
   if room.stale and room.found then c.put(2,y,"stock stale","1");y = y+1 end
   local items = room.found and P.shopItems(shop,search,filter) or {}
@@ -1293,16 +1306,23 @@ P.shopPage = function(c, state, keyboard, w, h, session, panel)
   local chips = not deliver or chest ~= nil
   local live = chest and P.trusted(session) and not P.busy()
   local grow = function(item) return ((tonumber(item.count) or 0) > 0 and chips and 3 or 0)+(saved and 2 or 0) end
-  local bottom,list = last-2,items
-  if #items+grow(P.shown(state,items) or {count=0}) > bottom-y+1 then
-    -- Pages hold the rows above the pager less the shown item's chip rows.
-    local per = math.max(1,bottom-y-(chips and 3 or 0)-(saved and 2 or 0))
+  local bottom,list = panel and line-1 or last-2,items
+  local first = P.shown(state,items) or {count=0}
+  -- grow counts the shown row too; the panel's own count drops it.
+  local need = #items+grow(first)-(panel and chips and (tonumber(first.count) or 0) > 0 and 1 or 0)
+  if need > bottom-y+1 then
+    -- Pages hold the rows above the pager less the shown item's chip rows; the panel's pager is on row h.
+    local per = panel and math.max(1,bottom-y+1-(chips and 2 or 0)-(saved and 2 or 0))
+      or math.max(1,bottom-y-(chips and 3 or 0)-(saved and 2 or 0))
     local pages = math.ceil(#items/per)
     state.shopPage = math.max(1,math.min(state.shopPage or 1,pages))
     list = {}
     for i = (state.shopPage-1)*per+1,math.min(#items,state.shopPage*per) do list[#list+1] = items[i] end
-    U.pager(c,bottom,state.shopPage.."/"..pages,state.shopPage > 1,state.shopPage < pages)
-    bottom = bottom-1
+    if panel then P.shopPager(c,h,state.shopPage.."/"..pages,state.shopPage > 1,state.shopPage < pages)
+    else
+      U.pager(c,bottom,state.shopPage.."/"..pages,state.shopPage > 1,state.shopPage < pages)
+      bottom = bottom-1
+    end
   else state.shopPage = 1 end
   local shown = P.shown(state,list)
   for _,item in ipairs(list) do
@@ -1318,7 +1338,8 @@ P.shopPage = function(c, state, keyboard, w, h, session, panel)
     end
     if item == shown and n > 0 and chest then
       P.deliverChips(c,state,y,w,item,qty,chest,live)
-      y = y+3
+      -- The panel's pages count no spare row under the chips.
+      y = y+(panel and 2 or 3)
     elseif item == shown and n > 0 and chips then
       local half = math.floor((w-3)/2)
       if not qty then
@@ -1336,8 +1357,8 @@ P.shopPage = function(c, state, keyboard, w, h, session, panel)
     end
   end
   if panel then P.back(c,h,"panel-back") end
-  if state.savedResult then c.put(2,last,state.savedResult:sub(1,w-2),"e")
-  elseif deliver then P.deliveryRows(c,state,last-1,w)
+  if state.savedResult then c.put(2,line or last,state.savedResult:sub(1,w-2),"e")
+  elseif deliver then P.deliveryRows(c,state,line or last-1,w,panel and h < 12)
   elseif state.sent then
     local text,fg,detail = P.orderLine(state.sent,w-2)
     c.put(2,last-1,text:sub(1,w-2),fg)

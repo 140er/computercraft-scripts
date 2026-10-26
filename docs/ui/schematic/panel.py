@@ -277,6 +277,7 @@ SHOP_STATES = {
     "scene": {}, "none": dict(to=("no chest", "8", True), chest=None),
     "ordered": dict(live=False, status=DELIVERY["ordered"]), "held": dict(live=False, status=DELIVERY["held"]),
     "busy": dict(live=False, status=DELIVERY["busy"]),
+    "keyboard": dict(keyboard=True, search=PK.SYS["search"]),
 }
 POCKET_STATES = {
     "deliver": dict(to=CHEST_ROW, deliver=dict(chest="workshop", token="1", live=True), status=DELIVERY["delivered"]),
@@ -587,6 +588,10 @@ FIXTURES = [
                                     shop=True)),
     ("panelshop-M", lambda: shop_page(57, 24, "Panel SHOP 57x24, a chest picked")),
     ("panelshop-S", lambda: shop_page(29, 12, "Panel SHOP 29x12, a chest picked")),
+    ("panelshop-XS", lambda: shop_page(15, 10, "Panel SHOP 15x10, ORDERED", live=False,
+                                       status=DELIVERY["ordered"])),
+    ("panelshopkey-S", lambda: shop_page(29, 12, "Panel SHOP on a keyboard 29x12, a chest picked", keyboard=True,
+                                         search=PK.SYS["search"], status=DELIVERY["delivered"])),
     ("panelshopnone-M", lambda: shop_page(57, 24, "Panel SHOP 57x24, no chest picked", to=("no chest", "8", True),
                                           chest=None)),
     ("panelshopordered-M", lambda: shop_page(57, 24, "Panel SHOP 57x24, ORDERED", live=False,

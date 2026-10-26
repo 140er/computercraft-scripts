@@ -2476,7 +2476,7 @@
       "pythonEntry": "panel-shop",
       "widths": [19, 26, 40],
       "heights": [10, 12, 20],
-      "states": ["scene", "none", "ordered", "held", "busy"],
+      "states": ["scene", "none", "ordered", "held", "busy", "keyboard"],
       "fixtures": [
         {"name": "panel-shop/scene/15x10", "width": 15, "height": 10, "state": "scene"},
         {"name": "panel-shop/scene/26x20", "width": 26, "height": 20, "state": "scene"},
@@ -2532,7 +2532,18 @@
         {"name": "panel-shop/busy/100x38", "width": 100, "height": 38, "state": "busy"},
         {"name": "panel-shop/busy/164x81", "width": 164, "height": 81, "state": "busy"},
         {"name": "panel-shop/busy/37x17", "width": 37, "height": 17, "state": "busy"},
-        {"name": "panel-shop/busy/53x23", "width": 53, "height": 23, "state": "busy"}
+        {"name": "panel-shop/busy/53x23", "width": 53, "height": 23, "state": "busy"},
+        {"name": "panel-shop/keyboard/15x10", "width": 15, "height": 10, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/26x20", "width": 26, "height": 20, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/29x12", "width": 29, "height": 12, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/39x19", "width": 39, "height": 19, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/51x19", "width": 51, "height": 19, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/57x24", "width": 57, "height": 24, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/80x30", "width": 80, "height": 30, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/100x38", "width": 100, "height": 38, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/164x81", "width": 164, "height": 81, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/37x17", "width": 37, "height": 17, "state": "keyboard"},
+        {"name": "panel-shop/keyboard/53x23", "width": 53, "height": 23, "state": "keyboard"}
       ]
     },
     {

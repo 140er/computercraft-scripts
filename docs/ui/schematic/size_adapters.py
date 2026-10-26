@@ -98,7 +98,7 @@ register("pocket-worker", "panel", [19, 26, 40], [8, 10, 12], ("scene", "missing
 register("pocket-fleet pocket-jobs pocket-shop pocket-pair pocket-alerts", "system", [19, 24, 26, 36], [12, 14, 17, 20])
 SCREENS["pocket-pair"]["states"] += ["code"]
 SCREENS["pocket-shop"]["states"] += ["deliver", "refused", "room"]
-register("panel-shop", "panel", [19, 26, 40], [10, 12, 20], ("scene", "none", "ordered", "held", "busy"))
+register("panel-shop", "panel", [19, 26, 40], [10, 12, 20], ("scene", "none", "ordered", "held", "busy", "keyboard"))
 register("pocket-lists", "stock", [16, 24, 36, 52], [10, 16], ("scene", "list", "draft", "row"))
 register("pocket-minimum", "stock", [16, 24, 26], [10, 12], ("scene",))
 

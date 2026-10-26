@@ -7,10 +7,10 @@
  GOLD INGOT ··········· 4000 
     1        16       64     
      STACK          ALL      
-                 1/9  ◄   ►  
+ IRON INGOT ··········· 1240 
                              
                              
-                       BACK  
+          1/5  ◄   ►   BACK  
 00000000ccccccccccccccccccc00
 00000000000000000000000000000
 088880ccccccccccccccccccccc00
@@ -19,10 +19,10 @@
 000000000000ccccccccccc000000
 00000000000000000000000000000
 00000000000000000000000000000
-00000000000000000888088800000
+000000000000ccccccccccc000000
 00000000000000000000000000000
 00000000000000000000000000000
-00000000000000000000000000000
+00000000008880888000000000000
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
@@ -31,7 +31,7 @@ fffffffffffffffffffff777f777f
 77777777777777777777777777777
 f77777777f77777777f77777777ff
 f7777777777777f7777777777777f
-fffffffffffffffffffff777f777f
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-ffffffffffffffffffffff777777f
+fffffffffffffffffffffffffffff
+ffffffffffffff777f777f777777f

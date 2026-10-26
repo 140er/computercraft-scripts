@@ -7,14 +7,14 @@
  GOLD INGOT ····················· 4000 
       1          16          64        
        STACK               ALL         
-                                       
  IRON INGOT ····················· 1240 
  IRON ORE ························ 312 
  RAW IRON ························· 48 
  IRON BLOCK ······················· 27 
  IRON NUGGET ······················· 5 
  IRON DOOR ························· 3 
-                           1/2  ◄   ►  
+ IRON PICKAXE ······················ 1 
+ IRON BARS ························· 0 
  BUSY ordinary quarantined             
  order timed out                       
                                  BACK  
@@ -26,14 +26,14 @@
 000000000000ccccccccccccccccccccc000000
 088888888888088888888888088888888888000
 088888888888888888808888888888888888880
-000000000000000000000000000000000000000
 000000000000ccccccccccccccccccccc000000
 0000000000cccccccccccccccccccccccc00000
 0000000000ccccccccccccccccccccccccc0000
 000000000000ccccccccccccccccccccccc0000
 0000000000000ccccccccccccccccccccccc010
 00000000000ccccccccccccccccccccccccc010
-000000000000000000000000000888088800000
+00000000000000cccccccccccccccccccccc010
+00000000000ccccccccccccccccccccccccc080
 011111111111111111111111110000000000000
 088888888888888800000000000000000000000
 000000000000000000000000000000000000000
@@ -52,7 +52,7 @@ fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffff777f777f
+fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffff777777f

@@ -396,8 +396,17 @@ def cut_line(head, label, width):
     return (head + label)[:width]
 
 
-def delivery_rows(cv, y, w, status):
-    """P.deliveryRows: status is (head, label, colour, detail, retry id); RETRY ends the first row."""
+def shop_pager(cv, y, note, back, forward):
+    """P.shopPager: U.pager seven columns further left, beside the panel's BACK."""
+    chip(cv, cv.w - 14, y, "◄", "prev", "plain" if back else "muted")
+    chip(cv, cv.w - 10, y, "►", "next", "plain" if forward else "muted")
+    if cv.w - 15 - len(note) >= 2:
+        cv.put(cv.w - 15 - len(note), y, note, "8")
+
+
+def delivery_rows(cv, y, w, status, single=False):
+    """P.deliveryRows: status is (head, label, colour, detail, retry id); RETRY ends the first row. single
+    drops the detail row."""
     head, label, fg, detail, retry = status
     cv.put(2, y, cut_line(head, label, w - 10 if retry else w - 2), fg)
     if retry:
@@ -406,7 +415,7 @@ def delivery_rows(cv, y, w, status):
         cv.put(x + 1, y, "RETRY", "0")
         cv.put(x + 6, y, "]", "8")
         cv.hit("deliver-retry:" + retry, x, y, 7, 1, "RETRY")
-    if detail:
+    if detail and not single:
         cv.put(2, y + 1, detail[:w - 2], "8")
 
 
@@ -448,6 +457,7 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         y += 1
     chips = deliver is None or deliver["chest"] is not None
     last = h - 1 if panel else h
+    line = (h - 1 if h < 12 else h - 2) if panel else None
     if not found:
         flag(cv, 2, y, w - 2, "storage room not found")
     if found and stale:
@@ -473,14 +483,22 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
     def pick(lst):
         return next((i for i in lst if i["name"] == selected), lst[0] if lst else None)
 
-    bottom, lst = last - 2, items
-    if len(items) + grow(pick(items)) > bottom - y + 1:
-        per = max(1, bottom - y - (3 if chips else 0) - (2 if saved is not None else 0))
+    bottom, lst = (line - 1 if panel else last - 2), items
+    first = pick(items)
+    need = len(items) + grow(first) - (1 if panel and chips and first and first["count"] > 0 else 0)
+    if need > bottom - y + 1:
+        if panel:
+            per = max(1, bottom - y + 1 - (2 if chips else 0) - (2 if saved is not None else 0))
+        else:
+            per = max(1, bottom - y - (3 if chips else 0) - (2 if saved is not None else 0))
         pages = -(-len(items) // per)
         page = max(1, min(page, pages))
         lst = items[(page - 1) * per:page * per]
-        pager(cv, bottom, "%d/%d" % (page, pages), page > 1, page < pages)
-        bottom -= 1
+        if panel:
+            shop_pager(cv, h, "%d/%d" % (page, pages), page > 1, page < pages)
+        else:
+            pager(cv, bottom, "%d/%d" % (page, pages), page > 1, page < pages)
+            bottom -= 1
     shown = pick(lst)
     for item in lst:
         if y > bottom - (max(0, grow(item) - 1) if item is shown else 0):
@@ -496,7 +514,7 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
             y += 2
         if item is shown and item["count"] > 0 and deliver is not None and deliver["chest"]:
             deliver_chips(cv, y, w, item, qty, deliver["chest"], deliver["token"], deliver["live"])
-            y += 3
+            y += 2 if panel else 3
         elif item is shown and item["count"] > 0 and chips:
             half = (w - 3) // 2
             if qty is None:
@@ -513,7 +531,7 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         chip(cv, w - 6, h, "BACK", "panel-back")
     if deliver is not None:
         if status:
-            delivery_rows(cv, last - 1, w, status)
+            delivery_rows(cv, line if panel else last - 1, w, status, panel and h < 12)
         return cv
     if sent:
         cv.put(2, h - 1, sent[0][:w - 2], sent[1])
