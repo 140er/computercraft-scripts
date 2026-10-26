@@ -595,7 +595,7 @@ Built-in `pair` and `hello` run first. Module handlers for that same type run ne
 
 ### shop
 
-`so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, per-display search text, order replies and trend samples in memory. Restarting the server clears them.
+`so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, per-display search text, order replies and trend samples in memory. Restarting the server clears them. Managed output ownership and request ids persist separately as described below.
 
 The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `storage room not found` (the legacy list: `Storage room not found, still looking`). After five minutes without a stock reply or stock broadcast from the selected turtle, it clears stale stock and resumes discovery. DNS replies and order replies do not extend that deadline. The legacy room has no server-only configuration or pairing record to select a preferred turtle; discovery uses the first DNS or stock responder.
 
@@ -776,8 +776,8 @@ It proves no queue entries, derived crafts or carried cargo can emit later for
 that request. Release requires the matching settled `barrier`. Include
 `requestRid` to check a particular request. A stale token or request reference
 cannot authorize new output work. Callers must also reconcile their own worker
-cargo and leases before unlocking or retrying. The current server shop adapter
-still sends legacy requests; this room support does not enable managed use there.
+cargo and leases before unlocking or retrying. The server shop adapter uses
+these claims when deliveries are enabled or an output remains enrolled.
 
 #### Local reconciliation
 
@@ -794,6 +794,99 @@ cancels queues and crafts, returns all cargo to storage and returns home.
 Only then does it save a new barrier and expose `settled`. Full storage,
 unresolved cargo or failed saves keep quarantine. Operator confirmation and
 an empty chest cannot replace this proof.
+
+#### Server output claims
+
+`shop.outputClaim(ownerId,point,kind)` saves and requests ownership of a physical
+output. Kinds are `delivery`, `fuel` and `ordinary`. The returned row can still
+be waiting for its claim receipt. Another owner receives `output quarantined`.
+`shop.outputStatus(ownerId)` returns a copy of the unresolved row.
+`shop.outputReconciled(ownerId)` saves worker cargo reconciliation. It permits
+release only after a matching room settlement receipt. `shop.outputAbandon(ownerId)`
+retires an explicitly refused claim before order admission, or retains its
+quarantine until room proof permits release. It refuses an admitted request.
+
+`shop.deliveryReady(item,n)` checks exact stock, known stack size and a stock
+sample less than 30000 game ms old. `shop.deliveryOrder(jobId,item,n,output)`
+sends one exact, non-crafting `get` under that job's acknowledged claim.
+`shop.deliveryOrderStatus(jobId)` returns the saved output status. Tool items
+are refused through `build.deliveryItem`. Replies must match the room sender,
+transport rid, token and linked request rid. Acceptance never proves deposit.
+
+Delivery and fuel requests retire after 120000 game ms from send, including
+after Getting replies. Ordinary claims wait for their order timeout and room
+settlement before release. Acknowledged ordinary orders retain their 600000 ms
+deadline. Delivery and fuel claims also require correlated worker cargo proof.
+Retirement ends the logical wait and retains physical output quarantine.
+Disabling deliveries or clearing a fuel alert cannot release it. With
+`storageDeliveries=true`, fuel retirement also runs while fuel auto is off.
+The existing 600000 ms physical-chest cooldown remains.
+
+`so-data/shop-output` stores `{v=1,highWater,outputs}` with at most 64 physical
+output owners. Generations are at most 65536 bytes. Delivery and output-control
+sends save a fresh durable id before use. Shop and fuel orders persist ids while
+deliveries are enabled or an output is enrolled. Stock polls use memory ids
+and never change the fuel policy serial. With deliveries off and no enrolled
+output, shop requests create no `so-data/shop-*` files. An empty allocator file
+does not make legacy orders depend on delivery state. Delivery-state corruption
+does not stop legacy stock polling, orders or fuel in that mode. Corrupt or
+future enrolled output state blocks its reuse. Restart restores unresolved
+owners as quarantined and keeps polling for room proof.
+
+#### Worker deliveries
+
+`so-server.cfg.storageDeliveries` defaults to false. Set `storageDeliveryOutput`
+to an enabled room-output drop-point id and `storageDeliveryWorkers` to an array
+of eligible paired worker ids. The room needs receipt support and
+`room.cfg.managedOutput=true`. A legacy room cannot serve deliveries. The claim
+starts as `claiming`. After 15 game seconds without room support, the claim
+enters quarantine and the delivery becomes `refused` with `room support missing`.
+Builder empty-chest requests also need
+`builderMaterialOrders=true`. The builder uses its selected storage point and
+vacates its access cell to the configured builder home before dispatch.
+Missing or unsafe home access holds the builder before it requests a delivery.
+
+`build.deliveryRequest({item,n,destination,requester,builderJob?})` returns a
+delivery id or `nil,reason`. `destination` is an enabled storage drop-point id,
+or a table with that id and matching pinned dimension, coordinates and side.
+Source and destination must be distinct chests in one dimension. Counts are
+positive integers up to one known stack. `build.deliveryItem(item)` checks exact
+item-id syntax and refuses `_pickaxe`, `_axe`, `_shovel`, `_hoe` and `_sword`
+suffixes. There is one active delivery; another request gets `delivery busy`.
+
+Admission requires fresh sufficient stock, an idle empty worker with a certain
+journal and fresh inventory, `parkBatch` and `setupFence`, a known-clear trip,
+and fuel for the round trip plus 16 moves. Missing configuration, stock, fuel,
+workers or safe paths prevents admission without sending a material order.
+The worker reserves the trip and pins both points. Before each transfer it
+requires an acknowledged GPS fix at the access cell, journal proof of facing,
+a separate chest inspection and a transfer fenced to the latest journal.
+Completion requires an acknowledged inventory decrease and return to its
+starting home. Partial pickups, changed points, full destinations and uncertain
+boundaries hold cargo and reservations.
+
+`build.deliveryStatus(id)` returns the saved status. `terminal=true` identifies
+the last result, including `complete`, `refused` and a reconciled incomplete
+delivery. A rejected claim before any reservation, lease, order or movement
+becomes `refused` and frees the worker. A lost claim receipt retains only output
+quarantine until room proof permits release. Existing work retains its hold,
+including across flag disable, restart and save failure. Builder refusals and
+other non-complete terminal results resume normal chest checks after ten game
+seconds. A saved attempt marker prevents another order in that empty cycle.
+The builder returns from home to inspect the chest, so manual refills can resume it.
+
+`build.deliveryRetry(id)` first requests a fenced stationary GPS and inventory
+observation. A later explicit call can resume reconciled cargo after a matching
+room settlement receipt. An empty timed-out worker probes the output again
+before release. Recovery never repeats the uncertain material order. After
+reconciliation, any remaining demand needs an explicit new request.
+
+`so-data/build/delivery` saves one active delivery and one last result, with
+generations of at most 65536 bytes. Restart refuses a claim interrupted before
+work and restores a hold for reserved or dispatched work. It never replays an
+uncertain order or transfer. Corrupt or future state blocks delivery use.
+Back up delivery state, shop output state, fuel policy, leases and the durable
+game clock together. Keep enrolled output quarantine when flags are disabled.
 
 ### state
 
@@ -950,10 +1043,13 @@ SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, a
 `{ date, ore, oreByName, oreRecent, logs }`. `oreByName` maps full item names
 to counts. `oreRecent` counts events in `(SO.now() - 600000, SO.now()]` from today's ore, using event `gameAt` or legacy `at`.
 `tick(now)` consumes at most one 50-entry state history page without waiting.
-It counts `mine.ore { id, name, count }` and `lumber.logs { id, count }` by
-`gameAt`, with legacy `at` fallback, for their own retained Amsterdam date.
-Day boundaries follow `SO.now()`. Today and six preceding calendar dates remain.
-A backward clock keeps the latest retained date without resetting it.
+It derives the current Amsterdam calendar date from `os.epoch("utc")` and
+counts `mine.ore { id, name, count }` and `lumber.logs { id, count }` by their
+UTC `at` timestamps. Delayed events update their own retained Amsterdam date.
+Today and six preceding calendar dates remain. Rollover and pruning follow
+calendar dates, including 23-hour and 25-hour days. A backward UTC clock keeps
+the latest retained date without resetting or duplicating it.
+`SO.now()` controls tick timing, save intervals and the recent-ore window.
 
 `daily.days()` returns seven copied `{date,ore,logs,partial}` rows, oldest first,
 including today. Unknown dates have `ore=false, logs=false, partial=true`.
@@ -1849,6 +1945,10 @@ the selected dimension. `build.assigned` suppresses registry fallback for that
 turtle. An unknown pose hides the marker while retaining the blueprint outline.
 The outline appears at ALL and at levels it spans, and FIT includes its bounds.
 Held builders show their hold and placement progress in labels and callouts.
+The outline is cyan, red for a severity-1 safety hold and amber for other holds.
+The marker uses the same hold colour. A held outline reads `build held`;
+otherwise it shows `build D/T` at scales below 3. The builder callout replaces
+ore with `build D/T` and adds the hold reason.
 
 `so-mod-map.lua` is installed only on the server. It registers
 `display.screen("map", render, input)` during tick. It adds no wire type.
