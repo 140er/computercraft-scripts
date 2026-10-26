@@ -327,12 +327,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
   and `lumber.logs` events from one history page of at most 50 entries per tick.
   `today()` returns a copy of `{ date, ore, oreByName, oreRecent, logs }`.
-  Days use Amsterdam midnight and `oreRecent` covers `(SO.now() - 600000, SO.now()]` using event `gameAt`.
+  The current Amsterdam date comes from `os.epoch("utc")`. `oreRecent` covers
+  `(SO.now() - 600000, SO.now()]` using event `gameAt`, with legacy `at` fallback,
+  and resets at Amsterdam midnight. `SO.now()` controls tick timing, save
+  intervals and that recent-ore window.
   Counts and the last consumed sequence save together once a minute and on
   day changes. Restart replays events after that cursor. No wire handlers.
   `days()` returns seven copied `{date,ore,logs,partial}` rows, oldest first,
-  for today and six preceding Amsterdam dates on the game clock. Events update
-  their retained date using `gameAt`, with legacy `at` fallback. Missing dates
+  for today and six preceding Amsterdam calendar dates. Events update their
+  retained date using UTC `at`, including delayed events. Rollover and pruning
+  follow calendar dates through 23-hour and 25-hour days. Backward UTC keeps
+  the latest retained date without resetting or duplicating it. Missing dates
   have false counts and `partial=true`; history gaps mark rows partial.
   See [daily](server-only/PROTOCOL.md#daily) for persistence and migration limits.
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
@@ -487,6 +492,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Each wrapped generation is at most 65536 bytes. Archive generations before
   rollout; older binaries reject v2. See [drops](server-only/PROTOCOL.md#drops)
   for the candidate schema, recovery refusal and migration rules.
+  With `worldEdits`, the setup page lists kept `setup:<id>` routes and releases
+  them through two calls to `cells.releaseRequest`. WAIT GPS retains the route
+  until the fenced fix; HELD reports failure. AREAS edits a box and calls
+  `cells.protect`, `cells.keep` and `cells.clearMarks`. PROTECT requires
+  `protectedAreas`; kept release, KEEP and CLEAR MARKS require `worldEdits`.
+  Inputs reread the flags on every tap. Both flags default off. The setup list
+  pages with `+`; narrow AREAS screens use BOXES for the saved-box list.
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
   clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `identify(id)`, `tick(now)`,
   `terminal(model, view, w, h)`, `monitorTouch(side, x, y)`, `assign(id, role)`,
@@ -572,7 +584,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   requires two taps after editing and forwards the existing `add` command.
 - [so-mod-map.lua](../so-mod-map.lua), `map`, registers the top-down screen
   from `tick(now)`. No wire handlers. Tick gathers `mine.mapView()`,
-  `lumber.mapView()`, registry workers, lease state, drop points and
+  `lumber.mapView()`, `build.mapView()` and `build.facts()` in the shown dimension,
+  registry workers, lease state, drop points and
   `cells.reserved`, only within ten seconds of a render.
   `render(w, h, session)` keeps `level`, `fit`, `sx`, `sz`, `cx`, `cz`, `pick` and
   its cell and frame caches in `session.map`. Route A text cells: each covers
@@ -580,7 +593,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   planned, blue when held); the branch axis snaps to the gap. North is up at every
   size and facing; a fixed `↑N` compass ends row 1, outside the map. Markers,
   greedy labels, branch numbers, tap callouts and a wall roster strip follow
-  `docs/ui/SCHEMATIC-SPEC.md` section 10. Dug planes per section column and level
+  `docs/ui/SCHEMATIC-SPEC.md` section 10. The builder marker uses only its confirmed
+  pose. `build.assigned` suppresses registry fallback, so unknown poses and other
+  dimensions draw no marker. Blueprint bounds remain as an outline.
+  Dug planes per section column and level
   are shared by all displays and the `thumb` and `crop` exports, read at most 16
   sections per tick, and rechecked with at most 64 memory-only probes per tick after
   the dug serial changes. An unchanged view returns its cached frame. A frame over
@@ -716,6 +732,19 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   dispatch. Without acknowledgment the limit is 120000 ms. Delivery needs an
   explicit Delivered or sent-to-output-chest reply. Silence after acknowledgment
   shows `no delivery`. Matching sender and request id are required.
+  `outputClaim(ownerId,point,kind)`, `outputStatus(ownerId)`,
+  `outputReconciled(ownerId)` and `outputAbandon(ownerId)` manage durable physical
+  output claims for delivery, fuel and ordinary orders. An acknowledged claim
+  admits one tagged request. Refused unadmitted claims retire; lost receipts
+  retain output quarantine. Ordinary claims release after their order timeout
+  and matching room settlement. Delivery and fuel also require cargo proof.
+  `deliveryReady(item,n)` checks fresh exact stock and stack size.
+  `deliveryOrder(jobId,item,n,output)` sends a stock-only `get` under that job's
+  claim; `deliveryOrderStatus(jobId)` returns its saved output state.
+  Delivery and control ids save before send. Shop and fuel ids persist while
+  deliveries are enabled or an output remains enrolled. Stock ids stay in memory.
+  Default-off shops with no enrolled output create no `so-data/shop-*` files;
+  legacy polling and orders do not depend on delivery state in that mode.
   `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point, orderRid?)`,
   `fuelClear()` and `fuelAlerts()` run the fuel policy. Fuel auto-order defaults off in `so-data/fuel-policy`.
   Bind the room output as a fuel point in mining SETUP. Empty reports share a
@@ -725,7 +754,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and restarts. A confirmed refusal, delivery or observed usable fuel ends the
   saved wait. Pickup actions save the expected order id, so old inventory reports
   cannot complete a later order. Unknown replies keep waiting until the deadline. With
-  fuel auto enabled, after two minutes a successful policy save clears waiting and keeps
+  fuel auto or `storageDeliveries` enabled, after two minutes a successful policy save clears waiting and keeps
   `fuel order timed out` attention. A later empty report may order again after the ten-minute physical-chest cooldown, with one outstanding order. Late replies for the
   timed-out request id are ignored. A failed policy save emits no alert and keeps
   waiting for retry. `fuelClear()` saves a manual release of waiting and its alert
@@ -800,6 +829,21 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Trips budget the work/storage route plus return to fuel, exclude building
   material as fuel, and retry an empty fuel chest after ten game seconds.
   An unreachable fuel chest leaves the builder still, polling for manual refuel.
+  `deliveryRequest({item,n,destination,requester,builderJob?})`,
+  `deliveryStatus(id)`, `deliveryRetry(id)` and `deliveryItem(item)` run one
+  default-off `storageDeliveries` job. Configure `storageDeliveryOutput` and
+  `storageDeliveryWorkers`; builder requests also need `builderMaterialOrders`.
+  Destination is an enabled storage point id or matching pinned geometry.
+  Admission requires room receipts, fresh stock, a certain idle empty worker,
+  a known-clear trip and fuel for the return plus 16 moves. It refuses tool suffixes.
+  GPS, facing and chest inspection fence each transfer. Completion requires
+  an acknowledged deposit and return home. Unadmitted claim failures become
+  terminal `refused` results and free the worker; uncertain work retains cargo
+  and reservations. Retry first observes stationary GPS and inventory, then
+  needs an explicit call after room settlement to resume reconciled cargo.
+  Builder empty cycles save one attempt, vacate the access cell to home and
+  resume chest checks after ten seconds on a non-complete terminal result.
+  See [worker deliveries](server-only/PROTOCOL.md#worker-deliveries).
   Pending placement retains its original material and cursor through recovery.
   Default-off `builderSolid=true` adds `shape solid` and its shape-cycle entry.
   It fills the inclusive volume bottom-up, within the 16384-cell volume limit.
@@ -1081,7 +1125,12 @@ and cargo can no longer emit for that request. An empty chest is insufficient.
 Reboots quarantine saved output state. Run `output reconcile` locally on the room
 turtle to return cargo and save a new settlement barrier. Disabling the flag
 retains recovery and the interlock but refuses new claims and orders. This room
-protocol does not enable managed-output requests in the legacy shop adapter.
+protocol supplies the receipts used by the server's managed output claims.
+`storageDeliveries` defaults off. Delivery timeouts retire the logical request
+after two game minutes but keep output quarantine until room settlement and
+worker cargo/lease reconciliation. Flag disable and fuel alert clearing retain
+that quarantine. Restart holds reserved or dispatched delivery work and never
+replays uncertain transfers; an interrupted unadmitted claim is refused.
 See [managed room outputs](server-only/PROTOCOL.md#managed-room-outputs).
 
 ## Per-worker park and removal
@@ -1355,6 +1404,11 @@ Do not save inside tight loops.
 - `so-drops` holds drop points, failure counts and the default-off room-sink flag.
 - `so-data/fuel-policy` holds the default-off fuel auto flag, bound output,
   up to 64 saved cooldowns, waiting delivery and its failure alert.
+- `so-data/shop-output` holds the versioned request-id high-water mark and up
+  to 64 physical output owners. `so-data/build/delivery` holds one active
+  delivery and one last result. Each generation is at most 65536 bytes.
+  Back them up with fuel policy, leases and the durable game clock. Corrupt or
+  future state blocks managed use; enrolled quarantine survives flag disable.
 - `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true },
   locked = { [stringId] = true } }`. `locked` marks roles the command set; a
   pocket ignores an unlocked saved role from before R1.
@@ -1693,7 +1747,8 @@ with inventory, fuel, progress, pause confirmation, anchor, pending step and
 diagnostic error. It uses saved worker state when present, otherwise facts
 state. Forgotten or removed workers have no row. `build.mapView()` returns
 `{dim,bounds?,turtles}`. Unknown poses omit turtles but retain bounds. The map
-gathers builder facts only in their dimension; drawing remains B2-U work.
+gathers builder facts only in their dimension and draws the marker, blueprint
+outline and held callout from them.
 Getters never expand geometry, save or change reservations.
 
 HEALTH gathers fixed `build:<cause>` NEEDS rows every five game seconds.
@@ -1847,6 +1902,10 @@ The map uses `build.mapView()` and `build.facts()` for the confirmed builder
 pose, blueprint bounds, placement progress and hold. `build.assigned` suppresses
 older registry poses for that turtle. Unknown poses have no marker. The outline
 remains, appears at ALL or a level it spans, and contributes to FIT bounds.
+It is cyan while running, red for a severity-1 safety hold and amber for other
+holds. The marker takes the hold colour. Held outlines read `build held`;
+running outlines show `build D/T` below scale 3. The builder callout shows
+placement progress instead of ore and adds the hold reason.
 
 ## Job options and ore finds
 

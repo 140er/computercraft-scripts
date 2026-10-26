@@ -671,16 +671,18 @@ Getting or Crafting keeps the order pending. Without acknowledgment, orders
 fail after two game minutes. Acknowledged orders wait ten game minutes from
 dispatch, then fail with "no delivery". Refusals show failed. The server never
 retries orders automatically.
-Keyboard panels show the best shop match, stock, last order and room reply.
-Pocket SHOP adds STACK and ALL. ALL orders stock up to one stack and is disabled
-at zero stock.
+Panel SHOP orders one stack or less of an exact item from the Storage Room.
+Keyboard panels show quick search, stock, last order and room reply; monitor
+panels show job blocks. Choose the shown item and a quantity, then order once.
+`Order: sent` means requested or accepted. `Order: delivered` means the room
+replied that it sent the items to its output chest. Panel SHOP has no
+delivery-chest selector or worker dispatch. Worker deliveries are off by
+default and use the builder or delivery API below. Pocket SHOP adds STACK and
+ALL; ALL orders available stock up to one stack and is disabled at zero stock.
 
 Stock older than 30 seconds shows `STALE STOCK`. After five minutes without
 stock, the server clears the list and discovers storage again. Rooms use the
 legacy unpaired protocol; isolate competing storage networks.
-Keyboard-equipped panels retain typed quick search. Monitor panels show a SHOP
-button that opens the touch shop. Clients report keyboard availability in hello.
-Older clients that omit it get the touch panel.
 The shop also fits the padded kit from #177, whose header occupies row 2. It
 measures the header and tile extent and adjusts paging to the available space.
 The storage protocol commands are `stock` and `order`; they are not shop text
@@ -738,8 +740,8 @@ exchange to finish; CANCEL is unavailable. Success saves only the proven server.
 
 Set `managedOutput=true` in the room turtle's `room.cfg` to enable managed
 outputs. It defaults off. A claim binds one server and the room's output and
-admits one tagged request. This does not enable managed requests in the server's
-legacy shop adapter. A settlement receipt, rather than an empty chest, proves
+admits one tagged request. The server uses these claims for worker deliveries
+and for shop or fuel orders sharing an enrolled output. A settlement receipt proves
 that queued work, crafts and carried cargo cannot emit for that request.
 
 Saved output state starts quarantined after reboot. On the room turtle, run
@@ -747,6 +749,48 @@ Saved output state starts quarantined after reboot. On the room turtle, run
 and save a settlement barrier. Full storage, unresolved cargo or failed saves
 keep quarantine. The network cannot run this command. Turning the flag off
 retains the interlock and recovery state and refuses new claims and orders.
+
+### Storage Room worker deliveries
+
+Set `storageDeliveries=true` in `so-server.cfg`, set `storageDeliveryOutput` to
+the enabled room-output drop-point id, and set `storageDeliveryWorkers` to an
+array of eligible paired worker ids. The room needs the managed receipt
+support above. A legacy room cannot serve deliveries. Builder material orders
+also need `builderMaterialOrders=true`. The builder uses its storage point as
+the destination and moves home to vacate that chest's access cell first.
+Configure a safe home away from the chest.
+
+One free worker carries at most one stack of an exact item. Orders use stock
+only and refuse tool items. Admission needs stock less than 30 game seconds
+old, enough stock, an idle empty worker with a confirmed pose and inventory,
+a known-clear route and fuel for the round trip plus 16 moves. Missing
+requirements prevent the material order. The worker checks GPS, facing and the
+chest before each transfer. An accepted order does not prove a deposit.
+Completion requires a worker-confirmed inventory decrease and return home.
+
+A claim refused before reservations or dispatch frees the worker and records
+`refused`. A lost claim receipt keeps the output quarantined. Partial pickups,
+changed points, full destinations and uncertain transfers hold cargo and
+reservations. After two game minutes from send, a delivery times out even if
+the room replied Getting. The output stays quarantined until room settlement
+and worker cargo and lease reconciliation. Disabling deliveries or clearing a
+fuel alert retains that quarantine.
+
+For recovery, run `output reconcile` locally on the room turtle. The delivery
+API's `build.deliveryRetry(id)` first requests stationary GPS and inventory.
+After room settlement, a later explicit retry can resume reconciled cargo.
+An empty timed-out worker checks the output again before release. Recovery
+never repeats the uncertain order. Any remaining demand needs a new explicit
+request. Builders retry normal chest checks after ten game seconds on refusal
+or another non-complete terminal result, without ordering again in that empty
+cycle. A manual chest refill can resume the builder.
+
+Restart holds reserved or dispatched work and refuses claims interrupted
+before work. Keep `so-data/shop-output` and `so-data/build/delivery` with the
+fuel policy, leases and durable game clock in backups. Corrupt or future state
+blocks managed deliveries. With deliveries off and no enrolled output, legacy
+shop requests create no `so-data/shop-*` files and keep working independently
+of delivery state. See the [delivery API](docs/server-only/PROTOCOL.md#worker-deliveries).
 
 ### Fuel auto-order
 
@@ -781,7 +825,10 @@ policy is on. It temporarily retains non-fuel pickups in tracked slots while
 searching for fuel, then returns them to the output before refueling. Job cargo
 stays in its original slots. These pickup records survive restart. A full
 inventory or failed return stays in attention and keeps its retry. Turning auto
-off leaves the normal manual fuel hold in place.
+off leaves the normal manual fuel hold in place. With `storageDeliveries=true`,
+the two-minute fuel timeout also runs while fuel auto is off. The ten-minute
+physical-chest cooldown remains. An enrolled output also requires room
+settlement and correlated cargo proof before reuse.
 
 ### Room input sinks
 
@@ -907,6 +954,19 @@ cells and routes beyond radio range. A blocked move stops the visit. Its route
 stays reserved until a fresh GPS fix and a worker acknowledgment permit RELEASE. After a server restart,
 `release <turtle-id>` on the drop editor releases the saved setup route using
 that fresh fix. Uncertain workers need their normal explicit reanchor first.
+
+With `worldEdits=true`, setup lists routes still reserved without a setup task
+under KEPT, including routes retained after restart. RELEASE takes two taps.
+The worker must be fenced and silent for at least five game minutes. WAIT GPS
+means the fenced fix is pending; HELD means it failed. The route stays reserved
+until the cells module confirms release. Use `+` in the bar to page the setup list.
+
+AREAS opens from setup when `protectedAreas` or `worldEdits` is enabled. Both
+default off. Select the dimension and two corners with the field and `-`/`+`
+controls. PROTECT saves a protected box with `protectedAreas=true`. KEEP saves
+a keep box, and CLEAR MARKS clears dug marks after a second tap; both require
+`worldEdits=true`. Saved boxes take two taps to remove. On narrow screens,
+BOXES opens the saved-box list with paging and BACK. Every tap rechecks its flag.
 
 The editor also accepts `scan <turtle-id>` and `test <point-id>`. Successful
 visits save `{at, block}` on the point. Missing inventories clear verification
@@ -1066,9 +1126,12 @@ refill may leave the fuel row active.
 
 Legacy generic holds keep their original diagnostic through recovery and
 restart. Review BUILD, then use START after readiness passes. A failed
-completion save remains a safety hold until a save succeeds. Unknown builder
-poses stay off the map data while blueprint bounds remain. Drawing builder
-markers remains a follow-up.
+completion save remains a safety hold until a save succeeds. The map draws the
+builder at its confirmed pose in its own dimension, with the blueprint outline.
+A held builder is red for a safety hold and amber for a supply or legacy hold.
+Its outline reads `build held`. Tap the builder for the hold reason and progress.
+Unknown poses hide the marker and keep the outline. The outline appears at ALL
+and the levels it spans, and FIT includes it.
 
 An idle worker stays paired after its completed lease report is acknowledged.
 Recovery then requires a full lease duration without authenticated server
