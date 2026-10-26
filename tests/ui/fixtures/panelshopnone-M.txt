@@ -1,0 +1,73 @@
+57x24 Panel SHOP 57x24, no chest picked
+ PANEL  -----------------------------------------------  
+                                                         
+ SHOP -------------------------------------------------  
+        all               low              empty         
+ to no chest                                      ◄   ►  
+ GOLD INGOT ······································· 4000 
+ IRON INGOT ······································· 1240 
+ IRON ORE ·········································· 312 
+ RAW IRON ··········································· 48 
+ IRON BLOCK ········································· 27 
+ IRON NUGGET ········································· 5 
+ IRON DOOR ··········································· 3 
+ IRON PICKAXE ········································ 1 
+ IRON BARS ··········································· 0 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                   BACK  
+00000000ccccccccccccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+088880ccccccccccccccccccccccccccccccccccccccccccccccccc00
+0fffffffffffffffff000000000000000000000000000000000000000
+088088888888000000000000000000000000000000000000000000000
+000000000000ccccccccccccccccccccccccccccccccccccccc000000
+000000000000ccccccccccccccccccccccccccccccccccccccc000000
+0000000000cccccccccccccccccccccccccccccccccccccccccc00000
+0000000000ccccccccccccccccccccccccccccccccccccccccccc0000
+000000000000ccccccccccccccccccccccccccccccccccccccccc0000
+0000000000000ccccccccccccccccccccccccccccccccccccccccc010
+00000000000ccccccccccccccccccccccccccccccccccccccccccc010
+00000000000000cccccccccccccccccccccccccccccccccccccccc010
+00000000000ccccccccccccccccccccccccccccccccccccccccccc080
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f99999999999999999f77777777777777777f77777777777777777fff
+fffffffffffffffffffffffffffffffffffffffffffffffff777f777f
+777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffff777777f

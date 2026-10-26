@@ -1136,4 +1136,37 @@ return function(test, equal)
     match("tests/ui/fixtures/shop-saved-lists-full-P.txt",session)
   end)
 
+  test("B5-U pocket SHOP with deliveries on: room orders stay shop.order and refusals show NOT SENT", function()
+    local suite = dofile("tests/ui/panel-delivery.lua")
+    local s = Scene.new({ panel = true, shop = true, facts = true })
+    local st = Scene.private(suite, "deliveries")(s)
+    s.panel.tick(0)
+    s.tap(POCKET, "tab:shop")
+    s.type(POCKET, "iron")
+    local function ids()
+      local out = {}
+      for _, b in ipairs(s.view(POCKET).buttons) do out[#out + 1] = b.id end
+      return table.concat(out, " ")
+    end
+    -- The room output first: the chips are the shop's own room orders, sent once per tap.
+    local sent = #s.sends
+    s.tap(POCKET, "order:16:minecraft:iron_ingot")
+    equal(#s.sends, sent + 1) equal(s.sends[#s.sends].body.n, 16)
+    equal(#st.requests, 0)
+    s.tap(POCKET, "chest-next")
+    s.tap(POCKET, "pick:minecraft:iron_pickaxe")
+    local chips = ids()
+    assert(not chips:find("order:", 1, true) and chips:find("deliver:1:workshop:", 1, true), chips)
+    assert(not chips:find("deliver:16:", 1, true), "one pickaxe per stack")
+    -- The engine refuses tools before ordering; the pocket keeps the reason.
+    st.nextErr = "tools or invalid item refused"
+    local id = chips:match("(deliver:1:workshop:%d+:minecraft:iron_pickaxe)")
+    s.tap(POCKET, id)
+    equal(#st.requests, 1) equal(st.requests[1].item, "minecraft:iron_pickaxe") equal(st.requests[1].n, 1)
+    equal(st.requests[1].destination.id, "workshop")
+    local text = table.concat(Scene.capture(s.view(POCKET), 26, 20).picture().text, "\n")
+    assert(text:find("NOT SENT 1 IRON PICKAXE", 1, true) and text:find("tools or invalid item", 1, true), text)
+    equal(#s.sends, sent + 1)
+  end)
+
 end

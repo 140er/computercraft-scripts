@@ -16,6 +16,7 @@ local HEALTH = helpers('tests/so/health.lua','health history ERROR diagnosticFac
 local CLEAR = helpers('tests/so/disk-guard.lua','clearFixture confirm')
 local SAVED = helpers('tests/so/shop.lua','savedShop')
 local PANEL = helpers('tests/ui/panel.lua','bare scene')
+local DELIVERY = helpers('tests/ui/panel-delivery.lua','deliveries apply')
 local A, cache = {}, {}
 
 local function statusServer()
@@ -93,7 +94,9 @@ A.render = function(id, state, w, h, options)
     if id=='status-fallback' and state=='below' and w*h>4000 then assert(#t.env.SO.proto.ser(frame)<16384,'compact frame must fit the wire limit') end
     if #frame.rows<h then frame.rows[h]={text='',fg='0',bg='f'} end
     return frame,function(e) t.D.handle('status',session,e,t.now) end,session
-  elseif id=='panel'  or id=='panel-alerts' or id=='panel-pair' or (id=='pocket-fleet' or id=='pocket-jobs' or id=='pocket-shop' or id=='pocket-alerts') or id=='pocket-pair' then
+  elseif id=='panel'  or id=='panel-alerts' or id=='panel-pair' or (id=='pocket-fleet' or id=='pocket-jobs' or id=='pocket-shop' or id=='pocket-alerts') or id=='pocket-pair' or id=='panel-shop' then
+    -- Deliveries on for the panel's SHOP page and the pocket's delivery states.
+    local deliver=id=='panel-shop' or id=='pocket-shop' and state~='scene'
     local t=once(function()
       local b=S.new({panel=true,shop=true,facts=true,alert=id=='panel-alerts' or id=='pocket-alerts'})
       b.env.SO.mods.health=id=='panel' and {count=function() return PANEL.scene().needs end} or nil
@@ -101,6 +104,7 @@ A.render = function(id, state, w, h, options)
         b.env.SO.mods.build={facts=function() return {state='held',done=37,total=120,turtleId=6,alert={text='out of fuel'}} end}
       end
       if state=='missing' then b.env.SO.mods.mine,b.env.SO.mods.lumber=nil,nil b.d.screen('mining').render=nil b.d.screen('lumber').render=nil end
+      if deliver then b.delivery=DELIVERY.deliveries(b) end
       b.panel.tick(0)
       return b
     end)
@@ -115,6 +119,8 @@ A.render = function(id, state, w, h, options)
       target.invitation={code=t.sys.code,expires=t.now+t.sys.left}
     end
     if id=='panel-alerts' and state=='empty' then S.private(t.d.screen('panel').render,'P').alerts={} end
+    if id=='panel-shop' then session.pocket=nil end
+    if deliver then DELIVERY.apply(t.delivery,state,id=='panel-shop' and session.panel or session.pocket) end
     local role=id:match('^pocket') and 'pocket' or 'panel'
     session.w,session.h=w,h
     local input=t.d.screen(role).input

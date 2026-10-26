@@ -1,0 +1,61 @@
+26x20 Pocket SHOP, a refused delivery
+ FLEET• JOBS  SHOP  PAIR  
+                          
+ > iron_               ×  
+   all     low    empty   
+ to workshop       ◄   ►  
+ IRON INGOT ········ 1240 
+    1      16      64     
+    STACK        ALL      
+                          
+ IRON ORE ··········· 312 
+ RAW IRON ············ 48 
+ IRON BLOCK ·········· 27 
+ IRON NUGGET ·········· 5 
+ IRON DOOR ············ 3 
+ IRON PICKAXE ········· 1 
+ IRON BARS ············ 0 
+                          
+                          
+ REFUSED 16 IRON INGOT    
+ room support missing     
+888888e8888880000008888880
+00000000000000000000000000
+08000009000000000000008880
+0fffffff000000000000000000
+08800000000000000000000000
+000000000000cccccccc000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0000000000ccccccccccc00000
+0000000000cccccccccccc0000
+000000000000cccccccccc0000
+0000000000000cccccccccc010
+00000000000cccccccccccc010
+00000000000000ccccccccc010
+00000000000cccccccccccc080
+00000000000000000000000000
+00000000000000000000000000
+0eeeeeeeeeeeeeeeeeeeee0000
+08888888888888888888800000
+fffffffffffff777777fffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f9999999f7777777f7777777ff
+ffffffffffffffffff777f777f
+77777777777777777777777777
+f7777777f7777777f7777777ff
+f77777777777f77777777777ff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

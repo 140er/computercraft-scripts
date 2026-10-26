@@ -756,4 +756,26 @@ return function(test,equal)
     equal(s.shop.fuelConfig().waiting.point,output)
   end)
 
+  test("B5-U deliveryView reads and saves nothing while deliveries are off",function()
+    local s=fixture()
+    s.m.files["so-server.cfg"]=H.encode({storageDeliveries=false,storageDeliveryOutput="output"})
+    s.failPath="so-data/shop-output" s.stock()
+    local view=s.shop.deliveryView()
+    equal(view.enabled,false) equal(view.output,"output") equal(view.outputs,{}) equal(view.fault,nil)
+    for path in pairs(s.m.files) do assert(not path:match("so%-data/shop%-output"),path) end
+  end)
+  test("B5-U deliveryView lists the held room output through flag disable and restart",function()
+    local s=fixture() s.claimFuel() s.shop.fuelEmpty(output)
+    local view=s.shop.deliveryView()
+    equal(view.enabled,true)
+    equal(view.outputs,{{kind="fuel",ownerId="fuel:0/0/1/0",state="ordering"}})
+    s.m.files["so-server.cfg"]=H.encode({storageDeliveries=false})
+    s.restart()
+    view=s.shop.deliveryView()
+    equal(view.enabled,false) equal(view.outputs[1].ownerId,"fuel:0/0/1/0") equal(view.outputs[1].state,"quarantined")
+    -- Unreadable output state is a fault, not an idle output.
+    s.m.files["so-data/shop-output.tmp"]="corrupt" s.restart()
+    equal(s.shop.deliveryView().fault,"output save failed")
+  end)
+
 end

@@ -172,12 +172,13 @@ def fleet(m):
 
 
 def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=None, show_fleet=True, found=True,
-         fuel=None, stock=None, sent=None, again=None, saved=None, build=None, page=0):
+         fuel=None, stock=None, sent=None, again=None, saved=None, build=None, page=0, shop=False):
     """Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule;
     the lowest row of blocks gives up its spare row, then its facts, when rows run out. fuel is the fuel
     auto row (PK.fuel_value) under the turtles; "N lost" (`lost`) opens the panel's own ALERTS. build is
     build.facts() with the hold text as alert, drawn as a BUILD block after LUMBER. Rows of blocks share
-    pages when even their compact forms do not fit; page picks one and the pager takes row h-1."""
+    pages when even their compact forms do not fit; page picks one and the pager takes row h-1. shop adds the SHOP chip of
+    storageDeliveries."""
     cv = Canvas(w, h, title)
     header(cv, w, h, m["time"], needs)
     f = PK.facts(m) if f is None else f
@@ -254,8 +255,45 @@ def main(m, w, h, title, keyboard=False, search="", needs=None, f=None, reasons=
         y += rh + 1
     if len(pages) > 1:
         pager(cv, h - 1, page, len(pages), "jobs-prev", "jobs-next")
-    nav(cv, h, [("ALERTS", "alerts", "plain"), ("PAIR", "pair", "plain")])
+    nav(cv, h, [("ALERTS", "alerts", "plain"), ("PAIR", "pair", "plain")] + ([("SHOP", "shop", "plain")] if shop else []))
     return cv
+
+
+# The delivery chest of the SHOP fixtures (a storage drop point) and its "to" row.
+CHEST = dict(id="workshop", dim=0, x=12, y=64, z=-3, side="front", kind="storage")
+CHEST_ROW = ("workshop 12 64 -3", "0", True, "workshop")
+# Delivery status rows: (head, label, colour, detail, RETRY id).
+DELIVERY = {
+    "ordered": ("ORDERED 16 ", "IRON INGOT", "1", "pickup", None),
+    "held": ("HELD 16 ", "IRON INGOT", "e", "delivery chest full or transfer failed", "delivery-1"),
+    "delivered": ("DELIVERED 16 ", "IRON INGOT", "d", "workshop", None),
+    "refused": ("REFUSED 16 ", "IRON INGOT", "e", "room support missing", None),
+    "busy": ("BUSY ordinary quarantined", "", "1", "order timed out", None),
+}
+
+
+# The size-coverage states of the panel's SHOP page and the pocket's delivery mode.
+SHOP_STATES = {
+    "scene": {}, "none": dict(to=("no chest", "8", True), chest=None),
+    "ordered": dict(live=False, status=DELIVERY["ordered"]), "held": dict(live=False, status=DELIVERY["held"]),
+    "busy": dict(live=False, status=DELIVERY["busy"]),
+}
+POCKET_STATES = {
+    "deliver": dict(to=CHEST_ROW, deliver=dict(chest="workshop", token="1", live=True), status=DELIVERY["delivered"]),
+    "refused": dict(to=CHEST_ROW, deliver=dict(chest="workshop", token="1", live=True), status=DELIVERY["refused"]),
+    "room": dict(to=("room output", "8", True)),
+}
+
+
+def shop_page(w, h, title="", to=CHEST_ROW, chest="workshop", live=True, status=None, keyboard=False, search="",
+              stock=None):
+    """The panel's SHOP page (storageDeliveries on): the pocket's SHOP list under the PANEL header,
+    deliveries only. chest is the chest a delivery may go to now (None: none picked, moved or removed);
+    live is False while the room output is busy."""
+    cv = Canvas(w, h, title)
+    header(cv, w, h)
+    return PK.shop({"flags": []}, w, h, search=search, stock=stock, to=to, cv=cv, keyboard=keyboard,
+                   deliver=dict(chest=chest, token="1", live=live), status=status)
 
 
 def alerts(texts, w, h, title, page=0):
@@ -545,4 +583,24 @@ FIXTURES = [
                                 settings={"dim": "minecraft:the_nether", "autoToolSwap": False}, block="pending")),
     ("workerbusy-S", lambda: worker(29, 12, "Panel WORKER #5 on a job", 5,
                                     settings={"dim": "minecraft:overworld", "autoToolSwap": True}, block="worker busy")),
+    ("panelshopnav-M", lambda: main(ST.model(), 57, 24, "Panel 57x24 with deliveries on: SHOP", needs=SC["needs"],
+                                    shop=True)),
+    ("panelshop-M", lambda: shop_page(57, 24, "Panel SHOP 57x24, a chest picked")),
+    ("panelshop-S", lambda: shop_page(29, 12, "Panel SHOP 29x12, a chest picked")),
+    ("panelshopnone-M", lambda: shop_page(57, 24, "Panel SHOP 57x24, no chest picked", to=("no chest", "8", True),
+                                          chest=None)),
+    ("panelshopordered-M", lambda: shop_page(57, 24, "Panel SHOP 57x24, ORDERED", live=False,
+                                             status=DELIVERY["ordered"])),
+    ("panelshopheld-M", lambda: shop_page(57, 24, "Panel SHOP 57x24, a held delivery", live=False,
+                                          status=DELIVERY["held"])),
+    ("panelshopbusy-L", lambda: shop_page(39, 19, "Panel SHOP 39x19, the room output busy", live=False,
+                                          status=DELIVERY["busy"])),
+    ("pocket-shopdeliver-P", lambda: PK.shop(ST.model(), title="Pocket SHOP, DELIVERED to a chest", to=CHEST_ROW,
+                                             deliver=dict(chest="workshop", token="1", live=True),
+                                             status=DELIVERY["delivered"])),
+    ("pocket-shoprefused-P", lambda: PK.shop(ST.model(), title="Pocket SHOP, a refused delivery", to=CHEST_ROW,
+                                             deliver=dict(chest="workshop", token="1", live=True),
+                                             status=DELIVERY["refused"])),
+    ("pocket-shoproom-P", lambda: PK.shop(ST.model(), title="Pocket SHOP with deliveries on, to the room output",
+                                          to=("room output", "8", True))),
 ]

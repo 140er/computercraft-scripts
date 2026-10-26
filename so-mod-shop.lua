@@ -500,6 +500,22 @@ S.deliveryOrder = function(jobId,item,n,point)
   return rid
 end
 S.deliveryOrderStatus = function(jobId) return S.outputStatus(jobId) end
+-- What panel and pocket SHOP draw for deliveries: the live flag, the room output point id and every
+-- output row that is not released. With the flag off and no saved output state it reads and saves nothing.
+S.deliveryView = function()
+  local cfg=SO.store and SO.store.read and SO.store.read("so-server.cfg")
+  cfg=type(cfg)=="table" and cfg or {}
+  local view={enabled=cfg.storageDeliveries==true,output=cfg.storageDeliveryOutput,outputs={}}
+  if not S.outputNeeded() then return view end
+  if not S.outputInit() then view.fault="output save failed" return view end
+  for _,row in pairs(S.output.outputs) do
+    if row.state~="released" then
+      view.outputs[#view.outputs+1]={kind=row.kind,ownerId=row.ownerId,state=row.state,error=row.error}
+    end
+  end
+  table.sort(view.outputs,function(a,b) return a.ownerId<b.ownerId end)
+  return view
+end
 S.outputReply = function(sender,message,pending)
   local row=S.output.outputs[pending.key]
   if not row or row.state=="released" or row.roomId~=sender or message.v~=1 or message.outputToken~=row.token
@@ -1914,6 +1930,7 @@ return {
   deliveryOrder = S.deliveryOrder,
   deliveryReady = S.deliveryReady,
   deliveryOrderStatus = S.deliveryOrderStatus,
+  deliveryView = S.deliveryView,
   matches = S.matches,
   best = S.best,
   lows = S.lows,
