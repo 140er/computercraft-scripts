@@ -486,7 +486,7 @@ end
 S.deliveryOrderStatus = function(jobId) return S.outputStatus(jobId) end
 S.outputReply = function(sender,message,pending)
   local row=S.output.outputs[pending.key]
-  if not row or row.roomId~=sender or message.v~=1 or message.outputToken~=row.token
+  if not row or row.state=="released" or row.roomId~=sender or message.v~=1 or message.outputToken~=row.token
     or not S.integer(message.barrier,0,2^53-2) then return end
   if pending.kind=="delivery" then
     -- An acceptance is not a settlement receipt.
@@ -533,6 +533,11 @@ S.outputTick = function(now)
     if row.kind=="ordinary" and not row.reconciled
       and (row.retired or not row.requestRid and now-(row.createdAt or 0)>=120000) then
       row.reconciled=true
+      if not S.outputSave() then return end
+    end
+    if row.state~="released" and row.reconciled and not row.requestRid and row.claimed~=true
+      and now-(row.createdAt or 0)>=15000 then
+      row.state="released"
       if not S.outputSave() then return end
     end
     if row.state~="released" and (not row.pollAt or now-row.pollAt>=10000) then
