@@ -352,28 +352,112 @@ def saved_editor(item="minecraft:iron_ingot", value=16, saved=None, w=26, h=20):
     return cv
 
 
+def to_row(cv, y, w, text, fg, arrows, short=None):
+    """P.toRow: the chosen delivery chest by name and place (short, its name alone, when the place does
+    not fit); ◄ and ► step through the chests."""
+    x = 2
+    if w >= 26:
+        cv.put(2, y, "to", "8")
+        x = 5
+    room = max(0, (w - 8 if arrows else w - 1) - x)
+    if short and len(text) > room:
+        text = short
+    cv.put(x, y, text[:room], fg)
+    if arrows:
+        chip(cv, w - 7, y, "◄", "chest-prev")
+        chip(cv, w - 3, y, "►", "chest-next")
+
+
+def deliver_chips(cv, y, w, item, qty, chest, token, live):
+    """P.deliverChips: the order chips for a delivery, each naming its count, chest, attempt token and item."""
+    stack, cw, half = item["stack"], (w - 4) // 3, (w - 3) // 2
+
+    def put(x, yy, label, amount, width, ok):
+        if live and ok:
+            chip(cv, x, yy, label, "deliver:%s:%s:%s:%s" % (amount, chest, token, item["name"]), "plain", width)
+        else:
+            dead(cv, x, yy, label, width)
+    if qty is None:
+        for i, n in enumerate((1, 16, 64)):
+            put(2 + i * (cw + 1), y, str(n), n, cw, n <= stack)
+    elif 1 <= qty <= stack:
+        put(2, y, "ORDER %d" % qty, qty, w - 2, True)
+    else:
+        dead(cv, 2, y, "MAX %d" % stack, w - 2)
+    put(2, y + 1, "STACK", "stack", half, True)
+    put(3 + half, y + 1, "ALL", "all", half, True)
+
+
+def cut_line(head, label, width):
+    """P.cutLine: head then label, the label cut to end in "..." when the line would pass width."""
+    room = width - len(head)
+    if len(label) > room:
+        label = label[:room - 3].rstrip() + "..." if room > 3 else ""
+    return (head + label)[:width]
+
+
+def shop_pager(cv, y, note, back, forward):
+    """P.shopPager: U.pager seven columns further left, beside the panel's BACK."""
+    chip(cv, cv.w - 14, y, "◄", "prev", "plain" if back else "muted")
+    chip(cv, cv.w - 10, y, "►", "next", "plain" if forward else "muted")
+    if cv.w - 15 - len(note) >= 2:
+        cv.put(cv.w - 15 - len(note), y, note, "8")
+
+
+def delivery_rows(cv, y, w, status, single=False):
+    """P.deliveryRows: status is (head, label, colour, detail, retry id); RETRY ends the first row. single
+    drops the detail row."""
+    head, label, fg, detail, retry = status
+    cv.put(2, y, cut_line(head, label, w - 10 if retry else w - 2), fg)
+    if retry:
+        x = w - 1 - len("RETRY") - 1
+        cv.put(x, y, "[", "8")
+        cv.put(x + 1, y, "RETRY", "0")
+        cv.put(x + 6, y, "]", "8")
+        cv.hit("deliver-retry:" + retry, x, y, 7, 1, "RETRY")
+    if detail and not single:
+        cv.put(2, y + 1, detail[:w - 2], "8")
+
+
 def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock=None, found=True, stale=False,
-         show="all", page=1, title="Pocket SHOP quick order", again=None, saved=None):
+         show="all", page=1, title="Pocket SHOP quick order", again=None, saved=None, to=None, deliver=None,
+         status=None, cv=None, keyboard=True):
     """sent is the last order's line and colour; reply is the shop's reply under it. show is the all, low
     or empty chip; page is the result page when the matches need a pager on row h-2. again is the last
-    order's (count, id), which a tap on its line sends again. A label two ids share gets its namespace."""
-    cv = Canvas(w, h, title)
-    tabs(cv, "shop", len(m["flags"]) > 0)
+    order's (count, id), which a tap on its line sends again. A label two ids share gets its namespace.
+    With deliveries on, to is the "to" row (text, colour, arrows) and deliver (chest id or None, token,
+    live) puts the page in delivery mode, with status (see delivery_rows) on the last rows. A cv given
+    by panel.py is the panel's SHOP page: no tabs, the rows above BACK on row h."""
+    panel = cv is not None
+    if cv is None:
+        cv = Canvas(w, h, title)
+        tabs(cv, "shop", len(m["flags"]) > 0)
     raw = SYS["search"] if search is None else search
     search, qty = split(raw)
-    width = w - 8
-    cv.put(2, 3, ">", "8")
-    cv.put(4, 3, raw[-width:], "0")
-    cv.put(4 + len(raw[-width:]), 3, "_", "9")
-    if raw:
-        chip(cv, w - 3, 3, "×", "clear", "off")
-    cw, y = (w - 4) // 3, 4
+    cw, y = (w - 4) // 3, 3
+    if panel:
+        section(cv, 2, 3, w - 2, "SHOP", "")
+        y = 4
+    if keyboard:
+        width = w - 8
+        cv.put(2, y, ">", "8")
+        cv.put(4, y, raw[-width:], "0")
+        cv.put(4 + len(raw[-width:]), y, "_", "9")
+        if raw:
+            chip(cv, w - 3, y, "×", "clear", "off")
+        y += 1
     for i, f in enumerate(("all", "low", "empty")):
         chip(cv, 2 + i * (cw + 1), y, f, "show:" + f, "on" if f == show else "plain", cw)
     y += 1
     if saved is not None:
         saved_nav(cv, saved, None, 2, y, w - 2)
         y += 1
+    if to is not None:
+        to_row(cv, y, w, *to)
+        y += 1
+    chips = deliver is None or deliver["chest"] is not None
+    last = h - 1 if panel else h
+    line = (h - 1 if h < 12 else h - 2) if panel else None
     if not found:
         flag(cv, 2, y, w - 2, "storage room not found")
     if found and stale:
@@ -394,19 +478,27 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         cv.put(2, y, "no stock" if not search and show == "all" else "none " + show if show != "all" else "no match", "8")
 
     def grow(item):
-        return (3 if item and item["count"] > 0 else 0) + (2 if saved is not None else 0)
+        return (3 if item and item["count"] > 0 and chips else 0) + (2 if saved is not None else 0)
 
     def pick(lst):
         return next((i for i in lst if i["name"] == selected), lst[0] if lst else None)
 
-    bottom, lst = h - 2, items
-    if len(items) + grow(pick(items)) > bottom - y + 1:
-        per = max(1, bottom - y - 3 - (2 if saved is not None else 0))
+    bottom, lst = (line - 1 if panel else last - 2), items
+    first = pick(items)
+    need = len(items) + grow(first) - (1 if panel and chips and first and first["count"] > 0 else 0)
+    if need > bottom - y + 1:
+        if panel:
+            per = max(1, bottom - y + 1 - (2 if chips else 0) - (2 if saved is not None else 0))
+        else:
+            per = max(1, bottom - y - (3 if chips else 0) - (2 if saved is not None else 0))
         pages = -(-len(items) // per)
         page = max(1, min(page, pages))
         lst = items[(page - 1) * per:page * per]
-        pager(cv, bottom, "%d/%d" % (page, pages), page > 1, page < pages)
-        bottom -= 1
+        if panel:
+            shop_pager(cv, h, "%d/%d" % (page, pages), page > 1, page < pages)
+        else:
+            pager(cv, bottom, "%d/%d" % (page, pages), page > 1, page < pages)
+            bottom -= 1
     shown = pick(lst)
     for item in lst:
         if y > bottom - (max(0, grow(item) - 1) if item is shown else 0):
@@ -420,7 +512,10 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
         if item is shown and saved is not None:
             saved_controls(cv, saved, item, 2, y, w - 2)
             y += 2
-        if item is shown and item["count"] > 0:
+        if item is shown and item["count"] > 0 and deliver is not None and deliver["chest"]:
+            deliver_chips(cv, y, w, item, qty, deliver["chest"], deliver["token"], deliver["live"])
+            y += 2 if panel else 3
+        elif item is shown and item["count"] > 0 and chips:
             half = (w - 3) // 2
             if qty is None:
                 for i, n in enumerate((1, 16, 64)):
@@ -432,6 +527,12 @@ def shop(m, w=26, h=20, search=None, sent=None, selected=None, reply=None, stock
             chip(cv, 2, y + 1, "STACK", "order:stack:" + item["name"], "plain", half)
             chip(cv, 3 + half, y + 1, "ALL", "order:all:" + item["name"], "plain", half)
             y += 3
+    if panel:
+        chip(cv, w - 6, h, "BACK", "panel-back")
+    if deliver is not None:
+        if status:
+            delivery_rows(cv, line if panel else last - 1, w, status, panel and h < 12)
+        return cv
     if sent:
         cv.put(2, h - 1, sent[0][:w - 2], sent[1])
     if reply:

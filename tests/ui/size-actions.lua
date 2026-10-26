@@ -264,7 +264,8 @@ M.tap=function(frame,input,session,context,router,bid,x,y,disabled)
       local pager=view
       local field='page'
       if session.buildPick then pager=session.buildPick
-      elseif session.pocket and session.pocket.page=='shop' then pager,field=session.pocket,'shopPage' end
+      elseif session.pocket and session.pocket.page=='shop' then pager,field=session.pocket,'shopPage'
+      elseif session.panel and session.panel.page=='shop' then pager,field=session.panel,'shopPage' end
       for _,b in ipairs(bindings) do
         if b[4]=='role' and NAV[b[3]] and session.visibility and session.visibility[b[3]] then
           pager=session.visibility[b[3]]

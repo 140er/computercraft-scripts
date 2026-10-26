@@ -97,6 +97,8 @@ register("status-fallback", "status", [49, 50, 51, 79, 80, 81, 99, 100, 101], [3
 register("pocket-worker", "panel", [19, 26, 40], [8, 10, 12], ("scene", "missing", "pending", "busy", "error"))
 register("pocket-fleet pocket-jobs pocket-shop pocket-pair pocket-alerts", "system", [19, 24, 26, 36], [12, 14, 17, 20])
 SCREENS["pocket-pair"]["states"] += ["code"]
+SCREENS["pocket-shop"]["states"] += ["deliver", "refused", "room"]
+register("panel-shop", "panel", [19, 26, 40], [10, 12, 20], ("scene", "none", "ordered", "held", "busy", "keyboard"))
 register("pocket-lists", "stock", [16, 24, 36, 52], [10, 16], ("scene", "list", "draft", "row"))
 register("pocket-minimum", "stock", [16, 24, 26], [10, 12], ("scene",))
 
@@ -229,7 +231,9 @@ def render(ident, state, w, h):
     if ident == "pocket-jobs":
         return PK.jobs(ST.model(), w, h)
     if ident == "pocket-shop":
-        return PK.shop(ST.model(), w, h)
+        return PK.shop(ST.model(), w, h, **PN.POCKET_STATES.get(state, {}))
+    if ident == "panel-shop":
+        return PN.shop_page(w, h, "", **PN.SHOP_STATES[state])
     if ident == "pocket-pair":
         return PK.pair(ST.model(), w, h, **(PN.code() if state == "code" else {}))
     if ident == "pocket-alerts":

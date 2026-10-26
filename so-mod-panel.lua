@@ -58,6 +58,17 @@ P.refresh = function()
     return tostring(a) < tostring(b)
   end)
   for i,id in ipairs(lostIds) do table.insert(P.alerts,i,{key="lost:"..id,text="#"..id.." lost"}) end
+  P.delivery = P.deliveryView()
+end
+
+-- shop.deliveryView() while storageDeliveries is on and build has the delivery engine, else nil.
+-- Without it no delivery control is drawn.
+P.deliveryView = function()
+  local shop,build = SO.mods.shop,SO.mods.build
+  if not shop or type(shop.deliveryView) ~= "function" or not build or type(build.deliveryRequest) ~= "function"
+    or type(build.deliveryStatus) ~= "function" then return nil end
+  local ok,view = pcall(shop.deliveryView)
+  if ok and type(view) == "table" and view.enabled and type(view.outputs) == "table" then return view end
 end
 
 -- Reads a job's state from the right side of its own frame's header; 120 columns fit a long hold reason.
@@ -480,7 +491,9 @@ P.main = function(c, session, w, h)
     y = y+rh+1
   end
   if #pages > 1 then P.pager(c,h-1,panel.jobPage,#pages,"jobs-prev","jobs-next") end
-  P.nav(c,h,{{"ALERTS","alerts","plain"},{"PAIR","pair","plain"}})
+  local nav = {{"ALERTS","alerts","plain"},{"PAIR","pair","plain"}}
+  if P.delivery and P.screens.shop then nav[3] = {"SHOP","shop","plain"} end
+  P.nav(c,h,nav)
 end
 
 P.alertsFrame = function(c, session, w, h)
@@ -661,13 +674,15 @@ P.render = function(w, h, session, dot)
   local c = U.canvas(w,h)
   local enroll = SO.enroll and SO.enroll.view(session.id)
   if session.panel.page == "enroll" and not (enroll and enroll.token) then session.panel.page = "pair" end
+  -- SHOP closes with its switch.
+  if session.panel.page == "shop" and not P.delivery then session.panel.page = "main" end
   -- WORKER closes with its switch, and with the pairing of its turtle.
   if session.panel.page == "worker" and not (P.flag("workerSettings") and session.panel.worker and SO.pair.key(session.panel.worker)) then
     session.panel.page = "paired"
   end
   local page = session.panel.page
   if page ~= "paired" then session.panel.confirm = nil end
-  if dot ~= nil then P.tabBar(c,"pair",dot) else P.header(c,w,h,page ~= "paired" and page ~= "enroll" and page ~= "pair" and page ~= "alerts" and page ~= "worker") end
+  if dot ~= nil then P.tabBar(c,"pair",dot) else P.header(c,w,h,page ~= "paired" and page ~= "enroll" and page ~= "pair" and page ~= "alerts" and page ~= "worker" and page ~= "shop") end
   session.panel.savedTargets = {}
   if SO.mods.shop and SO.mods.shop.saved and select(2,SO.mods.shop.saved("minimums")) == "off" then
     session.panel.minimumDraft,session.panel.savedResult,session.panel.savedPage,session.panel.listDraft = nil,nil,nil,nil
@@ -679,6 +694,7 @@ P.render = function(w, h, session, dot)
   elseif page == "enroll" then P.enrollFrame(c,w,h,session,enroll)
   elseif page == "pair" then P.panelPair(c,session,w,h)
   elseif page == "alerts" then P.alertsFrame(c,session,w,h)
+  elseif page == "shop" then P.shopPage(c,session.panel,session.keyboard,w,h,session,true)
   else P.main(c,session,w,h) end
   local frame = c.frame()
   P.savedRecord(session.panel,frame)
@@ -807,6 +823,9 @@ P.input = function(event)
   elseif id == "alert-next" then panel.alertPage=(panel.alertPage or 0)+1
   elseif id == "alert-prev" then panel.alertPage=(panel.alertPage or 0)-1
   elseif id == "jobs-next" or id == "jobs-prev" then panel.jobPage=(panel.jobPage or 0)+(id == "jobs-next" and 1 or -1)
+  elseif id == "shop" and panel.page == "main" then
+    if P.delivery and P.screens.shop then panel.page,panel.selected,panel.shopPage = "shop",nil,1 end
+  elseif panel.page == "shop" then P.shopInput(panel,id,event,true)
   elseif panel.page == "main" then
     P.refresh()
     local role,cmd = (id or ""):match("^(%a+):(%a+)$")
@@ -1029,21 +1048,230 @@ P.shopItems = function(shop, search, filter)
   return list
 end
 
+-- Delivery chests: enabled, unbroken storage drop points other than the room output, in drop order.
+P.chests = function(view)
+  local drops,out = SO.mods.drops,{}
+  for _,p in ipairs(drops and type(drops.list) == "function" and drops.list() or {}) do
+    if p.kind == "storage" and not p.broken and not p.disabled and p.id ~= view.output then out[#out+1] = p end
+  end
+  return out
+end
+P.point = function(p) return {id=p.id,dim=p.dim,x=p.x,y=p.y,z=p.z,side=p.side,kind=p.kind} end
+P.samePoint = function(a, b)
+  for _,k in ipairs({"id","dim","x","y","z","side","kind"}) do if a[k] ~= b[k] then return false end end
+  return true
+end
+-- The session's pinned chest and "ok", "moved" or "missing" (removed, broken or disabled).
+P.pinned = function(state, chests)
+  local pin = state.chest
+  if not pin then return nil end
+  for _,p in ipairs(chests) do if p.id == pin.id then return pin,P.samePoint(p,pin) and "ok" or "moved" end end
+  return pin,"missing"
+end
+
+-- The "to" row: the chosen chest by name and place, with ◄ and ► stepping through the chests (the pocket
+-- starts at the room output). The choice lives in the display session only. Returns the rows used and
+-- the chest a delivery may go to now.
+P.toRow = function(c, state, y, w, panel)
+  local chests = P.chests(P.delivery)
+  local pin,how = P.pinned(state,chests)
+  if not pin and #chests == 0 and not panel then return 0 end
+  local text,fg,short = panel and "no chest" or "room output","8",nil
+  if #chests == 0 and not pin then text = "no storage chest" end
+  if pin then
+    text,fg = pin.id..(how == "ok" and (" "..pin.x.." "..pin.y.." "..pin.z) or " "..how),how == "ok" and "0" or "e"
+    short = how == "ok" and pin.id or nil
+  end
+  local arrows,x = #chests > 0 or pin,2
+  -- "to" goes first from 26 columns; ◄ and ► take the last seven. A long place drops its coordinates.
+  if w >= 26 then c.put(2,y,"to","8");x = 5 end
+  local room = math.max(0,(arrows and w-8 or w-1)-x)
+  if short and #text > room then text = short end
+  c.put(x,y,text:sub(1,room),fg)
+  if arrows then
+    c.chip(w-7,y,U.g.left,"chest-prev")
+    c.chip(w-3,y,U.g.right,"chest-next")
+  end
+  return 1,how == "ok" and pin or nil
+end
+
+P.chestStep = function(state, dir, panel)
+  local options = panel and {} or {false}
+  for _,p in ipairs(P.chests(P.delivery)) do options[#options+1] = P.point(p) end
+  if #options == 0 then return end
+  local at
+  for i,p in ipairs(options) do
+    if p and state.chest and p.id == state.chest.id or not p and not state.chest then at = i end
+  end
+  local i = at and (at-1+dir) % #options+1 or (dir > 0 and 1 or #options)
+  state.chest,state.retryWhy = options[i] or nil,nil
+end
+
+-- One attempt token per drawn item and chest; a tap consumes it, so a repeated or late tap orders nothing.
+P.attempt = function(state, item, chest)
+  local key = item.."@"..chest.id
+  if state.attemptKey ~= key or not state.attempt then
+    state.attemptSeq = (state.attemptSeq or 0)+1
+    state.attemptKey,state.attempt = key,tostring(state.attemptSeq)
+  end
+  return state.attempt
+end
+
+-- The order chips for a delivery to chest: as the room order chips, each naming its count, chest, the
+-- attempt token and the item. Counts over one stack, a busy output and an untrusted display draw grey.
+P.deliverChips = function(c, state, y, w, item, qty, chest, live)
+  local shop = SO.mods.shop
+  local stack = tonumber(item.stack) or type(shop.stack) == "function" and shop.stack(item.name) or 64
+  local token,cw,half = P.attempt(state,item.name,chest),math.floor((w-4)/3),math.floor((w-3)/2)
+  local function put(x, yy, label, amount, width, ok)
+    if live and ok then c.chip(x,yy,label,"deliver:"..amount..":"..chest.id..":"..token..":"..item.name,"plain",width)
+    else P.dead(c,x,yy,label,width) end
+  end
+  if not qty then
+    for i,amount in ipairs({1,16,64}) do put(2+(i-1)*(cw+1),y,tostring(amount),amount,cw,amount <= stack) end
+  elseif qty >= 1 and qty <= stack then put(2,y,"ORDER "..qty,qty,w-2,true)
+  else P.dead(c,2,y,"MAX "..stack,w-2) end
+  put(2,y+1,"STACK","stack",half,true)
+  put(3+half,y+1,"ALL","all",half,true)
+end
+
+P.deliveryStatus = function(id)
+  local ok,st = pcall(SO.mods.build.deliveryStatus,id)
+  return ok and type(st) == "table" and st or nil
+end
+-- The room output's holder: the first unreleased output row, with its delivery status when it is one.
+P.busy = function()
+  local view = P.delivery
+  if view.fault then return {text="output",detail=view.fault} end
+  local row = view.outputs[1]
+  if row then return {row=row,st=row.kind == "delivery" and P.deliveryStatus(row.ownerId) or nil} end
+end
+P.itemLabel = function(name)
+  local shop = SO.mods.shop
+  for _,item in ipairs(name and type(shop.matches) == "function" and shop.matches(name,4096) or {}) do
+    if item.name == name then return P.tag(item,P.shared(shop)).label end
+  end
+  return tostring(name or ""):gsub("^minecraft:",""):gsub("_"," "):upper()
+end
+-- A delivery's word: REFUSED and PARTIAL are final, HELD waits for RETRY, DELIVERED needs the worker's
+-- confirmed deposit and everything before that is ORDERED.
+P.deliveryWord = function(st)
+  if st.stage == "refused" then return "REFUSED","e",st.error end
+  if st.stage == "held" and not st.terminal then return "HELD","e",st.error,true end
+  if st.stage == "complete" or st.n and st.deposited == st.n then
+    return "DELIVERED","d",type(st.destination) == "table" and st.destination.id or nil
+  end
+  if st.stage == "held" then return "PARTIAL","e",st.error end
+  return "ORDERED","1",st.stage
+end
+-- The status rows in delivery mode: the session's own request while it runs, else what holds the room
+-- output, else the own request's result (or why it was not sent). Returns the line, its colour, the
+-- detail and a RETRY id.
+P.deliveryLine = function(state, width)
+  local d = state.delivery
+  local own,busy = d and d.id and P.deliveryStatus(d.id),P.busy()
+  -- The own request's output row, still settling after a final result, is not another holder.
+  if busy and own and busy.row and busy.row.ownerId == d.id then busy = nil end
+  local st = own and not own.terminal and own or busy and busy.st and not busy.st.terminal and busy.st or nil
+  if not st and busy then
+    return ("BUSY "..(busy.row and busy.row.kind.." "..busy.row.state or busy.text)):sub(1,width),"1",
+      busy.detail or busy.row.error
+  end
+  if not st and d and not d.id then return P.cutLine("NOT SENT "..tostring(d.n or "").." ",d.label or "",width),"e",d.why end
+  st = st or own
+  if not st then return d and P.cutLine("ENDED "..tostring(d.n or "").." ",d.label or "",width),"8" end
+  local word,fg,detail,retry = P.deliveryWord(st)
+  local count = word == "PARTIAL" and (st.deposited or 0).."/"..tostring(st.n) or tostring(st.n or "")
+  return P.cutLine(word.." "..count.." ",P.itemLabel(st.item),width),fg,detail,retry and st.id
+end
+-- head then label, the label cut to end in "..." when the line would pass width.
+P.cutLine = function(head, label, width)
+  local room = width-#head
+  if #label > room then label = room > 3 and label:sub(1,room-3):gsub("%s+$","").."..." or "" end
+  return (head..label):sub(1,width)
+end
+
+-- The SHOP status rows at y and y+1 (y only when single) in delivery mode; RETRY ends the first row
+-- for a held delivery.
+P.deliveryRows = function(c, state, y, w, single)
+  local text,fg,detail,retry = P.deliveryLine(state,w-2)
+  if retry then text = P.deliveryLine(state,w-10) end
+  state.retryId = retry
+  if text then c.put(2,y,text,fg) end
+  if retry then P.act(c,y,"RETRY","deliver-retry:"..retry,"0") end
+  detail = state.retryWhy or detail
+  if detail and not single then c.put(2,y+1,tostring(detail):sub(1,w-2),state.retryWhy and "e" or "8") end
+end
+
+-- A delivery tap from a paired display's own frame: the token must be the drawn one, and the chest,
+-- item, stock and count are checked again before build.deliveryRequest. The token is spent either way.
+P.trustedTap = function(session, event, panel)
+  return session.id ~= nil and session.isDisplay and SO.pair.key(session.id) ~= nil and event.from == session.id
+    and (not panel or P.drawn(event))
+end
+P.deliverInput = function(state, id, event, panel)
+  local amount,chest,token,name = id:match("^deliver:(%w+):([%w_%-]+):(%d+):(.+)$")
+  if not token or token ~= state.attempt or not P.trustedTap(event.session,event,panel) then return end
+  state.attempt,state.retryWhy = nil,nil
+  local view,pin = P.deliveryView(),state.chest
+  if not view or not pin or pin.id ~= chest then return end
+  local function refuse(why, n, label) state.delivery = {why=why,n=n or amount,label=label or P.itemLabel(name)} end
+  local _,how = P.pinned(state,P.chests(view))
+  if how ~= "ok" then return refuse("chest "..how) end
+  local shop,item = SO.mods.shop,nil
+  for _,match in ipairs(shop.matches(name,4096)) do if match.name == name then item = match end end
+  if not item then return refuse("not in stock") end
+  local stack = tonumber(item.stack) or type(shop.stack) == "function" and shop.stack(name) or 64
+  local n = tonumber(amount) or amount == "stack" and stack or amount == "all" and math.min(tonumber(item.count) or 0,stack)
+  local label = P.tag(item,P.shared(shop)).label
+  if not n or n < 1 or n > stack or n % 1 ~= 0 then return refuse("bad count",n,label) end
+  local ok,rid,err = pcall(SO.mods.build.deliveryRequest,{item=name,n=n,destination=P.point(pin),
+    requester="display:"..tostring(event.session.id)})
+  if not ok then rid,err = nil,"delivery failed" end
+  state.delivery = {id=rid,why=not rid and tostring(err or "refused") or nil,n=n,label=label}
+end
+P.retryInput = function(state, id, event, panel)
+  local target = id:match("^deliver%-retry:(.+)$")
+  local build = SO.mods.build
+  if not target or target ~= state.retryId or not P.deliveryView() or type(build.deliveryRetry) ~= "function"
+    or not P.trustedTap(event.session,event,panel) then return end
+  local ok,done,err = pcall(build.deliveryRetry,target)
+  if not ok then done,err = false,"retry failed" end
+  -- A retried delivery becomes this session's own, so its result stays on this display.
+  local st = P.deliveryStatus(target)
+  state.delivery = {id=target,n=st and st.n,label=st and P.itemLabel(st.item)}
+  state.retryWhy = not done and tostring(err or "retry refused") or nil
+end
+
+-- U.pager's note and chips seven columns further left, beside the panel's BACK; the note goes when
+-- it would pass column 2.
+P.shopPager = function(c, y, note, back, forward)
+  c.chip(c.w-14,y,U.g.left,"prev",back and "plain" or "muted")
+  c.chip(c.w-10,y,U.g.right,"next",forward and "plain" or "muted")
+  if c.w-15-#note >= 2 then c.put(c.w-15-#note,y,note,"8") end
+end
+
 -- Search, the all/low/empty chips, then one page of matches with the shown item's order chips under it
 -- (1, 16 and 64, or the typed quantity, then STACK and ALL; none for an empty item), a pager on row h-2
--- when they do not fit, the last order on row h-1 and the shop's reply on row h.
-P.shopPage = function(c, state, keyboard, w, h)
+-- when they do not fit, the last order on row h-1 and the shop's reply on row h. With deliveries on a
+-- "to" row picks the chest; with a chest the chips deliver there and the last rows show the delivery.
+-- panel is the panel's SHOP page: deliveries only, the status rows above BACK and the pager left of
+-- BACK on row h. Below 12 rows its status is one line, so an item and its chips fit beside them.
+P.shopPage = function(c, state, keyboard, w, h, session, panel)
   local shop = SO.mods.shop
   if not P.screens.shop or not shop or type(shop.matches) ~= "function" or type(shop.order) ~= "function" then
-    c.put(2,3,"shop not loaded","8");return
+    c.put(2,3,"shop not loaded","8")
+    if panel then P.back(c,h,"panel-back") end
+    return
   end
   local raw,y = state.search or "",3
   local search,qty = P.split(raw)
+  if panel then c.section(2,3,w-2,"SHOP","");y = 4 end
   if keyboard then
     local typed = raw:sub(-(w-8))
-    c.put(2,3,">","8");c.put(4,3,typed,"0");c.put(4+#typed,3,"_","9")
-    if raw ~= "" then c.chip(w-3,3,U.g.cross,"clear","off") end
-    y = 4
+    c.put(2,y,">","8");c.put(4,y,typed,"0");c.put(4+#typed,y,"_","9")
+    if raw ~= "" then c.chip(w-3,y,U.g.cross,"clear","off") end
+    y = y+1
   end
   local filter,cw = state.filter or "all",math.floor((w-4)/3)
   for i,f in ipairs({"all","low","empty"}) do
@@ -1056,7 +1284,15 @@ P.shopPage = function(c, state, keyboard, w, h)
     shop.savedNav(c,state,nil,2,y,w-2)
     y = y+1
   end
-  local room = P.room(shop)
+  local chest,deliver
+  if P.delivery then
+    local rows
+    rows,chest = P.toRow(c,state,y,w,panel)
+    y,deliver = y+rows,panel or state.chest ~= nil
+  end
+  local room,last = P.room(shop),panel and h-1 or h
+  -- The panel's status line; its detail row follows from 12 rows.
+  local line = panel and (h < 12 and h-1 or h-2)
   if not room.found then c.flag(2,y,w-2,"storage room not found") end
   if room.stale and room.found then c.put(2,y,"stock stale","1");y = y+1 end
   local items = room.found and P.shopItems(shop,search,filter) or {}
@@ -1066,17 +1302,27 @@ P.shopPage = function(c, state, keyboard, w, h)
     c.put(2,y,search == "" and filter == "all" and "no stock" or filter ~= "all" and "none "..filter or "no match","8")
   end
   local saved = type(shop.saved) == "function" and select(2,shop.saved("minimums")) ~= "off"
-  local grow = function(item) return ((tonumber(item.count) or 0) > 0 and 3 or 0)+(saved and 2 or 0) end
-  local bottom,list = h-2,items
-  if #items+grow(P.shown(state,items) or {count=0}) > bottom-y+1 then
-    -- Pages hold the rows above the pager less the shown item's chip rows.
-    local per = math.max(1,bottom-y-3-(saved and 2 or 0))
+  -- Delivery chips need a chest that is still where it was picked.
+  local chips = not deliver or chest ~= nil
+  local live = chest and P.trusted(session) and not P.busy()
+  local grow = function(item) return ((tonumber(item.count) or 0) > 0 and chips and 3 or 0)+(saved and 2 or 0) end
+  local bottom,list = panel and line-1 or last-2,items
+  local first = P.shown(state,items) or {count=0}
+  -- grow counts the shown row too; the panel's own count drops it.
+  local need = #items+grow(first)-(panel and chips and (tonumber(first.count) or 0) > 0 and 1 or 0)
+  if need > bottom-y+1 then
+    -- Pages hold the rows above the pager less the shown item's chip rows; the panel's pager is on row h.
+    local per = panel and math.max(1,bottom-y+1-(chips and 2 or 0)-(saved and 2 or 0))
+      or math.max(1,bottom-y-(chips and 3 or 0)-(saved and 2 or 0))
     local pages = math.ceil(#items/per)
     state.shopPage = math.max(1,math.min(state.shopPage or 1,pages))
     list = {}
     for i = (state.shopPage-1)*per+1,math.min(#items,state.shopPage*per) do list[#list+1] = items[i] end
-    U.pager(c,bottom,state.shopPage.."/"..pages,state.shopPage > 1,state.shopPage < pages)
-    bottom = bottom-1
+    if panel then P.shopPager(c,h,state.shopPage.."/"..pages,state.shopPage > 1,state.shopPage < pages)
+    else
+      U.pager(c,bottom,state.shopPage.."/"..pages,state.shopPage > 1,state.shopPage < pages)
+      bottom = bottom-1
+    end
   else state.shopPage = 1 end
   local shown = P.shown(state,list)
   for _,item in ipairs(list) do
@@ -1090,7 +1336,11 @@ P.shopPage = function(c, state, keyboard, w, h)
       P.savedControls(c,state,shop,item,2,y,w-2)
       y = y+2
     end
-    if item == shown and n > 0 then
+    if item == shown and n > 0 and chest then
+      P.deliverChips(c,state,y,w,item,qty,chest,live)
+      -- The panel's pages count no spare row under the chips.
+      y = y+(panel and 2 or 3)
+    elseif item == shown and n > 0 and chips then
       local half = math.floor((w-3)/2)
       if not qty then
         for i,amount in ipairs({1,16,64}) do
@@ -1106,13 +1356,15 @@ P.shopPage = function(c, state, keyboard, w, h)
       y = y+3
     end
   end
-  if state.savedResult then c.put(2,h,state.savedResult:sub(1,w-2),"e") end
-  if state.sent and not state.savedResult then
+  if panel then P.back(c,h,"panel-back") end
+  if state.savedResult then c.put(2,line or last,state.savedResult:sub(1,w-2),"e")
+  elseif deliver then P.deliveryRows(c,state,line or last-1,w,panel and h < 12)
+  elseif state.sent then
     local text,fg,detail = P.orderLine(state.sent,w-2)
-    c.put(2,h-1,text:sub(1,w-2),fg)
-    if detail then c.put(2,h,detail:sub(1,w-2),"8") end
+    c.put(2,last-1,text:sub(1,w-2),fg)
+    if detail then c.put(2,last,detail:sub(1,w-2),"8") end
     -- The last order sends again with the same count, through shop.order and its one-stack cap.
-    if room.found and state.sent.name then c.hit("order:"..state.sent.n..":"..state.sent.name,2,h-1,w-2,1) end
+    if room.found and state.sent.name then c.hit("order:"..state.sent.n..":"..state.sent.name,2,last-1,w-2,1) end
   end
 end
 
@@ -1198,7 +1450,7 @@ P.pocket = function(w, h, session)
     end
     local fuel,fg = P.fuel(P.screens.shop and SO.mods.shop,w-13)
     if fuel then P.fuelRow(c,h,w-2,fuel,fg) end
-  elseif page == "shop" then P.shopPage(c,state,session.keyboard,w,h)
+  elseif page == "shop" then P.shopPage(c,state,session.keyboard,w,h,session)
   elseif page == "pair" then P.pairPage(c,session,state,w,h) end
   local frame = c.frame()
   P.savedRecord(state,frame)
@@ -1245,27 +1497,37 @@ P.pocketInput = function(event)
       target.input({id=cmd,role=role})
       P.refresh()
     end
-  elseif state.page == "shop" then
-    local shop, name = SO.mods.shop, (id or ""):match("^pick:(.+)$")
-    local amount, item = (id or ""):match("^order:(%w+):(.+)$")
-    local filter = (id or ""):match("^show:(%a+)$")
-    amount = amount and (amount:match("^%d+$") and tonumber(amount) or amount)
-    if name then state.selected,state.sent = name,nil
-    elseif id == "clear" then state.search,state.selected,state.sent,state.shopPage = "",nil,nil,1
-    elseif filter == "all" or filter == "low" or filter == "empty" then
-      state.filter,state.selected,state.shopPage = filter,nil,1
-    elseif id == "prev" or id == "next" then
-      state.shopPage,state.selected = math.max(1,(state.shopPage or 1)+(id == "next" and 1 or -1)),nil
-    elseif (type(amount) == "number" or amount == "stack" or amount == "all")
-        and P.screens.shop and shop and type(shop.order) == "function" and type(shop.matches) == "function" then
-      -- The chip names its item; it must still match the search. shop.order refuses a count over one stack.
-      local search = P.split(state.search)
-      if search == "" and type(shop.firstPin) == "function" and shop.firstPin() == item then search = item end
-      for _,match in ipairs(shop.matches(search,4096)) do
-        if match.name == item then
-          state.sent = P.order(shop,item,amount,P.tag(match,P.shared(shop)).label)
-          break
-        end
+  elseif state.page == "shop" then P.shopInput(state,id,event,false) end
+end
+
+-- SHOP taps on the pocket tab and the panel's SHOP page (panel true: deliveries only).
+P.shopInput = function(state, id, event, panel)
+  id = id or ""
+  local shop, name = SO.mods.shop, id:match("^pick:(.+)$")
+  local amount, item = id:match("^order:(%w+):(.+)$")
+  local filter = id:match("^show:(%a+)$")
+  amount = amount and (amount:match("^%d+$") and tonumber(amount) or amount)
+  if name then state.selected,state.sent = name,nil
+  elseif id == "clear" then state.search,state.selected,state.sent,state.shopPage = "",nil,nil,1
+  elseif filter == "all" or filter == "low" or filter == "empty" then
+    state.filter,state.selected,state.shopPage = filter,nil,1
+  elseif id == "prev" or id == "next" then
+    state.shopPage,state.selected = math.max(1,(state.shopPage or 1)+(id == "next" and 1 or -1)),nil
+  elseif id == "chest-prev" or id == "chest-next" then
+    if P.delivery then P.chestStep(state,id == "chest-next" and 1 or -1,panel) end
+  elseif id:match("^deliver") then
+    if id:match("^deliver%-retry:") then P.retryInput(state,id,event,panel) else P.deliverInput(state,id,event,panel) end
+    -- The redraw after this tap already shows the output the request now holds.
+    P.delivery = P.deliveryView()
+  elseif not panel and (type(amount) == "number" or amount == "stack" or amount == "all")
+      and P.screens.shop and shop and type(shop.order) == "function" and type(shop.matches) == "function" then
+    -- The chip names its item; it must still match the search. shop.order refuses a count over one stack.
+    local search = P.split(state.search)
+    if search == "" and type(shop.firstPin) == "function" and shop.firstPin() == item then search = item end
+    for _,match in ipairs(shop.matches(search,4096)) do
+      if match.name == item then
+        state.sent = P.order(shop,item,amount,P.tag(match,P.shared(shop)).label)
+        break
       end
     end
   end
