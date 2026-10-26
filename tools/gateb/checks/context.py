@@ -66,6 +66,10 @@ def sanitize(value):
     return value
 
 
+class _FrameUnavailable(Blocked):
+    pass
+
+
 class Context:
     def __init__(self, runtime, run, manifest, output, commit, tick_rate=20, interval=.5):
         self.runtime, self.run, self.manifest = runtime, run, manifest
@@ -192,14 +196,21 @@ class Context:
 
     def wait(self, predicate, seconds=30):
         start = time.monotonic()
+        frame_error = None
         while True:
             try:
                 result = predicate()
+                frame_error = None
+            except _FrameUnavailable as error:
+                frame_error = error
+                result = None
             except (RuntimeError, FileNotFoundError):
                 result = None
             if result:
                 return result
             if time.monotonic() - start >= seconds:
+                if frame_error is not None:
+                    raise frame_error
                 return None
             time.sleep(self.interval)
 
@@ -327,11 +338,14 @@ class Context:
     def frame(self, name):
         frame = self.request("frame", computer=self.computer(name))
         if not isinstance(frame, dict) or not frame.get("buttons"):
-            raise Blocked("Runtime must expose the latest received view.frame as GATEB_FRAME")
+            raise _FrameUnavailable("Runtime must expose the latest received view.frame as GATEB_FRAME")
         return frame
 
     def click(self, name, button_id):
-        frame = self.frame(name)
+        try:
+            frame = self.frame(name)
+        except _FrameUnavailable:
+            frame = self.wait(lambda: self.frame(name), 3)
         buttons = [b for b in values(frame.get("buttons")) if b.get("id") == button_id]
         if not buttons:
             raise Blocked(f"Visible {button_id} button absent on {name} {frame.get('role', '')}")
