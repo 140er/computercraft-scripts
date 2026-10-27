@@ -217,7 +217,7 @@ return function(test, equal)
       for _, text in pairs(machine.files) do total = total + #text end
       return total
     end
-    local cap = 200000
+    local cap = math.max(200000, math.ceil(used() * 2 / 1000) * 1000)
     machine.capacity = cap
     local want = math.floor(cap * 0.8) - 1
     local pad = want - used()

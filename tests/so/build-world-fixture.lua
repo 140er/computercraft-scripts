@@ -13,7 +13,7 @@ return function(w,h,options)
     "so-ui.lua","so-mine-plan.lua","so-mod-state.lua","so-mod-cells.lua","so-mod-lease.lua",
     "so-mod-display.lua","so-mod-drops.lua","so-mod-build.lua"})
   crypto(server)
-  local config={pos={dim="minecraft:overworld",x=0,y=4,z=0}}
+  local config={builderFuelTrips=false,builderSolid=false,alternateAxisOrders=false,protectedAreas=false,storageDeliveries=false,jobPoseSetup=false,pos={dim="minecraft:overworld",x=0,y=4,z=0}}
   for name,value in pairs(options or {}) do config[name]=value end
   server.files["so-server.cfg"]=H.encode(config)
   server.boot("so-server.lua") net.flush()

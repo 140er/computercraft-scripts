@@ -44,6 +44,7 @@ local function server()
   env.os={clock=function() return s.now/1000 end,epoch=function() return s.now end,getComputerID=function() return 1 end,
     startTimer=function() return 99 end,pullEvent=function() return coroutine.yield() end}
   env.dofile=function(path)
+    if path=="so-flags.lua" then return dofile("so-flags.lua") end
     if path=="so-pair.lua" then return pair end
     if path=="so-proto.lua" then return {decode=function() end,since=function() end,prune=function() end} end
     if path=="so-store.lua" then return {copy=dofile("so-store.lua").copy,clock=function() return function() return s.now end end} end

@@ -2,7 +2,7 @@ local F=dofile("tests/so/protected.lua")
 local dim="minecraft:overworld"
 local frame={dim=dim,ox=0,oy=0,oz=0,rot=0}
 local function setup()
-  local s=F.setup({pos={dim=dim,x=0,y=0,z=0}})
+  local s=F.setup({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,pos={dim=dim,x=0,y=0,z=0}})
   s.manualOutcome=true
   return s
 end

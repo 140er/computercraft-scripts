@@ -35,7 +35,7 @@ local function fixture(name, enabled)
   local mods={}
   env.SO={now=function() return f.now end,breathe=function() end,mods=mods,pair={key=function() return "paired" end},
     proto={build=function(_,t,b) return {t=t,body=b} end,encode=function(v) return v end},
-    store={copy=copy,read=function(path) if path=="so-server.cfg" then return {workerPark=f.enabled~=false} end end,
+    store={copy=copy,read=function(path) if path=="so-server.cfg" then return {workerPark=f.enabled~=false,protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,builderFuelTrips=false} end end,
       store=function(path)
         local value=copy(f.jobs[path])
         if path==jobPath then job=value end
@@ -234,7 +234,7 @@ local function moduleTests(test,equal)
       equal(f.mods.cells.owner(at.x,at.y,at.z,at.dim),name..":2")
       f.report() moving(f) assert(f.row()) assert(f.job.running)
     end)
-    test(name.." worker park commands default off",function()
+    test(name.." worker park commands respect explicit false",function()
       local f=fixture(name,false) moving(f) f.input("resume 2") assert(not f.row().paused)
       if name~="lumber" then f.input("park 2") assert(not f.row().paused) end
     end)

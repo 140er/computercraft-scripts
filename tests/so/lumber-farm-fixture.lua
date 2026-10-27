@@ -20,6 +20,7 @@ local function setup(saplings, fuel, side, count, starts, tools)
     "so-lumber-plan.lua", "so-mod-lease.lua", "so-mod-cells.lua", "so-mod-drops.lua",
     "so-mod-display.lua", "so-mod-lumber.lua", "so-mod-state.lua" })
   libs(s)
+  s.files["so-server.cfg"]=H.encode({workerPark=false,protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false})
   local keys = {}
   for id = 2, count + 1 do keys[tostring(id)] = KEY end
   s.files["so-keys"] = H.encode({schema=1,generation=1,value={keys=keys}})

@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local U = dofile("so-ui.lua")
 local H = { now=0, items={}, metrics={}, jobs={}, kinds={},
   sound={ready=false,quiet=false,keys={},due={}}, errorViews=setmetatable({},{__mode="k"}), clearAttempt=0 }
@@ -229,11 +230,10 @@ H.gather = function(now)
     table.sort(modules)
     local summary = #modules > 0 and (loaded.." loaded") or "unavailable"
     local flags = {}
-    for _, name in ipairs({"enroll","retireLegacyPair","remoteDimensions","setupMovement","dropsSavedSetup",
-      "arFollowups","panelUpdates","workerSettings","workerPark","alarm","pocketTone"}) do
-      if cfg[name] == true then flags[#flags+1] = name end
+    for name in pairs(F.defaults) do
+      if F.enabled(cfg, name) then flags[#flags+1] = name end
     end
-    if type(cfg.state) == "table" and cfg.state.coalesceHeartbeats == true then flags[#flags+1]="state.coalesceHeartbeats" end
+    table.sort(flags)
     local prefix = {
       {"modules",summary}, {"skip",failed.." fail"..dot..absent.." absent"}, {"rev",runtime.revision and runtime.revision:sub(1,8) or "unknown"},
       {"cfg",runtime.configError and "unreadable" or #flags==0 and "defaults" or #flags==1 and flags[1] or (#flags.." flags")},
@@ -705,7 +705,7 @@ end
 local function quietSound()
   local runtime = SO.health or {}
   local cfg = runtime.config or {}
-  local hours = cfg.soundQuiet
+  local hours = F.get(cfg, "soundQuiet")
   local valid = hours == nil or hours == false
   local function minute(v) return type(v)=="number" and v>=0 and v<=1439 and v%1==0 end
   if type(hours)=="table" then valid=minute(hours.startMinute) and minute(hours.endMinute) end
@@ -754,7 +754,7 @@ H.tick = function(now)
   H.now = now
   for session, v in pairs(H.errorViews) do clearConfirmation(session,v,now) end
   local clock, refused = os.clock(), SO.clock and SO.clock.refused
-  local enabled = SO.health and SO.health.config and SO.health.config.alarm == true or false
+  local enabled = F.enabled(SO.health and SO.health.config, "alarm")
   local baseline = not H.sound.ready or enabled~=H.sound.enabled
   local quiet = quietSound()
   if baseline or not H.last or clock-H.last>=5 or refused~=H.refused then

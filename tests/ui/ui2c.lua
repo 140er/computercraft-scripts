@@ -7,13 +7,13 @@ local WIDE = 52
 local function setup(kit)
   local s = { now = NOW, sends = {} }
   local env = setmetatable({
-    fs = { exists = function() return kit ~= false end },
+    fs = { exists = function(path) return path=="so-ui.lua" and kit ~= false end },
     os = { epoch = function() return s.now end },
     rednet = {
       send = function(id, body, protocol) s.sends[#s.sends + 1] = { id = id, body = body, protocol = protocol } end,
       broadcast = function() end,
     },
-    SO = { now = function() return s.now end, mods = { display = { screen = function(_, render, input)
+    SO = { store={read=function() return {shopSaved=false,storageDeliveries=false} end}, now = function() return s.now end, mods = { display = { screen = function(_, render, input)
       s.render, s.input = render, input end } } },
   }, { __index = _G })
   s.mod, s.env = assert(loadfile("so-mod-shop.lua", "t", env))(), env

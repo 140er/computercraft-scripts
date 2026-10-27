@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local S = {
   reservations = {}, pendingReleases = {}, handoffs = {}, sections = {}, sizes = {}, cached = 0, dug = 0,
   bootAt = SO.now(), edits = {}, releases = {}, clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
@@ -552,7 +553,7 @@ S.emit = function()
 end
 
 S.releaseReady = function(who)
-  if (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then return nil, "world edits disabled" end
+  if not F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "worldEdits") then return nil, "world edits disabled" end
   local id = type(who) == "string" and tonumber(who:match("^[%a]+:(%d+)$"))
   if not id or #S.list(who, 1) == 0 then return nil, "unknown holder" end
   if S.pendingReleases[who] then return nil, "owner release unresolved" end
@@ -586,7 +587,7 @@ S.releaseRequest = function(who, actor, token)
   if not held then attempt.status="held" return nil, holdErr end
   S.releaseHolds = holds
   local lid, reason = SO.mods.lease.releaseFence(ready.id, ready.contact, function(pose)
-    if not pose or S.reservations ~= offer.reservations or (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then
+    if not pose or S.reservations ~= offer.reservations or not F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "worldEdits") then
       attempt.status="held" return false
     end
     local key = S.cell(pose.x,pose.y,pose.z,pose.dim)
@@ -655,7 +656,7 @@ end
 
 S.keep = function(boxes)
   if boxes == nil then return SO.store.copy(S.policy.keepBoxes or {}) end
-  if (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then return false, "world edits disabled" end
+  if not F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "worldEdits") then return false, "world edits disabled" end
   boxes = S.normalBoxes(boxes)
   if not boxes then return false, "invalid keep boxes" end
   local policy = SO.store.copy(S.policy)
@@ -664,7 +665,7 @@ S.keep = function(boxes)
 end
 
 S.clearMarks = function(box, actor, token)
-  if (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then return nil, "world edits disabled" end
+  if not F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "worldEdits") then return nil, "world edits disabled" end
   if not S.whoValid(actor) or type(box) ~= "table" then return nil, "selection" end
   box = SO.store.copy(box) box.id = "selection"
   local boxes = S.normalBoxes({box})
@@ -714,7 +715,7 @@ S.clearMarks = function(box, actor, token)
         local reservations = S.reservations
         local current = S.protection(true)
         if not current or current(path) or S.reservations ~= reservations or S.stamps[path] ~= stamp
-          or (SO.store.read("so-server.cfg") or {}).worldEdits ~= true then
+          or not F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "worldEdits") then
           result.error="selection became protected or changed" break
         end
         local ok
@@ -1006,7 +1007,7 @@ S.releaseHolds = S.releaseBox.value or {}
 for key, who in pairs(S.releaseHolds) do
   if S.reservations[key] == nil then S.reservations[key] = who end
 end
-S.protectionEnabled = SO.store.read and (SO.store.read("so-server.cfg") or {}).protectedAreas == true
+S.protectionEnabled = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "protectedAreas")
 local protectionOK, protectionBox = pcall(SO.store.store, S.root .. "protected", S.protectedValid, 32768)
 S.protectedBox = protectionOK and protectionBox or nil
 if not protectionOK then S.protectionError = "protected data unreadable" end

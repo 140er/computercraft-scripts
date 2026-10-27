@@ -149,7 +149,7 @@ local function build(options)
   local t = { saved = saved, open = 'lease-8' }
   local env = setmetatable({}, { __index = _G })
   env.SO = { now = function() return 0 end, breathe = function() end, mods = {},
-    store = { copy = copy, store = function() return { value = copy(saved), save = function(j) t.saved = copy(j) return true end } end } }
+    store = {read=function() return {jobPoseSetup=false,builderSolid=false,builderFuelTrips=false,workerPark=false,storageDeliveries=false} end, copy = copy, store = function() return { value = copy(saved), save = function(j) t.saved = copy(j) return true end } end } }
   env.SO.mods.state = { emit = function() return true end }
   env.SO.mods.display = { screen = function(_, render, input) t.render, t.input = render, input end }
   env.SO.mods.lease = { status = function() return { open = t.open } end, onReport = function() end }

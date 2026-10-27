@@ -1,13 +1,14 @@
+local F = dofile("so-flags.lua")
 local P = dofile("so-plan.lua")
 local U = dofile("so-ui.lua")
 local M = dofile("so-mine-plan.lua")
 local D = { workers={} }
 local S = { recover = true, published = false, safe = {} }
 local config = SO.store.read and SO.store.read("so-server.cfg") or {}
-S.workerPark = config.workerPark == true
-S.fuelTrips = config.builderFuelTrips == true
-S.solid = config.builderSolid == true
-S.poseSetup = config.jobPoseSetup == true
+S.workerPark = F.enabled(config, "workerPark")
+S.fuelTrips = F.enabled(config, "builderFuelTrips")
+S.solid = F.enabled(config, "builderSolid")
+S.poseSetup = F.enabled(config, "jobPoseSetup")
 local shapes = { floor = true, platform = true, wall = true, walls = true, box = true, solid = S.solid }
 local dimensions = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 }
 local function whole(n)
@@ -180,7 +181,7 @@ local function returning()
   return j.completion and j.completion.phase=="returning"
 end
 local function storageTrip()
-  return j.service and j.service.kind=="storage" and (config.alternateAxisOrders == true or j.service.deliveryVacate==true)
+  return j.service and j.service.kind=="storage" and (F.enabled(config, "alternateAxisOrders") or j.service.deliveryVacate==true)
 end
 local function storageError(reason)
   return P.chestError("storage route",reason,j.service.point)
@@ -595,7 +596,7 @@ local function assigned(id)
 end
 D.enabled = function(builder)
   local cfg=SO.store.read and SO.store.read("so-server.cfg") or {}
-  return cfg.storageDeliveries==true and (not builder or cfg.builderMaterialOrders==true)
+  return F.enabled(cfg, "storageDeliveries") and (not builder or F.enabled(cfg, "builderMaterialOrders"))
 end
 D.item = function(id)
   if type(id)~="string" or #id>128 or not id:match("^[a-z0-9_.-]+:[a-z0-9_./-]+$") then return false end

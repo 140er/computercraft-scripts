@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local P = { screens = {}, states = {}, alerts = {}, confirmSeq = 0 }
@@ -105,10 +106,10 @@ P.drawn = function(event)
     and event.x >= b.x and event.x < b.x+b.w and event.y >= b.y and event.y < b.y+(b.h or 1)
 end
 
--- A so-server.cfg switch as the server exposes it (SO.health.config); missing means off.
+-- Read the effective server feature switch from its health snapshot.
 P.flag = function(name)
   local cfg = SO.health and SO.health.config
-  return type(cfg) == "table" and cfg[name] == true
+  return F.enabled(cfg, name)
 end
 P.turtle = function(machine) return machine.role == "turtle" or machine.role == "worker" end
 -- A turtle whose hello reports another full revision than the server's own; unknown is never stale.

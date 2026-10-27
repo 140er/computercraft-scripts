@@ -3,6 +3,7 @@ local function boot(present)
   local net = H.new()
   local machine = net.machine({ id = 1, capacity = 16000000 })
   machine.install({ "so-store.lua", "so-mod-ar.lua", "so-mod-cells.lua", "so-mod-drops.lua", "so-mod-display.lua" })
+  machine.files["so-server.cfg"]=H.encode({displayAck=false,turtleInventory=false,workerPark=false})
   local env = machine.env
   env.SO = { now = function() return env.os.epoch("utc") end, mods = {}, store = env.dofile("so-store.lua"), proto = { ser = H.encode } }
   local mods = env.SO.mods

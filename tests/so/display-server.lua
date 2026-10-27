@@ -39,6 +39,7 @@ end
 
 local function boot(opts)
   opts = opts or {}
+  opts.cfg = opts.cfg or {displayAck=false,turtleInventory=false,workerPark=false}
   local net = H.new()
   local m = net.machine({id=1})
   m.install({"so-store.lua", "so-ui.lua", "so-mod-display.lua"})

@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 -- Server-owned shop screen for the existing Storage Room turtle.
 local S = {
   turtle = nil,
@@ -329,7 +330,7 @@ S.outputSave = function()
 end
 S.deliveryEnabled = function()
   local cfg=SO.store and SO.store.read and SO.store.read("so-server.cfg")
-  return type(cfg)=="table" and cfg.storageDeliveries==true
+  return F.enabled(cfg, "storageDeliveries")
 end
 S.outputNeeded = function()
   if S.deliveryEnabled() then return true end
@@ -457,7 +458,7 @@ S.ordinaryOutput = function(point,kind)
   end
   if point and row and S.fuelKey(row.point)~=S.fuelKey(point) then return nil,"output quarantined" end
   if not row then
-    if pinned and chosen and cfg.storageDeliveries==true then
+    if pinned and chosen and F.enabled(cfg, "storageDeliveries") then
       local claimed,why=S.outputClaim((kind or "ordinary")..":"..S.fuelKey(pinned),pinned,kind or "ordinary")
       return nil,why or (claimed and "output claim pending") or "output quarantined"
     end
@@ -505,7 +506,7 @@ S.deliveryOrderStatus = function(jobId) return S.outputStatus(jobId) end
 S.deliveryView = function()
   local cfg=SO.store and SO.store.read and SO.store.read("so-server.cfg")
   cfg=type(cfg)=="table" and cfg or {}
-  local view={enabled=cfg.storageDeliveries==true,output=cfg.storageDeliveryOutput,outputs={}}
+  local view={enabled=F.enabled(cfg, "storageDeliveries"),output=cfg.storageDeliveryOutput,outputs={}}
   if not S.outputNeeded() then return view end
   if not S.outputInit() then view.fault="output save failed" return view end
   for _,row in pairs(S.output.outputs) do
@@ -589,7 +590,7 @@ S.savedBoxes, S.watchKeys = {}, {}
 S.savedEnabled = function()
   local read = SO.store and SO.store.read
   local cfg = read and read("so-server.cfg")
-  return type(cfg) == "table" and cfg.shopSaved == true
+  return F.enabled(cfg, "shopSaved")
 end
 S.integer = function(n, lo, hi)
   return type(n) == "number" and n == n and n >= lo and n <= hi and n % 1 == 0

@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local P = dofile("so-plan.lua")
 local M = dofile("so-mine-plan.lua")
 local S = { wired = false, pending = {}, resume = {}, known = {}, dugFacts = {}, burst = { n = 0 }, error = nil }
@@ -53,8 +54,8 @@ local function oreFind(id, name, cell, evidence)
   emit("mine.ore", data)
 end
 local function owner(id) return "mine:" .. id end
-local workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
-S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
+local workerPark = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "workerPark")
+S.poseSetup = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "jobPoseSetup")
 S.finish = function()
   if job.recall or not job.running or #(job.unfinished or {}) > 0 then return end
   if job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then return end

@@ -38,7 +38,7 @@ local function screens(now,today)
   local env=setmetatable({}, {__index=_G})
   env.os=setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
   env.SO={ now = function() return env.os.epoch("utc") end,mods={},proto=dofile('so-proto.lua'),pair={key=function() return 'key' end},
-    store={copy=copy,store=function() return {save=function() return true end} end}}
+    store={read=function() return {shopSaved=false,storageDeliveries=false,displayAck=false,workerPark=false,jobPoseSetup=false} end,copy=copy,store=function() return {save=function() return true end} end}}
   if today then env.SO.mods.daily={today=function() return copy(today) end} end
   env.rednet={send=function() end}
   s.display=assert(loadfile('so-mod-display.lua','t',env))()
@@ -62,6 +62,7 @@ local function terminal(now)
   env.rednet={open=function() end,host=function() end}
   env.peripheral={find=function() end,getNames=function() return {} end}
   env.dofile=function(path)
+    if path == "so-flags.lua" then return dofile("so-flags.lua") end
     if path=='so-ui.lua' then return U end
     if path=='so-pair.lua' then return {open=function() end,forgetPending=function() return {} end} end
     if path=='so-store.lua' then return {copy=dofile("so-store.lua").copy,clock=function() return function() return now end end} end

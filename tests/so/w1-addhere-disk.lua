@@ -28,6 +28,7 @@ local function state()
   local m = net.machine({id=1,directories=true})
   m.install({"so-store.lua","so-log.lua","so-mod-state.lua"})
   m.env.SO = {mods={},proto={ser=H.encode},now=function() return net.time end,breathe=function() end,store=m.env.dofile("so-store.lua")}
+  m.files["so-server.cfg"]=H.encode({state={coalesceHeartbeats=false}})
   local s = m.env.dofile("so-mod-state.lua")
   m.env.SO.mods.state = s
   return s,m,net

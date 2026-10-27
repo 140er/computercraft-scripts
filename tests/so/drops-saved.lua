@@ -28,7 +28,7 @@ local function generation(value, n)
 end
 
 return function(test, equal)
-  test("B8-U default-off writes legacy and enabled migration retains roomSink", function()
+  test("B8-U explicitly disabled writes legacy and enabled migration retains roomSink", function()
     local t=boot({["so-drops"]=generation({points={point()},roomSink=true})})
     assert(t.mod.add(point("wood","wood")))
     equal(t.saved().v,nil)
@@ -119,7 +119,7 @@ return function(test, equal)
     for i=1,30 do local k,v=debug.getupvalue(suite,i) if k=="setup" then setup=v end end
     local a=assert(setup) (true)
     local F=dofile("tests/so/worker-fixture.lua")
-    a.s.files["so-server.cfg"]=H.encode({setupMovement=true,dropsSavedSetup=true,
+    a.s.files["so-server.cfg"]=H.encode({setupMovement=true,dropsSavedSetup=true,dropsTestQueue=false,worldEdits=false,
       pos={dim="minecraft:overworld",x=40,y=64,z=10}})
     a.n.world["1,0,0"]="minecraft:chest"
     a.n.world["0,-1,0"]="minecraft:barrel"
@@ -150,7 +150,7 @@ return function(test, equal)
     local setup
     for i=1,30 do local k,v=debug.getupvalue(suite,i) if k=="setup" then setup=v end end
     local a=assert(setup)(true)
-    a.s.files["so-server.cfg"]=H.encode({setupMovement=true,dropsSavedSetup=true,
+    a.s.files["so-server.cfg"]=H.encode({setupMovement=true,dropsSavedSetup=true,dropsTestQueue=false,worldEdits=false,
       pos={dim="minecraft:overworld",x=40,y=64,z=10}})
     local S
     for i=1,30 do local k,v=debug.getupvalue(a.s.env.SO.mods.drops.tick,i) if k=="S" then S=v end end

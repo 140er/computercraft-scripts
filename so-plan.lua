@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local P = {}
 P.dimensions = {
   ["minecraft:overworld"] = { drop = 0 },
@@ -10,7 +11,7 @@ function P.dimension(name)
 end
 function P.dimensionError(dim, config)
   if not P.dimensions[dim] then return "invalid dimension" end
-  if dim ~= "minecraft:overworld" and not (type(config) == "table" and config.remoteDimensions == true) then
+  if dim ~= "minecraft:overworld" and not (F.enabled(config, "remoteDimensions")) then
     return "remote dimensions disabled"
   end
 end

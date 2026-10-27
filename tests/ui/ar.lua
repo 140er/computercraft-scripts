@@ -9,6 +9,7 @@ local WHITE, GREY, RED, HAIR = 0xFFE6EAF2 - 2^32, 0xFF7886A3 - 2^32, 0xFFFF6B5E 
 local function boot()
   local m = H.new().machine({ id = 1, capacity = 16000000 })
   m.install({ 'so-store.lua', 'so-ui.lua', 'so-mod-drops.lua', 'so-mod-ar.lua' })
+  m.files['so-server.cfg']=H.encode({arFollowups=false,remoteDimensions=false})
   local e, b = m.env, { values = {}, errors = {}, free = 13920000 }
   e.SO = { now = function() return 0 end, mods = {}, store = e.dofile('so-store.lua'), proto = { ser = H.encode },
     error = function(line) b.errors[#b.errors + 1] = line end }
@@ -29,6 +30,7 @@ local function boot()
   e.peripheral.find = function() return ar end
   e.peripheral.getName = function() return 'ar_controller_0' end
   b.drops = e.dofile('so-mod-drops.lua')
+  assert(b.drops.roomSink(false))
   e.SO.mods.drops = b.drops
   b.ar, b.screens, b.tick = ar, screens, e.dofile('so-mod-ar.lua').tick
   return b
@@ -50,6 +52,9 @@ end
 -- table; b.files the server's files.
 local NETHER, END, OVER = 'minecraft:the_nether', 'minecraft:the_end', 'minecraft:overworld'
 local function follow(config, saved, opts)
+  for _,name in ipairs({"arFollowups","remoteDimensions"}) do
+    if config[name]==nil then config[name]=false end
+  end
   opts = opts or {}
   local m = H.new().machine({ id = 1, capacity = 16000000 })
   m.install({ 'so-store.lua', 'so-ui.lua', 'so-mod-ar.lua' })

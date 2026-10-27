@@ -186,8 +186,8 @@ local function installerMachine(kind)
 end
 
 return function(test, equal)
-  test("enroll saved runtime toggle defaults off, merges settings and restarts without a window", function()
-    local t = boot(nil)
+  test("enroll saved runtime toggle can start off, merges settings and restarts without a window", function()
+    local t = boot(false)
     equal(t.so.enroll.enabled(), false)
     equal(select(2, t.so.enroll.open(OWNER)), "off")
     t.s.files["so-server.cfg"] = H.encode({ pos = { x = 7 }, remoteDimensions = true, other = { keep = 9 } })
@@ -585,7 +585,7 @@ return function(test, equal)
   end)
 
   test("enroll message bursts read server config at most once per tick", function()
-    local t = boot(nil)
+    local t = boot(false)
     local w = t.net.machine({ id = 10, modem = true })
     local reads, readConfig = 0, t.so.store.read
     t.so.store.read = function(path)
@@ -1107,7 +1107,7 @@ return function(test, equal)
   end)
 
   test("enroll off replies off and the handler answers with the flag off and on", function()
-    local t = boot(nil)
+    local t = boot(false)
     equal(t.so.enroll.enabled(), false)
     local w = turtle(t, 10, "1-K7QP-3MXA-9WTD-HR2E")
     t.net.advance(7)

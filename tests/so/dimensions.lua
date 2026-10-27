@@ -80,7 +80,7 @@ return function(test,equal)
     equal(P.dimension("nether"),"minecraft:the_nether")
     equal(P.dimension("end"),"minecraft:the_end")
     equal(P.dimension("typo"),nil)
-    for _,c in ipairs({{}, {remoteDimensions=false}, {remoteDimensions="true"}}) do
+    for _,c in ipairs({{remoteDimensions=false}, {remoteDimensions="true"}}) do
       assert(P.dimensionError("minecraft:the_nether",c))
     end
     equal(P.dimensionError("minecraft:the_nether",{remoteDimensions=true}),nil)

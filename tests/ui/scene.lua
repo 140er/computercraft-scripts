@@ -139,8 +139,9 @@ S.new = function(opts)
   env.fs = { getCapacity = function() return disk[1] end, getFreeSpace = function() return disk[2] end }
   env.SO = { now = function() return s.now end, mods = {}, terminal = { log = log, started = started, id = s.id, mode = 'normal', offset = 0 },
     pair = { key = function() return string.rep('01', 32) end, pending = function() return s.pending end },
-    store = { store = function() return { value = s.saved, save = function(v) s.saved = v return true end } end,
+    store = { read = function() return {shopSaved=false,storageDeliveries=false,displayAck=false,turtleInventory=false,workerPark=false,pocketTone=false} end, store = function() return { value = s.saved, save = function(v) s.saved = v return true end } end,
       copy = function(v) local c = {} for k, x in pairs(v) do c[k] = x end return c end } }
+  env.SO.health={config={panelUpdates=false,workerSettings=false}}
   env.SO.pairCode = function(id)
     s.calls[#s.calls + 1] = { 'pair', id }
     s.pending = s.sys.code

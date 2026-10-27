@@ -168,6 +168,7 @@ end
 
 local function startDisplay(net, id)
   local client = net.machine({ id = id, capacity = 1000000, modem = true })
+  client.files["so-display.cfg"]=harness.encode({retryInput=false})
   client.install({ "so-proto.lua", "so-pair.lua", "so-store.lua", "display.lua" })
   installTree(client)
   return client
@@ -471,6 +472,7 @@ return function(test, equal)
     local server = bootServer(net, true)
     local code = pairCode(net, server)
     local client = net.machine({ id = 2, capacity = 1000000, modem = true })
+    client.files["so-display.cfg"]=harness.encode({retryInput=false})
     client.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
     installTree(client)
     client.spawn(string.format([[

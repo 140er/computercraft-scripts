@@ -84,6 +84,7 @@ local function client(w, h)
   env.peripheral = { find = function(kind) if kind == 'monitor' then return out end end, getName = function() return 'right' end }
   env.rednet = { lookup = function() return 1 end, send = function() end }
   env.dofile = function(path)
+    if path == "so-flags.lua" then return dofile("so-flags.lua") end
     if path == 'so-pair.lua' then return { open = function() end, key = function() return 'key' end } end
     if path == 'so-store.lua' then return { store = function() return {} end } end
     if path == 'so-proto.lua' then return { build = function() return {} end, encode = function(m) return m end,

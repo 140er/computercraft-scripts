@@ -13,6 +13,7 @@ F.setup = function(files, count)
   local m = net.machine({ id = 1, directories = true })
   m.install({ "so-store.lua", "so-mod-cells.lua", "so-plan.lua", "so-mine-plan.lua", "so-mod-mine.lua",
     "so-lumber-plan.lua", "so-mod-lumber.lua", "so-mod-lease.lua" })
+  m.files["so-server.cfg"]=H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false})
   for path, bytes in pairs(files or {}) do m.files[path] = bytes end
   if count then F.seed(m, count) end
   m.env.SO = { now = function() return m.env.os.epoch("utc") end, mods = {}, store = m.env.dofile("so-store.lua"), breathe = function() end,

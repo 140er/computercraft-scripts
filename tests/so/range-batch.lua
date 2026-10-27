@@ -17,7 +17,7 @@ local function miners(equal, bottom, supplyBlock)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install(FILES) tree(server)
-  server.files["so-server.cfg"] = H.encode({ pos = { dim = DIM, x = 0, y = 64, z = 0 } })
+  server.files["so-server.cfg"] = H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim=DIM,x=0,y=64,z=0}})
   server.boot("so-server.lua") net.flush()
   local input
   local display, cells, lease = server.env.SO.mods.display, server.env.SO.mods.cells, server.env.SO.mods.lease

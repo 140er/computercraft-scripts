@@ -55,7 +55,7 @@ S.run = function(rate)
     "so-mod-display.lua","so-mod-drops.lua","so-mod-lease.lua","so-mod-lumber.lua",
     "so-mod-mine.lua","so-mod-shop.lua","so-mod-state.lua"})
   S.libs(server)
-  server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld",x=0,y=64,z=0}})
+  server.files["so-server.cfg"] = H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim="minecraft:overworld",x=0,y=64,z=0}})
   local function checkCells()
     local cells = g.server.env.SO.mods.cells
     local seen = {}
@@ -402,7 +402,7 @@ S.runBusy = function(rate)
     "so-mod-display.lua","so-mod-drops.lua","so-mod-lease.lua","so-mod-lumber.lua",
     "so-mod-mine.lua","so-mod-shop.lua","so-mod-state.lua"})
   S.libs(server)
-  server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld",x=0,y=64,z=0}})
+  server.files["so-server.cfg"] = H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim="minecraft:overworld",x=0,y=64,z=0}})
   local function checkCells()
     local cells = g.server.env.SO.mods.cells
     local seen = {}
@@ -859,6 +859,7 @@ end
 S.recoveryRetry = function()
   local n=H.new()
   local m=n.machine({id=1,modem=true})
+  m.files["so-server.cfg"]=H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false})
   m.install({"so-mod-lease.lua","so-proto.lua","so-store.lua"})
   m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={},store=m.env.dofile("so-store.lua"),pair={key=function() return string.rep("ab",32) end}}
   m.env.SO.proto=m.env.dofile("so-proto.lua")

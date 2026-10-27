@@ -43,8 +43,9 @@ local function client(w, h)
     send = function(_, msg) state.sends[#state.sends + 1] = msg end,
   }
   env.dofile = function(path)
+    if path == "so-flags.lua" then return dofile("so-flags.lua") end
     if path == "so-pair.lua" then return { open = function() end, key = function() return "key" end } end
-    if path == "so-store.lua" then return {store=function() return {} end} end
+    if path == "so-store.lua" then return {read=function() return {retryInput=false} end,store=function() return {} end} end
     if path == "so-proto.lua" then
       return { build = function(_, t, body) return { t = t, body = body } end,
         encode = function(msg) return msg end, decode = function(msg) return msg end, macOk = function() return true end,

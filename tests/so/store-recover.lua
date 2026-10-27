@@ -151,6 +151,7 @@ return function(test)
       local path = "lib/ccryptolib/" .. name .. ".lua"
       local f = assert(io.open(path)); m.files[path] = f:read("*a"); f:close()
     end
+    m.files["so-server.cfg"]=H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false})
     m.files["so-keys"] = H.encode({schema=1,generation=1,value={keys={["2"]=string.rep("a",64)}}})
     m.files["so-display"] = H.encode({schema=1,generation=1,value={roles={["1"]="health",["2"]="health"}}})
     m.files["so-mod-zprobe.lua"] = [[return {name="probe",handlers={},tick=function(now)

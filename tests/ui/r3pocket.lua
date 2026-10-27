@@ -61,7 +61,7 @@ local function setup()
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end}, {__index=os})
   env.SO = {now=function() return s.now end,mods={},
     pair={key=function(id) return id ~= 9 and string.rep('01',32) or nil end,pending=function() return s.pending end},
-    store={store=function() return {value=s.saved,save=function(v) s.saved=v return true end} end}}
+    store={read=function() return {displayAck=false,turtleInventory=false,workerPark=false,shopSaved=false,storageDeliveries=false} end,store=function() return {value=s.saved,save=function(v) s.saved=v return true end} end}}
   env.SO.pairCode = function(id)
     s.calls[#s.calls+1] = {'pair',id}
     s.pending = '482915'

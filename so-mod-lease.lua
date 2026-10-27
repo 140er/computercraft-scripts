@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local S = { turtles = {}, callbacks = {}, seq = 0, restartAlert = false, owners = {mine=true,lumber=true,build=true,setup=true} }
 S.rules = function()
   if not S.plan then S.plan=dofile("so-plan.lua") end
@@ -269,7 +270,7 @@ end
 
 S.settings = function(id, changes)
   local config = SO.store.read("so-server.cfg")
-  if type(config) ~= "table" or config.workerSettings ~= true then return nil, "settings disabled" end
+  if not F.enabled(config, "workerSettings") then return nil, "settings disabled" end
   local row, key = S.turtles[id], SO.pair.key(id)
   if not row or not key or not row.workerSettings or not row.settings then return nil, "update required" end
   if row.settingsKey ~= key then return nil, "wait for hello" end
@@ -450,7 +451,7 @@ end
 
 S.exitRequest = function(id, steps, actor, token)
   local row, cells = S.turtles[id], S.module("cells")
-  if not S.safety or not cells or not (SO.store.read("so-server.cfg") or {}).protectedAreas then return nil, "protection disabled" end
+  if not S.safety or not cells or not F.enabled(SO.store.read("so-server.cfg"), "protectedAreas") then return nil, "protection disabled" end
   if not row or row.open or row.uncertain or row.boundaryHold or row.lost or S.assigned(id) then return nil, "exit needs idle certain worker" end
   if not row.parkBatch or not row.setupFence or not row.pose or not row.journal then return nil, "exit needs fenced worker" end
   if type(actor) ~= "number" and type(actor) ~= "string" then return nil, "exit actor" end
@@ -1259,7 +1260,7 @@ end
 
 S.restore()
 local config = SO.store.read("so-server.cfg")
-S.safety = type(config) == "table" and (config.protectedAreas == true or config.alternateAxisOrders == true or config.storageDeliveries == true)
+S.safety = (F.enabled(config, "protectedAreas") or F.enabled(config, "alternateAxisOrders") or F.enabled(config, "storageDeliveries"))
 if type(config) == "table" then S.pos = S.copyPose(config.pos) end
 if not S.pos and type(gps) == "table" and type(gps.locate) == "function" then
   local ok, x, y, z = pcall(gps.locate, 2)

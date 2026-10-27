@@ -357,6 +357,7 @@ H.new = function(options)
         local data = handle:read("*a")
         handle:close()
         m.files[path:match("([^/]+)$")] = data
+        if data:find('dofile("so-flags.lua")', 1, true) then m.install({"so-flags.lua"}) end
       end
     end
     m.boot = function(path)

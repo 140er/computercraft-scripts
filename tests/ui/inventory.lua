@@ -54,6 +54,7 @@ end
 
 -- Mining with turtle #2 (its job row carries an adapter-made inv) and display 9 on the mining role.
 local function setup(w,h,cfg)
+  cfg=cfg or {turtleInventory=false}
   local s={now=100000,sent={},saves=0,commands={}}
   s.mine={home={x=0,y=64,z=0,facing=0},homeSet=true,bottom=60,length=48,mode='thorough',ores={},
     dim='minecraft:overworld',running=true,progress={done=0,nextBranch=2},turtles={
@@ -99,7 +100,7 @@ local ON={turtleInventory=true}
 
 return function(test,equal)
   test('B10-U with turtleInventory off the detail page keeps the job row inventory and no target',function()
-    local s=setup(26,20,{})
+    local s=setup(26,20,{turtleInventory=false})
     s.hello(sample())
     equal(next(s.D.inv),nil,'no sample cached with the flag off')
     s.press('turtle:2')

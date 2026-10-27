@@ -186,6 +186,7 @@ local function mining(opts)
   if fresh then job.progress, job.running = { done = 0, nextBranch = 0 }, fresh.running end
   local env = setmetatable({}, { __index = _G })
   env.dofile = function(path)
+    if path == "so-flags.lua" then return dofile("so-flags.lua") end
     local lib = dofile(path)
     if path == 'so-ui.lua' and opts.canvas then
       local canvas = lib.canvas
@@ -194,7 +195,7 @@ local function mining(opts)
     return lib
   end
   env.os = setmetatable({ epoch = function() return 0 end }, { __index = os })
-  env.SO = { now = function() return 0 end, mods = {}, store = { store = function()
+  env.SO = { now = function() return 0 end, mods = {}, store = { read=function() return {jobPoseSetup=false,workerPark=false,lumberScan=false,roomSink=false,dropsSavedSetup=false,dropsTestQueue=false,worldEdits=false} end, store = function()
     return { value = job, save = function() t.saves = t.saves + 1 return true end } end, copy = function(v) return v end } }
   local mods = env.SO.mods
   mods.state = { canStart = function() return true end, get = function(key)
@@ -263,7 +264,7 @@ local function lumber(opts)
   end
   local env = setmetatable({}, { __index = _G })
   env.os = setmetatable({ epoch = function() return 0 end }, { __index = os })
-  env.SO = { now = function() return now end, mods = {}, store = { store = function()
+  env.SO = { now = function() return now end, mods = {}, store = { read=function() return {jobPoseSetup=false,workerPark=false,lumberScan=false,roomSink=false,dropsSavedSetup=false,dropsTestQueue=false,worldEdits=false} end, store = function()
     return { value = job, save = function() t.saves = t.saves + 1 return true end } end, copy = function(v) return v end } }
   local mods = env.SO.mods
   mods.display = { screen = function(_, render, input) t.render, t.input = render, input end }
@@ -313,12 +314,12 @@ local function drops(opts)
   for i = 1, opts.extra or 0 do
     points[#points + 1] = { id = 'extra' .. i, dim = 0, x = 100 + i, y = 64, z = -330, side = 'front', kind = 'any', fails = 0 }
   end
-  t.stored = { points = points }
+  t.stored = { points = points, roomSink=false }
   local env = setmetatable({}, { __index = _G })
   env.os = setmetatable({ epoch = function() return 0 end }, { __index = os })
   env.SO = { now = function() return 1000 end, mods = {}, store = {
     store = function() return { value = t.stored, save = function(v) t.saves = t.saves + 1 t.stored = v return true end } end,
-    read = function(path) if path == 'so-server.cfg' then return { pos = { x = s.server.x, y = s.server.y, z = s.server.z } } end end,
+    read = function(path) if path == 'so-server.cfg' then return {dropsSavedSetup=false,dropsTestQueue=false,worldEdits=false,protectedAreas=false, pos = { x = s.server.x, y = s.server.y, z = s.server.z } } end end,
     copy = function(v) local o = {} for k, x in pairs(v) do o[k] = x end return o end } }
   local g = s.mine
   env.SO.mods.mine = { mapView = function() return { home = { x = g.x, y = g.y, z = g.z, facing = g.facing }, homeSet = true } end }

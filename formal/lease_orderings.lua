@@ -4,6 +4,7 @@ local file = assert(io.open(sourcePath, "rb"))
 local source = file:read("*a")
 file:close()
 local factory = assert(load("return function(_ENV)\n" .. source .. "\nend", sourcePath, "t"))()
+local featureFlags = dofile("so-flags.lua")
 local steps = { { op = "forward" } }
 local function copy(value)
   if type(value) ~= "table" then return value end
@@ -26,10 +27,11 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
   local lease
   local function boot()
     local env = setmetatable({
+      dofile = function(path) assert(path == "so-flags.lua"); return featureFlags end,
       os = { epoch = function() return actual.now end }, print = function() end,
       rednet = { send = function() return true end },
       SO = { now = function() return actual.now end,
-        store = { copy = copy, read = function() return { pos = { x = 0, y = 0, z = 0 } } end,
+        store = { copy = copy, read = function() return {protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,pos={x=0,y=0,z=0}} end,
           store = function(_, valid)
             assert(not actual.disk or valid(actual.disk))
             return {value=copy(actual.disk),save=function(value)

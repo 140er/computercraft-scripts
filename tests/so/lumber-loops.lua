@@ -9,7 +9,7 @@ local function scanner(enabled)
   local s = setup('waiting')
   s.row.tree = nil
   s.job.visited, s.job.nextRound = { true, true, true }, 600000
-  s.env.SO.store.read = function() return { lumberScan = enabled } end
+  s.env.SO.store.read = function() return { lumberScan = enabled==true, workerPark=false,jobPoseSetup=false } end
   s.mods.display.screen = function(_, render, input)
     s.draw, s.tap = render, function(id) input({ id = id }) end
     s.input = function(text) input({ text = text }) end
@@ -34,7 +34,7 @@ local function copy(v)
 end
 local function controls(s, config)
   s.env.SO.store.copy=copy
-  s.env.SO.store.read=function() return config or {} end
+  s.env.SO.store.read=function() return config or {jobPoseSetup=false,workerPark=false} end
   s.mods.display.screen=function(_,render,input)
     s.draw=render
     s.press=function(id,session) input({id=id,session=session}) end
@@ -68,7 +68,7 @@ local function onceFixture(options)
   local saved, callbacks, reservations, serial = copy(job), {}, {}, 0
   local mods = {}
   local env = setmetatable({SO={now=function() return s.clock end,pair={key=function() return 'paired' end},mods=mods,
-    store={copy=copy,read=function() return {lumberScan=true,workerPark=options.workerPark} end,
+    store={copy=copy,read=function() return {lumberScan=true,workerPark=options.workerPark==true} end,
       store=function()
         local value=copy(saved) s.job=value
         return {value=value,save=function(v)
@@ -211,7 +211,7 @@ end
 
 local function burnFixture(enabled, options)
   options=options or {}
-  local s=onceFixture({workerPark=options.workerPark})
+  local s=onceFixture({workerPark=options.workerPark==true})
   local row,w=s.row(),s.workers[2]
   local pose={dim='minecraft:overworld',x=-4,y=2,z=-2,facing=1}
   local back=copy(pose) back.x=pose.x+(options.distance or 10)
@@ -1099,7 +1099,7 @@ return function(test, equal)
     equal(s.row.turtle.pose,before)
     equal(s.row.target,nil)
   end)
-  test('lumber SCAN is off by default and rejects the command without resetting a round', function()
+  test('lumber SCAN can be disabled and rejects the command without resetting a round', function()
     local s = scanner()
     s.input('scan')
     equal(s.job.scanRequested, nil)

@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 -- so-mod-display.lua - one role per paired display, and the frames it is sent.
 
 local U
@@ -933,7 +934,7 @@ D.sound = function(session, role, now)
   local tone, cfg, health = session.tone, SO.health and SO.health.config, SO.mods.health
   if not tone then return end
   if role ~= "pocket" or session.takeover ~= tone.look or now >= tone.untilAt or type(cfg) ~= "table"
-    or cfg.pocketTone ~= true or D.quiet(cfg.soundQuiet) then
+    or not F.enabled(cfg, "pocketTone") or D.quiet(F.get(cfg, "soundQuiet")) then
     session.tone = nil
     return
   end
@@ -1732,11 +1733,11 @@ D.load = function()
   for i = 1, #D.order do D.known[D.order[i]] = true end
   -- The job modules read the same flag once at load; the detail page offers their park commands.
   local cfg = SO.store.read and SO.store.read("so-server.cfg") or {}
-  D.workerPark = cfg.workerPark == true
-  -- displayAck (default off): capable displays acknowledge drawn frames and go stale 10 s after the last.
-  D.ackOn = cfg.displayAck == true
-  -- turtleInventory (default off): turtle details open an inventory page from hello samples.
-  D.invOn = cfg.turtleInventory == true
+  D.workerPark = F.enabled(cfg, "workerPark")
+  -- displayAck (default on): capable displays acknowledge drawn frames and go stale 10 s after the last.
+  D.ackOn = F.enabled(cfg, "displayAck")
+  -- turtleInventory (default on): turtle details open an inventory page from hello samples.
+  D.invOn = F.enabled(cfg, "turtleInventory")
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do

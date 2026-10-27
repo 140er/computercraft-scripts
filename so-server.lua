@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local MIN = 16000000
 local cap = fs.getCapacity("/")
 if type(cap) ~= "number" or cap < MIN then
@@ -355,9 +356,11 @@ S.run = function()
   local config = readConfig()
   local function exposeConfig(value)
     local cfg = store.copy(value or {})
-    for _, name in ipairs({"alarm", "pocketTone", "soundQuiet"}) do
-      if cfg[name] == nil then cfg[name] = false end
+    for name in pairs(F.defaults) do
+      if not name:find("%.") then cfg[name] = F.get(value, name) end
     end
+    cfg.state = type(cfg.state) == "table" and cfg.state or {}
+    cfg.state.coalesceHeartbeats = F.get(value, "state.coalesceHeartbeats")
     SO.health.config = cfg
   end
   exposeConfig(config)
@@ -366,14 +369,14 @@ S.run = function()
     view.hostError = SO.health.configError
     S.error("so-server: " .. SO.health.configError)
   end
-  local retireLegacyPair = type(config) == "table" and config.retireLegacyPair == true
+  local retireLegacyPair = F.enabled(config, "retireLegacyPair")
   print("legacy pair: " .. (retireLegacyPair and "retired" or "kept"))
   if not retireLegacyPair then print("The next server-only release removes legacy pair. " ..
     "Old turtles must run install update before pairing again. " ..
     "Update pockets and wall displays too. Saved pairings keep working. Updated clients use pair2 only.") end
   if retireLegacyPair then builtin.pair = nil end
   local function enrollEnabled()
-    return type(config) == "table" and config.enroll == true
+    return F.enabled(config, "enroll")
   end
   local updates = {}
   local function installedRevision()
@@ -419,7 +422,7 @@ S.run = function()
   end
   SO.updateWorker = function(id)
     local cfg, row, key = readConfig(), updates[id], pair.key(id)
-    if type(cfg) ~= "table" or cfg.panelUpdates ~= true then return nil, "updates disabled" end
+    if not F.enabled(cfg, "panelUpdates") then return nil, "updates disabled" end
     if not row or not key or row.key ~= key or not row.capable then return nil, "update required" end
     if not row.remote then return nil, "updates disabled" end
     expireUpdate(row)
@@ -683,7 +686,7 @@ S.run = function()
     local confirm = pending and text:match("^%s*(%d+)%s*$")
     if not id and not confirm then return nil end
     local cfg = readConfig()
-    if not cfg or cfg.terminalRevoke ~= true then return false, "terminal revoke disabled" end
+    if not F.enabled(cfg, "terminalRevoke") then return false, "terminal revoke disabled" end
     if confirm then
       if tonumber(confirm) ~= pending.id then return false, "revoke id mismatch" end
       if SO.now() >= pending.expires or pair.key(pending.id) ~= pending.key then

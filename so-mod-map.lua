@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local U = dofile("so-ui.lua")
 -- Top-down map in route A (docs/ui/SCHEMATIC-SPEC.md section 10). North is up at every size: x grows
 -- to the right and z downwards. A text cell covers sx by sz blocks and takes a line glyph from the
@@ -206,7 +207,7 @@ end
 -- Refresh one worker per tick. History returns its newest 20 pose events in one page.
 M.readTrail = function()
   -- A lost or blocked label can hide F4-A's pause state. Generation recovery is read-only.
-  if M.config.workerPark == true and next(M.workers or {}) then
+  if F.enabled(M.config, "workerPark") and next(M.workers or {}) then
     for _, role in ipairs({"mine", "lumber"}) do
       local ok, box = pcall(SO.store.store, "so-data/" .. role .. "/job", function(v)
         return type(v) == "table" and type(v.turtles) == "table"
@@ -295,7 +296,7 @@ M.readFinds = function(now)
 end
 -- The scene a view shows: its own dimension with remoteDimensions on, else the server's.
 M.selected = function(v)
-  if not (M.config and M.config.remoteDimensions == true and v.dim) then return M.scene end
+  if not (F.enabled(M.config, "remoteDimensions") and v.dim) then return M.scene end
   if not M.scenes[v.dim] then M.gather(SO.now(), v.dim) end
   return M.scenes[v.dim]
 end
@@ -995,7 +996,7 @@ M.callout = function(v, s, pick)
     local silent = held and M.silence(s, held.who)
     if silent then rows[#rows+1] = {"text", {{0, silent, "8"}}} end
     v.releaseWho = held and held.who or nil
-    if held and M.config and M.config.worldEdits == true then
+    if held and F.enabled(M.config, "worldEdits") then
       local outcome = M.call("cells", "releaseStatus", held.who)
       local text = outcome and outcome.status == "pending" and "WAIT GPS"
         or outcome and outcome.status == "held" and "HELD" or v.releaseError
@@ -1114,7 +1115,7 @@ M.controls = function(C, L, w, h, v, s)
     if edge and edge + #label + 1 <= w - 16 then edge = C.chip(edge, 1, label, id, tone) + 1
     elseif title then C.chip(1, 1, label, id, tone, 5) title = false end
   end
-  if M.config and M.config.remoteDimensions == true then chip(M.dimLabel[s.dim] or "OVER", "map-dim") end
+  if F.enabled(M.config, "remoteDimensions") then chip(M.dimLabel[s.dim] or "OVER", "map-dim") end
   if s.broken > 0 then chip(U.g.cross .. math.min(s.broken, 99), "map-broken", "stop") end
   if title then C.put(2, 1, "MAP", "0") end
   -- North is up on every map, so the compass never turns; it sits outside the map area.
@@ -1334,7 +1335,7 @@ M.input = function(event)
   local drop = type(id) == "string" and id:match("^map%-drop:(.+)$")
   v.extra = nil
   if id == "map-release" then
-    if not M.config or M.config.worldEdits ~= true or not v.releaseWho or not v.frame then return end
+    if not F.enabled(M.config, "worldEdits") or not v.releaseWho or not v.frame then return end
     local drawn = false
     local y = event.y and event.y-math.max(0,(event.session.h or v.h)-v.h)
     for _, b in ipairs(v.frame.buttons or {}) do
@@ -1348,7 +1349,7 @@ M.input = function(event)
     v.releaseOwner, v.releaseToken, v.releaseError = v.releaseWho, result and result.token, err
     v.fkey = nil
   elseif id == "map-broken" or id == "map-focus" or drop then M.focusBroken(v, s, drop)
-  elseif id == "map-dim" and M.config and M.config.remoteDimensions == true then
+  elseif id == "map-dim" and F.enabled(M.config, "remoteDimensions") then
     v.dim = M.nextDim[v.dim or s.dim] or "minecraft:overworld"
     v.fit, v.pick, v.colsKey = true, nil, nil
   elseif id == "map-fit" then v.fit = true
@@ -1379,7 +1380,7 @@ return {name="map",handlers={},render=M.render,input=M.input,thumb=M.thumb,crop=
   if not M.wired and SO.mods.display then SO.mods.display.screen("map",M.render,M.input) M.wired=true end
   if M.seen and now - M.seen < 10000 then
     M.scene = M.gather(now)
-    if M.config.remoteDimensions == true then
+    if F.enabled(M.config, "remoteDimensions") then
       for _, dim in pairs(M.dimensions) do if dim ~= M.scene.dim then M.gather(now, dim) end end
     end
     M.readTrail()

@@ -39,6 +39,7 @@ local function buttons(frame)
   local out={} for _,b in ipairs(frame.buttons) do out[b.id]=b end return out
 end
 local function miner(config)
+  config=config or {jobPoseSetup=false}
   local f={now=1000,events={},calls={},status={},saveOK=true}
   local j={homeSet=true,home={x=0,y=0,z=0,facing=0},bottom=-2,length=4,dim="minecraft:overworld",
     mode="fast",ores={},turtles={},running=false,progress={nextBranch=0,done=0}}
@@ -309,7 +310,7 @@ return function(test, equal)
     f.status[2]={uncertain=true} f.input({id="home-here",session=b}) equal(f.job.home,old)
     f.status[2]={} f.job.running=true f.input({id="home-here",session=b}) equal(f.job.home,old)
   end)
-  test("S4-10 mining pose controls default off and UB-29 branch controls clamp the budget",function()
+  test("S4-10 mining pose controls can be disabled and UB-29 branch controls clamp the budget",function()
     local f=miner() f.input({id="setup"})
     assert(not buttons(f.render(57,24))["home-here"])
     f.input({id="home-here"}) equal(f.job.home,{x=0,y=0,z=0,facing=0})

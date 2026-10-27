@@ -1,5 +1,12 @@
 local H = dofile("tests/so/harness.lua")
 
+local function legacyFlags(cfg)
+  for _,name in ipairs({"dropsTestQueue","dropsSavedSetup","worldEdits","protectedAreas","alternateAxisOrders","storageDeliveries","roomSink"}) do
+    if cfg[name]==nil then cfg[name]=false end
+  end
+  return cfg
+end
+
 local function install(machine, files)
   machine.install(files)
   for _, name in ipairs({"x25519", "random", "blake3", "chacha20", "config", "internal/util",
@@ -19,7 +26,7 @@ local function setup(w, h, existing)
     "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-mod-state.lua", "so-mod-display.lua",
     "so-mod-drops.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-shop.lua", "so-mod-ar.lua",
     "so-mod-cells.lua", "so-mod-lease.lua"})
-  server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld", x=0, y=64, z=0}})
+  server.files["so-server.cfg"] = H.encode(legacyFlags({pos={dim="minecraft:overworld", x=0, y=64, z=0}}))
   server.boot("so-server.lua")
   net.flush()
   assert(not server.error, tostring(server.error))
@@ -83,7 +90,7 @@ local R = dofile("tests/ui/render.lua")
 local function routeA()
   local m = H.new().machine({id=1, capacity=16000000})
   m.install({"so-store.lua", "so-ui.lua", "so-mod-drops.lua"})
-  m.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld", x=0, y=64, z=0}, setupMovement=true})
+  m.files["so-server.cfg"] = H.encode(legacyFlags({pos={dim="minecraft:overworld", x=0, y=64, z=0}, setupMovement=true}))
   local e = m.env
   local t = {alerts = {}}
   e.SO = {now=function() return 1000 end, mods={}, store=e.dofile("so-store.lua"), pair={key=function() return "key" end}}
@@ -132,7 +139,7 @@ local function cellsRig(cfg, files)
   m.install({"so-store.lua", "so-ui.lua", "so-plan.lua", "so-mod-cells.lua", "so-mod-lease.lua", "so-mod-drops.lua"})
   for path, bytes in pairs(files or {}) do m.files[path] = bytes end
   cfg.pos = cfg.pos or {dim="minecraft:overworld", x=0, y=64, z=0}
-  m.files["so-server.cfg"] = H.encode(cfg)
+  m.files["so-server.cfg"] = H.encode(legacyFlags(cfg))
   local e, t = m.env, {net=net, m=m, sent={}}
   e.rednet.send = function(_, wire) t.sent[#t.sent+1] = wire return true end
   e.SO = {now=function() return net.time end, mods={}, store=e.dofile("so-store.lua"), breathe=function() end,
@@ -156,7 +163,7 @@ local function cellsRig(cfg, files)
   end
   t.config = function(next)
     next.pos = cfg.pos
-    m.files["so-server.cfg"] = H.encode(next)
+    m.files["so-server.cfg"] = H.encode(legacyFlags(next))
     for i = 1, 30 do
       local name, value = debug.getupvalue(t.mod.tick, i)
       if name == "S" then value.ctx = nil end

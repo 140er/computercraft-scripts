@@ -4,6 +4,7 @@ local function boot(files)
   local net = H.new()
   local m = net.machine({ id = 1, directories = true, capacity = 16000000 })
   m.install({ "so-store.lua", "so-mod-cells.lua", "so-mod-lease.lua", "so-plan.lua" })
+  m.files["so-server.cfg"]=H.encode({worldEdits=false,protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false})
   for path, bytes in pairs(files or {}) do m.files[path] = bytes end
   m.env.SO = { now = function() return net.time end, mods = {},
     store = m.env.dofile("so-store.lua"), breathe = function() end }
@@ -12,7 +13,7 @@ end
 
 local function fenced(files,safety)
   local cells,m,net=boot(files)
-  m.files["so-server.cfg"]=H.encode({worldEdits=true,protectedAreas=safety})
+  m.files["so-server.cfg"]=H.encode({worldEdits=true,protectedAreas=safety==true,alternateAxisOrders=false,storageDeliveries=false})
   local sent={}
   m.env.rednet.send=function(_,wire) sent[#sent+1]=wire return true end
   m.env.SO.pair={key=function() return "key" end}
@@ -318,7 +319,7 @@ return function(test, equal)
     equal(c.owner(7,5,6),nil)
   end)
 
-  test("B3-B world edits default off closes the authenticated forget bypass",function()
+  test("B3-B world edits explicitly off closes the authenticated forget bypass",function()
     local c=boot()
     assert(c.reserve("setup:9",7,5,6))
     local kind

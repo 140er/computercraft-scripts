@@ -3,6 +3,7 @@ local R = dofile('tests/ui/render.lua')
 local function boot()
   local m = H.new().machine({id=1,capacity=16000000})
   m.install({'so-store.lua','so-ui.lua','so-mod-drops.lua','so-mod-ar.lua','so-mod-display.lua'})
+  m.files["so-server.cfg"]=H.encode({displayAck=false,turtleInventory=false,workerPark=false,arFollowups=false,dropsSavedSetup=false,dropsTestQueue=false,worldEdits=false,protectedAreas=false,roomSink=false})
   local e=m.env
   e.SO={ now = function() return e.os.epoch("utc") end,mods={},store=e.dofile('so-store.lua'),proto={ser=H.encode},pair={key=function() return 'key' end}}
   local screens={}

@@ -13,7 +13,7 @@ local function job(count)
 end
 local function screen(j, noDaily)
   local s = { saved=0, released=0, events={}, persisted=H.encode(j) }
-  local env = setmetatable({SO={pair={key=function() return "paired" end},now=function() return 1000000 end,mods={},store={store=function()
+  local env = setmetatable({SO={pair={key=function() return "paired" end},now=function() return 1000000 end,mods={},store={read=function() return {workerPark=false,jobPoseSetup=false,lumberScan=false} end,store=function()
     return {value=j,save=function(value) s.saved=s.saved+1 s.persisted=H.encode(value) return true end}
   end}}},{__index=_G})
   env.SO.mods.drops={list=function() return {{id="ready",dim=0,x=100000,y=0,z=0,kind="any"}} end}

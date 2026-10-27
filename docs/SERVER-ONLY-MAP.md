@@ -44,6 +44,15 @@ and listeners use `listener(sender, message)`.
 
 ### Core and shared libraries
 
+- [so-flags.lua](../so-flags.lua) defines feature defaults in `defaults`.
+  `get(config, name)` returns an explicit value or its default; `enabled(config, name)`
+  requires that value to be true. Dotted names read nested tables. Missing config
+  uses defaults. Explicit false disables a feature. Only `retireLegacyPair` and
+  `soundQuiet` default off. `soundQuiet` also accepts its quiet-hours table.
+  The installer includes this library for every role. Server readers resolve
+  the same defaults without rewriting config. `retryInput` reads display config;
+  `roomSink` uses server config and preserves a saved false in `so-drops`.
+  Worker consent settings and per-job saved choices retain their defaults.
 - [so-server.lua](../so-server.lua) boots the server, loads modules, authenticates
   dispatch and runs the event loop. Built-in handlers are
   `pair2(msg, reply)`, legacy `pair(msg, reply)` and `hello(msg, reply)`.
@@ -58,7 +67,7 @@ and listeners use `listener(sender, message)`.
   R opens the role prompt; Enter passes its line to `display.command`.
   The built-in `enroll` handler and `SO.enroll` are always available.
   `SO.enroll` exposes `enabled()`, `setEnabled(boolean)`, `open`, `view`, `close`,
-  `extend` and `decide`. Enrollment defaults off. OFF closes pending work but
+  `extend` and `decide`. Enrollment defaults on. OFF closes pending work but
   permits collection of retained approved results. Only the boolean survives restart.
   Config saves verify the write and retain unrelated settings. If the canonical
   config is missing at startup, restore a valid temporary table first, otherwise
@@ -69,8 +78,8 @@ and listeners use `listener(sender, message)`.
   restart. Saved keys remain valid. Startup logs `legacy pair: retired` or
   `legacy pair: kept`; the removal notice appears only when kept, before discovery.
   The release notice is [issue #308](https://github.com/140er/computercraft-scripts/issues/308).
-  `SO.updateWorker(id)` and `SO.workerUpdate(id)` provide default-off pinned
-  updates. Server `panelUpdates` and worker `remoteUpdates` must both be true.
+  `SO.updateWorker(id)` and `SO.workerUpdate(id)` provide pinned updates.
+  Server `panelUpdates` defaults on; worker `remoteUpdates` defaults off. Both must be true.
   Requests require an idle updated worker and expire after 120000 game ms.
   Only a later hello at the target SHA confirms completion. See
   [worker.update](server-only/PROTOCOL.md#workerupdate) for wire and API-budget rules.
@@ -320,7 +329,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   keeps unchanged heartbeats in memory and reduces event-count checkpoints.
   Optional `so-server.cfg` `state.coalesceHeartbeats=true` keeps routine hello
   freshness and small fuel changes in memory at all disk pressures. It defaults
-  to false. Real role, journal, fingerprint and significant fuel changes still
+  to true. Real role, journal, fingerprint and significant fuel changes still
   emit events, as do label changes. Snapshots include freshness; restored machines get boot-time grace.
   View revisions can advance without an event sequence change in this mode.
   See [state](server-only/PROTOCOL.md#state).
@@ -345,7 +354,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `status(id)`, `peek(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)`, `describe(id, job, reason)`,
   `ensureTool(id, kind)`, `settings(id, changes)` and `tick(now)`.
   `settings` requires server `workerSettings=true`, worker `settingsControl=true`
-  and an idle, certain updated worker. Both flags default off. One request per
+  and an idle, certain updated worker. The server flag defaults on; worker `settingsControl` defaults off. One request per
   worker expires after 15000 game ms. `status` and `peek` expose `settings`,
   `workerSettings`, `settingsControl`, `settingsPending` and `settingsError`.
   See [worker.settings](server-only/PROTOCOL.md#workersettings). `status` also returns read-only `tools`
@@ -458,7 +467,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `remove(id)`, `edit(id, point)`, `fix(id)`, `note(id, blockName)`, `list()`, `roomMark(id, on)`,
   `roomSink(on)` and `tick(now)`.
   `list` copies every `{ id, dim, x, y, z, side, kind, broken, room?, disabled? }` point.
-  Optional `room=true` marks ore/wood input points. `roomSink` defaults off;
+  Optional `room=true` marks ore/wood input points. `roomSink` defaults true;
   pick and readiness exclude marked points until enabled. Both setters save
   before success and roll back on failure. The editor draws ROOM and SINKS
   buttons and accepts `room <id> on|off` and `room sink on|off`.
@@ -486,7 +495,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   `choose(kind, nearPos)` selects without writes or events. `usable(id)` returns
   true or false with unreadable, missing, suspended or broken reason.
-  With default-off `dropsSavedSetup`, SETUP saves FOUND candidates and offers
+  With default-on `dropsSavedSetup`, SETUP saves FOUND candidates and offers
   SUSPEND/RESUME. New choices exclude saved suspensions even when the flag is
   off. Existing trips finish. Mutations migrate to v2 and save before publishing.
   Each wrapped generation is at most 65536 bytes. Archive generations before
@@ -497,7 +506,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   until the fenced fix; HELD reports failure. AREAS edits a box and calls
   `cells.protect`, `cells.keep` and `cells.clearMarks`. PROTECT requires
   `protectedAreas`; kept release, KEEP and CLEAR MARKS require `worldEdits`.
-  Inputs reread the flags on every tap. Both flags default off. The setup list
+  Inputs reread the flags on every tap. Both flags default on. The setup list
   pages with `+`; narrow AREAS screens use BOXES for the saved-box list.
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
   clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `identify(id)`, `tick(now)`,
@@ -534,7 +543,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
   `render(w, h, session?)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
   coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`,
-  `view.ack` and `input`. With default-off `displayAck=true`, displays offering
+  `view.ack` and `input`. With default-on `displayAck=true`, displays offering
   `frameAck=1` acknowledge drawn frames. Freshness uses accepted ack age, with
   stale at 10000 game milliseconds and `unverified` for older clients. The local
   monitor uses its last good draw. Without the flag, freshness uses sends.
@@ -797,7 +806,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   each order tap sends one order. Sent does not imply delivery.
   Stock goes stale after 30 seconds; five minutes without stock resumes discovery.
   The legacy room has no server-only pairing or selector setting.
-  With default-off `shopSaved`, `saved(kind)` accepts `lists` and `pins` and
+  With default-on `shopSaved`, `saved(kind)` accepts `lists` and `pins` and
   returns copies. `setList(id,listOrNil,revision)` replaces or deletes a list;
   `setPin(item,boolean,revision)` removes the pin and appends it when true.
   `firstPin()` returns the first saved exact item ID or nil.
@@ -847,13 +856,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   clear a zero-fuel refusal. Numeric -1 becomes unlimited. Add-here locates the
   turtle, saves assignment and retains its GPS standing reservation before
   clearing probes. Readiness and service selection use read-only `drops.choose`.
-  `builderFuelTrips` defaults off. When enabled, START also requires usable fuel.
+  `builderFuelTrips` defaults true. When enabled, START also requires usable fuel.
   Trips budget the work/storage route plus return to fuel, exclude building
   material as fuel, and retry an empty fuel chest after ten game seconds.
   An unreachable fuel chest leaves the builder still, polling for manual refuel.
   `deliveryRequest({item,n,destination,requester,builderJob?})`,
   `deliveryStatus(id)`, `deliveryRetry(id)` and `deliveryItem(item)` run one
-  default-off `storageDeliveries` job. Configure `storageDeliveryOutput` and
+  default-on `storageDeliveries` job. Configure `storageDeliveryOutput` and
   `storageDeliveryWorkers`; builder requests also need `builderMaterialOrders`.
   Destination is an enabled storage point id or matching pinned geometry.
   Admission requires room receipts, fresh stock, a certain idle empty worker,
@@ -867,7 +876,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   resume chest checks after ten seconds on a non-complete terminal result.
   See [worker deliveries](server-only/PROTOCOL.md#worker-deliveries).
   Pending placement retains its original material and cursor through recovery.
-  Default-off `builderSolid=true` adds `shape solid` and its shape-cycle entry.
+  Default-on `builderSolid=true` adds `shape solid` and its shape-cycle entry.
   It fills the inclusive volume bottom-up, within the 16384-cell volume limit.
   Restart after changing builder flags.
   See [builder jobs](server-only/BUILD.md).
@@ -1014,7 +1023,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   duplicate events after a crash between the event and job saves.
   Wood and supply inspections call `drops.note`. Sapling service reuses a matching
   drop point or registers a stable `storage` point for the drop editor.
-  Default-off `lumberScan=true` enables the overview SCAN chip at width 26 or
+  Default-on `lumberScan=true` enables the overview SCAN chip at width 26 or
   more and the `scan` command while running. One saved request coalesces taps,
   waits for current claims, service, queued movement and round cleanup, then
   clears visited cells and candidates for a new scan. It never starts a stopped
@@ -1029,7 +1038,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `drops` and `alerts` toggles. The screen is route A (twin `docs/ui/schematic/ar.py`,
   SCHEMATIC-SPEC section 26): the controller count in the header, then one leader row
   per layer with `[on]` or `[off]`; the whole row is the toggle, with no BACK. Switches save through
-  `so-store` to `so-data/ar`, with a 4096-byte budget. Default-off `arFollowups`
+  `so-store` to `so-data/ar`, with a 4096-byte budget. Default-on `arFollowups`
   adds saved ALL/turtle/drop focus and v2 settings. With `remoteDimensions` too,
   WORLD/NETHER/END saves a dimension and resets focus to ALL. Broken-chest
   warnings and consent stay visible under focus. See
@@ -1135,7 +1144,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   frames retain the input row. Wall displays
   also echo input on the terminal.
   `so-display.cfg.repairServer` enables terminal REPAIR after a server replacement.
-  Like `retryInput`, it defaults off. Public wall taps cannot change the server.
+  It defaults off. `retryInput` defaults on. Public wall taps cannot change the server.
 
 ## Managed room outputs
 
@@ -1148,7 +1157,7 @@ Reboots quarantine saved output state. Run `output reconcile` locally on the roo
 turtle to return cargo and save a new settlement barrier. Disabling the flag
 retains recovery and the interlock but refuses new claims and orders. This room
 protocol supplies the receipts used by the server's managed output claims.
-`storageDeliveries` defaults off. Delivery timeouts retire the logical request
+`storageDeliveries` defaults true. Delivery timeouts retire the logical request
 after two game minutes but keep output quarantine until room settlement and
 worker cargo/lease reconciliation. Flag disable and fuel alert clearing retain
 that quarantine. Restart holds reserved or dispatched delivery work and never
@@ -1165,7 +1174,7 @@ See [managed room outputs](server-only/PROTOCOL.md#managed-room-outputs).
 ## Per-worker park and removal
 
 `so-server.cfg.workerPark=true` enables `park <id>`, `resume <id>` and
-`remove <id>` on mining, lumber and build screens. It defaults off and is read
+`remove <id>` on mining, lumber and build screens. It defaults on and is read
 at startup. A pause finishes the current batch, then needs a stationary report
 before `parkConfirmed` permits removal. `removeRequested` survives restart;
 confirmation does not. Recovery and a fresh report must complete first.
@@ -1430,7 +1439,7 @@ Do not save inside tight loops.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
-- `so-drops` holds drop points, failure counts and the default-off room-sink flag.
+- `so-drops` holds drop points, failure counts and the room-sink switch, on for fresh state.
 - `so-data/fuel-policy` holds the default-off fuel auto flag, bound output,
   up to 64 saved cooldowns, waiting delivery and its failure alert.
 - `so-data/shop-output` holds the versioned request-id high-water mark, room-ID
@@ -1477,7 +1486,7 @@ Durable leases restore before planners dispatch. Owners reconcile the acknowledg
 prefix and save receipts before acknowledging outcomes. Restored and expired
 outcomes keep reservations until stationary recovery permits more work. Boundary
 safety requires a fence; flags-off legacy recovery may use one `inspectDown`.
-Lease persistence has no opt-out; existing feature flags keep their defaults.
+Lease persistence has no opt-out; feature defaults are listed in `so-flags.lua`.
 
 ## Tests and checks
 
@@ -1698,7 +1707,7 @@ and daily date rollover also stay at 20 TPS. Changing tick rate cannot shorten
 those wall-clock checks. Server-off recovery at higher rates uses a game-time
 outage measured by the workers; the server's durable clock pauses while off.
 
-G4 adds `tests/so/storage-room.lua`. It covers default-off flags, exact fresh
+G4 adds `tests/so/storage-room.lua`. It covers explicitly disabled flags, exact fresh
 fuel IDs, shared physical-chest cooldowns, save/send failures, power cuts before
 send, restart alerts, room readiness, worker unloads and drawn controls at
 26x20 and 29x12. Gate B must still verify the room's outside input/output
@@ -1745,9 +1754,9 @@ refusal totals, retained senders and the evicted count.
 
 `health.soundFacts()` returns copied `{ready,quiet,keys}` with sorted severity 1
 attention keys, independent of output flags and display snoozes. `ready` follows
-the first complete gather. Default-off `alarm` enables server notes every
+the first complete gather. Default-on `alarm` enables server notes every
 300000 game milliseconds per standing key after a silent startup/enabling
-baseline. Default-off `pocketTone` plays one note on a speaker pocket for a new
+baseline. Default-on `pocketTone` plays one note on a speaker pocket for a new
 stop-level takeover. It waits up to ten game seconds for the matching health key.
 `view.get` and the next successful push share the tone id; that push consumes it.
 Lost frames are not resent. Standing alerts after restart stay silent.
@@ -1757,7 +1766,7 @@ speaker selection and skipped attempts. Sound settings refresh each tick.
 
 ## Job setup and completion
 
-Default-off `jobPoseSetup` adds paired-worker HOME and FROM/TO chips.
+Default-on `jobPoseSetup` adds paired-worker HOME and FROM/TO chips.
 Mining and lumber select a worker per display. First corners stay per display.
 Mining and build HOME use the occupied cell and facing. Lumber ground uses
 first-corner Y minus one; build corners use each captured Y minus one.
@@ -1801,7 +1810,7 @@ exclusions even after `dropsSavedSetup` is disabled.
 
 ## Chest test sweeps
 
-Default-off `dropsTestQueue` adds TEST ALL and CHECK SELECTED to SETUP.
+Default-on `dropsTestQueue` adds TEST ALL and CHECK SELECTED to SETUP.
 Sweeps also need `setupMovement=true`. TEST ALL takes unverified usable points
 in the current dimension; CHECK SELECTED can include verified points. Each
 display selects stable IDs. One worker visits at most 64 points in list order,
@@ -1821,7 +1830,7 @@ one assignment per mining, lumber or build module, and one busy setup/release
 scan. Unpaired IDs return zero. Text is `parks 0 jobs`, `parks 1 job` or
 `parks N jobs`, with `; holds 1 scan` when needed. Other lumber workers continue.
 
-Default-off `terminalRevoke` enables R, `<id> revoke`, then the same numeric ID
+Default-on `terminalRevoke` enables R, `<id> revoke`, then the same numeric ID
 within 15000 game milliseconds. A mismatch, Escape, expiry, changed saved key
 or disabled flag cancels. Ordinary role commands cancel the pending revoke
 and dispatch normally. Success calls `SO.forgetDevice(id, serverId)`.
@@ -1872,7 +1881,7 @@ success and an optional save error. Other devices' setup state stays intact.
 ## Remote job scope
 
 `so-server.cfg` `remoteDimensions=true` enables Nether and End mining and
-lumber. It defaults to off. `home` and `area` accept an optional final dimension.
+lumber. It defaults on. `home` and `area` accept an optional final dimension.
 Dimension changes require a stopped job without assigned workers. Supply chests,
 leases, reservations and dug marks stay in that dimension. The map offers a
 per-display WORLD/NETHER/END control when enabled. AR uses `arDim`, the server
@@ -1889,7 +1898,7 @@ See [the operator guide](../README-SERVER-ONLY.md#nether-and-end-jobs).
 
 ## Protected routes and world edits
 
-`protectedAreas=false` in `so-server.cfg` gates saved protected boxes and shared
+`protectedAreas=true` in `so-server.cfg` gates saved protected boxes and shared
 movement/dig/place/drop admission. `cells.protected()` copies the saved
 `{v=1,revision,boxes}`; `cells.protect(boxes)` validates and saves up to 64 boxes.
 The generation store is `so-data/cells/protected`. Invalid data holds movement
@@ -1911,7 +1920,7 @@ and facing before replanning. Failures retain reservations until reconciliation.
 exit with complete-path reservations. Approval expires after 30 game seconds
 and is discarded on failure or restart. See [protected paths](server-only/PROTOCOL.md#protected-paths-and-acknowledged-boundaries).
 
-`worldEdits=false` gates RELEASE, authenticated `cells.forget`, mark clearing
+`worldEdits=true` gates RELEASE, authenticated `cells.forget`, mark clearing
 and keep-box edits. `cells.releaseRequest(who,actor,token?)` arms then dispatches
 a stationary fenced GPS lease. Its ACK means pending. A matching advanced
 journal and unchanged pose must prove the occupied cell before route release.

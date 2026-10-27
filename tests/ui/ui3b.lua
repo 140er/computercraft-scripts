@@ -28,7 +28,7 @@ local function setup()
   local env = setmetatable({}, {__index=_G})
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end}, {__index=os})
   env.SO = { now = function() return env.os.epoch("utc") end,mods={},pair={key=function() return string.rep('01',32) end},
-    store={store=function() return {value=s.saved,save=function(v) s.saved=v return true end} end}}
+    store={read=function() return {shopSaved=false,storageDeliveries=false,displayAck=false,turtleInventory=false,workerPark=false} end,store=function() return {value=s.saved,save=function(v) s.saved=v return true end} end}}
   env.SO.proto = assert(loadfile('so-proto.lua','t',env))()
   env.rednet = {send=function() end}
   local d = assert(loadfile('so-mod-display.lua','t',env))()

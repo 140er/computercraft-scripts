@@ -1,9 +1,10 @@
+local F = dofile("so-flags.lua")
 local P = dofile("so-plan.lua")
 local L = dofile("so-lumber-plan.lua")
 local S = { wired = false, callback = false, lastLease = {} }
-S.workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
-S.scanNow = SO.store.read and (SO.store.read("so-server.cfg") or {}).lumberScan == true
-S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
+S.workerPark = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "workerPark")
+S.scanNow = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "lumberScan")
+S.poseSetup = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "jobPoseSetup")
 
 S.possible = function(previous, flight)
   local out, seen = {}, {}

@@ -1,5 +1,11 @@
 local R = dofile("tests/ui/render.lua")
 local Harness = dofile("tests/so/harness.lua")
+local function flagsOff(config)
+  local out={state={coalesceHeartbeats=false}}
+  for name in pairs(dofile("so-flags.lua").defaults) do if not name:find("%.") then out[name]=false end end
+  for name,value in pairs(config or {}) do out[name]=value end
+  return out
+end
 
 local ERROR = "tick\nfailed: so-mod-mine.lua:120 attempt to index a nil value while saving the mining job "..
   "for turtle 7; checkpoint refused because the disk is full. Free space in so-data, "..
@@ -151,7 +157,7 @@ local function diagnosticFacts(t)
     ["so-mod-mine.lua"]={status="loaded",lastGood=3595000},
     ["so-mod-shop.lua"]={status="failed",error="loader failed"},
     ["so-mod-ar.lua"]={status="absent"}},revision=string.rep("a",40),
-    config={retireLegacyPair=true},gpsGap=10,
+    config=flagsOff({retireLegacyPair=true}),gpsGap=10,
     slowest={name="mine",tickMs=142,at=3480000},
     refused={totals={shape=512,time=2,mac=3,replay=4,blocked=5},evicted=384,
       senders={[612]={shape=1,time=0,mac=0,replay=0,blocked=0}}}}
@@ -198,8 +204,8 @@ return function(test,equal)
     equal(t.mod.soundFacts(),{ready=true,quiet=false,keys={"drop/b"}})
   end)
 
-  test("alarm sounds each severity one key in lexical order once per tick",function()
-    local t=sounding()
+  test("alarm defaults on and sounds each severity one key in lexical order once per tick",function()
+    local t=sounding({})
     t.points={{id="b",broken=true}}
     t.machines={[3]={role="worker",seen=0},[4]={role="worker",seen=0}}
     t.leases[4]={uncertain=true}
@@ -241,8 +247,8 @@ return function(test,equal)
     equal(#t.notes,0)
   end)
 
-  test("alarm defaults off and pocketTone is independent with a silent enabling baseline",function()
-    for _,cfg in ipairs({{}, {pocketTone=true}, {alarm=false,pocketTone=true}}) do
+  test("alarm can be disabled and pocketTone is independent with a silent enabling baseline",function()
+    for _,cfg in ipairs({{alarm=false}, {alarm=false,pocketTone=true}}) do
       local t=sounding(cfg)
       t.points={{id=1,broken=true}}
       t.tick();t.tick(t.now+600000)
@@ -375,11 +381,11 @@ return function(test,equal)
     equal(#t.notes,1)
   end)
 
-  test("server exposes default off sound flags and refreshes config without rewriting unrelated keys",function()
+  test("server exposes effective sound flags and refreshes config without rewriting unrelated keys",function()
     local net,m=startup({secret="keep",state={coalesceHeartbeats=true}})
     local before=m.files["so-server.cfg"]
-    equal(m.env.SO.health.config.alarm,false)
-    equal(m.env.SO.health.config.pocketTone,false)
+    equal(m.env.SO.health.config.alarm,true)
+    equal(m.env.SO.health.config.pocketTone,true)
     equal(m.env.SO.health.config.soundQuiet,false)
     m.files["so-server.cfg"]=Harness.encode({alarm=true,pocketTone=false,soundQuiet={startMinute=5,endMinute=10},secret="keep"})
     local changed=m.files["so-server.cfg"]
@@ -607,14 +613,14 @@ return function(test,equal)
     test("health flags show only enabled flags and safe values at "..w.."x"..h,function()
       local t=health()
       diagnosticFacts(t)
-      t.env.SO.health.config={pos={x=120,y=64,z=-30},enroll=true,remoteDimensions=true,
-        setupMovement=false,secret="do not display",state={coalesceHeartbeats=true}}
+      t.env.SO.health.config=flagsOff({pos={x=120,y=64,z=-30},enroll=true,remoteDimensions=true,
+        setupMovement=false,secret="do not display",state={coalesceHeartbeats=true}})
       t.tick()
       local text=pages(t,"health",w,h)
       assert(text:find("enroll",1,true) and text:find("remoteDimensions",1,true))
       assert(text:find("x120 y64 z-30",1,true))
       assert(not text:find("setupMovement",1,true) and not text:find("do not display",1,true))
-      t.env.SO.health.config={}
+      t.env.SO.health.config=flagsOff({})
       t.tick()
       assert(pages(t,"health",w,h):find("defaults",1,true))
     end)
@@ -1296,7 +1302,7 @@ return function(test,equal)
       local w,h=size[1],size[2]
       local t=health()
       diagnosticFacts(t)
-      t.env.SO.health.config={enroll=true,remoteDimensions=true,state={coalesceHeartbeats=true}}
+      t.env.SO.health.config=flagsOff({enroll=true,remoteDimensions=true,state={coalesceHeartbeats=true}})
       t.tick()
       local list=pageTexts(t,"health",w,h)
       assert(list[1]:find("\n cfg \183+ 3 flags"),list[1])

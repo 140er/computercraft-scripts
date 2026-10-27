@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "2f96412d615c30c76f47aea3b6eb5f2d16008632dfd9645d4ff96d1b2d723685"
+local evidenceSourceHash = "4185876c80f8f203d7554fac27a758d68685deb88024e97fce892a3723124d91"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
@@ -19,7 +19,7 @@ local function setup(position, gpsPos)
     f:close()
   end
   server.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = { ["2"] = key, ["3"] = key } } })
-  if position then server.files["so-server.cfg"] = H.encode({ pos = position }) end
+  server.files["so-server.cfg"] = H.encode({pos=position, protectedAreas=false, alternateAxisOrders=false, storageDeliveries=false, workerSettings=false})
   if gpsPos then server.env.gps = { locate = function(timeout)
     assert(timeout == 2)
     return gpsPos.x, gpsPos.y, gpsPos.z
@@ -739,7 +739,7 @@ return function(test, equal, read)
     worker.env.rednet.send(1,msg,"so")
     s.net.flush()
   end
-  test("lease settings defaults off and old workers receive no command", function()
+  test("lease settings can be disabled and old workers receive no command", function()
     local s=setup(origin)
     local before=#s.server.sent
     equal(s.lease.settings(2,{autoToolSwap=false}),nil)
