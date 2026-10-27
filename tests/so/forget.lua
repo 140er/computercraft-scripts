@@ -23,7 +23,11 @@ local function setup(w,h,config)
       f:close()
     end
   end
-  if config then m.files["so-server.cfg"] = H.encode(config) end
+  config=config or {terminalRevoke=false}
+  for _,name in ipairs({"workerPark","protectedAreas","alternateAxisOrders","storageDeliveries","builderFuelTrips","worldEdits","dropsTestQueue","dropsSavedSetup"}) do
+    if config[name]==nil then config[name]=false end
+  end
+  m.files["so-server.cfg"] = H.encode(config)
   m.boot("so-server.lua")
   net.flush()
   assert(m.alive(),tostring(m.error))
@@ -228,7 +232,7 @@ return function(test,equal)
     impact.jobNames[1] = "changed"
     equal(so.forgetImpact(3).jobNames,{"mine","lumber","build"})
   end)
-  test("terminal revoke is disabled by default and refuses an unknown device",function()
+  test("terminal revoke can be disabled and refuses an unknown device",function()
     local s = setup(26,20)
     openTerminal(s)
     local before = H.encode(s.m.files)

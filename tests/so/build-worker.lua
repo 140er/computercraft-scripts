@@ -1,5 +1,17 @@
 local fixture=dofile("tests/so/build-world-fixture.lua")
 return function(test,equal)
+  test("builder paired worker places a floor on shipped defaults",function()
+    local f=fixture(nil,nil,nil,true)
+    equal(f.server.files["so-server.cfg"],nil)
+    equal(f.server.env.SO.mods.lease.boundaries(),true)
+    f.net.world["-4,0,0"]={name="minecraft:chest",inv={{name="minecraft:coal",count=32}}}
+    assert(f.server.env.SO.mods.drops.add({id="fuel",dim=0,x=-4,y=0,z=0,side="down",kind="fuel"}))
+    f.worker.inv[1]={name="minecraft:stone",count=16}
+    f.configure("floor",3,1,3) f.command("start") f.finish()
+    equal(f.places,9)
+    for x=0,2 do for z=0,2 do equal(f.net.world[x..",0,"..z],"minecraft:stone") end end
+    equal(f.server.env.SO.mods.lease.status(2).boundaryHold,nil)
+  end)
   for _,case in ipairs({{"floor",5,1,5,25},{"box",3,3,3,26}}) do
     test("builder paired worker places exact "..case[1].." after server restart",function()
       local f=fixture() f.configure(case[1],case[2],case[3],case[4]) f.crashAt=4 f.command("start")

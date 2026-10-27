@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local A = {
@@ -40,9 +41,9 @@ A.valid = function(value)
   return (value.dim == nil or A.dimNames[value.dim] ~= nil) and A.validFocus(value.focus)
 end
 A.box = SO.store.store("so-data/ar", A.valid, 4096)
-A.config = SO.store.read("so-server.cfg") or {}
-A.follow = A.config.arFollowups == true
-A.remote = A.follow and A.config.remoteDimensions == true
+A.config = F.read(SO.store) or {}
+A.follow = F.enabled(A.config, "arFollowups")
+A.remote = A.follow and F.enabled(A.config, "remoteDimensions")
 A.norm = function(dim) return A.dimensions[dim] or dim or "minecraft:overworld" end
 A.baseDim = A.norm(A.config.arDim or A.config.pos and A.config.pos.dim)
 if type(A.config.arLabelScale)=="number" then

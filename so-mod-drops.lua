@@ -1,8 +1,9 @@
+local F = dofile("so-flags.lua")
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local S = {
   points = {},
-  roomSink = false,
+  roomSink = F.enabled(F.read(SO.store), "roomSink"),
   candidates = {},
   box = nil,
   rev = 0,
@@ -159,8 +160,8 @@ S.emit = function(key, value)
 end
 
 S.enabled = function()
-  local cfg = type(SO.store.read) == "function" and SO.store.read("so-server.cfg") or {}
-  return cfg.dropsSavedSetup == true
+  local cfg = F.read(SO.store) or {}
+  return F.enabled(cfg, "dropsSavedSetup")
 end
 S.preflight = function()
   if not fs or not fs.exists then return true end
@@ -189,7 +190,7 @@ S.publishFound = function(list)
   for i, p in ipairs(S.candidates) do S.candidateIndex[S.candidateKey(p)] = i end
 end
 S.envelope = function()
-  local value = {points = S.clone(S.points), roomSink = S.roomSink or nil}
+  local value = {points = S.clone(S.points), roomSink = S.roomSink}
   if S.data.v == 2 or S.enabled() then
     value.v, value.roomSink = 2, S.roomSink
     value.candidates = S.cloneFound(S.data.candidates or {})
@@ -296,6 +297,7 @@ end
 S.setRoomSink = function(on)
   if S.blocked then return false, "drops unreadable" end
   if type(on) ~= "boolean" then return false,"bad" end
+  if on and not F.enabled(F.read(SO.store), "roomSink") then return false,"room sink disabled" end
   local value = S.envelope()
   value.roomSink = on
   return S.commit(value,"roomSink")
@@ -504,7 +506,7 @@ S.freeTurtle = function(id, facing, queued)
   if not found then return nil,"no unassigned idle turtle" end
   local status=lease.status(id)
   if not status.parkBatch or not status.setupFence then return nil,"update worker for setup safety" end
-  local config=SO.store.read("so-server.cfg") or {}
+  local config=F.read(SO.store) or {}
   local pose,err=lease.world(id,config.pos and config.pos.dim)
   local proof = S.setupProof
   if not pose and queued and err == "no fresh GPS; use explicit add" and proof and proof.id == id
@@ -522,7 +524,7 @@ S.freeTurtle = function(id, facing, queued)
 end
 
 S.queueEnabled = function()
-  return (SO.store.read("so-server.cfg") or {}).dropsTestQueue == true
+  return F.enabled((F.read(SO.store) or {}), "dropsTestQueue")
 end
 S.queueBusy = function()
   return S.queue and (S.queue.state == "running" or S.queue.state == "stopping")
@@ -556,7 +558,7 @@ S.advanceQueue = function()
 end
 S.startQueue = function(view, owner, selected)
   if not S.queueEnabled() then return S.setupRefuse("dropsTestQueue off") end
-  if (SO.store.read("so-server.cfg") or {}).setupMovement ~= true then return S.setupRefuse("setupMovement off") end
+  if not F.enabled((F.read(SO.store) or {}), "setupMovement") then return S.setupRefuse("setupMovement off") end
   if S.queueBusy() or S.task or S.releasing or S.compass then return S.setupRefuse("setup busy") end
   local pending, dim, seen = {}, view.dim, {}
   if dim == nil then
@@ -725,8 +727,8 @@ S.beginSetup = function(id, point, facing, queued, preview)
   end
   if S.task or S.releasing then return S.setupRefuse("setup busy: #"..(S.task or S.releasing).id) end
   if not queued and S.queueBusy() then return S.setupRefuse("queue busy") end
-  local config=SO.store.read("so-server.cfg") or {}
-  if config.setupMovement ~= true then return S.setupRefuse("setupMovement off") end
+  local config=F.read(SO.store) or {}
+  if not F.enabled(config, "setupMovement") then return S.setupRefuse("setupMovement off") end
   local pose,err=S.freeTurtle(id, facing, queued)
   if not pose then
     S.compass=err=="facing unknown" and {id=id,point=point} or nil
@@ -881,7 +883,7 @@ end
 S.releaseSetup = function(id)
   local lease=SO.mods.lease
   if S.releasing or S.task and (S.task.id ~= id or S.task.lease) then S.message="setup busy: #"..(S.releasing or S.task).id return end
-  local config=SO.store.read("so-server.cfg") or {}
+  local config=F.read(SO.store) or {}
   local pose,err=lease.world(id,config.pos and config.pos.dim)
   if not pose then S.message=err return end
   local status=lease.status(id)
@@ -1101,7 +1103,7 @@ end
 S.preview = function(view)
   local id, kind = view.turtle, S.previewKind(view)
   local out, lease = { id = id, kind = kind }, SO.mods.lease
-  local cfg = SO.store.read("so-server.cfg") or {}
+  local cfg = F.read(SO.store) or {}
   local pose = lease and lease.world and lease.world(id, cfg.pos and cfg.pos.dim)
   local dim = pose and (S.dimOf[pose.dim] or S.whole(pose.dim) and pose.dim)
   if not dim then out.text = "position unknown" return out end
@@ -1116,7 +1118,7 @@ end
 S.fromTurtle = function(id, view)
   S.fromError = true
   local lease = SO.mods.lease
-  local config = SO.store.read("so-server.cfg")
+  local config = F.read(SO.store)
   local dim = config and config.pos and config.pos.dim
   local number = S.dimOf[dim]
   if not number or not lease or not lease.world then S.message = "turtle world pose unavailable" return end
@@ -1139,13 +1141,13 @@ end
 S.context = function()
   local now = SO.now()
   if S.ctx and now >= S.ctx.at and now < S.ctx.at + 5000 then return S.ctx end
-  local ctx, read = { at = now }, SO.store.read
-  local cfg = type(read) == "function" and read("so-server.cfg")
+  local ctx = { at = now }
+  local cfg = F.read(SO.store)
   if type(cfg) == "table" and type(cfg.pos) == "table" and S.whole(cfg.pos.x) and S.whole(cfg.pos.z) then
     ctx.server = { x = cfg.pos.x, z = cfg.pos.z }
   end
-  ctx.protectedAreas = type(cfg) == "table" and cfg.protectedAreas == true
-  ctx.worldEdits = type(cfg) == "table" and cfg.worldEdits == true
+  ctx.protectedAreas = F.enabled(cfg, "protectedAreas")
+  ctx.worldEdits = F.enabled(cfg, "worldEdits")
   local mine, wood = S.call("mine", "mapView"), S.call("lumber", "mapView")
   local home = mine and mine.homeSet ~= false and mine.home
   if type(home) == "table" and S.dirs[home.facing] then
@@ -1903,8 +1905,8 @@ end
 
 -- AREAS paging and the box draft. A page whose flags are both off does not open.
 S.areaInput = function(view, id)
-  local cfg = SO.store.read("so-server.cfg") or {}
-  if cfg.protectedAreas ~= true and cfg.worldEdits ~= true then view.areas = nil return end
+  local cfg = F.read(SO.store) or {}
+  if not F.enabled(cfg, "protectedAreas") and not F.enabled(cfg, "worldEdits") then view.areas = nil return end
   if id == "areas" then view.areas, view.testing, view.editing = true, true, false S.boxOf(view) return end
   if not view.areas then return end
   if id == "areas-back" then view.areas, view.areaList = nil, nil return end
@@ -1920,7 +1922,7 @@ S.areaInput = function(view, id)
   elseif step then b[field] = b[field] + step
   elseif id == "area-protect" or id == "area-keep" then
     local cells, protect = SO.mods.cells, id == "area-protect"
-    if protect and cfg.protectedAreas ~= true or not protect and cfg.worldEdits ~= true then return end
+    if protect and not F.enabled(cfg, "protectedAreas") or not protect and not F.enabled(cfg, "worldEdits") then return end
     if type(cells) ~= "table" or not cells.protect then S.message = "cells unavailable" return end
     local boxes = protect and (cells.protected() or {}).boxes or not protect and cells.keep()
     if type(boxes) ~= "table" then S.message = "cells unavailable" return end
@@ -1938,11 +1940,11 @@ end
 -- Two-tap changes the cells module confirms as well: kept-route RELEASE and CLEAR MARKS take its
 -- token on the first tap and send it on the second; removing a saved box needs only the second tap.
 S.areaEdit = function(view, ev, key, confirmed, now)
-  local cfg, cells = SO.store.read("so-server.cfg") or {}, SO.mods.cells
+  local cfg, cells = F.read(SO.store) or {}, SO.mods.cells
   local actor = "drops:" .. tostring(S.key(ev.session, ev.from) or 0)
   local kept = tonumber(key:match("^kept:(%d+)$"))
   local unprotect, unkeep = key:match("^unprotect:(.+)$"), key:match("^unkeep:(.+)$")
-  if (unprotect and cfg.protectedAreas ~= true or not unprotect and cfg.worldEdits ~= true)
+  if (unprotect and not F.enabled(cfg, "protectedAreas") or not unprotect and not F.enabled(cfg, "worldEdits"))
     or type(cells) ~= "table" or not cells.protect then view.confirm = nil return end
   if unprotect or unkeep then
     if not confirmed or not view.areas then return end
@@ -2026,7 +2028,7 @@ if S.blocked then S.message = "drops unreadable"
 elseif S.box.value then
   S.data = S.box.value
   S.points = S.clone(S.data.points)
-  S.roomSink = S.data.roomSink == true
+  S.roomSink = S.data.roomSink == true and F.enabled(F.read(SO.store), "roomSink")
   S.publishFound(S.data.candidates or {})
 end
 

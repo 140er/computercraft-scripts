@@ -22,7 +22,7 @@ return function(test, equal)
     local retired="so-data/cells/minecraft%3aoverworld/0_0_-1"
     local s=setup(26,20,function(server)
       server.opts.directories=true
-      server.files["so-server.cfg"]=H.encode({pos={dim=dim,x=0,y=0,z=0}})
+      server.files["so-server.cfg"]=H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim=dim,x=0,y=0,z=0}})
       F.seed(server,500)
       local value={format="hex4096",bits=string.rep("f",1024),used=0}
       for generation,suffix in ipairs({".bak",""}) do
@@ -80,7 +80,7 @@ return function(test, equal)
   test("dug retirement: forgotten tunnel facts cannot bypass inspection on a later job",function()
     local s=setup(26,20,function(server)
       server.opts.directories=true
-      server.files["so-server.cfg"]=H.encode({pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+      server.files["so-server.cfg"]=H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim="minecraft:overworld",x=0,y=0,z=0}})
     end)
     local first=addWorker(s,3)
     for y=0,-80,-1 do s.net.world["0,"..y..",-1"]="minecraft:stone" end

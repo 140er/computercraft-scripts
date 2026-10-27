@@ -105,7 +105,7 @@ local function scene(opts)
   env.fs = { getCapacity = function() return disk[1] end, getFreeSpace = function() return disk[2] end }
   env.SO = { now = function() return s.now end, mods = {}, terminal = { log = log, started = started },
     pair = { key = function() return string.rep('01', 32) end },
-    store = { store = function() return { value = s.saved, save = function(v) s.saved = v return true end } end,
+    store = { read=function() return {displayAck=false,turtleInventory=false,workerPark=false} end, store = function() return { value = s.saved, save = function(v) s.saved = v return true end } end,
       copy = function(v) return v end } }
   env.SO.proto = assert(loadfile('so-proto.lua', 't', env))()
   env.rednet = { send = function(id, wire) s.sends[#s.sends + 1] = { id = id, wire = wire } end }
@@ -410,6 +410,7 @@ return function(test, equal)
       getComputerLabel = function() return 'screen' end, startTimer = function() return 1 end, cancelTimer = function() end }, { __index = os })
     env.rednet = { lookup = function() return 1 end, send = function() end }
     env.dofile = function(path)
+      if path == "so-flags.lua" then return dofile("so-flags.lua") end
       if path == 'so-pair.lua' then return { open = function() end, key = function() return 'key' end } end
       if path == 'so-store.lua' then return { store = function() return {} end } end
       if path == 'so-proto.lua' then return { build = function() return {} end, encode = function(m) return m end,

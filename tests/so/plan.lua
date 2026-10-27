@@ -101,7 +101,7 @@ return function(test,equal,section)
     equal(#paths,0) equal(refusal.reason,"pose unknown")
   end)
   test("axis ranking with real assessments changes no files reservations or clear-cell cache",function()
-    local s=dofile("tests/so/protected.lua").setup({alternateAxisOrders=true,pos=from})
+    local s=dofile("tests/so/protected.lua").setup({alternateAxisOrders=true,builderFuelTrips=false,pos=from})
     for x=0,2 do for y=0,1 do for z=0,2 do assert(s.cells.markDug(x,y,z,from.dim)) end end end
     local files=s.m.env.SO.store.copy(s.m.files)
     local counts=s.cells.counts()
@@ -131,7 +131,7 @@ return function(test,equal,section)
   local function heldSnapshot(f)
     return {owners=f.env.SO.store.copy(f.held),reserves=f.reserves or 0,releases=f.releases or 0}
   end
-  test("builder storage ranking stays off by default and uses the legacy flight without clear marks",function()
+  test("builder storage ranking can be disabled and uses the legacy flight without clear marks",function()
     local f=storageBuilder({}) f.clear={}
     f.tick() assert(f.queued()) equal(f.job().blocked,nil)
     equal(f.queued().steps[1].op,"turnRight") assert(#f.queued().steps>1)
@@ -288,7 +288,7 @@ return function(test,equal,section)
   end
   for _,terminal in ipairs({false,true}) do
     test("builder storage trip interrupted by restart resumes the "..(terminal and "acknowledged" or "open").." prefix without replay",function()
-      local s=dofile("tests/so/protected.lua").setup({alternateAxisOrders=true,pos=from})
+      local s=dofile("tests/so/protected.lua").setup({alternateAxisOrders=true,builderFuelTrips=false,pos=from})
       s.manualOutcome=true
       s.m.install({"so-mod-build.lua","so-ui.lua","so-mine-plan.lua"})
       local SO=s.m.env.SO

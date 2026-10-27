@@ -1,9 +1,13 @@
 -- Bounded reference model checked against the unmodified lease module.
 local sourcePath, witness = arg[1], arg[2]
+local safety = arg[3] ~= "off"
 local file = assert(io.open(sourcePath, "rb"))
 local source = file:read("*a")
 file:close()
 local factory = assert(load("return function(_ENV)\n" .. source .. "\nend", sourcePath, "t"))()
+local featureFlags = dofile("so-flags.lua")
+local plan = dofile("so-plan.lua")
+local frame = {dim="minecraft:overworld",ox=0,oy=0,oz=0,rot=0}
 local steps = { { op = "forward" } }
 local function copy(value)
   if type(value) ~= "table" then return value end
@@ -20,16 +24,23 @@ end
 local checks, traces = 0, 0
 local function run(trace, foreign, batchSize, grace, exhaustive)
   steps = {}
-  for i = 1, batchSize do steps[i] = { op = "forward" } end
+  for i = 1, batchSize do steps[i] = { op = safety and i < batchSize and "inspectDown" or "forward" } end
   local actual = { now = 0, cells = {}, calls = {}, ids = {} }
-  local model = { now = 0, seq = 0, durableSeq = 0, cells = {}, calls = {}, ids = {}, uncertain = false }
+  local model = { now = 0, seq = 0, durableSeq = 0, cells = {}, calls = {}, ids = {}, uncertain = false, pose = {x=0,y=0,z=0,f=0} }
   local lease
   local function boot()
     local env = setmetatable({
+      dofile = function(path)
+        if path == "so-flags.lua" then return featureFlags end
+        assert(path == "so-plan.lua"); return plan
+      end,
       os = { epoch = function() return actual.now end }, print = function() end,
       rednet = { send = function() return true end },
       SO = { now = function() return actual.now end,
-        store = { copy = copy, read = function() return { pos = { x = 0, y = 0, z = 0 } } end,
+        store = { copy = copy, read = function()
+          if safety then return nil end
+          return {protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,pos={x=0,y=0,z=0}}
+        end,
           store = function(_, valid)
             assert(not actual.disk or valid(actual.disk))
             return {value=copy(actual.disk),save=function(value)
@@ -42,21 +53,28 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
         pair = { key = function() return "paired" end },
         proto = { build = function(_, kind, body) return { kind = kind, body = body } end,
           encode = function(value) return value end },
-        mods = { cells = { releaseOwner = function(id) actual.cells[id] = nil end } },
+        mods = { cells = { assessment = function() return {admit=function() return true end} end,
+          releaseOwner = function(id) actual.cells[id] = nil end } },
       },
     }, { __index = _G })
     lease = factory(env)
+    assert(lease.boundaries() == safety, "wrong safety mode")
     lease.onReport("mine", function(id, _, results)
       actual.calls[#actual.calls + 1] = id .. (results and ":report" or ":expire")
     end)
   end
   boot()
+  if safety then
+    lease.handlers.hello({from=2,body={journal={id="initial",pose=copy(model.pose)},
+      capabilities={parkBatch=true,setupFence=true}}})
+    model.journal, model.capabilities = "initial", true
+  end
   local prefix = {}
   local function equal(property, got, want)
     checks = checks + 1
     if got ~= want then
       error("PROPERTY " .. property .. " trace=" .. table.concat(prefix, ",")
-        .. " foreign=" .. foreign .. " batch=" .. batchSize .. " grace=" .. grace
+        .. " safety=" .. tostring(safety) .. " foreign=" .. foreign .. " batch=" .. batchSize .. " grace=" .. grace
         .. " actual=" .. tostring(got) .. " expected=" .. tostring(want), 0)
     end
   end
@@ -69,6 +87,8 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
       elseif model.open then reason = "busy"
       elseif model.terminal then reason = "lease outcome pending"
       elseif model.recovering then reason = "restart needs fenced observation"
+      elseif safety and not model.capabilities then reason = "boundary needs certain fenced worker"
+      elseif safety and model.boundaryHold then reason = "boundary reconciliation required"
       else
         model.seq = model.seq + 1
         expected = string.format("2-%.0f-%d", model.now, model.seq)
@@ -76,11 +96,13 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
         else
           model.open, model.expires, model.durableSeq, model.restored = expected, model.now+1000, model.seq, false
           model.leaseJournal = model.capabilities and model.journal or nil
+          model.expectedPose = copy(model.pose)
+          if safety then model.expectedPose.z = model.expectedPose.z - 1 end
           model.proof = nil
           model.cells["mine:2"] = true
         end
       end
-      local id, err = lease.send(2, steps, { owner = "mine", ms = 1000 })
+      local id, err = lease.send(2, steps, { owner = "mine", ms = 1000, frame = safety and frame or nil })
       local property = model.uncertain and "uncertainty" or "dispatch"
       equal(property, id, expected)
       equal(property, err, reason)
@@ -92,6 +114,12 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
       model.uncertain = model.terminal and model.terminalUncertain or false
       model.seq, model.restored = model.durableSeq, model.lost
       model.journal, model.capabilities, model.proof = nil, false, nil
+      model.boundaryHold = model.recovering or nil
+      if safety then
+        if model.terminal and model.terminalStatus == "reported" then
+          model.journal, model.pose = model.reportJournal, copy(model.reportPose)
+        end
+      end
     elseif action == "forget" then
       local pending = model.open or model.terminal or model.recovering
       local saved = not (pending and actual.failSave)
@@ -110,13 +138,14 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
         model.calls[#model.calls + 1] = model.open .. ":expire"
         model.terminal, model.terminalUncertain, model.open, model.terminalStatus = model.open, false, nil, "expired"
         model.proof = nil
+        if safety then model.boundaryHold = true end
       end
     elseif action == "fail_save" then actual.failSave=true
     elseif action == "save_ok" then actual.failSave=false
     elseif action == "hello" or action == "hello_changed" or action == "hello_pending" then
       local journal = action == "hello" and "journal" or "changed"
       local pending = action == "hello_pending" and {op="forward"} or nil
-      lease.handlers.hello({from=2,body={journal={id=journal,pose={x=0,y=0,z=0,f=0},pending=pending},capabilities={parkBatch=true,setupFence=true}}})
+      lease.handlers.hello({from=2,body={journal={id=journal,pose=copy(model.pose),pending=pending},capabilities={parkBatch=true,setupFence=true}}})
       model.uncertain, model.lost, model.journal, model.capabilities = false, false, journal, true
       if model.restored and model.open and model.leaseJournal and journal ~= model.leaseJournal and not pending then model.proof = true end
     elseif action == "ack" then
@@ -129,6 +158,7 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
         if not actual.failSave then
           model.recovering, model.terminal = model.terminalStatus == "expired" or model.restored == true, nil
           model.durableSeq = model.seq
+          if model.recovering then model.boundaryHold = true end
         end
       else equal("restart_ack",record,nil) end
     elseif action == "uncertain" then
@@ -144,14 +174,23 @@ local function run(trace, foreign, batchSize, grace, exhaustive)
         elseif foreign == "wrong-sender" then sender = 3
         else results = {} end
       end
-      lease.handlers["step.report"]({ from = sender, body = { lease = id, results = results } })
+      local reportPose = safety and copy(model.expectedPose or model.pose) or nil
+      local reportJournal = safety and "report:" .. expectedId or nil
+      lease.handlers["step.report"]({ from = sender, body = { lease = id, results = results,
+        pose = reportPose, journal = reportJournal } })
       if sender == 2 and expectedId == model.open and #results == batchSize and not actual.failSave then
         model.calls[#model.calls + 1] = model.open .. ":report"
+        if safety then
+          model.pose, model.journal = copy(reportPose), reportJournal
+          model.reportPose, model.reportJournal = copy(reportPose), reportJournal
+          model.boundaryHold = nil
+        end
         model.proof = nil
         model.terminal, model.terminalUncertain, model.open, model.uncertain, model.lost, model.terminalStatus = model.open, false, nil, false, model.restored == true, "reported"
       end
     end
     local status = lease.status(2)
+    if safety then equal("boundary_hold",not not status.boundaryHold,not not model.boundaryHold) end
     equal((action=="restart" or action=="restart2") and "restart_restore" or "report_integrity", status.open, model.open)
     local outcome=lease.outcome(2)
     equal("restart_ack",outcome and outcome.id,model.terminal)

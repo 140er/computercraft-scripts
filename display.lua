@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 -- display.lua: one client for a monitor or a pocket.
 
 local C = {
@@ -25,9 +26,9 @@ local C = {
 
 C.now = function() return math.floor(os.clock() * 1000 + 0.5) end
 
--- so-display.cfg: retryInput (off) retries on input in NO SERVER; server picks the unpaired join.
+-- so-display.cfg: retryInput (on) retries on input in NO SERVER; server picks the unpaired join.
 local cfg = C.store.read and C.store.read("so-display.cfg")
-C.retryInput = type(cfg) == "table" and cfg.retryInput == true
+C.retryInput = F.enabled(cfg, "retryInput")
 C.pick = type(cfg) == "table" and type(cfg.server) == "number" and cfg.server >= 0 and cfg.server % 1 == 0 and cfg.server or nil
 
 -- repairServer (off) is read each time REPAIR would open.

@@ -7,6 +7,7 @@ local function boot(values, opts)
   local net = H.new()
   local m = net.machine({id=1})
   m.install({"so-store.lua", "so-ui.lua", "so-mod-display.lua"})
+  m.files["so-server.cfg"]=H.encode({displayAck=false,turtleInventory=false,workerPark=false,arFollowups=false,dropsSavedSetup=false,dropsTestQueue=false,worldEdits=false,protectedAreas=false,roomSink=false})
   local s = { clock = 0, errors = {}, values = values, m = m }
   m.env.SO = { now = function() return s.clock end,
     mods = { state = { view = function() return { values = s.values } end, get = function(key) return key == "machines" and opts.machines or {} end },
@@ -330,7 +331,7 @@ return function(test, equal)
   local function toned(opts, values)
     opts = opts or {}
     opts.encode = copy
-    if opts.health == nil then opts.health = { started = 7000, config = { pocketTone = true } } end
+    if opts.health == nil then opts.health = { started = 7000, config = {} } end
     if opts.facts == nil then opts.facts = { ready = true, quiet = false, keys = { "disk", "drop/2", "lost/5" } } end
     local s = boot(values or {}, opts)
     s.open("pocket", 26, 20)
@@ -387,10 +388,9 @@ return function(test, equal)
     assert(s.sounds()[1].id ~= s.sounds()[2].id, "each occurrence has its own id")
   end)
 
-  test("B11-U: pocketTone off or missing, quiet hours and an unready snapshot are silent", function()
+  test("B11-U: pocketTone explicitly off, missing health, quiet hours and an unready snapshot are silent", function()
     local cases = {
       { health = { started = 1, config = { pocketTone = false } } },
-      { health = { started = 1, config = { alarm = true } } },
       { health = false },
       { facts = { ready = true, quiet = true, keys = { "drop/2" } } },
       { facts = { ready = false, quiet = false, keys = { "drop/2" } } },

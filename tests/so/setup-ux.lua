@@ -6,7 +6,7 @@ local modules={"so-plan.lua","so-ui.lua","so-log.lua","so-mod-state.lua","so-mod
 local function setup(enabled, protected)
   local a=F.setup({id=2,modem=true,turtle=true,capacity=1000000,facing=1},modules)
   a.t.files["so-worker.cfg"]=H.encode({dim="minecraft:overworld"})
-  a.s.files["so-server.cfg"]=H.encode({setupMovement=enabled,protectedAreas=protected,pos={dim="minecraft:overworld",x=40,y=64,z=10}})
+  a.s.files["so-server.cfg"]=H.encode({setupMovement=enabled==true,protectedAreas=protected==true,dropsTestQueue=false,dropsSavedSetup=false,worldEdits=false,pos={dim="minecraft:overworld",x=40,y=64,z=10}})
   if protected then a.n.kill(a.s) a.s=a.n.boot(a.s) a.n.flush() end
   a.n.advance(3)
   a.t.env.gps={locate=function() return a.t.pos.x+40,a.t.pos.y+64,a.t.pos.z+10 end}
@@ -171,7 +171,7 @@ return function(test,equal)
     a.hello() a.ui.input({text="release 2"}) a.n.advance(1)
     equal(cells.owner(40,64,10,"minecraft:overworld"),"gps:2")
   end)
-  test("setup movement defaults off and never sends a lease",function()
+  test("setup movement can be disabled and never sends a lease",function()
     local a=setup()
     a.ui.input({text="scan 2"})
     equal(#F.sent(a.s,"lease.batch"),0)

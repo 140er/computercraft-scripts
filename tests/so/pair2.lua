@@ -106,6 +106,7 @@ local function entropy(m, failures, silent)
   local calls = { attempts = 0, yields = 0, seeds = 0, mixes = 0 }
   local dofile, queue = m.env.dofile, m.env.os.queueEvent
   m.env.dofile = function(path)
+    if path == "so-flags.lua" then return dofile("so-flags.lua") end
     local value = dofile(path)
     if path == "lib/ccryptolib/random.lua" then
       local timing, mix = value.initWithTiming, value.mix

@@ -56,8 +56,9 @@ local function run()
     end, function()
       sleep(2)
       check("actual server modules loaded", SO and SO.mods and SO.mods.ar and SO.mods.display and SO.mods.lease)
+      -- Display 2 sends hello during pairing; use a separate worker for the AR scene.
       check("actual state event persisted", SO.mods.state.emit("machine", {
-        id = 2, role = "worker", seen = os.epoch("utc"), fuel = 900,
+        id = 3, role = "worker", seen = os.epoch("utc"), fuel = 900,
         pose = { dim = "minecraft:overworld", x = 2, y = 64, z = 0, facing = 0 } }))
       local store = SO.store.store("integration-store", function(v) return type(v) == "table" end)
       check("native fs generation save", store.save({ value = 42 }))

@@ -5,7 +5,10 @@ local function copy(v)
 end
 local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
 local function fixture(config)
-  config=config or {}
+  config=copy(config or {})
+  for _, name in ipairs({"builderFuelTrips", "builderSolid", "alternateAxisOrders", "protectedAreas", "storageDeliveries", "jobPoseSetup"}) do
+    if config[name] == nil then config[name] = false end
+  end
   local f={world={},clear={},held={},saved=nil,now=1000,serial=0,placed={},calls={},fuel=10000,saveOK=true,range=function() return true end}
   f.journal="builder-journal"
   local pose={dim="minecraft:overworld",x=-2,y=4,z=0,facing=1}

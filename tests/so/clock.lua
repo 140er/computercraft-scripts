@@ -197,6 +197,7 @@ return function(test, equal)
     for _, rate in ipairs({1,4}) do
       local n,m=clock(rate)
       m.install({"so-mod-lease.lua","so-proto.lua"})
+      m.files["so-server.cfg"]=H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false})
       m.env.SO={now=m.env.now,mods={},store=m.env.store,
         pair={key=function() return string.rep("ab",32) end},proto=m.env.dofile("so-proto.lua")}
       local lease=m.env.dofile("so-mod-lease.lua")

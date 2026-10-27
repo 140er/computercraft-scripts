@@ -2,6 +2,10 @@ local U = dofile('so-ui.lua')
 local R = dofile('tests/ui/render.lua')
 local fixtures = {[26]='tests/ui/fixtures/turtle-P.txt',[29]='tests/ui/fixtures/turtle-S.txt',[57]='tests/ui/fixtures/turtle-M.txt'}
 local function setup(w,h,cfg)
+  cfg=cfg or {}
+  for _,name in ipairs({"workerPark","jobPoseSetup","lumberScan","displayAck","turtleInventory","remoteDimensions"}) do
+    if cfg[name]==nil then cfg[name]=false end
+  end
   local s={now=100000,commands={},sent={}}
   s.mine={home={x=0,y=64,z=0,facing=0},homeSet=true,bottom=60,length=48,mode='thorough',ores={},
     dim='minecraft:overworld',running=true,progress={done=0,nextBranch=2},turtles={
@@ -117,7 +121,7 @@ local function buildReturn(mode)
   if mode=='missing-home' then job.home,job.returnHome=nil,false end
   local s={job=job,open='lease-8',session={buildSetup=mode=='off' or mode=='on' or mode=='home' or mode=='missing-home'}}
   local env=setmetatable({SO={now=function() return 100000 end,breathe=function() end,mods={},
-    store={copy=dofile('so-store.lua').copy,read=function() return {jobPoseSetup=mode=='home'} end,
+    store={copy=dofile('so-store.lua').copy,read=function() return {jobPoseSetup=mode=='home',remoteDimensions=false,builderSolid=false,builderFuelTrips=false,workerPark=false,storageDeliveries=false} end,
       store=function() return {value=job,save=function() return true end} end}}},{__index=_G})
   env.SO.mods.state={emit=function() return true end}
   env.SO.mods.lease={status=function() return {open=s.open} end,onReport=function() end}

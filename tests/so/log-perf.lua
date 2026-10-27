@@ -132,8 +132,8 @@ return function(test, equal)
     equal(#reboot.env.log.events(),91)
   end)
 
-  test("heartbeat coalescing defaults off for missing and malformed settings", function()
-    for _, config in ipairs({{}, {state=false}, {state={coalesceHeartbeats=false}}, {state={coalesceHeartbeats="true"}}}) do
+  test("heartbeat coalescing can be disabled and rejects malformed booleans", function()
+    for _, config in ipairs({{state={coalesceHeartbeats=false}}, {state={coalesceHeartbeats="true"}}}) do
       local m, net, run = setup(nil, config)
       run([[state=dofile("so-mod-state.lua"); state.handlers.hello({from=2,body={role="worker",fuel=1000}})]])
       net.advance(60)
@@ -164,8 +164,8 @@ return function(test, equal)
     assert(not m.waits, "handler waited")
   end)
 
-  test("default fleet retains sixty-five machine events over twelve minutes", function()
-    local m, net, run = setup()
+  test("disabled coalescing retains sixty-five machine events over twelve minutes", function()
+    local m, net, run = setup(nil,{state={coalesceHeartbeats=false}})
     run([[state=dofile("so-mod-state.lua")]])
     for _=0,144 do
       run([[for id=2,6 do state.handlers.hello({from=id,body={role=id<=4 and "worker" or "display",fuel=1000}}) end]])

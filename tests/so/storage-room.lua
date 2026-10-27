@@ -7,6 +7,7 @@ local function fixture()
   local m = net.machine({id=1,modem=true})
   m.install({"so-store.lua","so-mod-shop.lua","so-mod-drops.lua","so-ui.lua","so-plan.lua",
     "so-mod-mine.lua","so-mine-plan.lua","so-mod-health.lua"})
+  m.files["so-server.cfg"]=H.encode({storageDeliveries=false,shopSaved=false,dropsSavedSetup=false})
   local screens, sends, events = {}, {}, {}
   local store = m.env.dofile("so-store.lua")
   local s = {net=net,m=m,sends=sends,screens=screens,events=events}
@@ -37,6 +38,7 @@ local function fixture()
     mods.shop.tick(net.time) mods.drops.tick(net.time)
   end
   s.restart()
+  assert(s.drops.roomSink(false))
   assert(s.drops.add(output))
   s.stock = function(totals) s.shop.listen.roomsorter_stock(9,{totals=totals or {["minecraft:charcoal"]=128,["minecraft:coal"]=256}}) end
   s.enable = function() assert(s.shop.fuelConfig(nil,"output"));assert(s.shop.fuelConfig(true)) end
@@ -316,7 +318,7 @@ return function(test,equal)
     assert(not pcall(s.shop.fuelEmpty,output))
     s.restart() s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),1)
   end)
-  test("room ore and wood sinks are opt-in persistent points with ordinary unload steps",function()
+  test("room ore and wood sinks can be disabled persistent points with ordinary unload steps",function()
     local s=fixture()
     local near={dim=0,x=0,y=2,z=0}
     for _,kind in ipairs({"ore","wood"}) do
@@ -710,7 +712,7 @@ return function(test,equal)
     equal(#s.orders(),1)
   end)
 
-  test("default-off shop polling orders and fuel ignore delivery save failures and corrupt delivery state",function()
+  test("disabled deliveries let shop polling orders and fuel ignore delivery save failures and corrupt delivery state",function()
     for _,fault in ipairs({"output save","delivery state"}) do
       local s=fixture()
       s.m.files["so-server.cfg"]=H.encode({storageDeliveries=false,builderMaterialOrders=false})
@@ -723,7 +725,7 @@ return function(test,equal)
       for path in pairs(s.m.files) do assert(not path:match("so%-data/shop%-"),path) end
     end
   end)
-  test("default-off UB-5 preserves disabled-auto waits and accepts late replies before the next tick",function()
+  test("disabled deliveries with UB-5 preserves disabled-auto waits and accepts late replies before the next tick",function()
     for _,tickFirst in ipairs({false,true}) do
       local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
       local rid=s.shop.fuelConfig().waiting.rid

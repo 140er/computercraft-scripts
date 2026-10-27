@@ -1,6 +1,6 @@
 local ROLES = {
   common = { enrollRoles = true, pinnedUpdate = true,
-    "install.lua", "update.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
+    "install.lua", "update.lua", "so-flags.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
     "lib/ccryptolib/random.lua", "lib/ccryptolib/config.lua",
     "lib/ccryptolib/chacha20.lua", "lib/ccryptolib/blake3.lua",
     "lib/ccryptolib/x25519.lua", "lib/ccryptolib/internal/packing.lua",

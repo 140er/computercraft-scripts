@@ -3,7 +3,7 @@ local function setup(config)
   local n=H.new()
   local m=n.machine({id=1,capacity=16000000})
   m.install({"so-store.lua","so-ui.lua","so-mod-ar.lua","so-mod-map.lua","so-mod-drops.lua"})
-  m.files["so-server.cfg"]=H.encode(config or {pos={dim="minecraft:overworld",x=0,y=64,z=0}})
+  m.files["so-server.cfg"]=H.encode(config or {remoteDimensions=false,roomSink=false,pos={dim="minecraft:overworld",x=0,y=64,z=0}})
   local s={points={},mine={},screens={},elements={}}
   local mods={state={get=function() return {} end,view=function() return {} end},
     drops={list=function() return s.points end},mine={mapView=function() return s.mine end},
@@ -40,6 +40,7 @@ local function mineFixture()
     return copy(v)
   end,store=function() return {value=job,save=function() return true end} end},mods={}}},{__index=_G})
   env.dofile=function(path)
+    if path == "so-flags.lua" then return dofile("so-flags.lua") end
     local lib=dofile(path)
     if path=="so-mine-plan.lua" then
       local route=lib.route

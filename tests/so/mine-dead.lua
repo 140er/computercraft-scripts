@@ -9,7 +9,7 @@ local function setup(saved)
     local path="lib/ccryptolib/"..name..".lua"
     local f=assert(io.open(path)) server.files[path]=f:read("*a") f:close()
   end
-  server.files["so-server.cfg"]=H.encode({pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+  server.files["so-server.cfg"]=H.encode({workerPark=false,protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,pos={dim="minecraft:overworld",x=0,y=0,z=0}})
   if saved then server.files["so-data/mine/job"]=H.encode({schema=1,generation=1,value=saved}) end
   server.boot("so-server.lua") net.flush()
   assert(not server.error,tostring(server.error))

@@ -10,7 +10,7 @@ local function setup()
     local path="lib/ccryptolib/"..name..".lua"
     local f=assert(io.open(path)) server.files[path]=f:read("*a") f:close()
   end
-  server.files["so-server.cfg"]=H.encode({pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+  server.files["so-server.cfg"]=H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim="minecraft:overworld",x=0,y=0,z=0}})
   server.boot("so-server.lua") net.flush() net.advance(1)
   local s={net=net,server=server,turtles={}}
   s.command=function(text) server.env.SO.mods.display.screen("mining").input({text=text}) end

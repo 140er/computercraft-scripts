@@ -20,7 +20,7 @@ local function setup(w, h)
     "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-mod-state.lua", "so-mod-display.lua",
     "so-mod-drops.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-shop.lua", "so-mod-ar.lua",
     "so-mod-cells.lua", "so-mod-lease.lua", "so-ui.lua", "so-mod-panel.lua", "so-mod-daily.lua", "so-mod-map.lua"})
-  s.server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld", x=0, y=64, z=0}})
+  s.server.files["so-server.cfg"] = H.encode({displayAck=false,turtleInventory=false,workerPark=false,shopSaved=false,storageDeliveries=false,panelUpdates=false,workerSettings=false,pos={dim="minecraft:overworld", x=0, y=64, z=0}})
   s.server.boot("so-server.lua")
   net.flush()
   assert(not s.server.error, tostring(s.server.error))
@@ -284,6 +284,7 @@ return function(test, equal)
   test("role-lock: pockets drop navigation roles saved before R1; other displays keep theirs", function()
     local m = H.new().machine({id=1, capacity=16000000})
     m.install({"so-store.lua", "so-ui.lua", "so-mod-display.lua"})
+    m.files["so-server.cfg"]=H.encode({displayAck=false,turtleInventory=false,workerPark=false})
     local e = m.env
     e.SO = {now=function() return e.os.epoch("utc") end, mods={}, store=e.dofile("so-store.lua"),
       proto={ser=H.encode}, pair={key=function() return "key" end}}
@@ -318,6 +319,7 @@ return function(test, equal)
   test("role-lock: kit-free servers still draw the role prompt", function()
     local m = H.new().machine({id=1, capacity=16000000})
     m.install({"so-store.lua", "so-mod-display.lua"})
+    m.files["so-server.cfg"]=H.encode({displayAck=false,turtleInventory=false,workerPark=false})
     local e = m.env
     e.SO = {now=function() return 0 end, mods={}, store=e.dofile("so-store.lua"), proto={ser=H.encode},
       pair={key=function() return "key" end}}

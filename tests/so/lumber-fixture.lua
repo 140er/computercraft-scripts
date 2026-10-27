@@ -8,7 +8,7 @@ local function setup(phase, fuel, inv)
   for _, key in ipairs({ 'turtle', 'phase', 'cursor', 'fuel', 'inv', 'tree' }) do row[key], job[key] = job[key], nil end
   job.turtles = { ['2'] = row }
   local callback, render, input, queued, events, serial = nil, nil, nil, nil, {}, 0
-  local env = setmetatable({ os = { epoch = function() return 0 end }, SO = { pair={key=function() return "paired" end}, now = function() return 0 end, store = { store = function() return { value = job, save = function() return true end } end }, mods = {
+  local env = setmetatable({ os = { epoch = function() return 0 end }, SO = { pair={key=function() return "paired" end}, now = function() return 0 end, store = { read=function() return {workerPark=false,lumberScan=false,jobPoseSetup=false,roomSink=false,dropsSavedSetup=false} end, store = function() return { value = job, save = function() return true end } end }, mods = {
     cells = { reserveMany = function() return true end, releaseOwner = function() end },
     state = { emit = function(kind, data) events[#events + 1] = { kind = kind, data = data } end, canStart = function() return true end },
     drops = { list=function() return {{id="ready",dim=0,x=250,y=1,z=0,kind="any"}} end, pick = function(kind) return { point = { id = 1, x = 250, y = 1, z = 0, side = 'down', kind = kind } } end },

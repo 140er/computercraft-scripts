@@ -1,3 +1,4 @@
+local F = dofile("so-flags.lua")
 local P = dofile("so-plan.lua")
 local M = dofile("so-mine-plan.lua")
 local S = { wired = false, pending = {}, resume = {}, known = {}, dugFacts = {}, burst = { n = 0 }, error = nil }
@@ -53,8 +54,8 @@ local function oreFind(id, name, cell, evidence)
   emit("mine.ore", data)
 end
 local function owner(id) return "mine:" .. id end
-local workerPark = SO.store.read and (SO.store.read("so-server.cfg") or {}).workerPark == true
-S.poseSetup = SO.store.read and (SO.store.read("so-server.cfg") or {}).jobPoseSetup == true
+local workerPark = F.enabled(F.read(SO.store), "workerPark")
+S.poseSetup = F.enabled(F.read(SO.store), "jobPoseSetup")
 S.finish = function()
   if job.recall or not job.running or #(job.unfinished or {}) > 0 then return end
   if job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then return end
@@ -1087,7 +1088,7 @@ plan = function(id,row)
     end
   end
   if job.dim ~= "minecraft:overworld" then
-    local err=P.dimensionError(job.dim,SO.store.read("so-server.cfg")) or P.heightError(job.dim,row.pose.y)
+    local err=P.dimensionError(job.dim,F.read(SO.store)) or P.heightError(job.dim,row.pose.y)
       or P.heightError(job.dim,job.home.y) or P.heightError(job.dim,job.bottom) or row.safety
     if err then row.error=err:gsub("^remote safety: ","") row.state="hold" park(id,row,false) return end
   end
@@ -1320,7 +1321,7 @@ plan = function(id,row)
   elseif not send(id,row,action) then park(id,row,false) end
 end
 local function dimensionError(y)
-  local config=job.dim ~= "minecraft:overworld" and SO.store.read and SO.store.read("so-server.cfg")
+  local config=job.dim ~= "minecraft:overworld" and F.read(SO.store)
   return P.dimensionError(job.dim, config) or P.heightError(job.dim, y)
 end
 local function readiness()
@@ -1986,7 +1987,7 @@ local function command(event)
   elseif cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] and #a<=6 then
     local dim = job.dim
     if a[6] then dim=P.dimension(a[6]) end
-    local config=dim ~= "minecraft:overworld" and SO.store.read and SO.store.read("so-server.cfg")
+    local config=dim ~= "minecraft:overworld" and F.read(SO.store)
     local err = P.dimensionError(dim, config) or P.heightError(dim, num(3))
     if err then S.error=err return end
     if dim~=job.dim and (job.running or next(job.turtles)) then S.error="stop and remove turtles before dimension change" return end

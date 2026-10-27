@@ -1,5 +1,52 @@
 # so protocol
 
+## Feature defaults
+
+`so-flags.lua` owns all feature defaults. A missing key uses its default;
+explicit false disables it. Only `retireLegacyPair` and `soundQuiet` default off.
+Startup and settings screens do not save false placeholders for missing keys.
+`SO.health.config` reports effective values without rewriting `so-server.cfg`.
+
+| Flag | Default | Configuration |
+| --- | --- | --- |
+| `alarm` | on | `so-server.cfg` |
+| `alternateAxisOrders` | on | `so-server.cfg` |
+| `arFollowups` | on | `so-server.cfg` |
+| `builderFuelTrips` | on | `so-server.cfg` |
+| `builderMaterialOrders` | on | `so-server.cfg` |
+| `builderSolid` | on | `so-server.cfg` |
+| `displayAck` | on | `so-server.cfg` |
+| `dropsSavedSetup` | on | `so-server.cfg` |
+| `dropsTestQueue` | on | `so-server.cfg` |
+| `enroll` | on | `so-server.cfg` |
+| `jobPoseSetup` | on | `so-server.cfg` |
+| `lumberScan` | on | `so-server.cfg` |
+| `panelUpdates` | on | `so-server.cfg` |
+| `pocketTone` | on | `so-server.cfg` |
+| `protectedAreas` | on | `so-server.cfg` |
+| `remoteDimensions` | on | `so-server.cfg` |
+| `retireLegacyPair` | off | `so-server.cfg` |
+| `retryInput` | on | `so-display.cfg` |
+| `roomSink` | on | `so-server.cfg`, with saved `so-drops` choice |
+| `setupMovement` | on | `so-server.cfg` |
+| `shopSaved` | on | `so-server.cfg` |
+| `soundQuiet` | off | `so-server.cfg` |
+| `state.coalesceHeartbeats` | on | `so-server.cfg` |
+| `storageDeliveries` | on | `so-server.cfg` |
+| `terminalRevoke` | on | `so-server.cfg` |
+| `turtleInventory` | on | `so-server.cfg` |
+| `workerPark` | on | `so-server.cfg` |
+| `workerSettings` | on | `so-server.cfg` |
+| `worldEdits` | on | `so-server.cfg` |
+
+`state.coalesceHeartbeats` is nested in `state`. `soundQuiet` remains false
+unless configured with quiet hours. Fresh room sinks default on; saved false
+values remain off. Queue movement still needs both `dropsTestQueue` and
+`setupMovement`, which now default on together. Worker `remoteUpdates` and
+`settingsControl` remain opt-in. Mining continuous mode, recall, ore coordinates,
+builder return-home, lumber species and log burning, and fuel auto-order policy
+remain saved job choices.
+
 Rednet protocol name is `so`. The server attempts to host that protocol as `server`. One server runs `so-server.lua` on a computer whose disk is at least 16000000 bytes. Turtles, pocket computers, and monitors keep no state that matters after a reboot. After a reboot the server tells them what to do.
 
 Servers and displays open every attached modem and rescan on `peripheral` and
@@ -142,7 +189,7 @@ The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.
 
 ### enroll
 
-Batch enrollment defaults off. `so-server.cfg.enroll` is a saved runtime boolean.
+Batch enrollment defaults on. `so-server.cfg.enroll` is a saved runtime boolean.
 `SO.enroll` always exposes `enabled()`, `setEnabled(boolean)`, `open(owner)`,
 `view(owner?)`, `close()`, `extend(owner)` and `decide(id, n, approve)`.
 `setEnabled` merges and verifies the config save before changing the flag.
@@ -711,7 +758,7 @@ through the existing job recovery path.
 
 Each item keeps at most 60 samples, one per minute. Its hourly change compares current stock with the oldest retained sample, about an hour ago once the history fills, scaled to an hour. Before an hour of history exists, it compares with the earliest available sample. An item absent for every retained sample is forgotten.
 
-With default-off `shopSaved=true`, lists and pins share saved state across
+With default-on `shopSaved=true`, lists and pins share saved state across
 shop, panel and pocket displays. `so-data/shop-lists` and `so-data/shop-pins`
 use `{v=1,kind,revision,entries}` with a 65536-byte generation limit.
 Lists have kind `lists` and entries `{{id,name,items={{item,count},...}},...}`.
@@ -848,7 +895,7 @@ release evidence seeds the room history when loaded.
 
 #### Worker deliveries
 
-`so-server.cfg.storageDeliveries` defaults to false. Set `storageDeliveryOutput`
+`so-server.cfg.storageDeliveries` defaults to true. Set `storageDeliveryOutput`
 to an enabled room-output drop-point id and `storageDeliveryWorkers` to an array
 of eligible paired worker ids. The room needs receipt support and
 `room.cfg.managedOutput=true`. A legacy room cannot serve deliveries. The claim
@@ -1116,8 +1163,7 @@ A new pairing establishes its baseline; only higher sequences replace it afterwa
 
 `lease.settings(id, changes)` returns a rid or nil and a refusal reason. It
 requires server `workerSettings=true`, worker `settingsControl=true`, the
-capability, and no assignment, open lease or lost/uncertain pose. Both flags
-default off. One request per worker remains pending for 15000 game ms.
+capability, and no assignment, open lease or lost/uncertain pose. The server flag defaults on; worker `settingsControl` defaults off. One request per worker remains pending for 15000 game ms.
 `lease.status` and `peek` include copied `settings`, `workerSettings`,
 `settingsControl`, `settingsPending={rid,n}` and `settingsError`.
 
@@ -1139,7 +1185,7 @@ Revision changes emit before heartbeat coalescing and disk-pressure returns.
 A rejected event leaves the previous registry revision intact.
 
 `SO.updateWorker(id)` returns a rid or nil and a refusal reason. It requires
-server `panelUpdates=true` and worker `remoteUpdates=true`, both default off.
+server `panelUpdates=true`, which defaults on, and worker `remoteUpdates=true`, which defaults off.
 It refuses missing capabilities or revisions, equal revisions, stale workers,
 assignments, open leases or another pending update. Requests are not queued.
 The authenticated request is `worker.update {revision=T}` on the current key.
@@ -1305,7 +1351,7 @@ one stationary `inspectDown`. Enabled boundary safety still requires both
 `setupFence` and `parkBatch`. Pending fenced cell release still requires GPS proof.
 
 Lease persistence has no opt-out. Recovery continues with feature flags off.
-Protection, alternate routing, delivery and setup flags keep their existing default-off settings. Callback functions,
+Protection, alternate routing, delivery and setup flags default on. Explicit false values disable them. Callback functions,
 beacon observations and observed ranges remain in memory. Recovery is idempotent;
 it does not promise exactly-once callback side effects.
 
@@ -1697,7 +1743,7 @@ and arms no confirmation. Invalid confirmations also return `err`.
 
 ### display
 
-With `so-server.cfg.displayAck=true`, default off, a capable display becomes
+With `so-server.cfg.displayAck=true`, default on, a capable display becomes
 stale 10000 game milliseconds after its last accepted `view.ack`. Before its
 first ack, age starts at the capability hello and reads `waiting` until stale.
 Displays without the capability read `unverified`. Hello, input and successful
@@ -2337,7 +2383,7 @@ render for a session without `id` keeps the Big Tiles rows `so-mod-panel` probes
 Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 `scan` requests one fresh lumber scan round with `so-server.cfg.lumberScan=true`
-and a running farm. The flag defaults off. The overview shows SCAN at widths
+and a running farm. The flag defaults on. The overview shows SCAN at widths
 of at least 26 columns. The saved request coalesces repeats and survives restart.
 It waits for targets, trees, service trips, queued motions and round-end cleanup.
 Workers stop claiming scan targets while it waits; existing claims stay held.
@@ -2431,7 +2477,7 @@ It maps the server dimension to drop dimensions 0, -1 or 1 and refuses unknown
 maps, moving turtles, stale fixes and uncertain journals. Saving still needs ADD.
 
 With `so-server.cfg.dropsSavedSetup=true`, the first mutation migrates `so-drops`
-to `{v=2,points={...},roomSink=boolean,candidates={...}}`. The flag defaults off.
+to `{v=2,points={...},roomSink=boolean,candidates={...}}`. The flag defaults on.
 Candidates are `{dim,x,y,z,side,block,at}` in discovery order. Dimensions are
 0, -1 or 1; coordinates and `at` are finite integers, with nonnegative game-time
 `at`. Side is front/down and the namespaced block ID is at most 256 bytes.
@@ -2464,7 +2510,7 @@ check before selection and each new service command, including after restore
 with a saved point ID. Suspended, missing, broken or unreadable points hold
 with the current reason. START and reload cannot bypass these checks.
 Commands already in flight finish. Collected fuel can be consumed before the
-safe return. `dropsSavedSetup` still defaults off; callers respect saved
+safe return. `dropsSavedSetup` still defaults true; callers respect saved
 exclusions that the registry retains after the flag is disabled.
 
 ### ar
@@ -2482,7 +2528,7 @@ Gather copies the layer state before the private pure layout renders it.
 All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar`, with a 4096-byte budget, as
 `{ turtles, leases, drops, alerts }` with boolean values. With
-`so-server.cfg.arFollowups=true`, default false, the first edit writes
+`so-server.cfg.arFollowups=true`, default true, the first edit writes
 `{v=2,turtles,leases,drops,alerts,dim?,focus}`. `dim` is absent or a canonical
 Overworld, Nether or End name. Focus is `{kind="all"}`, `{kind="turtle",id}`
 with integer id 1..2147483647, or `{kind="drop",id}` with up to 128 letters,
@@ -2910,7 +2956,7 @@ sender per ten minutes, including after eviction.
 
 ### Severity 1 sound
 
-Independent `so-server.cfg` flags `alarm` and `pocketTone` default to false.
+Independent `so-server.cfg` flags `alarm` and `pocketTone` default to true.
 The server plays the alarm; speaker pockets can play takeover tones through
 `view.frame.body.sound`. `soundQuiet` defaults to false or accepts
 `{startMinute=1380,endMinute=420}`. Minutes are Amsterdam civil time, 0 through
@@ -3005,7 +3051,7 @@ Below 24 columns, BUILD draws only the job tab and no tab controls.
 START requires usable storage, a paired certain pose, parkBatch and positive or
 unlimited fuel. Wait for the initial stationary recovery report; later fresh
 hello fuel can clear zero-fuel refusal. Numeric -1 becomes unlimited.
-`builderFuelTrips=true` defaults off and also requires a usable fuel chest.
+`builderFuelTrips=true` defaults true and also requires a usable fuel chest.
 Fuel trips include a route back to fuel, exclude the building material and retry
 empty fuel chests after ten game seconds. An unreachable chest leaves the
 builder still, polling for manual refuel. Disabling the flag stops saved fuel
@@ -3026,7 +3072,7 @@ The screen accepts `area x1 y1 z1 x2 y2 z2`, `shape <kind>`, `material <name>`,
 `add <id> [x y z n|e|s|w]`, `import <main builder command>`, `start` and `stop`.
 Its drawn controls are the tabs `tab:job` and `tab:setup` (the old ids `setup` and
 `build-back` still switch them), the shape chips `shape floor`, `shape walls` and
-`shape box`, plus `shape solid` with default-off `builderSolid=true`
+`shape box`, plus `shape solid` with default-on `builderSolid=true`
 (one `shape-next` chip that cycles them where the three do not fit), `start` and
 `stop`. The old BACK id `status` is no longer drawn and still does nothing.
 Reservations use `build:<id>`. Supply uses existing storage drop points.
@@ -3122,7 +3168,7 @@ failures. Unverified points remain
 usable. Readiness describes the last successful visit without adding a gate.
 
 Chest setup reuses `lease.batch` and `step.report`, with no new worker operation.
-`so-server.cfg.setupMovement` defaults to false. A refused setup reports
+`so-server.cfg.setupMovement` defaults to true. A refused setup reports
 `setupMovement off`, or `setup busy: #<id>` with the turtle that holds setup. A
 turtle without a facing gets the FACING prompt. CANCEL or BACK drops the prompt,
 and so does any refusal other than `facing unknown`. All setup batches require
@@ -3163,7 +3209,7 @@ Scans turn in place and require no movement fuel. Unlimited fuel is accepted.
 
 ### Job pose setup and completion
 
-`so-server.cfg.jobPoseSetup` defaults to false. When enabled, mining HOME
+`so-server.cfg.jobPoseSetup` defaults to true. When enabled, mining HOME
 copies the selected assigned paired worker's occupied cell and facing.
 Mining and lumber keep a worker selection per display. Lumber and build
 capture FROM, then TO, with a first-corner draft per display. Lumber ground
@@ -3189,7 +3235,7 @@ workers. Chest and pairing checks remain.
 
 ### Chest test queue
 
-`so-server.cfg.dropsTestQueue` defaults to false. Sweeps also require
+`so-server.cfg.dropsTestQueue` defaults to true. Sweeps also require
 `setupMovement=true`. SETUP offers TEST ALL for unverified usable points in
 the current dimension. CHECK SELECTED uses that display's stable-ID selection
 and can include verified points. A sweep snapshots at most 64 points in list
@@ -3296,7 +3342,7 @@ overworld. HUD fleet totals remain global. AR does not infer wearer dimension.
 
 ### Protected paths and acknowledged boundaries
 
-`so-server.cfg.protectedAreas` defaults to false and is read at boot.
+`so-server.cfg.protectedAreas` defaults to true and is read at boot.
 Disabling it retains saved boxes. `so-data/cells/protected` stores
 `{v=1,revision,boxes}` through the generation store. At most 64 boxes are
 allowed. Each has a unique `id`, canonical vanilla `dim`, and inclusive integer
@@ -3358,7 +3404,7 @@ work; cells also checks reservation holders before activation or edits.
 
 ### Fenced release and mark retention
 
-`so-server.cfg.worldEdits` defaults to false. It gates RELEASE, authenticated
+`so-server.cfg.worldEdits` defaults to true. It gates RELEASE, authenticated
 `cells.forget`, mark clearing and keep-box edits. Turning it off retains saved
 holds and keep boxes. `releaseSilence` can only raise the minimum silence of
 300000 game milliseconds. Boot starts a fresh silence grace.
@@ -3582,7 +3628,7 @@ the existing return path.
 
 ### Builder storage axis orders
 
-`so-server.cfg.alternateAxisOrders` defaults to false. Enabling it lets builder
+`so-server.cfg.alternateAxisOrders` defaults to true. Enabling it lets builder
 storage trips rank known-clear, non-digging axis paths. Each candidate leg spans
 at most 16 cells per axis. Ownership, protection, radio range, mining lanes and
 fuel must pass before dispatch reserves cells. Missing or evicted clear-cell

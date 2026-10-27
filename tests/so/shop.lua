@@ -39,7 +39,7 @@ end
 local function setup(legacy)
   local s = { now = 1000, sends = {}, session = { id = 2 }, events = {}, values = {} }
   local env = setmetatable({
-    fs = { exists = function() return not legacy end },
+    fs = { exists = function(path) return path=="so-ui.lua" and not legacy end },
     os = { epoch = function() return 72840000 end },
     rednet = {
       send = function(id, body)
@@ -48,7 +48,7 @@ local function setup(legacy)
       end,
       broadcast = function() end,
     },
-    SO = { now = function() return s.now end, mods = { display = {
+    SO = { store={read=function() return {shopSaved=false,storageDeliveries=false} end}, now = function() return s.now end, mods = { display = {
       screen = function(_, render, input) s.render, s.input = render, input end,
     } } },
   }, { __index = _G })
@@ -91,7 +91,7 @@ local function savedShop(files, enabled, values)
   local m = H.new().machine({id=1, capacity=16000000})
   m.install({"so-store.lua","so-ui.lua","so-mod-shop.lua","so-mod-panel.lua"})
   for name, bytes in pairs(files or {}) do m.files[name] = bytes end
-  m.files["so-server.cfg"] = H.encode({shopSaved=enabled == true})
+  m.files["so-server.cfg"] = H.encode({shopSaved=enabled == true,storageDeliveries=false})
   local e, s = m.env, {machine=m, now=1000, values=values or {}, events={}, screens={}}
   e.SO = {store=e.dofile("so-store.lua"), now=function() return s.now end, mods={}}
   e.SO.mods.state = {
@@ -379,7 +379,7 @@ return function(test, equal)
     match("panelnoroom")
     for _, b in ipairs(s.view(POCKET).buttons) do assert(not b.id:match("^order:"), b.id) end
   end)
-  test("P-U2-5 and P-U2-11 default off creates no saved files, controls or watch alerts", function()
+  test("P-U2-5 and P-U2-11 explicit false creates no saved files, controls or watch alerts", function()
     local s=savedShop()
     s.stock({["minecraft:iron_ingot"]=0})
     equal({s.shop.setMinimum("minecraft:iron_ingot",32,0)},{false,"off"})
@@ -871,7 +871,7 @@ return function(test, equal)
     equal({s.shop.setList("extra",{id="extra",name="Extra",items={}},16)},{false,"invalid"})
   end)
 
-  test("D6 default-off lists and pins emit no controls or files, and stale drawn pin taps return changed", function()
+  test("D6 explicitly disabled lists and pins emit no controls or files, and stale drawn pin taps return changed", function()
     local item="minecraft:iron_ingot"
     local s=savedShop(nil,false) s.stock({[item]=64},{[item]=64})
     equal({s.shop.setPin(item,true,0)},{false,"off"})

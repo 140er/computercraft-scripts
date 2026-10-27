@@ -15,6 +15,7 @@ F.setup = function(opts, modules, rate)
       value={ keys={ [tostring(m == s and 2 or 1)]=string.rep("a",64) } } })
   end
   s.install({ "so-server.lua" })
+  s.files["so-server.cfg"] = H.encode({protectedAreas=false, alternateAxisOrders=false, storageDeliveries=false,state={coalesceHeartbeats=false}})
   if modules then s.install(modules) end
   s.boot("so-server.lua"); n.flush()
   t.install({ "worker.lua" }); t.boot("worker.lua"); n.flush()

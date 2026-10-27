@@ -107,7 +107,7 @@ local function setup(opts)
     m.env.peripheral.find = function(kind) if kind == "monitor" then return target end return find(kind) end
     m.env.peripheral.getName = function() return "monitor" end
   end
-  m.files["so-server.cfg"] = H.encode({pos=scene.server})
+  m.files["so-server.cfg"] = H.encode({pos=scene.server,protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,remoteDimensions=false,workerPark=false,worldEdits=false,displayAck=false,turtleInventory=false})
   local t = {scene=scene, machine=m, net=net, calls=0, leases=scene.leases}
   local now = 1700000000000
   local lumber = {dim="minecraft:overworld", area=scene.area, ground=scene.ground, spots=scene.spots, saplings=scene.saplings}
@@ -1721,7 +1721,7 @@ return function(test,equal)
   test("B2-B a standalone builder supplies its dimension when the server and other jobs have none",function()
     local s=setup()
     s.mine,s.lumber={},{}
-    s.machine.files["so-server.cfg"]=H.encode({})
+    s.machine.files["so-server.cfg"]=H.encode({remoteDimensions=false,worldEdits=false})
     s.machine.env.SO.mods.build={mapView=function() return {dim="minecraft:the_nether",turtles={}} end}
     local scene=mapState(s).gather(6000)
     equal(scene.dim,"minecraft:the_nether") equal(scene.build.dim,"minecraft:the_nether")
@@ -1848,7 +1848,7 @@ return function(test,equal)
     -- FIT holds the blueprint even with every other job gone.
     s.mine,s.lumber,s.scene.drops={},{},{}
     for id in pairs(s.machines) do if id~="8" then s.machines[id]=nil end end
-    s.machine.files["so-server.cfg"]=H.encode({})
+    s.machine.files["so-server.cfg"]=H.encode({remoteDimensions=false,worldEdits=false})
     s.reloadMap()
     session={map={level="all",fit=true}}
     out,v=picture(s.settle(57,24,session),57,24),session.map

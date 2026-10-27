@@ -1,7 +1,7 @@
 -- B5-U panel and pocket SHOP deliveries: the fixtures docs/ui/schematic/panel.py writes for the panel's
 -- SHOP page and the pocket's delivery mode, then the real so-mod-build delivery engine and so-mod-shop
 -- under so-mod-panel: one request per drawn attempt token, ORDERED until the worker's confirmed deposit,
--- held cargo with RETRY, refused as final, busy outputs and the default-off flag.
+-- held cargo with RETRY, refused as final, busy outputs and the explicitly disabled flag.
 local R = dofile('tests/ui/render.lua')
 local S = dofile('tests/ui/scene.lua')
 local H = dofile('tests/so/harness.lua')

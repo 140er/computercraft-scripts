@@ -477,7 +477,7 @@ return function(test, equal, read)
     m.badPath, m.badBody = "so-proto.lua", "not lua !"
     m.run("update")
     unchanged(m, before)
-    equal(m.calls, 3)
+    equal(m.calls, 4)
     equal(#m.runs, 0)
   end)
   test("SO9 retries pinned bootstrap transport failures and closes failed responses", function()

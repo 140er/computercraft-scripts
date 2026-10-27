@@ -1,5 +1,11 @@
 # Server-only ComputerCraft
 
+Server features now default on through [the shared defaults](so-flags.lua).
+Set a feature to false in `so-server.cfg` to disable it. `retireLegacyPair` and
+`soundQuiet` remain off. [The flag table](docs/server-only/PROTOCOL.md#feature-defaults)
+lists every setting. Saved job choices and worker consent settings keep their
+existing defaults.
+
 The `server-only` branch runs one server computer with at least 16 MB of disk.
 It owns jobs, reservations, paired keys and saved state. Turtles execute batches
 from the server. Displays show frames from the server and send input back.
@@ -49,9 +55,9 @@ work. The schema, 64 KB single-event limit, retention budget and generation
 recovery stay compatible with `install rollback`. Completed appends survive a
 crash during the next write. The event whose write was interrupted may be absent.
 
-To omit routine heartbeat events, add `state = { coalesceHeartbeats = true }`
-to the existing `so-server.cfg` table and restart the server. The setting defaults
-to false. Role, journal, fingerprint and significant fuel changes still create
+Routine heartbeats are coalesced by default. Set
+`state = { coalesceHeartbeats = false }` in `so-server.cfg` and restart to record
+them again. Role, journal, fingerprint and significant fuel changes still create
 events. Views receive current contact times and fuel without routine log writes.
 Snapshots save those values on the existing event-count and retention cadence.
 There is no time-based snapshot, so idle freshness can remain volatile until
@@ -237,7 +243,7 @@ files.
 ### Pinned worker updates
 
 Set `panelUpdates=true` in `so-server.cfg` and `remoteUpdates=true` in
-`so-worker.cfg` to allow `SO.updateWorker(id)`. Both default off. The server
+`so-worker.cfg` to allow `SO.updateWorker(id)`. The server flag defaults on; `remoteUpdates` defaults off. The server
 proposes its running full revision to one idle, unassigned worker. Requests
 are refused rather than queued. Busy, offline or older workers refuse, as do
 workers with recovery holds, uncertain journals or a saved API cooldown.
@@ -268,7 +274,7 @@ expires after 120000 game milliseconds and does not survive server restart.
 
 Set `settingsControl=true` in `so-worker.cfg` to show WORLD, NETHER, END and SWAP
 on the turtle. Set `workerSettings=true` in `so-server.cfg` to permit backend
-settings requests too. Both flags default off. `remoteDimensions` separately
+settings requests too. The server flag defaults on; `settingsControl` defaults off. `remoteDimensions` separately
 controls remote movement.
 
 Stop and unassign the turtle before editing. Queued work, recovery, journal
@@ -281,7 +287,7 @@ movement until an explicit re-anchor in a configured dimension.
 ### Copy job setup from a turtle
 
 Set `jobPoseSetup=true` in `so-server.cfg` to enable paired-pose setup chips.
-It defaults off. Mining HOME copies the selected assigned turtle's occupied
+It defaults on. Mining HOME copies the selected assigned turtle's occupied
 cell and facing. Mining and lumber let each display select a turtle. Lumber
 and build capture FROM, then TO; each display keeps its own first corner.
 Lumber ground is one block below FROM. Build corners are one block below each
@@ -349,8 +355,8 @@ always use the selected dimension.
 
 ## Nether and End jobs
 
-Remote jobs default to off. Set `remoteDimensions = true` in `so-server.cfg`
-to enable them. Keep its existing position and other settings. Use ender modems
+Remote jobs default on. Set `remoteDimensions = false` in `so-server.cfg`
+to disable them. Keep its existing position and other settings. Use ender modems
 on the server and remote turtles. They work across dimensions with unlimited
 range. This flag leaves overworld radio-range checks unchanged.
 
@@ -564,7 +570,7 @@ text commands.
 
 Set `workerPark=true` in `so-server.cfg` and restart to enable per-worker
 `park <id>`, `resume <id>` and `remove <id>` on mining, lumber and build screens.
-The flag defaults off. PARK finishes the current batch, shows `parking`, then
+The flag defaults on. PARK finishes the current batch, shows `parking`, then
 shows `parked` after a stationary report. Other workers continue. RESUME cancels
 that pause or pending removal. START keeps these pauses while the flag is on.
 
@@ -736,7 +742,7 @@ A fresh turtle shows `UNPAIRED` on row 4 until it saves a pairing key. After
 pairing, that row shows the server contact age or current job status. A failed
 first-boot pairing shows `Pair failed: <reason>` below `Code:`.
 
-With default-off `shopSaved=true`, shop, panel and pocket displays share saved
+With default-on `shopSaved=true`, shop, panel and pocket displays share saved
 lists and up to four pinned exact item IDs. LISTS opens without ordering.
 Each list holds up to 32 items; there are at most 16 lists. Counts must fit the
 known stack size. ORDER rechecks the saved revision and fresh stock, and each
@@ -858,9 +864,9 @@ settlement and correlated cargo proof before reuse.
 
 ### Room input sinks
 
-Room sinks default to off. Use the existing drop-point editor to register the
+Room sinks default to on for fresh state. Saved false values remain off. Use the existing drop-point editor to register the
 room's INPUT chest twice, once as `ore` and once as `wood`. On each draft, tap
-ROOM ON before ADD. Tap SINKS ON to enable all marked room points. These are
+ROOM ON before ADD. The SINKS switch enables or disables all marked room points. These are
 ordinary drop points; the room sorts and smelts their contents through its
 existing input flow. Mining keeps its junk cleanup separate.
 
@@ -910,7 +916,7 @@ Reason totals survive expiry and eviction until restart. Refused traffic writes
 zero ERRORS lines per sender per ten minutes.
 
 Set `alarm=true` in `so-server.cfg` for severity 1 notes on the first speaker
-by sorted name. It defaults off. Startup and enabling establish a silent
+by sorted name. It defaults on. Startup and enabling establish a silent
 baseline. New issues sound once; standing issues repeat every five game minutes.
 Display snoozes do not mute the server alarm. Missing, busy or failing speakers
 skip the attempt. The server attempts at most one note per tick.
@@ -921,7 +927,7 @@ the end. Equal endpoints mute all day; invalid values mute sound and report an
 error. Existing reminders wait five game minutes after quiet ends. A new issue
 first seen when quiet ends can sound immediately. Sound settings refresh each
 tick. Set `pocketTone=true` for one note on a speaker pocket when a new stop-level
-takeover opens. It defaults off and follows `soundQuiet`. The tone waits up to
+takeover opens. It defaults on and follows `soundQuiet`. The tone waits up to
 ten game seconds for its matching health key. Standing alerts after restart
 stay silent. A missing, busy or failing speaker skips the note. A tone lost in
 transit is not resent.
@@ -953,7 +959,7 @@ They follow the dimension and level filter and disappear when parked or removed.
 They do not fade with time or affect FIT; older dots are dropped to fit the frame.
 
 With `arFollowups=true` in `so-server.cfg`, AR offers ALL, turtle and drop focus.
-It defaults off. Focus hides unrelated geometry but keeps broken-chest warnings,
+It defaults on. Focus hides unrelated geometry but keeps broken-chest warnings,
 HUD totals, alerts and retirement consent. A missing target shows `missing` until
 ALL is selected. With `remoteDimensions=true` too, WORLD/NETHER/END saves the AR
 dimension and resets focus to ALL. Changes redraw without restarting.
@@ -968,7 +974,7 @@ with N, E, S or W when GPS has not established it. Select a found coordinate,
 choose the kind, then ADD. The scan restores the original facing and transfers
 no items. A chest above the turtle uses DOWN access from above the chest.
 
-New setup movement requires `setupMovement = true` in `so-server.cfg`. It is off
+Setup movement uses `setupMovement = true` in `so-server.cfg`. It is on
 by default. Workers must advertise `capabilities.parkBatch` and `capabilities.setupFence`. GPS must identify
 the turtle's dimension and position, and the server must know its journal pose.
 Assigned mining, lumber and builder turtles are excluded.
@@ -988,7 +994,7 @@ means the fenced fix is pending; HELD means it failed. The route stays reserved
 until the cells module confirms release. Use `+` in the bar to page the setup list.
 
 AREAS opens from setup when `protectedAreas` or `worldEdits` is enabled. Both
-default off. Select the dimension and two corners with the field and `-`/`+`
+default on. Select the dimension and two corners with the field and `-`/`+`
 controls. PROTECT saves a protected box with `protectedAreas=true`. KEEP saves
 a keep box, and CLEAR MARKS clears dug marks after a second tap; both require
 `worldEdits=true`. Saved boxes take two taps to remove. On narrow screens,
@@ -1013,7 +1019,7 @@ Display button presses must belong to the last delivered screen; stale controls
 need a fresh frame before they can be used.
 
 With `dropsSavedSetup=true` in `so-server.cfg`, SETUP saves FOUND candidates
-and offers SUSPEND/RESUME for a selected point. The flag defaults off. ADD keeps
+and offers SUSPEND/RESUME for a selected point. The flag defaults on. ADD keeps
 the candidate; CLEAR FOUND requires two taps. Suspended points remain listed
 but new selections skip them. Existing committed trips finish. Suspension sends
 no movement or cancellation. Saved suspensions still exclude points with the
@@ -1023,7 +1029,7 @@ rollout, because older binaries reject the v2 file.
 ### Test several chest points
 
 Set `dropsTestQueue=true` and `setupMovement=true` in `so-server.cfg`.
-Both default off. In SETUP, TEST ALL visits unverified usable points in the
+Both default on. In SETUP, TEST ALL visits unverified usable points in the
 current dimension. CHECK SELECTED visits that display's selected points,
 including verified ones. Narrow screens shorten it to CHECK. One idle turtle
 visits at most 64 points in list order. Each visit rechecks admission and counts
@@ -1055,7 +1061,7 @@ the most recent forget event.
 
 ### Revoke from the server terminal
 
-Set `terminalRevoke=true` in `so-server.cfg`. It defaults off. Press R, type
+Set `terminalRevoke=true` in `so-server.cfg`. It defaults on. Press R, type
 `<id> revoke`, then repeat that numeric ID within 15 game seconds. The prompt
 shows `parks N jobs` and adds `holds 1 scan` for busy setup work. A mismatched
 ID, Escape, timeout, changed key or disabled flag cancels. A normal role command
@@ -1064,8 +1070,8 @@ the key and runs durable cleanup while retaining possibly occupied reservations.
 
 ### Enroll many turtles
 
-Enrollment is off by default. Add `enroll = true` to the existing
-`so-server.cfg` table and restart to enable it at setup. The server API
+Enrollment is on by default. Set `enroll = false` in the existing
+`so-server.cfg` table to disable it. The server API
 `SO.enroll.setEnabled(true)` also saves the runtime switch without a restart.
 `SO.enroll.setEnabled(false)` closes the window and drops
 undecided rows. Approved devices can still collect their results for ten minutes
@@ -1166,7 +1172,7 @@ Remote workers keep their stationary recovery rule. Reusing the worker's last ac
 requested step and runs nothing.
 
 Set `displayAck=true` in `so-server.cfg` to measure display freshness from
-successful frame drawing. It defaults off. Updated displays become stale after
+successful frame drawing. It defaults on. Updated displays become stale after
 ten game seconds without a frame ack. Older displays show `unverified`.
 Without the flag, freshness still uses the last send.
 
@@ -1174,7 +1180,7 @@ Without the flag, freshness still uses the last send.
 ## Protected paths and reservation release
 
 Set `protectedAreas=true` in `so-server.cfg` and restart to enable protected
-boxes. It defaults off. The server API `SO.mods.cells.protect(boxes)` saves up
+boxes. It defaults on. The server API `SO.mods.cells.protect(boxes)` saves up
 to 64 boxes with unique IDs, dimensions and inclusive integer bounds.
 `SO.mods.cells.protected()` returns the saved set and any load error.
 Saved boxes remain when disabled. Invalid protection data holds movement.
@@ -1196,7 +1202,7 @@ outside all boxes, and cannot enter a new box or re-enter a departed one.
 A failed boundary or restart discards approval and retains reservations.
 
 Set `worldEdits=true` in `so-server.cfg` to enable reservation RELEASE,
-authenticated `cells.forget`, mark clearing and keep-box edits. It defaults off.
+authenticated `cells.forget`, mark clearing and keep-box edits. It defaults on.
 With it off, `cells.forget` errors without arming confirmation. Saved holds and
 keep boxes remain. Select a map holder and tap RELEASE, then RELEASE? within
 30 game seconds. The worker must be unassigned, have no unresolved lease and
@@ -1275,7 +1281,7 @@ facing. With `return off`, completion stays at the final target.
 
 ### Builder storage trips
 
-`alternateAxisOrders=false` is the default in `so-server.cfg`. Enabling it lets
+`alternateAxisOrders=true` is the default in `so-server.cfg`. Enabling it lets
 builder storage trips choose another safe axis order. Every entered cell needs
 a known-clear mark in memory. Missing or evicted facts hold the trip.
 Each move or turn waits for journal and pose confirmation before replanning.

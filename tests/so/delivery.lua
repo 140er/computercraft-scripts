@@ -271,7 +271,7 @@ local function paired(withBuilder)
   return f
 end
 return function(test,equal)
-  test("delivery flags default off and stock-only exact get refuses tools",function()
+  test("delivery can be disabled and stock-only exact get refuses tools",function()
     local f=fixture({storageDeliveries=false})
     equal(f.request(),nil) equal(#f.commands("get"),0)
     for _,suffix in ipairs({"pickaxe","axe","shovel","hoe","sword"}) do

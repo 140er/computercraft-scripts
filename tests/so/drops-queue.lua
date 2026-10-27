@@ -8,6 +8,9 @@ local function private(fn, key)
 end
 local function boot(options, files)
   options = options or {dropsTestQueue=true,setupMovement=true}
+  options.roomSink = options.roomSink == true
+  options.worldEdits = options.worldEdits == true
+  options.protectedAreas = options.protectedAreas == true
   local m = H.new().machine({id=1,capacity=16000000})
   m.install({"so-store.lua","so-ui.lua","so-plan.lua","so-mine-plan.lua","so-mod-cells.lua","so-mod-drops.lua"})
   for path,bytes in pairs(files or {}) do m.files[path]=bytes end
@@ -88,8 +91,18 @@ local function capture(frame,w,h)
 end
 
 return function(test,equal)
-  test("P-U4-2 queue requires both default-off flags and delivered controls",function()
-    for _,cfg in ipairs({{}, {setupMovement=true}, {dropsTestQueue=true}}) do
+  test("fresh chest queue and movement defaults complete a sweep with saved discoveries",function()
+    local t=boot({})
+    t.add("a",2) t.add("b",3)
+    t.open() t.tap("test-all") t.drain()
+    equal(t.visits,{"a","b"})
+    equal({t.S.queue.state,t.S.queue.completed},{"done",2})
+    equal(t.pose,{dim="minecraft:overworld",x=0,y=64,z=0,facing=1})
+    equal(t.cells.list("setup:12",100),{})
+    equal(t.machine.env.SO.store.read("so-drops").value.v,2)
+  end)
+  test("P-U4-2 queue respects explicit disabled flags and delivered controls",function()
+    for _,cfg in ipairs({{dropsTestQueue=false,setupMovement=false}, {setupMovement=true,dropsTestQueue=false}, {dropsTestQueue=true,setupMovement=false}}) do
       local t=boot(cfg) t.add("a",2) t.open() t.tap("test-all")
       equal(t.sends,0)
       equal(t.S.queue,nil)

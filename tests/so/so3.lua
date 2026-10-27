@@ -14,7 +14,7 @@ local function setup(opts)
   opts=opts or {}
   local net=H.new()
   local server=net.machine({id=1,modem=true}) server.install(S.files) tree(server)
-  server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+  server.files["so-server.cfg"] = H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim="minecraft:overworld",x=0,y=0,z=0}})
   if opts.routeGuard then
     server.files["so-mine-plan.lua"] = server.files["so-mine-plan.lua"]:gsub("\nreturn M%s*$", "\n"..[[
 local supply = M.supplyRoute
