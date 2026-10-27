@@ -32,6 +32,23 @@ F.defaults = {
   ["worldEdits"] = true,
 }
 
+function F.read(store)
+  local path = "so-server.cfg"
+  local exists = type(fs) == "table" and type(fs.exists) == "function" and fs.exists
+  if exists and not exists(path) and exists(path .. ".bak") then path = path .. ".bak" end
+  local ok, value = pcall(function()
+    if store and type(store.read) == "function" then return store.read(path) end
+  end)
+  if ok and type(value) == "table" then return value end
+  if not ok or value ~= nil or exists and exists(path) then
+    local disabled = {state={coalesceHeartbeats=false}}
+    for name in pairs(F.defaults) do
+      if not name:find("%.") then disabled[name] = false end
+    end
+    return disabled, "so-server.cfg unreadable; flags disabled"
+  end
+end
+
 function F.get(config, name)
   assert(F.defaults[name] ~= nil, "unknown feature flag: " .. tostring(name))
   local value = config

@@ -47,11 +47,13 @@ local function climbed(seen, bottom)
   end
 end
 
-local function setup()
+local function setup(defaults)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install(FILES) tree(server)
-  server.files["so-server.cfg"] = H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+  if not defaults then
+    server.files["so-server.cfg"] = H.encode({protectedAreas=false,alternateAxisOrders=false,storageDeliveries=false,workerPark=false,pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+  end
   server.boot("so-server.lua") net.flush()
   assert(server.env.SO.mods.drops.add({id="ore",dim=0,x=100000,y=0,z=0,side="front",kind="ore"}))
   local input = wire(server)
@@ -90,6 +92,17 @@ local function restart(net, server, turtle, pose, fuel)
 end
 
 return function(test, equal)
+  test("mining paired worker completes a branch on shipped defaults", function()
+    local net,server,turtle,input=setup(true)
+    equal(server.files["so-server.cfg"],nil)
+    equal(server.env.SO.mods.lease.boundaries(),true)
+    input("start") net.advance(120)
+    assert(server.alive(),tostring(server.error))
+    assert(turtle.alive(),tostring(turtle.error))
+    equal(row(server).state,"done")
+    equal({turtle.pos.x,turtle.pos.y,turtle.pos.z},{3,-4,-5})
+    equal(server.env.SO.mods.lease.status(2).boundaryHold,nil)
+  end)
   test("mine-underground: a worker re-added on the spine after a restart mines its new branch", function()
     local net, server, turtle, input = setup()
     input("start")

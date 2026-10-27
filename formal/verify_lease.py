@@ -68,17 +68,24 @@ def main():
             raise SystemExit("lease evidence hash differs from source; rerun verification")
         if recorded.get("model_sha256") != model_hash or recorded.get("verifier_sha256") != verifier_hash:
             raise SystemExit("lease evidence differs from verifier or model; rerun verification")
+        if recorded.get("flags_sha256") != hashlib.sha256((ROOT / "so-flags.lua").read_bytes()).hexdigest():
+            raise SystemExit("lease evidence differs from flag defaults; rerun verification")
+        if recorded.get("plan_sha256") != hashlib.sha256((ROOT / "so-plan.lua").read_bytes()).hexdigest():
+            raise SystemExit("lease evidence differs from boundary planner; rerun verification")
+        if set(recorded.get("runs", {})) != {"defaults", "off"}:
+            raise SystemExit("lease evidence must cover defaults and explicit safety opt outs")
         if f'local evidenceSourceHash = "{source_hash}"' not in test_source:
             raise SystemExit("lease test evidence hash differs from source; rerun verification")
         print("PASS lease evidence and test hashes match source")
         return
-    started = time.monotonic()
     evidence = {
         "sync_commit": SYNC_COMMIT,
         "covered_file": "so-mod-lease.lua",
         "source_sha256": source_hash,
         "model_sha256": model_hash,
         "verifier_sha256": verifier_hash,
+        "flags_sha256": hashlib.sha256((ROOT / "so-flags.lua").read_bytes()).hexdigest(),
+        "plan_sha256": hashlib.sha256((ROOT / "so-plan.lua").read_bytes()).hexdigest(),
         "tool": subprocess.check_output([lua, "-v"], stderr=subprocess.STDOUT, text=True).strip(),
         "bounds": {"event_permutations": 40320, "events_per_trace": 8,
                    "workers_with_work": 1, "foreign_sender": 3, "dispatch_attempts": 2,
@@ -88,56 +95,65 @@ def main():
                    "restart_event_permutations": 5040, "restart_events_per_trace": 7,
                    "restart_batch_sizes": [1, 16], "restart_traces": 10080,
                    "save_failure_traces": 10, "recovery_traces": 8, "journal_recovery_traces": 3, "parallel_processes": 4,
-                   "subprocess_budget_seconds": 55},
-        "mutations": [],
+                   "subprocess_budget_seconds_per_mode": 55,
+                   "safety_modes": ["defaults", "off"],
+                   "default_batch_shape": "inspectDown repeated N-1 times, then forward",
+                   "off_batch_shape": "forward repeated N times"},
+        "runs": {},
     }
 
-    def run(path, witness=None):
-        command = [lua, str(ROOT / "formal/lease_orderings.lua"), str(path)]
-        if witness:
-            command.append(witness)
-        remaining = 55 - (time.monotonic() - started)
-        if remaining <= 0:
-            raise SystemExit("verification exceeded the 55-second budget")
-        try:
-            return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=remaining)
-        except subprocess.TimeoutExpired as error:
-            raise SystemExit("verification exceeded the 55-second budget") from error
+    for safety_mode in ("defaults", "off"):
+        started = time.monotonic()
+        mode_evidence = {"mutations": []}
+        evidence["runs"][safety_mode] = mode_evidence
+        print(f"Checking safety mode: {safety_mode}", flush=True)
+        def run(path, witness=None):
+            command = [lua, str(ROOT / "formal/lease_orderings.lua"), str(path)]
+            if witness:
+                command.append(witness)
+            command.append(safety_mode)
+            remaining = 55 - (time.monotonic() - started)
+            if remaining <= 0:
+                raise SystemExit("verification exceeded the 55-second budget")
+            try:
+                return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=remaining)
+            except subprocess.TimeoutExpired as error:
+                raise SystemExit("verification exceeded the 55-second budget") from error
 
-    partitions = [f"partition:{foreign}:{size}:{grace}"
-                  for foreign in ("wrong-id", "wrong-sender", "malformed")
-                  for size in (1, 16) for grace in (11000, 11001)]
-    partitions += ["restarts:1", "restarts:16", "failures", "recovery", "journal-recovery"]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        baselines = list(executor.map(lambda part: run(args.source.resolve(), part), partitions))
-    output = "".join(result.stdout + result.stderr for result in baselines)
-    baseline_code = next((result.returncode for result in baselines if result.returncode), 0)
-    totals = re.findall(r"PASS traces=(\d+) comparisons=(\d+)", output)
-    expected_traces = 40320 * 12 + 5040 * 2 + 10 + 8 + 3
-    if not baseline_code and (len(totals) != len(partitions) or sum(int(t[0]) for t in totals) != expected_traces):
-        raise SystemExit("verification did not enumerate every bounded trace")
-    summary = (f"PASS traces={sum(int(t[0]) for t in totals)} "
-               f"comparisons={sum(int(t[1]) for t in totals)}; "
-               "all legacy schedules, two restarts, acknowledgements, save failures and journal/forget recovery\n")
-    evidence["baseline"] = {"exit_code": baseline_code, "output": output, "summary": summary}
-    print(output if baseline_code else summary, end="")
-    if baseline_code:
-        raise SystemExit(baseline_code)
-    with tempfile.TemporaryDirectory(prefix="verify-lease-") as scratch:
-        for property_name, (before, after) in MUTATIONS.items():
-            if source.count(before) != 1:
-                raise SystemExit(f"mutation anchor changed for {property_name}; resync the model")
-            path = Path(scratch) / f"{property_name}.lua"
-            path.write_text(source.replace(before, after, 1))
-            result = run(path, property_name)
-            output = result.stdout + result.stderr
-            if result.returncode == 0 or f"PROPERTY {property_name} " not in output:
-                raise SystemExit(f"scratch defect escaped {property_name}:\n{output}")
-            evidence["mutations"].append({"property": property_name, "exit_code": result.returncode,
-                                          "before": before, "after": after, "counterexample": output})
-            print(f"CAUGHT scratch Lua mutation: {property_name}")
-    evidence["scratch_removed"] = not Path(scratch).exists()
-    evidence["elapsed_seconds"] = round(time.monotonic() - started, 3)
+        partitions = [f"partition:{foreign}:{size}:{grace}"
+                      for foreign in ("wrong-id", "wrong-sender", "malformed")
+                      for size in (1, 16) for grace in (11000, 11001)]
+        partitions += ["restarts:1", "restarts:16", "failures", "recovery", "journal-recovery"]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            baselines = list(executor.map(lambda part: run(args.source.resolve(), part), partitions))
+        output = "".join(result.stdout + result.stderr for result in baselines)
+        baseline_code = next((result.returncode for result in baselines if result.returncode), 0)
+        totals = re.findall(r"PASS traces=(\d+) comparisons=(\d+)", output)
+        expected_traces = 40320 * 12 + 5040 * 2 + 10 + 8 + 3
+        if not baseline_code and (len(totals) != len(partitions) or sum(int(t[0]) for t in totals) != expected_traces):
+            raise SystemExit("verification did not enumerate every bounded trace")
+        summary = (f"PASS traces={sum(int(t[0]) for t in totals)} "
+                   f"comparisons={sum(int(t[1]) for t in totals)}; "
+                   "all legacy schedules, two restarts, acknowledgements, save failures and journal/forget recovery\n")
+        mode_evidence["baseline"] = {"exit_code": baseline_code, "output": output, "summary": summary}
+        print(output if baseline_code else summary, end="")
+        if baseline_code:
+            raise SystemExit(baseline_code)
+        with tempfile.TemporaryDirectory(prefix="verify-lease-") as scratch:
+            for property_name, (before, after) in MUTATIONS.items():
+                if source.count(before) != 1:
+                    raise SystemExit(f"mutation anchor changed for {property_name}; resync the model")
+                path = Path(scratch) / f"{property_name}.lua"
+                path.write_text(source.replace(before, after, 1))
+                result = run(path, property_name)
+                output = result.stdout + result.stderr
+                if result.returncode == 0 or f"PROPERTY {property_name} " not in output:
+                    raise SystemExit(f"scratch defect escaped {property_name}:\n{output}")
+                mode_evidence["mutations"].append({"property": property_name, "exit_code": result.returncode,
+                                              "before": before, "after": after, "counterexample": output})
+                print(f"CAUGHT scratch Lua mutation: {property_name}")
+        mode_evidence["scratch_removed"] = not Path(scratch).exists()
+        mode_evidence["elapsed_seconds"] = round(time.monotonic() - started, 3)
     if args.evidence:
         args.evidence.parent.mkdir(parents=True, exist_ok=True)
         test_source = test_path.read_text()
@@ -146,7 +162,7 @@ def main():
         args.evidence.write_text(json.dumps(evidence, indent=2) + "\n")
         test_path.write_text(re.sub(test_anchor,
                                    f'local evidenceSourceHash = "{source_hash}"', test_source))
-    print(f"PASS real-source verification and all {len(MUTATIONS)} scratch defects; {evidence['elapsed_seconds']}s")
+    print(f"PASS both safety modes and all {len(MUTATIONS) * 2} scratch defects")
 
 
 if __name__ == "__main__":

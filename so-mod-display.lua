@@ -1732,7 +1732,7 @@ end
 D.load = function()
   for i = 1, #D.order do D.known[D.order[i]] = true end
   -- The job modules read the same flag once at load; the detail page offers their park commands.
-  local cfg = SO.store.read and SO.store.read("so-server.cfg") or {}
+  local cfg = F.read(SO.store) or {}
   D.workerPark = F.enabled(cfg, "workerPark")
   -- displayAck (default on): capable displays acknowledge drawn frames and go stale 10 s after the last.
   D.ackOn = F.enabled(cfg, "displayAck")

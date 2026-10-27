@@ -349,11 +349,9 @@ S.run = function()
   }
 
   local function readConfig()
-    local path = fs.exists("so-server.cfg") and "so-server.cfg" or "so-server.cfg.bak"
-    local ok, value = pcall(function() return type(store.read) == "function" and store.read(path) or nil end)
-    return ok and type(value) == "table" and value or nil
+    return F.read(store)
   end
-  local config = readConfig()
+  local config, configError = readConfig()
   local function exposeConfig(value)
     local cfg = store.copy(value or {})
     for name in pairs(F.defaults) do
@@ -364,8 +362,8 @@ S.run = function()
     SO.health.config = cfg
   end
   exposeConfig(config)
-  if fs.exists("so-server.cfg") and not config then
-    SO.health.configError = "so-server.cfg unreadable; defaults active"
+  if configError then
+    SO.health.configError = configError
     view.hostError = SO.health.configError
     S.error("so-server: " .. SO.health.configError)
   end
@@ -485,7 +483,8 @@ S.run = function()
     enabled = enrollEnabled,
     setEnabled = function(enabled)
       if type(enabled) ~= "boolean" then return nil, "boolean required" end
-      local current = readConfig()
+      local current, readError = readConfig()
+      if readError then return nil, "bad so-server.cfg" end
       if current == nil and (fs.exists("so-server.cfg") or fs.exists("so-server.cfg.bak")) then
         return nil, "bad so-server.cfg"
       end

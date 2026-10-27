@@ -4,7 +4,7 @@ local U = dofile("so-ui.lua")
 local M = dofile("so-mine-plan.lua")
 local D = { workers={} }
 local S = { recover = true, published = false, safe = {} }
-local config = SO.store.read and SO.store.read("so-server.cfg") or {}
+local config = F.read(SO.store) or {}
 S.workerPark = F.enabled(config, "workerPark")
 S.fuelTrips = F.enabled(config, "builderFuelTrips")
 S.solid = F.enabled(config, "builderSolid")
@@ -595,7 +595,7 @@ local function assigned(id)
   end
 end
 D.enabled = function(builder)
-  local cfg=SO.store.read and SO.store.read("so-server.cfg") or {}
+  local cfg=F.read(SO.store) or {}
   return F.enabled(cfg, "storageDeliveries") and (not builder or F.enabled(cfg, "builderMaterialOrders"))
 end
 D.item = function(id)

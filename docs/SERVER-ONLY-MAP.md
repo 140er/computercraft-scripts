@@ -52,6 +52,8 @@ and listeners use `listener(sender, message)`.
   The installer includes this library for every role. Server readers resolve
   the same defaults without rewriting config. `retryInput` reads display config;
   `roomSink` uses server config and preserves a saved false in `so-drops`.
+  `read(store)` loads server config (or its backup when the primary is missing).
+  An existing unreadable config disables every flag; an absent config uses defaults.
   Worker consent settings and per-job saved choices retain their defaults.
 - [so-server.lua](../so-server.lua) boots the server, loads modules, authenticates
   dispatch and runs the event loop. Built-in handlers are
@@ -1897,6 +1899,11 @@ See [the operator guide](../README-SERVER-ONLY.md#nether-and-end-jobs).
 
 
 ## Protected routes and world edits
+
+Update every worker (`install update`) before or with the server. Older workers
+without fenced batches and journals cannot dispatch or recover with the default
+safety settings. To stage the update, set `protectedAreas=false`,
+`alternateAxisOrders=false` and `storageDeliveries=false` until every worker is updated.
 
 `protectedAreas=true` in `so-server.cfg` gates saved protected boxes and shared
 movement/dig/place/drop admission. `cells.protected()` copies the saved

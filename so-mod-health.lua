@@ -70,7 +70,7 @@ local function attention(facts)
   local build = facts.build and facts.build.alert
   if build then add(build.key,build.severity,build.text,build.target,build.actions) end
   if facts.build and facts.build.turtleId then owners[tostring(facts.build.turtleId)] = "build" end
-  if facts.configError then add("config",1,"Config unreadable; defaults active","health") end
+  if facts.configError then add("config",1,"Config unreadable; flags off","health") end
   if facts.gpsGap and facts.gpsGap > 2 then
     add("gps",2,string.format("GPS gap %.1f blocks",facts.gpsGap),"health")
   end
@@ -231,7 +231,7 @@ H.gather = function(now)
     local summary = #modules > 0 and (loaded.." loaded") or "unavailable"
     local flags = {}
     for name in pairs(F.defaults) do
-      if F.enabled(cfg, name) then flags[#flags+1] = name end
+      if F.get(cfg, name) ~= F.defaults[name] then flags[#flags+1] = name end
     end
     table.sort(flags)
     local prefix = {

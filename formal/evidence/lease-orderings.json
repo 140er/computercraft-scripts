@@ -1,9 +1,11 @@
 {
   "sync_commit": "d82f456583671350a655ee9c982c126ddd2795d4",
   "covered_file": "so-mod-lease.lua",
-  "source_sha256": "4185876c80f8f203d7554fac27a758d68685deb88024e97fce892a3723124d91",
-  "model_sha256": "ae0b2e24bd9d72857cf721b9bcb069bcf504a120c01b7b22e14dee3c5a6b9f0b",
-  "verifier_sha256": "b43ec8456388edc91a372b4d410dfa13b7d7d57c5c6b7496564ae4a3bd3fe16d",
+  "source_sha256": "7ec5b4f2f4d4c148a5bf7b6c2661ab437f6ace8bb5c92bbdaadf46954a243169",
+  "model_sha256": "fc89db0e0e1c13879e278a0396acdbdb28449c9a94f28bb3e3d342651fd65c06",
+  "verifier_sha256": "fd659307e3781470e2c13bad8485d3f042da3b0eb4325b4005b89afdfed10307",
+  "flags_sha256": "0c8b2daa9f72b43314e8517e12fb3f1b88f07791756a5be1b22902a4a1a6d6ad",
+  "plan_sha256": "765908966f1fbb6aaf1cadb3869ddbcb4516b0c92ac8226854f85cbbed37f05b",
   "tool": "Lua 5.2.4  Copyright (C) 1994-2015 Lua.org, PUC-Rio",
   "bounds": {
     "event_permutations": 40320,
@@ -37,64 +39,134 @@
     "recovery_traces": 8,
     "journal_recovery_traces": 3,
     "parallel_processes": 4,
-    "subprocess_budget_seconds": 55
+    "subprocess_budget_seconds_per_mode": 55,
+    "safety_modes": [
+      "defaults",
+      "off"
+    ],
+    "default_batch_shape": "inspectDown repeated N-1 times, then forward",
+    "off_batch_shape": "forward repeated N times"
   },
-  "mutations": [
-    {
-      "property": "dispatch",
-      "exit_code": 1,
-      "before": "if row.open then return nil, \"busy\" end",
-      "after": "-- scratch: allow replacement of an open lease",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY dispatch trace=send_a,send_b foreign=wrong-id batch=1 grace=11001 actual=invalid state expected=busy\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:60: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:88: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:195: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:241: in main chunk\n\t[C]: in ?\n"
+  "runs": {
+    "defaults": {
+      "mutations": [
+        {
+          "property": "dispatch",
+          "exit_code": 1,
+          "before": "if row.open then return nil, \"busy\" end",
+          "after": "-- scratch: allow replacement of an open lease",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY dispatch trace=send_a,send_b safety=true foreign=wrong-id batch=1 grace=11001 actual=invalid state expected=busy\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:108: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "report_integrity",
+          "exit_code": 1,
+          "before": "or body.lease ~= lease.id then",
+          "after": "then -- scratch: accept a foreign lease id",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY report_integrity trace=send_a,foreign safety=true foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:194: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "reservation_retention",
+          "exit_code": 1,
+          "before": "      lease.status = \"expired\"\n      if S.persist",
+          "after": "      lease.status = \"expired\"\n      SO.mods.cells.releaseOwner(\"mine:\" .. lease.turtleId)\n      if S.persist",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY reservation_retention trace=send_a,expire safety=true foreign=wrong-id batch=1 grace=11001 actual= expected=mine:2=true\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:200: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "uncertainty",
+          "exit_code": 1,
+          "before": "if row.uncertain or row.anchor then return nil, \"pose uncertain\" end",
+          "after": "-- scratch: dispatch with an uncertain pose",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY uncertainty trace=uncertain,send_a safety=true foreign=wrong-id batch=1 grace=11001 actual=boundary needs certain fenced worker expected=pose uncertain\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:108: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "restart_restore",
+          "exit_code": 1,
+          "before": "if record.status == \"open\" then row.open = row.record end",
+          "after": "-- scratch: discard restored open work",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY restart_restore trace=send_a,restart safety=true foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:194: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "recovery_forget",
+          "exit_code": 1,
+          "before": "S.persist(record, true)",
+          "after": "S.persist(record)",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY recovery_forget trace=send_a,forget safety=true foreign=wrong-id batch=1 grace=11001 actual=2-0-1 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:131: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "callback_once",
+          "exit_code": 1,
+          "before": "S.notify(lease, results)",
+          "after": "S.notify(lease, results)\n  S.notify(lease, results)",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY callback_once trace=send_a,report_a safety=true foreign=wrong-id batch=1 grace=11001 actual=2-0-1:report,2-0-1:report expected=2-0-1:report\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:201: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        }
+      ],
+      "baseline": {
+        "exit_code": 0,
+        "output": "PASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=40320 comparisons=712400\nPASS traces=5040 comparisons=89265\nPASS traces=5040 comparisons=89265\nPASS traces=10 comparisons=590\nPASS traces=8 comparisons=392\nPASS traces=3 comparisons=160\n",
+        "summary": "PASS traces=493941 comparisons=8728472; all legacy schedules, two restarts, acknowledgements, save failures and journal/forget recovery\n"
+      },
+      "scratch_removed": true,
+      "elapsed_seconds": 33.766
     },
-    {
-      "property": "report_integrity",
-      "exit_code": 1,
-      "before": "or body.lease ~= lease.id then",
-      "after": "then -- scratch: accept a foreign lease id",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY report_integrity trace=send_a,foreign foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:60: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:157: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:195: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:241: in main chunk\n\t[C]: in ?\n"
-    },
-    {
-      "property": "reservation_retention",
-      "exit_code": 1,
-      "before": "      lease.status = \"expired\"\n      if S.persist",
-      "after": "      lease.status = \"expired\"\n      SO.mods.cells.releaseOwner(\"mine:\" .. lease.turtleId)\n      if S.persist",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY reservation_retention trace=send_a,expire foreign=wrong-id batch=1 grace=11001 actual= expected=mine:2=true\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:60: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:163: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:195: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:241: in main chunk\n\t[C]: in ?\n"
-    },
-    {
-      "property": "uncertainty",
-      "exit_code": 1,
-      "before": "if row.uncertain or row.anchor then return nil, \"pose uncertain\" end",
-      "after": "-- scratch: dispatch with an uncertain pose",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY uncertainty trace=uncertain,send_a foreign=wrong-id batch=1 grace=11001 actual=2-0-1 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:60: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:87: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:195: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:241: in main chunk\n\t[C]: in ?\n"
-    },
-    {
-      "property": "restart_restore",
-      "exit_code": 1,
-      "before": "if record.status == \"open\" then row.open = row.record end",
-      "after": "-- scratch: discard restored open work",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY restart_restore trace=send_a,restart foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:60: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:157: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:195: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:241: in main chunk\n\t[C]: in ?\n"
-    },
-    {
-      "property": "recovery_forget",
-      "exit_code": 1,
-      "before": "S.persist(record, true)",
-      "after": "S.persist(record)",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY recovery_forget trace=send_a,forget foreign=wrong-id batch=1 grace=11001 actual=2-0-1 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:60: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:105: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:195: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:241: in main chunk\n\t[C]: in ?\n"
-    },
-    {
-      "property": "callback_once",
-      "exit_code": 1,
-      "before": "S.notify(lease, results)",
-      "after": "S.notify(lease, results)\n  S.notify(lease, results)",
-      "counterexample": "/usr/bin/lua5.2: PROPERTY callback_once trace=send_a,report_a foreign=wrong-id batch=1 grace=11001 actual=2-0-1:report,2-0-1:report expected=2-0-1:report\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:60: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:164: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:195: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:241: in main chunk\n\t[C]: in ?\n"
+    "off": {
+      "mutations": [
+        {
+          "property": "dispatch",
+          "exit_code": 1,
+          "before": "if row.open then return nil, \"busy\" end",
+          "after": "-- scratch: allow replacement of an open lease",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY dispatch trace=send_a,send_b safety=false foreign=wrong-id batch=1 grace=11001 actual=invalid state expected=busy\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:108: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "report_integrity",
+          "exit_code": 1,
+          "before": "or body.lease ~= lease.id then",
+          "after": "then -- scratch: accept a foreign lease id",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY report_integrity trace=send_a,foreign safety=false foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:194: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "reservation_retention",
+          "exit_code": 1,
+          "before": "      lease.status = \"expired\"\n      if S.persist",
+          "after": "      lease.status = \"expired\"\n      SO.mods.cells.releaseOwner(\"mine:\" .. lease.turtleId)\n      if S.persist",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY reservation_retention trace=send_a,expire safety=false foreign=wrong-id batch=1 grace=11001 actual= expected=mine:2=true\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:200: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "uncertainty",
+          "exit_code": 1,
+          "before": "if row.uncertain or row.anchor then return nil, \"pose uncertain\" end",
+          "after": "-- scratch: dispatch with an uncertain pose",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY uncertainty trace=uncertain,send_a safety=false foreign=wrong-id batch=1 grace=11001 actual=2-0-1 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:107: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "restart_restore",
+          "exit_code": 1,
+          "before": "if record.status == \"open\" then row.open = row.record end",
+          "after": "-- scratch: discard restored open work",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY restart_restore trace=send_a,restart safety=false foreign=wrong-id batch=1 grace=11001 actual=nil expected=2-0-1\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:194: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "recovery_forget",
+          "exit_code": 1,
+          "before": "S.persist(record, true)",
+          "after": "S.persist(record)",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY recovery_forget trace=send_a,forget safety=false foreign=wrong-id batch=1 grace=11001 actual=2-0-1 expected=nil\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:131: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        },
+        {
+          "property": "callback_once",
+          "exit_code": 1,
+          "before": "S.notify(lease, results)",
+          "after": "S.notify(lease, results)\n  S.notify(lease, results)",
+          "counterexample": "/usr/bin/lua5.2: PROPERTY callback_once trace=send_a,report_a safety=false foreign=wrong-id batch=1 grace=11001 actual=2-0-1:report,2-0-1:report expected=2-0-1:report\nstack traceback:\n\t[C]: in function 'error'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:76: in function 'equal'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:201: in function 'step'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:232: in function 'run'\n\t...utercraft-scripts/t3-4be3aa75/formal/lease_orderings.lua:278: in main chunk\n\t[C]: in ?\n"
+        }
+      ],
+      "baseline": {
+        "exit_code": 0,
+        "output": "PASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=5040 comparisons=76334\nPASS traces=5040 comparisons=76334\nPASS traces=10 comparisons=502\nPASS traces=8 comparisons=336\nPASS traces=3 comparisons=136\n",
+        "summary": "PASS traces=493941 comparisons=7387242; all legacy schedules, two restarts, acknowledgements, save failures and journal/forget recovery\n"
+      },
+      "scratch_removed": true,
+      "elapsed_seconds": 28.08
     }
-  ],
-  "baseline": {
-    "exit_code": 0,
-    "output": "PASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=40320 comparisons=602800\nPASS traces=5040 comparisons=76334\nPASS traces=5040 comparisons=76334\nPASS traces=10 comparisons=502\nPASS traces=8 comparisons=336\nPASS traces=3 comparisons=136\n",
-    "summary": "PASS traces=493941 comparisons=7387242; all legacy schedules, two restarts, acknowledgements, save failures and journal/forget recovery\n"
-  },
-  "scratch_removed": true,
-  "elapsed_seconds": 24.92
+  }
 }

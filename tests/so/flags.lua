@@ -5,7 +5,7 @@ local FILES = {"so-server.lua", "so-store.lua", "so-proto.lua", "so-pair.lua", "
   "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-ui.lua", "so-mod-ar.lua", "so-mod-build.lua",
   "so-mod-cells.lua", "so-mod-daily.lua", "so-mod-display.lua", "so-mod-drops.lua", "so-mod-health.lua",
   "so-mod-lease.lua", "so-mod-lumber.lua", "so-mod-map.lua", "so-mod-mine.lua", "so-mod-panel.lua", "so-mod-shop.lua", "so-mod-state.lua"}
-local function boot(config)
+local function boot(config, setup)
   local n = H.new()
   local m = n.machine({id=1,modem=true,capacity=16000000})
   m.install(FILES)
@@ -15,6 +15,7 @@ local function boot(config)
     local file = assert(io.open(path, "rb")) m.files[path] = file:read("*a") file:close()
   end
   if config then m.files["so-server.cfg"] = H.encode(config) end
+  if setup then setup(m) end
   m.boot("so-server.lua") n.flush() n.advance(1.1)
   assert(m.alive(), tostring(m.error))
   for file, row in pairs(m.env.SO.health.modules) do assert(row.status == "loaded", file .. ": " .. tostring(row.error)) end
@@ -105,6 +106,46 @@ return function(test, equal)
     assert(not ok and tostring(reason):find("no unassigned idle turtle",1,true), tostring(reason))
     m.files["so-server.cfg"] = H.encode({dropsTestQueue=false,dropsSavedSetup=false,roomSink=false})
     equal({drops.enabled(),drops.queueEnabled()},{false,false})
+  end)
+  test("old v1 drops without roomSink keeps the saved off choice", function()
+    local so,m=boot(nil,function(server)
+      server.files["so-drops"]=H.encode({schema=1,generation=1,value={points={}}})
+    end)
+    equal(private(so.mods.drops.tick,"S").roomSink,false)
+    equal(so.health.config.roomSink,true)
+    equal(so.store.read("so-drops").value.v,nil)
+  end)
+  test("corrupt primary or fallback disables every server feature reader", function()
+    for _,path in ipairs({"so-server.cfg","so-server.cfg.bak"}) do
+      for _,contents in ipairs({"not a table","false","42"}) do
+        local so,m=boot(nil,function(server) server.files[path]=contents end)
+        for name in pairs(F.defaults) do equal(F.enabled(so.health.config,name),false,name) end
+        equal(so.health.configError,"so-server.cfg unreadable; flags disabled")
+        equal(so.enroll.enabled(),false)
+        equal(select(2,so.enroll.setEnabled(true)),"bad so-server.cfg")
+        equal(m.files[path],contents)
+        equal(so.mods.lease.boundaries(),false)
+        equal(private(so.mods.cells.tick,"S").protectionEnabled,false)
+        equal(private(so.mods.mine.tick,"S").poseSetup,false)
+        local lumber=private(so.mods.lumber.tick,"S")
+        equal({lumber.workerPark,lumber.scanNow,lumber.poseSetup},{false,false,false})
+        local drops=private(so.mods.drops.tick,"S")
+        equal({drops.roomSink,drops.enabled(),drops.queueEnabled()},{false,false,false})
+        local ok,reason=pcall(drops.beginSetup,12)
+        assert(ok,tostring(reason))
+        equal(drops.message,"setupMovement off")
+        equal(so.mods.shop.deliveryView().enabled,false)
+      end
+    end
+  end)
+  test("valid backup preserves explicit opt outs and uses defaults for missing keys", function()
+    local so,m=boot(nil,function(server)
+      server.files["so-server.cfg.bak"]=H.encode({protectedAreas=false,enroll=false,roomSink=false})
+    end)
+    equal({so.health.config.protectedAreas,so.enroll.enabled(),private(so.mods.drops.tick,"S").roomSink},
+      {false,false,false})
+    equal(so.health.config.alternateAxisOrders,true)
+    equal(so.health.configError,nil)
   end)
   test("room sink explicit false survives a save and server restart", function()
     local so,m,n=boot()

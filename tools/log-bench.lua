@@ -18,7 +18,7 @@ for _, mode in ipairs({"append", "emit"}) do
   local net = H.new()
   local m = net.machine({id=1, directories=true})
   if realTextutils then m.env.textutils = realTextutils end
-  for _, name in ipairs({"so-store.lua", "so-log.lua", "so-mod-state.lua"}) do
+  for _, name in ipairs({"so-flags.lua", "so-store.lua", "so-log.lua", "so-mod-state.lua"}) do
     local f = assert(io.open(root .. "/" .. name))
     m.files[name] = f:read("*a")
     f:close()

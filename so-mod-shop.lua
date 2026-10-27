@@ -329,7 +329,7 @@ S.outputSave = function()
   return true
 end
 S.deliveryEnabled = function()
-  local cfg=SO.store and SO.store.read and SO.store.read("so-server.cfg")
+  local cfg=F.read(SO.store)
   return F.enabled(cfg, "storageDeliveries")
 end
 S.outputNeeded = function()
@@ -441,7 +441,7 @@ end
 S.ordinaryOutput = function(point,kind)
   if not S.outputNeeded() then return nil end
   if not S.outputInit() then return nil,"output save failed" end
-  local cfg=SO.store.read("so-server.cfg") or {}
+  local cfg=F.read(SO.store) or {}
   local pinned=point or S.fuel.output
   local chosen=cfg.storageDeliveryOutput
   local drops=SO.mods.drops
@@ -504,7 +504,7 @@ S.deliveryOrderStatus = function(jobId) return S.outputStatus(jobId) end
 -- What panel and pocket SHOP draw for deliveries: the live flag, the room output point id and every
 -- output row that is not released. With the flag off and no saved output state it reads and saves nothing.
 S.deliveryView = function()
-  local cfg=SO.store and SO.store.read and SO.store.read("so-server.cfg")
+  local cfg=F.read(SO.store)
   cfg=type(cfg)=="table" and cfg or {}
   local view={enabled=F.enabled(cfg, "storageDeliveries"),output=cfg.storageDeliveryOutput,outputs={}}
   if not S.outputNeeded() then return view end
@@ -588,8 +588,7 @@ end
 
 S.savedBoxes, S.watchKeys = {}, {}
 S.savedEnabled = function()
-  local read = SO.store and SO.store.read
-  local cfg = read and read("so-server.cfg")
+  local cfg = F.read(SO.store)
   return F.enabled(cfg, "shopSaved")
 end
 S.integer = function(n, lo, hi)

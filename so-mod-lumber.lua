@@ -2,9 +2,9 @@ local F = dofile("so-flags.lua")
 local P = dofile("so-plan.lua")
 local L = dofile("so-lumber-plan.lua")
 local S = { wired = false, callback = false, lastLease = {} }
-S.workerPark = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "workerPark")
-S.scanNow = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "lumberScan")
-S.poseSetup = F.enabled(SO.store.read and SO.store.read("so-server.cfg"), "jobPoseSetup")
+S.workerPark = F.enabled(F.read(SO.store), "workerPark")
+S.scanNow = F.enabled(F.read(SO.store), "lumberScan")
+S.poseSetup = F.enabled(F.read(SO.store), "jobPoseSetup")
 
 S.possible = function(previous, flight)
   local out, seen = {}, {}
@@ -240,7 +240,7 @@ S.burnLogs = function()
   S.send({ { op = "select", slot = item.slot }, { op = "refuel", n = n } }, "burnLogs")
 end
 S.dimensionError = function(dim, y)
-  local config=dim ~= "minecraft:overworld" and SO.store.read and SO.store.read("so-server.cfg")
+  local config=dim ~= "minecraft:overworld" and F.read(SO.store)
   return P.dimensionError(dim, config) or P.heightError(dim, y)
 end
 S.readiness = function()

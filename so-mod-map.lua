@@ -75,7 +75,7 @@ M.progress = function(job) return tonumber(job.total) and job.total > 0 and (job
 -- it in M.scenes; callers set M.scene.
 M.gather = function(now, pick)
   if not M.config or now >= (M.configAt or 0)+5000 then
-    M.config, M.configAt = SO.store.read("so-server.cfg") or {}, now
+    M.config, M.configAt = F.read(SO.store) or {}, now
   end
   local config = M.config
   local mine = M.call("mine", "mapView") or {}

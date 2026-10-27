@@ -2,7 +2,7 @@ local F = dofile("so-flags.lua")
 -- so-mod-state.lua - event log, machine registry, and views.
 
 local H = { backlog = {}, backlogBytes = 0, pendingSizes = {} }
-local config = type(SO) == "table" and SO.store and SO.store.read and SO.store.read("so-server.cfg") or {}
+local config = type(SO) == "table" and F.read(SO.store) or {}
 H.coalesce = F.enabled(config, "state.coalesceHeartbeats")
 
 H.copy = function(v)

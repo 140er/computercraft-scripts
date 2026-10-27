@@ -6,7 +6,7 @@ local function crypto(machine)
     local file=assert(io.open(path,"rb")) machine.files[path]=file:read("*a") file:close()
   end
 end
-return function(w,h,options)
+return function(w,h,options,defaults)
   local net=H.new()
   local server=net.machine({id=1,modem=true,capacity=16000000})
   server.install({"so-server.lua","so-store.lua","so-pair.lua","so-proto.lua","so-log.lua","so-plan.lua",
@@ -15,7 +15,7 @@ return function(w,h,options)
   crypto(server)
   local config={builderFuelTrips=false,builderSolid=false,alternateAxisOrders=false,protectedAreas=false,storageDeliveries=false,jobPoseSetup=false,pos={dim="minecraft:overworld",x=0,y=4,z=0}}
   for name,value in pairs(options or {}) do config[name]=value end
-  server.files["so-server.cfg"]=H.encode(config)
+  if not defaults then server.files["so-server.cfg"]=H.encode(config) end
   server.boot("so-server.lua") net.flush()
   local f={net=net,server=server,placed={},places=0}
   local key=string.rep("a",64)

@@ -88,7 +88,7 @@ S.world = function(id, dim)
   if not fix or SO.now() - fix.at > 60000 or not row.poseAt or fix.at < row.poseAt then
     return nil, "no fresh GPS; use explicit add"
   end
-  local config = SO.store.read("so-server.cfg")
+  local config = F.read(SO.store)
   local serverDim = S.pos and S.pos.dim or config and config.pos and config.pos.dim
   if not serverDim then return nil, "GPS dimension unknown; use explicit add" end
   if not fix.dim then return nil, "GPS dimension unknown; set so-worker.cfg" end
@@ -269,7 +269,7 @@ S.settingsSeen = function(row, value)
 end
 
 S.settings = function(id, changes)
-  local config = SO.store.read("so-server.cfg")
+  local config = F.read(SO.store)
   if not F.enabled(config, "workerSettings") then return nil, "settings disabled" end
   local row, key = S.turtles[id], SO.pair.key(id)
   if not row or not key or not row.workerSettings or not row.settings then return nil, "update required" end
@@ -363,7 +363,7 @@ S.encodeLease = function(key, lease)
 end
 
 S.remoteReady = function(id, dim)
-  local err = S.rules().dimensionError(dim, SO.store.read("so-server.cfg"))
+  local err = S.rules().dimensionError(dim, F.read(SO.store))
   if err then return false, err end
   local row = S.turtles[id]
   if not row or not row.dimensionSafety then return false, "update remote worker" end
@@ -451,7 +451,7 @@ end
 
 S.exitRequest = function(id, steps, actor, token)
   local row, cells = S.turtles[id], S.module("cells")
-  if not S.safety or not cells or not F.enabled(SO.store.read("so-server.cfg"), "protectedAreas") then return nil, "protection disabled" end
+  if not S.safety or not cells or not F.enabled(F.read(SO.store), "protectedAreas") then return nil, "protection disabled" end
   if not row or row.open or row.uncertain or row.boundaryHold or row.lost or S.assigned(id) then return nil, "exit needs idle certain worker" end
   if not row.parkBatch or not row.setupFence or not row.pose or not row.journal then return nil, "exit needs fenced worker" end
   if type(actor) ~= "number" and type(actor) ~= "string" then return nil, "exit actor" end
@@ -509,7 +509,7 @@ S.releaseReady = function(id, bootAt)
     or S.assigned(id) then return nil, "worker has work or unresolved lease" end
   if not row.parkBatch or not row.setupFence or not row.pose or type(row.journal) ~= "string"
     or row.journal == "" then return nil, "release needs fenced worker" end
-  local delay = (SO.store.read("so-server.cfg") or {}).releaseSilence
+  local delay = (F.read(SO.store) or {}).releaseSilence
   delay = S.number(delay) and math.max(300000,delay) or 300000
   if SO.now()-math.max(row.seen or 0,row.contactAt or 0,bootAt or SO.now()) < delay then return nil, "wait for five minutes of silence" end
   return row.contact or 0
@@ -1259,7 +1259,7 @@ S.dugProtection = function(protect)
 end
 
 S.restore()
-local config = SO.store.read("so-server.cfg")
+local config = F.read(SO.store)
 S.safety = (F.enabled(config, "protectedAreas") or F.enabled(config, "alternateAxisOrders") or F.enabled(config, "storageDeliveries"))
 if type(config) == "table" then S.pos = S.copyPose(config.pos) end
 if not S.pos and type(gps) == "table" and type(gps.locate) == "function" then
