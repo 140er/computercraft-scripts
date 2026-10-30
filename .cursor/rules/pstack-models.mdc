@@ -2,7 +2,7 @@
 description: pstack per-role model choices (overrides skill defaults)
 alwaysApply: true
 ---
-# pstack model configuration for Jeffrey (140er). One line per role.
+# pstack model configuration. One line per role.
 # Rules: Grok 4.7 only, never -fast, never Claude/GPT/Gemini (no credits). Normal effort by default; xhigh only for the hardest work.
 # budget: medium (high)
 feature, refactoring: grok-4.7-high

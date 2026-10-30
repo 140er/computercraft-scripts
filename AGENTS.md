@@ -20,7 +20,8 @@ These rules apply to every Codex (or other agent) session in this repo.
   Put new behaviour behind a config flag that defaults to off, unless it is
   a pure server-side addition that is safe by itself.
 - Never touch, deploy to or test against the live Minecraft server
-  (zurvur, 100.91.208.60) or its RCON.
+  or its RCON. Its address is local setup: keep it in an untracked local
+  config file or env var, never in the repo.
 - Do not merge your own PR. The orchestrator merges after it has checked
   the evidence.
 
