@@ -702,10 +702,10 @@ Settings at the top of `lava.lua`: `WANT`, `KEEP_EMPTY`, `ROUND_EVERY`, `FARM_EV
 
 A turtle you talk to. A language model reads what you say and decides what to do with the turtle's tools: move, turn, look around, pick up or drop items, place or break a block, refuel, craft (crafty turtle), and walk back home. It is a companion, not a worker: it turns down big jobs like mining and leaves those to the Mine Army.
 
-**The brain** is any OpenAI-style chat API with tool calling: your own server (vLLM, SGLang, Ollama, LM Studio, ...) or xAI's Grok. The requests come from the Minecraft server, so the model server must be reachable from there (Tailscale is fine).
+**The brain** is any OpenAI-style chat API with tool calling: your own server (vLLM, SGLang, Ollama, LM Studio, ...) or xAI's Grok. The requests come from the Minecraft server, so the model server must be reachable from there (a VPN works too).
 
 1. `install buddy` on the turtle (see [Installing](#installing)), or drag `buddy.lua` onto its screen.
-2. Point it at your model server(s): `buddy server http://my-gpu-box:8000 http://192.168.1.20:8000`. Give one or more; when the first can't be reached it uses the next. A bare `host:port` works too. It picks the first model the server offers (`buddy models` lists them, `buddy model <id>` picks one).
+2. Point it at your model server(s): `buddy server http://<server-a>:8000 http://<server-b>:8000`. Give one or more; when the first can't be reached it uses the next. A bare `host:port` works too. It picks the first model the server offers (`buddy models` lists them, `buddy model <id>` picks one).
    - Grok instead: `buddy server grok`, then `buddy key <xAI key>` (from [console.x.ai](https://console.x.ai), paid per use).
    - Server needs a key? `buddy key <key>` saves it in `api.key` on the turtle. It never goes into this repo.
 3. Put the turtle on its home spot, facing the way you like, then `buddy setup [name]` (default name Buddy). It writes a `startup.lua`, so it starts by itself.
@@ -716,10 +716,10 @@ A turtle you talk to. A language model reads what you say and decides what to do
 **Your own server, two things to check:**
 - **Answers are streamed**, so a slow model doesn't hit ComputerCraft's 60 second limit as long as it keeps producing text. Thinking is switched off by default (`buddy think on` to allow it).
 - **Tool calling must be on.** vLLM: start it with `--enable-auto-tool-choice --tool-call-parser <parser for your model>` (the GLM parser for GLM). If Buddy only talks and never moves, this is why.
-- **ComputerCraft blocks private and local addresses** by default. If Buddy says "Domain not permitted", allow your servers in `config/computercraft-server.toml` (world `serverconfig` folder on some setups) by adding this **above** the existing `$private` deny rule, then restart the server. `100.64.0.0/10` covers all Tailscale addresses.
+- **ComputerCraft blocks private and local addresses** by default. If Buddy says "Domain not permitted", allow your servers in `config/computercraft-server.toml` (world `serverconfig` folder on some setups) by adding this **above** the existing `$private` deny rule, then restart the server. Use the address or range of your own model server.
   ```toml
   [[http.rules]]
-      host = "100.64.0.0/10"
+      host = "<your-server-address-or-range>"
       action = "allow"
   ```
 
