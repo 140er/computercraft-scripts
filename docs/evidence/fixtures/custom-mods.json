@@ -1,0 +1,20 @@
+{
+  "turtlebattery": {
+    "present": false,
+    "public": false,
+    "path": null,
+    "sha256": null
+  },
+  "recipe_index": {
+    "present": false,
+    "public": false,
+    "path": null,
+    "sha256": null
+  },
+  "turtlematicfix": {
+    "present": false,
+    "public": false,
+    "path": null,
+    "sha256": null
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "filled_chest_total": 1728,
+  "fuel": {
+    "after": 0,
+    "before": 250,
+    "pos": [
+      10,
+      65,
+      40
+    ]
+  },
+  "list": "There are 0 of a max of 1 players online:",
+  "public_mods": {
+    "cc-tweaked": {
+      "filename": "cc-tweaked-1.21.1-forge-1.120.2.jar",
+      "loader": "neoforge",
+      "minecraft": "1.21.1",
+      "sha256": "e8651fe24b384e925e563c9ad077644744474e2e7c0adb8e6d5b4757598dce9f",
+      "url": "https://cdn.modrinth.com/data/gu7yAYhd/versions/1ewzHZYg/cc-tweaked-1.21.1-forge-1.120.2.jar",
+      "version": "1.120.2"
+    },
+    "neoforge": {
+      "sha256": "bb971287ab44fc43f27da77ac34e263a3885d73fb842ceeb20ee5c517ff4378c",
+      "url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.259/neoforge-21.1.259-installer.jar",
+      "version": "21.1.259"
+    }
+  },
+  "rejected_mod_item": "Unknown item 'examplemod:not_installed'\n...er.0 with examplemod:not_installed 1<--[HERE]",
+  "rooms": [
+    "small",
+    "medium",
+    "large",
+    "ell",
+    "notched"
+  ],
+  "shapes": [
+    "rect",
+    "rect",
+    "rect",
+    "l",
+    "notched"
+  ],
+  "unloaded": true
+}
